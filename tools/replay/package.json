@@ -1,0 +1,9 @@
+{
+  "name": "@bvn/replay",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bvn/core": "workspace:*"
+  }
+}

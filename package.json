@@ -1,0 +1,15 @@
+{
+  "name": "bvn-web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "replay": "node tools/replay/replay.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0"
+  },
+  "packageManager": "pnpm@12.4.2"
+}

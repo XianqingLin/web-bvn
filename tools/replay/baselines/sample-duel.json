@@ -1,0 +1,33 @@
+{
+  "name": "sample-duel",
+  "seed": 1,
+  "ticks": 363,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "22aa4627"
+    },
+    {
+      "tick": 119,
+      "hash": "2b8a46e8"
+    },
+    {
+      "tick": 179,
+      "hash": "92af5ad5"
+    },
+    {
+      "tick": 239,
+      "hash": "a77e44fd"
+    },
+    {
+      "tick": 299,
+      "hash": "b15ef61a"
+    },
+    {
+      "tick": 359,
+      "hash": "ba4f3fb4"
+    }
+  ],
+  "finalHash": "5dbc9f19"
+}
