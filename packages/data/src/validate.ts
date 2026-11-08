@@ -1,5 +1,6 @@
 import type {
   ActionDef,
+  AssistantPackage,
   FighterPackage,
   SymbolData,
   TriggerArg,
@@ -78,8 +79,8 @@ function validateArg(ctx: string, arg: TriggerArg, out: ValidationResult): void 
 function validateTrigger(symbol: string, t: TriggerDef, out: ValidationResult): void {
   const ctx = `symbol "${symbol}" trigger@frame${t.frame} ${t.op}`;
   if (!isInt(t.frame) || t.frame < 0) out.errors.push(`${ctx}: frame 必须是非负整数`);
-  if (!['mc', 'fighter', 'effect'].includes(t.target)) {
-    out.errors.push(`${ctx}: target 必须是 mc|fighter|effect`);
+  if (!['mc', 'fighter', 'effect', 'assister'].includes(t.target)) {
+    out.errors.push(`${ctx}: target 必须是 mc|fighter|effect|assister`);
   }
   if (!/^[a-zA-Z_$][\w$]*$/.test(t.op)) out.errors.push(`${ctx}: op 非法 "${t.op}"`);
   if (!Array.isArray(t.args)) {
@@ -155,6 +156,33 @@ export function validateFighterPackage(pkg: FighterPackage): ValidationResult {
     }
   }
 
+  for (const [name, sym] of Object.entries(pkg.symbols ?? {})) {
+    validateSymbol(name, sym, out);
+  }
+
+  return out;
+}
+
+/** 校验辅助烘焙包。 */
+export function validateAssistantPackage(pkg: AssistantPackage): ValidationResult {
+  const out: ValidationResult = { errors: [], warnings: [] };
+
+  if (pkg.schema !== 'bvn/assistant@1') {
+    out.errors.push(`schema 必须是 "bvn/assistant@1"，收到 "${pkg.schema}"`);
+  }
+  if (!pkg.id) out.errors.push('缺 id');
+  if (!pkg.source || pkg.source.kind !== 'xfl' || !pkg.source.hash) {
+    out.errors.push('缺 source 版本戳（kind/path/hash）');
+  }
+
+  for (const [aid, a] of Object.entries(pkg.actions ?? {})) {
+    validateAction(aid, a, out);
+  }
+  if (pkg.timeline) {
+    validateSymbol('(root)', pkg.timeline, out);
+  } else {
+    out.errors.push('缺根时间轴 timeline');
+  }
   for (const [name, sym] of Object.entries(pkg.symbols ?? {})) {
     validateSymbol(name, sym, out);
   }

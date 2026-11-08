@@ -1,0 +1,170 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "nemu",
+  "source": {
+    "kind": "xfl",
+    "path": "nemu",
+    "hash": "d841df995e21d3b120ee4ca494a43c1b1899f9e5"
+  },
+  "actions": {
+    "atm1": {
+      "power": 20,
+      "hitType": 2,
+      "hitx": 3,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm2": {
+      "power": 60,
+      "hitType": 3,
+      "hitx": 10,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 0,
+      "isBreakDef": true
+    }
+  },
+  "timeline": {
+    "labels": {
+      "CHK": {
+        "index": 49,
+        "duration": 42
+      }
+    },
+    "triggers": [
+      {
+        "frame": 31,
+        "target": "assister",
+        "op": "setHitTarget",
+        "args": [
+          "chkm",
+          "CHK"
+        ]
+      },
+      {
+        "frame": 31,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          20,
+          0
+        ]
+      },
+      {
+        "frame": 50,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          5,
+          0
+        ]
+      },
+      {
+        "frame": 50,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 56,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          5,
+          0
+        ]
+      },
+      {
+        "frame": 56,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 64,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          13,
+          0
+        ]
+      },
+      {
+        "frame": 64,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          0.5,
+          0
+        ]
+      },
+      {
+        "frame": 71,
+        "target": "assister",
+        "op": "setDirectToTarget",
+        "args": []
+      },
+      {
+        "frame": 76,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\" , {power:20 , hitType:2 , hitx:3 , hity:0 , hurtTime:500 , hurtType:0 , isBreakDef:false});\n\tdefineAction(\"atm2\" , {power:60 , hitType:3 , hitx:10 , hity:0 , hurtTime:500 , hurtType:0 , isBreakDef:true});\n}"
+      },
+      {
+        "frame": 14,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 30,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 31,
+        "raw": "$assisterCtrler.effect.shadow(100,-50,100);"
+      },
+      {
+        "frame": 34,
+        "raw": "$assisterCtrler.effect.walk();"
+      },
+      {
+        "frame": 42,
+        "raw": "$assisterCtrler.effect.walk();"
+      },
+      {
+        "frame": 48,
+        "raw": "$assisterCtrler.effect.walk();"
+      },
+      {
+        "frame": 71,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 50,
+        "raw": "$assisterCtrler.effect.playSoundHit1();"
+      },
+      {
+        "frame": 56,
+        "raw": "$assisterCtrler.effect.playSoundHit1();"
+      },
+      {
+        "frame": 72,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {}
+}

@@ -40,10 +40,19 @@ export type TriggerArg =
 export interface TriggerDef {
   /** 符号时间轴内的帧号（0 起，30Hz 动画帧计数） */
   frame: number;
-  /** 调用目标：mc=自身动作控制 / fighter=战斗逻辑 / effect=表现 */
-  target: 'mc' | 'fighter' | 'effect';
+  /** 调用目标：mc=自身动作控制 / fighter=战斗逻辑 / effect=表现 / assister=辅助逻辑 */
+  target: 'mc' | 'fighter' | 'effect' | 'assister';
   op: string;
   args: TriggerArg[];
+}
+
+/**
+ * 结构化提取无法覆盖的帧脚本原文（如辅助的链式调用/任意赋值/形态切换状态变量）。
+ * 保留目的：转译参考与 behaviors 插件目录（ADR-6）的输入。**不直接进引擎执行。**
+ */
+export interface RawFrameScript {
+  frame: number;
+  raw: string;
 }
 
 /** 帧标签 → 时间轴区间（30Hz 动画帧）。 */
@@ -56,6 +65,8 @@ export interface LabelRange {
 export interface SymbolData {
   labels: Record<string, LabelRange>;
   triggers: TriggerDef[];
+  /** 含未识别语句的帧脚本原文（按 frame 升序） */
+  rawScripts?: RawFrameScript[];
 }
 
 /** 每形态基础数值（$fighter_ctrler.speed / jumpPower / heavy 等赋值）。 */
@@ -84,6 +95,8 @@ export interface FormData {
   stats: FormStats;
   actions: Record<string, ActionDef>;
   sounds: SoundDefines;
+  /** 含未识别语句时的帧脚本原文 */
+  rawScript?: string;
 }
 
 /** 角色烘焙包：一个角色 SWF/XFL 的全部形态与动画符号。 */
@@ -100,5 +113,25 @@ export interface FighterPackage {
   };
   forms: FormData[];
   /** 符号名（如 "元件/mc_0059"）→ 时间轴数据，只收含标签或触发的符号 */
+  symbols: Record<string, SymbolData>;
+}
+
+/**
+ * 辅助烘焙包（f_assistant）。辅助是单时间轴（无形态），
+ * 脚本含任意逻辑（链式调用/直接赋值），rawScripts 占比天然高——
+ * 数据化不了的部分走 behaviors 插件目录（ADR-6）。
+ */
+export interface AssistantPackage {
+  schema: 'bvn/assistant@1';
+  id: string;
+  source: {
+    kind: 'xfl';
+    path: string;
+    hash: string;
+  };
+  /** defineAction 表（汇总监助根时间轴全部帧脚本） */
+  actions: Record<string, ActionDef>;
+  /** 根时间轴（标签 + 触发 + rawScripts） */
+  timeline: SymbolData;
   symbols: Record<string, SymbolData>;
 }

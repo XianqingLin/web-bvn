@@ -1,0 +1,180 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "suigetsu",
+  "source": {
+    "kind": "xfl",
+    "path": "suigetsu",
+    "hash": "579660aa5c0f36448579e15e30b40e03a96ccb81"
+  },
+  "actions": {
+    "atm1": {
+      "power": 20,
+      "hitType": 1,
+      "hitx": 4,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm2": {
+      "power": 60,
+      "hitType": 6,
+      "hitx": 6,
+      "hity": -6,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {
+      "attack": {
+        "index": 196,
+        "duration": 40
+      }
+    },
+    "triggers": [
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 31,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 31,
+        "target": "assister",
+        "op": "gotoAndPlay",
+        "args": [
+          "attack"
+        ]
+      },
+      {
+        "frame": 31,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "render"
+          }
+        ]
+      },
+      {
+        "frame": 196,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 196,
+        "target": "assister",
+        "op": "getSelf",
+        "args": []
+      },
+      {
+        "frame": 196,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          60,
+          null,
+          true
+        ]
+      },
+      {
+        "frame": 204,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          12,
+          0
+        ]
+      },
+      {
+        "frame": 204,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 213,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          10,
+          0
+        ]
+      },
+      {
+        "frame": 213,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 217,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:20,hitType:1,hitx:4,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:60,hitType:6,hitx:6,hity:-6,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 31,
+        "raw": "const ACTION_ARRAY:Array = [21, 22, 23, 24];\n\nfunction render():void {\n\tvar actionState:int = $assisterCtrler.getOwner().actionState;\n\tif (ACTION_ARRAY.indexOf(actionState) == -1) {\n\t\treturn;\n\t}\n\t\n\t$assisterCtrler.gotoAndPlay(\"attack\");\n}\n\n$assisterCtrler.addCustomFunc(render);"
+      },
+      {
+        "frame": 196,
+        "raw": "$assisterCtrler.removeCustomFunc();\n\n$assisterCtrler.getSelf().isAttacking = true;"
+      },
+      {
+        "frame": 10,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 25,
+        "raw": "$assisterCtrler.effect.endBisha();\n$assisterCtrler.effect.slowDown(0.5);\n$assisterCtrler.effect.shadow(0,50,200);"
+      },
+      {
+        "frame": 31,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 196,
+        "raw": "$assisterCtrler.effect.slowDown(0.5);\n$assisterCtrler.effect.shadow(0,50,200);"
+      },
+      {
+        "frame": 213,
+        "raw": "$assisterCtrler.effect.shine();"
+      },
+      {
+        "frame": 221,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 204,
+        "raw": "$assisterCtrler.effect.playSoundHit1();"
+      },
+      {
+        "frame": 213,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {}
+}

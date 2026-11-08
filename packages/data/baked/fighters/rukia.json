@@ -1,0 +1,2658 @@
+{
+  "schema": "bvn/fighter@1",
+  "id": "rukia",
+  "source": {
+    "kind": "xfl",
+    "path": "rukia",
+    "hash": "aa65d51ba8bf941275e64c27a434d469fba0528f"
+  },
+  "forms": [
+    {
+      "frame": 1,
+      "symbol": "元件/mc_044",
+      "stats": {
+        "speed": 6,
+        "jumpPower": 15,
+        "heavy": 1
+      },
+      "actions": {
+        "tk": {
+          "power": 40,
+          "hitType": 4,
+          "hitx": 3,
+          "hity": 6,
+          "hurtTime": 400,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "tz": {
+          "power": 120,
+          "hitType": 5,
+          "hitx": 6,
+          "hity": 6,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "k1": {
+          "power": 30,
+          "hitType": 2,
+          "hitx": 3,
+          "hity": 0,
+          "hurtTime": 300,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "k2": {
+          "power": 30,
+          "hitType": 2,
+          "hitx": 3,
+          "hity": 0,
+          "hurtTime": 400,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "k3": {
+          "power": 80,
+          "hitType": 3,
+          "hitx": 8,
+          "hity": 0,
+          "hurtTime": 600,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "kj1": {
+          "power": 60,
+          "hitType": 5,
+          "hitx": 4,
+          "hity": -5,
+          "hurtTime": 500,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "kj2": {
+          "power": 60,
+          "hitType": 4,
+          "hitx": 9,
+          "hity": -5,
+          "hurtTime": 400,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "zh1": {
+          "power": 100,
+          "hitType": 5,
+          "hitx": 10,
+          "hity": 0,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "zh2": {
+          "power": 30,
+          "hitType": 11,
+          "hitx": 0,
+          "hity": 0,
+          "hurtTime": 800,
+          "hurtType": 0,
+          "isBreakDef": true
+        },
+        "zh3": {
+          "power": 130,
+          "hitType": 5,
+          "hitx": 6,
+          "hity": -6,
+          "hurtTime": 300,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "bs": {
+          "power": 280,
+          "hitType": 5,
+          "hitx": 20,
+          "hity": 0,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "kbs": {
+          "power": 240,
+          "hitType": 5,
+          "hitx": 15,
+          "hity": 10,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "cbs1": {
+          "power": 20,
+          "hitType": 4,
+          "hitx": 1,
+          "hity": 0,
+          "hurtTime": 0,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "cbs": {
+          "power": 450,
+          "hitType": 8,
+          "hitx": 3,
+          "hity": -15,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "sh1": {
+          "power": 0,
+          "hitType": 11,
+          "hitx": 0,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": true
+        },
+        "sh12": {
+          "power": 50,
+          "hitType": 3,
+          "hitx": 5,
+          "hity": -5,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "sh2": {
+          "power": 0,
+          "hitType": 11,
+          "hitx": 0,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": true
+        },
+        "sh22": {
+          "power": 150,
+          "hitType": 5,
+          "hitx": 15,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 1,
+          "isBreakDef": false
+        }
+      },
+      "sounds": {
+        "bishaFaces": {
+          "Rukia_1": "bsface1",
+          "Rukia_2": "bsface2"
+        },
+        "hurtSounds": [],
+        "hurtFlySound": "snd_hurt1",
+        "dieSound": "snd_hurt1"
+      },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:40,hitType:4,hitx:3,hity:6,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:120,hitType:5,hitx:6,hity:6,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:2,hitx:3,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:30,hitType:2,hitx:3,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:80,hitType:3,hitx:8,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:60,hitType:5,hitx:4,hity:-5,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:60,hitType:4,hitx:9,hity:-5,hurtTime:400,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:100,hitType:5,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:30,hitType:11,hitx:0,hity:0,hurtTime:800,hurtType:0,isBreakDef:true});\ndefineAction(\"zh3\",{power:130,hitType:5,hitx:6,hity:-6,hurtTime:300,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs\",{power:280,hitType:5,hitx:20,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"kbs\",{power:240,hitType:5,hitx:15,hity:10,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"cbs1\",{power:20,hitType:4,hitx:1,hity:0,hurtTime:0,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs\",{power:450,hitType:8,hitx:3,hity:-15,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:5,hity:-5,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:5,hitx:15,hity:0,hurtTime:1000,hurtType:1,isBreakDef:false});\n\n$fighter_ctrler.defineBishaFace(\"Rukia_1\",bsface1);\n$fighter_ctrler.defineBishaFace(\"Rukia_2\",bsface2);\n\n$fighter_ctrler.defineHurtSound(null); //被打\n$fighter_ctrler.defineHurtFlySound(snd_hurt1);\n$fighter_ctrler.defineDieSound(snd_hurt1);\n\n//速度\n$fighter_ctrler.speed = 6;\n//跳跃力\n$fighter_ctrler.jumpPower = 15;\n//体格::瘦弱：1,偏瘦：2,中等：3,偏胖：4,胖：5,重型：6+\n$fighter_ctrler.heavy = 1;\n//防御类型，0=剑，1=手\n$fighter_ctrler.defenseType = 1;\n\n$fighter_ctrler.initMc(mc);",
+      "fighterId": "rukia"
+    },
+    {
+      "frame": 2,
+      "symbol": "元件/mc_045",
+      "stats": {
+        "speed": 9,
+        "jumpPower": 15,
+        "heavy": 2
+      },
+      "actions": {
+        "tk": {
+          "power": 40,
+          "hitType": 1,
+          "hitx": 5,
+          "hity": 5,
+          "hurtTime": 600,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "tz": {
+          "power": 80,
+          "hitType": 7,
+          "hitx": 8,
+          "hity": 6,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "k1": {
+          "power": 30,
+          "hitType": 1,
+          "hitx": 3,
+          "hity": 0,
+          "hurtTime": 350,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "k2": {
+          "power": 30,
+          "hitType": 1,
+          "hitx": 3,
+          "hity": -1,
+          "hurtTime": 450,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "k3": {
+          "power": 40,
+          "hitType": 1,
+          "hitx": 5,
+          "hity": 2,
+          "hurtTime": 450,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "k4": {
+          "power": 60,
+          "hitType": 8,
+          "hitx": 9,
+          "hity": 0,
+          "hurtTime": 600,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "kj11": {
+          "power": 15,
+          "hitType": 4,
+          "hitx": 10,
+          "hity": 0,
+          "hurtTime": 400,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "kj1": {
+          "power": 70,
+          "hitType": 8,
+          "hitx": 1,
+          "hity": -5,
+          "hurtTime": 600,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "kj2": {
+          "power": 20,
+          "hitType": 1,
+          "hitx": 2,
+          "hity": 0,
+          "hurtTime": 500,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "kj21": {
+          "power": 60,
+          "hitType": 8,
+          "hitx": 2,
+          "hity": -4,
+          "hurtTime": 500,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "zh1": {
+          "power": 90,
+          "hitType": 7,
+          "hitx": 5,
+          "hity": 0,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "zh2": {
+          "power": 50,
+          "hitType": 11,
+          "hitx": 0,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": true
+        },
+        "zh3": {
+          "power": 40,
+          "hitType": 1,
+          "hitx": 10,
+          "hity": -12,
+          "hurtTime": 600,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "zh31": {
+          "power": 90,
+          "hitType": 8,
+          "hitx": -10,
+          "hity": 15,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "bs": {
+          "power": 280,
+          "hitType": 5,
+          "hitx": 15,
+          "hity": 0,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "sbs": {
+          "power": 300,
+          "hitType": 8,
+          "hitx": 6,
+          "hity": -12,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "cbs1": {
+          "power": 150,
+          "hitType": 8,
+          "hitx": 10,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "cbs": {
+          "power": 100,
+          "hitType": 4,
+          "hitx": 10,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "cbs2": {
+          "power": 100,
+          "hitType": 4,
+          "hitx": 10,
+          "hity": 0,
+          "hurtTime": 0,
+          "hurtType": 1,
+          "isBreakDef": false
+        },
+        "sh1": {
+          "power": 0,
+          "hitType": 11,
+          "hitx": 0,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": true
+        },
+        "sh12": {
+          "power": 50,
+          "hitType": 8,
+          "hitx": 5,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "sh2": {
+          "power": 0,
+          "hitType": 11,
+          "hitx": 0,
+          "hity": 0,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": true
+        },
+        "sh21": {
+          "power": 50,
+          "hitType": 1,
+          "hitx": 5,
+          "hity": -5,
+          "hurtTime": 1000,
+          "hurtType": 0,
+          "isBreakDef": false
+        },
+        "sh22": {
+          "power": 100,
+          "hitType": 8,
+          "hitx": 10,
+          "hity": -10,
+          "hurtTime": 1000,
+          "hurtType": 1,
+          "isBreakDef": false
+        }
+      },
+      "sounds": {
+        "bishaFaces": {
+          "Rukia_2": "bsface2"
+        },
+        "hurtSounds": [],
+        "hurtFlySound": "snd_hurt1",
+        "dieSound": "snd_hurt1"
+      },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:40,hitType:1,hitx:5,hity:5,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:80,hitType:7,hitx:8,hity:6,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:1,hitx:3,hity:0,hurtTime:350,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:30,hitType:1,hitx:3,hity:-1,hurtTime:450,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:40,hitType:1,hitx:5,hity:2,hurtTime:450,hurtType:0,isBreakDef:false});\ndefineAction(\"k4\",{power:60,hitType:8,hitx:9,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj11\",{power:15,hitType:4,hitx:10,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"kj1\",{power:70,hitType:8,hitx:1,hity:-5,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:20,hitType:1,hitx:2,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"kj21\",{power:60,hitType:8,hitx:2,hity:-4,hurtTime:500,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:90,hitType:7,hitx:5,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:50,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"zh3\",{power:40,hitType:1,hitx:10,hity:-12,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"zh31\",{power:90,hitType:8,hitx:-10,hity:15,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs\",{power:280,hitType:5,hitx:15,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:300,hitType:8,hitx:6,hity:-12,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"cbs1\",{power:150,hitType:8,hitx:10,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs\",{power:100,hitType:4,hitx:10,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs2\",{power:100,hitType:4,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:8,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh21\",{power:50,hitType:1,hitx:5,hity:-5,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh22\",{power:100,hitType:8,hitx:10,hity:-10,hurtTime:1000,hurtType:1,isBreakDef:false});\n\n$fighter_ctrler.defineBishaFace(\"Rukia_2\",bsface2);\n\n$fighter_ctrler.defineHurtSound(null); //被打\n$fighter_ctrler.defineHurtFlySound(snd_hurt1);\n$fighter_ctrler.defineDieSound(snd_hurt1);\n\n//速度\n$fighter_ctrler.speed = 9;\n//跳跃力\n$fighter_ctrler.jumpPower = 15;\n//体格::瘦弱：1,偏瘦：2,中等：3,偏胖：4,胖：5,重型：6+\n$fighter_ctrler.heavy = 2;\n//防御类型，0=剑，1=手\n$fighter_ctrler.defenseType = 0;\n$fighter_ctrler.initMc(mc);",
+      "fighterId": "rukia_shikai"
+    }
+  ],
+  "symbols": {
+    "元件/mc_044": {
+      "labels": {
+        "站立": {
+          "index": 0,
+          "duration": 9
+        },
+        "走": {
+          "index": 9,
+          "duration": 18
+        },
+        "瞬步": {
+          "index": 27,
+          "duration": 20
+        },
+        "起跳": {
+          "index": 47,
+          "duration": 5
+        },
+        "跳": {
+          "index": 52,
+          "duration": 5
+        },
+        "跳中": {
+          "index": 57,
+          "duration": 5
+        },
+        "落": {
+          "index": 62,
+          "duration": 5
+        },
+        "落地": {
+          "index": 67,
+          "duration": 18
+        },
+        "跳砍": {
+          "index": 85,
+          "duration": 6
+        },
+        "跳砍_L": {
+          "index": 91,
+          "duration": 9
+        },
+        "跳招": {
+          "index": 100,
+          "duration": 38
+        },
+        "砍1": {
+          "index": 138,
+          "duration": 29
+        },
+        "砍2": {
+          "index": 167,
+          "duration": 26
+        },
+        "砍3": {
+          "index": 193,
+          "duration": 47
+        },
+        "砍技1": {
+          "index": 240,
+          "duration": 51
+        },
+        "砍技2": {
+          "index": 291,
+          "duration": 35
+        },
+        "招1": {
+          "index": 326,
+          "duration": 48
+        },
+        "招2": {
+          "index": 374,
+          "duration": 55
+        },
+        "招3": {
+          "index": 429,
+          "duration": 40
+        },
+        "摔1": {
+          "index": 469,
+          "duration": 30
+        },
+        "摔2": {
+          "index": 499,
+          "duration": 33
+        },
+        "必杀": {
+          "index": 532,
+          "duration": 92
+        },
+        "空中必杀": {
+          "index": 624,
+          "duration": 91
+        },
+        "超必杀": {
+          "index": 715,
+          "duration": 104
+        },
+        "防御": {
+          "index": 819,
+          "duration": 6
+        },
+        "防御恢复": {
+          "index": 825,
+          "duration": 18
+        },
+        "被打": {
+          "index": 843,
+          "duration": 13
+        },
+        "击飞": {
+          "index": 856,
+          "duration": 5
+        },
+        "击飞_落": {
+          "index": 861,
+          "duration": 10
+        },
+        "击飞_弹": {
+          "index": 871,
+          "duration": 9
+        },
+        "击飞_倒": {
+          "index": 880,
+          "duration": 9
+        },
+        "击飞_起": {
+          "index": 889,
+          "duration": 11
+        },
+        "起身": {
+          "index": 900,
+          "duration": 25
+        },
+        "开场": {
+          "index": 925,
+          "duration": 80
+        },
+        "胜利": {
+          "index": 1005,
+          "duration": 6
+        },
+        "失败": {
+          "index": 1011,
+          "duration": 21
+        },
+        "万解": {
+          "index": 1032,
+          "duration": 21
+        }
+      },
+      "triggers": [
+        {
+          "frame": 13,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 21,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 24,
+          "target": "mc",
+          "op": "loop",
+          "args": [
+            "走"
+          ]
+        },
+        {
+          "frame": 28,
+          "target": "mc",
+          "op": "setBisha",
+          "args": []
+        },
+        {
+          "frame": 28,
+          "target": "mc",
+          "op": "setBishaUP",
+          "args": []
+        },
+        {
+          "frame": 28,
+          "target": "mc",
+          "op": "setBishaSUPER",
+          "args": []
+        },
+        {
+          "frame": 28,
+          "target": "mc",
+          "op": "dash",
+          "args": [
+            3
+          ]
+        },
+        {
+          "frame": 28,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 28,
+          "target": "effect",
+          "op": "dash",
+          "args": []
+        },
+        {
+          "frame": 37,
+          "target": "mc",
+          "op": "dashStop",
+          "args": []
+        },
+        {
+          "frame": 42,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 75,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 85,
+          "target": "mc",
+          "op": "setTouchFloor",
+          "args": [
+            "落地",
+            true
+          ]
+        },
+        {
+          "frame": 86,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1,
+            2
+          ]
+        },
+        {
+          "frame": 86,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 87,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 99,
+          "target": "mc",
+          "op": "loop",
+          "args": [
+            "跳砍_L"
+          ]
+        },
+        {
+          "frame": 101,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 105,
+          "target": "mc",
+          "op": "move",
+          "args": [
+            -5,
+            -7
+          ]
+        },
+        {
+          "frame": 105,
+          "target": "mc",
+          "op": "damping",
+          "args": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "frame": 105,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 109,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 122,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 140,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            0.8,
+            0
+          ]
+        },
+        {
+          "frame": 140,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.08,
+            0
+          ]
+        },
+        {
+          "frame": 142,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 146,
+          "target": "mc",
+          "op": "setAttack",
+          "args": [
+            "砍2"
+          ]
+        },
+        {
+          "frame": 146,
+          "target": "mc",
+          "op": "setZhao1",
+          "args": []
+        },
+        {
+          "frame": 152,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 158,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 169,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1.5,
+            0
+          ]
+        },
+        {
+          "frame": 169,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.2,
+            0
+          ]
+        },
+        {
+          "frame": 169,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 173,
+          "target": "mc",
+          "op": "setSkill2",
+          "args": []
+        },
+        {
+          "frame": 173,
+          "target": "mc",
+          "op": "setAttack",
+          "args": [
+            "砍3"
+          ]
+        },
+        {
+          "frame": 183,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 189,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 199,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 200,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 200,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.2,
+            0
+          ]
+        },
+        {
+          "frame": 205,
+          "target": "mc",
+          "op": "setSkill1",
+          "args": []
+        },
+        {
+          "frame": 209,
+          "target": "mc",
+          "op": "setBishaSUPER",
+          "args": []
+        },
+        {
+          "frame": 209,
+          "target": "mc",
+          "op": "setBisha",
+          "args": []
+        },
+        {
+          "frame": 212,
+          "target": "mc",
+          "op": "setZhao1",
+          "args": []
+        },
+        {
+          "frame": 223,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 229,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 241,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            10
+          ]
+        },
+        {
+          "frame": 246,
+          "target": "effect",
+          "op": "dash",
+          "args": []
+        },
+        {
+          "frame": 246,
+          "target": "effect",
+          "op": "slowDown",
+          "args": [
+            0.5
+          ]
+        },
+        {
+          "frame": 250,
+          "target": "fighter",
+          "op": "moveToTarget",
+          "args": [
+            30,
+            0,
+            true
+          ]
+        },
+        {
+          "frame": 251,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 259,
+          "target": "mc",
+          "op": "setBisha",
+          "args": []
+        },
+        {
+          "frame": 259,
+          "target": "mc",
+          "op": "setZhao3",
+          "args": []
+        },
+        {
+          "frame": 265,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 270,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 292,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 295,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1.5,
+            -2
+          ]
+        },
+        {
+          "frame": 295,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 295,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 306,
+          "target": "mc",
+          "op": "setBishaAIR",
+          "args": []
+        },
+        {
+          "frame": 306,
+          "target": "mc",
+          "op": "setSkillAIR",
+          "args": []
+        },
+        {
+          "frame": 306,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "frame": 306,
+          "target": "effect",
+          "op": "endShadow",
+          "args": []
+        },
+        {
+          "frame": 313,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 318,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 327,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 330,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 335,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 357,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 375,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            10
+          ]
+        },
+        {
+          "frame": 392,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 393,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFFFF00"
+            }
+          ]
+        },
+        {
+          "frame": 397,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 406,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 430,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 434,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 437,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 459,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 470,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            10
+          ]
+        },
+        {
+          "frame": 475,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 484,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 500,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            20
+          ]
+        },
+        {
+          "frame": 504,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            -2,
+            0
+          ]
+        },
+        {
+          "frame": 504,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.2,
+            0
+          ]
+        },
+        {
+          "frame": 504,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 510,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 511,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 511,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.2,
+            0
+          ]
+        },
+        {
+          "frame": 515,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 519,
+          "target": "effect",
+          "op": "endShadow",
+          "args": []
+        },
+        {
+          "frame": 524,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 535,
+          "target": "effect",
+          "op": "bisha",
+          "args": [
+            false,
+            "Rukia_1"
+          ]
+        },
+        {
+          "frame": 581,
+          "target": "effect",
+          "op": "endBisha",
+          "args": []
+        },
+        {
+          "frame": 582,
+          "target": "mc",
+          "op": "move",
+          "args": [
+            -10,
+            0
+          ]
+        },
+        {
+          "frame": 582,
+          "target": "mc",
+          "op": "damping",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 582,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 586,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 615,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 626,
+          "target": "effect",
+          "op": "bisha",
+          "args": [
+            false,
+            "Rukia_1"
+          ]
+        },
+        {
+          "frame": 667,
+          "target": "mc",
+          "op": "move",
+          "args": [
+            -12,
+            -14
+          ]
+        },
+        {
+          "frame": 667,
+          "target": "mc",
+          "op": "damping",
+          "args": [
+            0.5,
+            0.5
+          ]
+        },
+        {
+          "frame": 667,
+          "target": "effect",
+          "op": "endBisha",
+          "args": []
+        },
+        {
+          "frame": 669,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 674,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 689,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 717,
+          "target": "effect",
+          "op": "bisha",
+          "args": [
+            true,
+            "Rukia_2"
+          ]
+        },
+        {
+          "frame": 756,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            true
+          ]
+        },
+        {
+          "frame": 756,
+          "target": "effect",
+          "op": "endBisha",
+          "args": []
+        },
+        {
+          "frame": 779,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            false
+          ]
+        },
+        {
+          "frame": 779,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 780,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 786,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 795,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 812,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 895,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 911,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 986,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 1010,
+          "target": "mc",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 1031,
+          "target": "mc",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 1035,
+          "target": "effect",
+          "op": "startWanKai",
+          "args": [
+            "Rukia_2"
+          ]
+        },
+        {
+          "frame": 1052,
+          "target": "fighter",
+          "op": "doWanKai",
+          "args": []
+        }
+      ]
+    },
+    "元件/mc_045": {
+      "labels": {
+        "站立": {
+          "index": 0,
+          "duration": 9
+        },
+        "走": {
+          "index": 9,
+          "duration": 23
+        },
+        "瞬步": {
+          "index": 32,
+          "duration": 20
+        },
+        "起跳": {
+          "index": 52,
+          "duration": 5
+        },
+        "跳": {
+          "index": 57,
+          "duration": 5
+        },
+        "跳中": {
+          "index": 62,
+          "duration": 5
+        },
+        "落": {
+          "index": 67,
+          "duration": 5
+        },
+        "落地": {
+          "index": 72,
+          "duration": 14
+        },
+        "跳砍": {
+          "index": 86,
+          "duration": 24
+        },
+        "跳招": {
+          "index": 110,
+          "duration": 40
+        },
+        "砍1": {
+          "index": 150,
+          "duration": 26
+        },
+        "砍2": {
+          "index": 176,
+          "duration": 31
+        },
+        "砍3": {
+          "index": 207,
+          "duration": 34
+        },
+        "砍4": {
+          "index": 241,
+          "duration": 46
+        },
+        "砍技1": {
+          "index": 287,
+          "duration": 61
+        },
+        "砍技2": {
+          "index": 348,
+          "duration": 46
+        },
+        "招1": {
+          "index": 394,
+          "duration": 43
+        },
+        "招2": {
+          "index": 437,
+          "duration": 50
+        },
+        "招3": {
+          "index": 487,
+          "duration": 40
+        },
+        "摔1": {
+          "index": 527,
+          "duration": 25
+        },
+        "摔2": {
+          "index": 552,
+          "duration": 36
+        },
+        "必杀": {
+          "index": 588,
+          "duration": 89
+        },
+        "上必杀": {
+          "index": 677,
+          "duration": 116
+        },
+        "超必杀": {
+          "index": 793,
+          "duration": 128
+        },
+        "防御": {
+          "index": 921,
+          "duration": 6
+        },
+        "防御恢复": {
+          "index": 927,
+          "duration": 18
+        },
+        "被打": {
+          "index": 945,
+          "duration": 13
+        },
+        "击飞": {
+          "index": 958,
+          "duration": 5
+        },
+        "击飞_落": {
+          "index": 963,
+          "duration": 10
+        },
+        "击飞_弹": {
+          "index": 973,
+          "duration": 9
+        },
+        "击飞_倒": {
+          "index": 982,
+          "duration": 9
+        },
+        "击飞_起": {
+          "index": 991,
+          "duration": 14
+        },
+        "起身": {
+          "index": 1005,
+          "duration": 25
+        },
+        "开场": {
+          "index": 1030,
+          "duration": 62
+        },
+        "胜利": {
+          "index": 1092,
+          "duration": 23
+        },
+        "失败": {
+          "index": 1115,
+          "duration": 2
+        }
+      },
+      "triggers": [
+        {
+          "frame": 11,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 19,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 26,
+          "target": "mc",
+          "op": "loop",
+          "args": [
+            "走"
+          ]
+        },
+        {
+          "frame": 33,
+          "target": "mc",
+          "op": "setBisha",
+          "args": []
+        },
+        {
+          "frame": 33,
+          "target": "mc",
+          "op": "setBishaUP",
+          "args": []
+        },
+        {
+          "frame": 33,
+          "target": "mc",
+          "op": "setBishaSUPER",
+          "args": []
+        },
+        {
+          "frame": 33,
+          "target": "mc",
+          "op": "dash",
+          "args": [
+            2.5
+          ]
+        },
+        {
+          "frame": 33,
+          "target": "effect",
+          "op": "dash",
+          "args": []
+        },
+        {
+          "frame": 33,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 42,
+          "target": "mc",
+          "op": "dashStop",
+          "args": []
+        },
+        {
+          "frame": 47,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 77,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 89,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1.5,
+            0
+          ]
+        },
+        {
+          "frame": 89,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.1,
+            0
+          ]
+        },
+        {
+          "frame": 89,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 94,
+          "target": "mc",
+          "op": "setTouchFloor",
+          "args": [
+            "落地",
+            true
+          ]
+        },
+        {
+          "frame": 94,
+          "target": "mc",
+          "op": "setSkillAIR",
+          "args": []
+        },
+        {
+          "frame": 99,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 111,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 111,
+          "target": "mc",
+          "op": "isApplyG",
+          "args": [
+            false
+          ]
+        },
+        {
+          "frame": 111,
+          "target": "mc",
+          "op": "move",
+          "args": [
+            0,
+            1
+          ]
+        },
+        {
+          "frame": 121,
+          "target": "mc",
+          "op": "isApplyG",
+          "args": [
+            true
+          ]
+        },
+        {
+          "frame": 121,
+          "target": "mc",
+          "op": "move",
+          "args": [
+            -5,
+            -5
+          ]
+        },
+        {
+          "frame": 121,
+          "target": "mc",
+          "op": "damping",
+          "args": [
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "frame": 121,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF0000"
+            }
+          ]
+        },
+        {
+          "frame": 121,
+          "target": "mc",
+          "op": "fire",
+          "args": [
+            "tzatm",
+            {
+              "x": {
+                "start": 10,
+                "add": 1,
+                "max": 30
+              },
+              "y": {
+                "start": 10,
+                "add": 1,
+                "max": 30
+              },
+              "hold": 60,
+              "hits": 1
+            }
+          ]
+        },
+        {
+          "frame": 137,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 150,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1.8,
+            0
+          ]
+        },
+        {
+          "frame": 150,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.25,
+            0
+          ]
+        },
+        {
+          "frame": 153,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 158,
+          "target": "mc",
+          "op": "setAttack",
+          "args": [
+            "砍2"
+          ]
+        },
+        {
+          "frame": 158,
+          "target": "mc",
+          "op": "setZhao1",
+          "args": []
+        },
+        {
+          "frame": 169,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 180,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            0.5,
+            0
+          ]
+        },
+        {
+          "frame": 180,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.05,
+            0
+          ]
+        },
+        {
+          "frame": 180,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 187,
+          "target": "mc",
+          "op": "setAttack",
+          "args": [
+            "砍3"
+          ]
+        },
+        {
+          "frame": 194,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 208,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 209,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1,
+            0
+          ]
+        },
+        {
+          "frame": 209,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.1,
+            0
+          ]
+        },
+        {
+          "frame": 217,
+          "target": "mc",
+          "op": "setBishaSUPER",
+          "args": []
+        },
+        {
+          "frame": 217,
+          "target": "mc",
+          "op": "setSkill1",
+          "args": []
+        },
+        {
+          "frame": 217,
+          "target": "mc",
+          "op": "setZhao3",
+          "args": []
+        },
+        {
+          "frame": 217,
+          "target": "mc",
+          "op": "setAttack",
+          "args": [
+            "砍4"
+          ]
+        },
+        {
+          "frame": 222,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 227,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 244,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 244,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.1,
+            0
+          ]
+        },
+        {
+          "frame": 248,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 254,
+          "target": "mc",
+          "op": "setBisha",
+          "args": []
+        },
+        {
+          "frame": 254,
+          "target": "mc",
+          "op": "setSkill2",
+          "args": []
+        },
+        {
+          "frame": 254,
+          "target": "mc",
+          "op": "setZhao1",
+          "args": []
+        },
+        {
+          "frame": 260,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 267,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 288,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            10
+          ]
+        },
+        {
+          "frame": 291,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1.3,
+            0
+          ]
+        },
+        {
+          "frame": 303,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.1,
+            0
+          ]
+        },
+        {
+          "frame": 308,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 308,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 312,
+          "target": "mc",
+          "op": "setBishaUP",
+          "args": []
+        },
+        {
+          "frame": 312,
+          "target": "mc",
+          "op": "setZhao3",
+          "args": []
+        },
+        {
+          "frame": 319,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 319,
+          "target": "mc",
+          "op": "setDash",
+          "args": []
+        },
+        {
+          "frame": 330,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 349,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 351,
+          "target": "effect",
+          "op": "dash",
+          "args": []
+        },
+        {
+          "frame": 356,
+          "target": "fighter",
+          "op": "moveToTarget",
+          "args": [
+            50,
+            0,
+            true
+          ]
+        },
+        {
+          "frame": 356,
+          "target": "effect",
+          "op": "slowDown",
+          "args": [
+            0.3
+          ]
+        },
+        {
+          "frame": 361,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 372,
+          "target": "mc",
+          "op": "setBishaSUPER",
+          "args": []
+        },
+        {
+          "frame": 372,
+          "target": "mc",
+          "op": "setBisha",
+          "args": []
+        },
+        {
+          "frame": 372,
+          "target": "mc",
+          "op": "setSkill1",
+          "args": []
+        },
+        {
+          "frame": 372,
+          "target": "mc",
+          "op": "setZhao3",
+          "args": []
+        },
+        {
+          "frame": 372,
+          "target": "mc",
+          "op": "setZhao1",
+          "args": []
+        },
+        {
+          "frame": 378,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 385,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 395,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 402,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF0000"
+            }
+          ]
+        },
+        {
+          "frame": 402,
+          "target": "mc",
+          "op": "fire",
+          "args": [
+            "zh1atm",
+            {
+              "x": {
+                "start": 10,
+                "add": 1,
+                "max": 30
+              },
+              "hold": 60,
+              "hits": 1
+            }
+          ]
+        },
+        {
+          "frame": 419,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 423,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 438,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            10
+          ]
+        },
+        {
+          "frame": 446,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            1.3,
+            0
+          ]
+        },
+        {
+          "frame": 446,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 449,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.15,
+            0
+          ]
+        },
+        {
+          "frame": 454,
+          "target": "effect",
+          "op": "endShadow",
+          "args": []
+        },
+        {
+          "frame": 454,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFFFF00"
+            }
+          ]
+        },
+        {
+          "frame": 459,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 474,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 488,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            5
+          ]
+        },
+        {
+          "frame": 489,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            true
+          ]
+        },
+        {
+          "frame": 494,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            3.2,
+            -3.2
+          ]
+        },
+        {
+          "frame": 494,
+          "target": "effect",
+          "op": "dash",
+          "args": []
+        },
+        {
+          "frame": 494,
+          "target": "effect",
+          "op": "shadow",
+          "args": [
+            0,
+            100,
+            255
+          ]
+        },
+        {
+          "frame": 495,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            false
+          ]
+        },
+        {
+          "frame": 496,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.25,
+            0.25
+          ]
+        },
+        {
+          "frame": 503,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 506,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 506,
+          "target": "effect",
+          "op": "endShadow",
+          "args": []
+        },
+        {
+          "frame": 519,
+          "target": "fighter",
+          "op": "setDirectReverse",
+          "args": []
+        },
+        {
+          "frame": 519,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 528,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            10
+          ]
+        },
+        {
+          "frame": 532,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 540,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 553,
+          "target": "mc",
+          "op": "addQi",
+          "args": [
+            20
+          ]
+        },
+        {
+          "frame": 559,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 567,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 573,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 591,
+          "target": "effect",
+          "op": "bisha",
+          "args": [
+            false,
+            "Rukia_2"
+          ]
+        },
+        {
+          "frame": 636,
+          "target": "effect",
+          "op": "endBisha",
+          "args": []
+        },
+        {
+          "frame": 637,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            -1,
+            0
+          ]
+        },
+        {
+          "frame": 640,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.05,
+            0
+          ]
+        },
+        {
+          "frame": 641,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 648,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 668,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 679,
+          "target": "effect",
+          "op": "bisha",
+          "args": [
+            false,
+            "Rukia_2"
+          ]
+        },
+        {
+          "frame": 726,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            true
+          ]
+        },
+        {
+          "frame": 726,
+          "target": "effect",
+          "op": "endBisha",
+          "args": []
+        },
+        {
+          "frame": 734,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            false
+          ]
+        },
+        {
+          "frame": 734,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 737,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 767,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 795,
+          "target": "effect",
+          "op": "bisha",
+          "args": [
+            true,
+            "Rukia_2"
+          ]
+        },
+        {
+          "frame": 863,
+          "target": "effect",
+          "op": "endBisha",
+          "args": []
+        },
+        {
+          "frame": 863,
+          "target": "mc",
+          "op": "setSteelBody",
+          "args": [
+            true
+          ]
+        },
+        {
+          "frame": 871,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 871,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FFFF"
+            }
+          ]
+        },
+        {
+          "frame": 872,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 888,
+          "target": "mc",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 906,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 993,
+          "target": "mc",
+          "op": "movePercent",
+          "args": [
+            0.5,
+            0
+          ]
+        },
+        {
+          "frame": 997,
+          "target": "mc",
+          "op": "dampingPercent",
+          "args": [
+            0.2,
+            0
+          ]
+        },
+        {
+          "frame": 1000,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 1016,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 1080,
+          "target": "effect",
+          "op": "endWanKai",
+          "args": []
+        },
+        {
+          "frame": 1091,
+          "target": "mc",
+          "op": "idle",
+          "args": []
+        },
+        {
+          "frame": 1114,
+          "target": "mc",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 1116,
+          "target": "mc",
+          "op": "stop",
+          "args": []
+        }
+      ],
+      "rawScripts": [
+        {
+          "frame": 121,
+          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:10,add:1,max:30},y:{start:10,add:1,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 402,
+          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:30},hold:60,hits:1});"
+        }
+      ]
+    },
+    "元件/mc_062": {
+      "labels": {
+        "loop": {
+          "index": 5,
+          "duration": 1
+        },
+        "hit": {
+          "index": 6,
+          "duration": 5
+        }
+      },
+      "triggers": []
+    }
+  }
+}

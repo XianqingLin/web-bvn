@@ -202,6 +202,7 @@
         "hurtFlySound": "snd_hurt2",
         "dieSound": "snd_die"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:30,hitType:1,hitx:2,hity:6,hurtTime:350,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:70,hitType:5,hitx:5,hity:5,hurtTime:300,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:40,hitType:1,hitx:3,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:50,hitType:1,hitx:2,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:70,hitType:6,hitx:6,hity:-8,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:80,hitType:3,hitx:8,hity:0,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"kj21\",{power:20,hitType:1,hitx:1,hity:0,hurtTime:100,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:60,hitType:4,hitx:1,hity:-10.5,hurtTime:550,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:70,hitType:5,hitx:3,hity:0,hurtTime:300,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:80,hitType:6,hitx:8,hity:-3,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"zh3\",{power:70,hitType:5,hitx:5,hity:-5,hurtTime:300,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs1\",{power:70,hitType:5,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"bs\",{power:230,hitType:5,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:260,hitType:5,hitx:3,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"cbs\",{power:450,hitType:5,hitx:40,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:6,hitx:10,hity:-10,hurtTime:0,hurtType:1,isBreakDef:false});\n\n$fighter_ctrler.defineBishaFace(\"Ichigo_1\",bsface1);\n$fighter_ctrler.defineBishaFace(\"Ichigo_2\",bsface2);\n$fighter_ctrler.defineBishaFace(\"Ichigo_3\",bsface3);\n$fighter_ctrler.defineBishaFace(\"Ichigo_4\",bsface4);\n\n$fighter_ctrler.defineHurtSound(snd_hurt1,snd_hurt2);\n$fighter_ctrler.defineHurtFlySound(snd_hurt2);\n$fighter_ctrler.defineDieSound(snd_die);\n\n//速度\n$fighter_ctrler.speed = 6;\n//跳跃力\n$fighter_ctrler.jumpPower = 15;\n//体格::瘦弱：1,偏瘦：2,中等：3,偏胖：4,胖：5,重型：6+\n$fighter_ctrler.heavy = 3;\n\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ichigo"
     },
     {
@@ -399,6 +400,7 @@
         "hurtFlySound": "snd_hurt2",
         "dieSound": "snd_die"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:40,hitType:1,hitx:2,hity:6,hurtTime:350,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:110,hitType:6,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:1,hitx:2,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:30,hitType:1,hitx:2,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:40,hitType:1,hitx:6.5,hity:-7,hurtTime:500,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:80,hitType:5,hitx:-2,hity:0,hurtTime:600,hurtType:0,isBreakDef:true});\ndefineAction(\"kj21\",{power:20,hitType:4,hitx:1,hity:-14,hurtTime:350,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:70,hitType:6,hitx:1,hity:15,hurtTime:500,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:50,hitType:6,hitx:2,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh2\",{power:80,hitType:6,hitx:3,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh3\",{power:80,hitType:6,hitx:4,hity:-4,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs\",{power:300,hitType:5,hitx:25,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:20,hitType:1,hitx:0,hity:-0.5,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"sbs2\",{power:20,hitType:6,hitx:0,hity:-5,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"cbs\",{power:600,hitType:5,hitx:30,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:6,hitx:3,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\n$fighter_ctrler.defineBishaFace(\"Ichigo_1\",bsface1);\n$fighter_ctrler.defineBishaFace(\"Ichigo_2\",bsface2);\n$fighter_ctrler.defineBishaFace(\"Ichigo_4\",bsface4);\n$fighter_ctrler.defineBishaFace(\"Ichigo_5\",bsface5);\n\n$fighter_ctrler.defineHurtSound(snd_hurt1,snd_hurt2);\n$fighter_ctrler.defineHurtFlySound(snd_hurt2);\n$fighter_ctrler.defineDieSound(snd_die);\n\n//速度\n$fighter_ctrler.speed = 12;\n//跳跃力\n$fighter_ctrler.jumpPower = 17;\n//体格::瘦弱：1,偏瘦：2,中等：3,偏胖：4,胖：5,重型：6+\n$fighter_ctrler.heavy = 2;\n\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ichigo_bankai"
     },
     {
@@ -635,6 +637,7 @@
         "hurtSounds": [],
         "hurtFlySound": "snd_hurt3"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:30,hitType:1,hitx:2,hity:6,hurtTime:350,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:80,hitType:5,hitx:5,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"tz2\",{power:80,hitType:5,hitx:5,hity:8,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:1,hitx:4,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:30,hitType:1,hitx:3,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:50,hitType:5,hitx:-1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"k4\",{power:50,hitType:6,hitx:8,hity:-6,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:120,hitType:5,hitx:8,hity:-5,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"kj21\",{power:30,hitType:1,hitx:1,hity:-5,hurtTime:250,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:80,hitType:6,hitx:2,hity:-6,hurtTime:500,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:40,hitType:5,hitx:7,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh12\",{power:80,hitType:5,hitx:8,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:120,hitType:5,hitx:10,hity:-5,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh3\",{power:100,hitType:5,hitx:10,hity:-5,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh31\",{power:10,hitType:1,hitx:15,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\n\ndefineAction(\"bs\",{power:280,hitType:5,hitx:20,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs1\",{power:50,hitType:3,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sbs\",{power:200,hitType:5,hitx:6,hity:-15,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"kbs\",{power:250,hitType:5,hitx:8,hity:8,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"cbs\",{power:550,hitType:5,hitx:40,hity:-6,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:6,hitx:-6,hity:-7,hurtTime:0,hurtType:1,isBreakDef:false});\n\n$fighter_ctrler.defineBishaFace(\"Ichigo_4\",bsface4);\n$fighter_ctrler.defineBishaFace(\"Ichigo_5\",bsface5);\n\n$fighter_ctrler.defineHurtSound(null); //被打\n$fighter_ctrler.defineHurtFlySound(snd_hurt3);\n$fighter_ctrler.defineDieSound(null);\n\n//速度\n$fighter_ctrler.speed = 12;\n//跳跃力\n$fighter_ctrler.jumpPower = 16;\n//体格::瘦弱：1,偏瘦：2,中等：3,偏胖：4,胖：5,重型：6+\n$fighter_ctrler.heavy = 3;\n\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ichigo_vizored_half"
     },
     {
@@ -884,6 +887,7 @@
         "hurtFlySound": "snd_hurt2",
         "dieSound": "snd_die"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:50,hitType:1,hitx:5,hity:5,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:20,hitType:1,hitx:5,hity:5,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"tz1\",{power:70,hitType:5,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:1,hitx:5,hity:0,hurtTime:250,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:30,hitType:1,hitx:7,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:30,hitType:1,hitx:5,hity:0,hurtTime:450,hurtType:0,isBreakDef:false});\ndefineAction(\"k4\",{power:80,hitType:6,hitx:7,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"k5\",{power:60,hitType:1,hitx:7,hity:-7,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:90,hitType:5,hitx:10,hity:-5,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"kj21\",{power:110,hitType:5,hitx:12,hity:8,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"kj2\",{power:50,hitType:6,hitx:15,hity:-8,hurtTime:700,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:50,hitType:1,hitx:2,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh12\",{power:50,hitType:6,hitx:4,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"zh2\",{power:100,hitType:6,hitx:5,hity:-10,hurtTime:800,hurtType:0,isBreakDef:false});\ndefineAction(\"zh3\",{power:100,hitType:5,hitx:12,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs\",{power:300,hitType:5,hitx:25,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:300,hitType:5,hitx:20,hity:-10,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"cbs1\",{power:500,hitType:5,hitx:30,hity:-20,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"cbs2\",{power:500,hitType:5,hitx:30,hity:-20,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"cbs\",{power:100,hitType:6,hitx:7,hity:-7,hurtTime:1000,hurtType:0,isBreakDef:true});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:8,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:50,hitType:6,hitx:15,hity:-10,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh23\",{power:100,hitType:5,hitx:10,hity:8,hurtTime:0,hurtType:1,isBreakDef:false});\n\n$fighter_ctrler.defineBishaFace(\"Ichigo_5\",bsface5);\n$fighter_ctrler.defineBishaFace(\"Ichigo_6\",bsface6);\n\n$fighter_ctrler.defineHurtSound(snd_hurt1,snd_hurt2);\n$fighter_ctrler.defineHurtFlySound(snd_hurt2);\n$fighter_ctrler.defineDieSound(snd_die);\n\n//速度\n$fighter_ctrler.speed = 14;\n//跳跃力\n$fighter_ctrler.jumpPower = 19;\n//体格::瘦弱：1,偏瘦：2,中等：3,偏胖：4,胖：5,重型：6+\n$fighter_ctrler.heavy = 4;\n\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ichigo_vizored"
     },
     {
@@ -1061,6 +1065,7 @@
         "hurtFlySound": "snd_hurt2",
         "dieSound": "snd_die"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:40,hitType:1,hitx:2,hity:5,hurtTime:400,hurtType:0,isBreakDef:false});\n\ndefineAction(\"k1\",{power:40,hitType:1,hitx:3,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:40,hitType:1,hitx:3,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:60,hitType:6,hitx:10,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:80,hitType:6,hitx:6,hity:0,hurtTime:550,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:80,hitType:6,hitx:5,hity:-7,hurtTime:500,hurtType:0,isBreakDef:true});\n\ndefineAction(\"zh1\",{power:80,hitType:5,hitx:3,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:80,hitType:5,hitx:7,hity:-7,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh3\",{power:80,hitType:5,hitx:3,hity:-3,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs1\",{power:80,hitType:5,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"bs2\",{power:80,hitType:6,hitx:5,hity:-5,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"bs\",{power:100,hitType:5,hitx:15,hity:-5,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:220,hitType:5,hitx:10,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:6,hitx:10,hity:-10,hurtTime:0,hurtType:1,isBreakDef:false});\n\n\n//定义必杀特写\n$fighter_ctrler.defineBishaFace(\"Ichigo_1\",bsface1);\n$fighter_ctrler.defineBishaFace(\"Ichigo_7\",bsface7);\n\n//定义声音\n$fighter_ctrler.defineHurtSound(snd_hurt1,snd_hurt2);\n$fighter_ctrler.defineHurtFlySound(snd_hurt2);\n$fighter_ctrler.defineDieSound(snd_die);\n\n//定义速度\n$fighter_ctrler.speed = 7;\n//定义跳跃力\n$fighter_ctrler.jumpPower = 15;\n//定义体格(数字越大越重)\n$fighter_ctrler.heavy = 3;\n//定义防御类型(0=剑，1=手)\n$fighter_ctrler.defenseType = 0;\n\n//调用初始化方法\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ichigo_zero"
     },
     {
@@ -1297,6 +1302,7 @@
         "hurtSounds": [],
         "hurtFlySound": "snd_hurt3"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:50,hitType:4,hitx:3,hity:5,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:90,hitType:6,hitx:5,hity:7,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:1,hitx:3,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:40,hitType:1,hitx:2,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:80,hitType:6,hitx:5,hity:-7,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:30,hitType:6,hitx:4,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"kj12\",{power:30,hitType:1,hitx:-12,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:20,hitType:1,hitx:0,hity:0,hurtTime:200,hurtType:0,isBreakDef:false});\ndefineAction(\"kj22\",{power:20,hitType:1,hitx:0,hity:-0.1,hurtTime:200,hurtType:0,isBreakDef:false});\ndefineAction(\"kj21\",{power:30,hitType:7,hitx:3,hity:-10,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:40,hitType:6,hitx:3,hity:0,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"zh12\",{power:80,hitType:5,hitx:7,hity:-3,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:20,hitType:4,hitx:0,hity:-4,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh21\",{power:50,hitType:5,hitx:4,hity:-3,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh3\",{power:100,hitType:5,hitx:6,hity:-6,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs\",{power:270,hitType:5,hitx:15,hity:-5,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:270,hitType:5,hitx:2,hity:-10,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"cbs1\",{power:40,hitType:4,hitx:1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs2\",{power:40,hitType:4,hitx:1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs\",{power:100,hitType:5,hitx:5,hity:-10,hurtTime:0,hurtType:1,isBreakDef:true});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:6,hitx:4,hity:-3,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:5,hitx:4,hity:-6,hurtTime:0,hurtType:1,isBreakDef:false});\n\n\n//定义必杀特写\n$fighter_ctrler.defineBishaFace(\"Ichigo_7\",bsface7);\n$fighter_ctrler.defineBishaFace(\"Ichigo_8\",bsface8);\n\n//定义声音\n$fighter_ctrler.defineHurtSound(null); //被打\n$fighter_ctrler.defineHurtFlySound(snd_hurt3);\n$fighter_ctrler.defineDieSound(null);\n\n//定义速度\n$fighter_ctrler.speed = 9;\n//定义跳跃力\n$fighter_ctrler.jumpPower = 15;\n//定义体格(数字越大越重)\n$fighter_ctrler.heavy = 3;\n//定义防御类型(0=剑，1=手)\n$fighter_ctrler.defenseType = 0;\n\n//调用初始化方法\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ogihci"
     },
     {
@@ -1569,6 +1575,7 @@
         "hurtSounds": [],
         "hurtFlySound": "snd_hurt3"
       },
+      "rawScript": "if(!$fighter_ctrler) return;\n\ndefineAction(\"tk\",{power:50,hitType:1,hitx:7,hity:6,hurtTime:400,hurtType:0,isBreakDef:false});\ndefineAction(\"tz\",{power:150,hitType:6,hitx:0,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"k1\",{power:30,hitType:1,hitx:3,hity:0,hurtTime:300,hurtType:0,isBreakDef:false});\ndefineAction(\"k2\",{power:50,hitType:1,hitx:5,hity:-2,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"k3\",{power:60,hitType:6,hitx:5,hity:4,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"k4\",{power:60,hitType:6,hitx:8,hity:-8,hurtTime:600,hurtType:0,isBreakDef:false});\n\ndefineAction(\"kj1\",{power:50,hitType:6,hitx:3,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\ndefineAction(\"kj12\",{power:100,hitType:6,hitx:5,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"kj13\",{power:150,hitType:6,hitx:5,hity:-5,hurtTime:800,hurtType:0,isBreakDef:false});\ndefineAction(\"kj2\",{power:80,hitType:6,hitx:7,hity:-7,hurtTime:550,hurtType:0,isBreakDef:false});\ndefineAction(\"kj21\",{power:30,hitType:1,hitx:3,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\ndefineAction(\"zh1\",{power:150,hitType:5,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"zh2\",{power:200,hitType:5,hitx:30,hity:0,hurtTime:0,hurtType:1,isBreakDef:true});\ndefineAction(\"zh31\",{power:50,hitType:1,hitx:6,hity:-6,hurtTime:500,hurtType:0,isBreakDef:false});\ndefineAction(\"zh3\",{power:100,hitType:5,hitx:-10,hity:10,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"bs\",{power:320,hitType:5,hitx:30,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"bs1\",{power:20,hitType:1,hitx:0.05,hity:-0.05,hurtTime:800,hurtType:0,isBreakDef:false});\ndefineAction(\"bs2\",{power:100,hitType:6,hitx:15,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs\",{power:230,hitType:5,hitx:20,hity:10,hurtTime:0,hurtType:1,isBreakDef:false});\ndefineAction(\"sbs1\",{power:50,hitType:1,hitx:15,hity:-8,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs1\",{power:80,hitType:6,hitx:2,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs2\",{power:100,hitType:6,hitx:10,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs3\",{power:50,hitType:2,hitx:2,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\ndefineAction(\"cbs\",{power:400,hitType:5,hitx:30,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n\ndefineAction(\"sh1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh12\",{power:50,hitType:3,hitx:5,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\ndefineAction(\"sh2\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\ndefineAction(\"sh22\",{power:150,hitType:5,hitx:30,hity:0,hurtTime:0,hurtType:1,isBreakDef:true});\n\n\n//定义必杀特写\n$fighter_ctrler.defineBishaFace(\"Ichigo_7\",bsface7);\n$fighter_ctrler.defineBishaFace(\"Ichigo_8\",bsface8);\n\n//定义声音\n$fighter_ctrler.defineHurtSound(null); //被打\n$fighter_ctrler.defineHurtFlySound(snd_hurt3); //击飞\n$fighter_ctrler.defineDieSound(null); //死亡\n\n//定义速度\n$fighter_ctrler.speed = 11;\n//定义跳跃力\n$fighter_ctrler.jumpPower = 15;\n//定义体格(数字越大越重)\n$fighter_ctrler.heavy = 2;\n//定义防御类型(0=剑，1=手)\n$fighter_ctrler.defenseType = 0;\n\n//调用初始化方法\n$fighter_ctrler.initMc(mc);",
       "fighterId": "ogihci_bankai"
     }
   ],
@@ -2840,6 +2847,32 @@
           "args": [
             4
           ]
+        }
+      ],
+      "rawScripts": [
+        {
+          "frame": 109,
+          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:5,add:1,max:15},y:{start:5,add:1,max:15},hold:2,hits:1});"
+        },
+        {
+          "frame": 280,
+          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
+        },
+        {
+          "frame": 374,
+          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:5,add:2,max:15},y:{start:-2,add:-0.5,max:-15},hold:60,hits:1});"
+        },
+        {
+          "frame": 518,
+          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
+        },
+        {
+          "frame": 529,
+          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
+        },
+        {
+          "frame": 550,
+          "raw": "parent.$mc_ctrler.fire(\"bsatm\",{x:{start:20,add:2,max:30},hold:60,hits:1,hp:200});"
         }
       ]
     },
@@ -5556,6 +5589,12 @@
           "op": "stop",
           "args": []
         }
+      ],
+      "rawScripts": [
+        {
+          "frame": 452,
+          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:15,add:1,max:20},y:{start:-10,add:-0.66,max:-13.2},hold:60,hits:1});"
+        }
       ]
     },
     "元件/mc_0122": {
@@ -7251,6 +7290,40 @@
           "op": "doWanKai",
           "args": []
         }
+      ],
+      "rawScripts": [
+        {
+          "frame": 398,
+          "raw": "if (parent.$fighter_ctrler.justHit(\"k3\")) {\n\tparent.$mc_ctrler.gotoAndPlay(\"招2_HA\");\n}"
+        },
+        {
+          "frame": 298,
+          "raw": "if(parent.$fighter_ctrler.targetInRange([0,300])){\n\tparent.$fighter_ctrler.moveToTarget(-130,0,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(300,0);\n}"
+        },
+        {
+          "frame": 96,
+          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:18,y:-18,hold:60,hits:1});"
+        },
+        {
+          "frame": 123,
+          "raw": "parent.$mc_ctrler.fire(\"tz2atm\",{x:18,y:10,hold:60,hits:1});"
+        },
+        {
+          "frame": 337,
+          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:12,add:1,max:25},y:0,hold:60,hits:1});"
+        },
+        {
+          "frame": 360,
+          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:{start:12,add:1,max:25},y:0,hold:60,hits:1,hp:200});"
+        },
+        {
+          "frame": 635,
+          "raw": "parent.$mc_ctrler.fire(\"bsatm\",{x:{start:20,add:2,max:50},y:0,hold:5,hits:1,hp:300});"
+        },
+        {
+          "frame": 707,
+          "raw": "parent.$mc_ctrler.fire(\"kbsatm\",{x:{start:10,add:2,max:30},y:{start:10,add:2,max:30},hold:60,hits:1,hp:300});"
+        }
       ]
     },
     "元件/mc_0157": {
@@ -7273,6 +7346,20 @@
           "target": "effect",
           "op": "playSoundHit1",
           "args": []
+        }
+      ],
+      "rawScripts": [
+        {
+          "frame": 0,
+          "raw": "parent.parent.$effect_ctrler.playSoundHit1();"
+        },
+        {
+          "frame": 2,
+          "raw": "parent.parent.$effect_ctrler.playSoundHit1();"
+        },
+        {
+          "frame": 4,
+          "raw": "parent.parent.$effect_ctrler.playSoundHit1();"
         }
       ]
     },
@@ -8504,6 +8591,32 @@
           "target": "fighter",
           "op": "doWanKai",
           "args": []
+        }
+      ],
+      "rawScripts": [
+        {
+          "frame": 439,
+          "raw": "if(!parent.$fighter_ctrler.justHit(\"bs1\")){\n\tparent.$mc_ctrler.endAct();\n}"
+        },
+        {
+          "frame": 445,
+          "raw": "if(!parent.$fighter_ctrler.justHit(\"bs1\")){\n\tparent.$mc_ctrler.idle();\n}"
+        },
+        {
+          "frame": 456,
+          "raw": "if(!parent.$fighter_ctrler.justHit(\"bs2\")){\n\tparent.$mc_ctrler.idle();\n}"
+        },
+        {
+          "frame": 740,
+          "raw": "parent.$effect_ctrler.startWanKai(\"Ichigo_7\");\nparent.banKai = true;"
+        },
+        {
+          "frame": 236,
+          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
+        },
+        {
+          "frame": 314,
+          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:15,y:-10,hold:60,hits:1});"
         }
       ]
     },
@@ -10186,6 +10299,64 @@
           "target": "fighter",
           "op": "doWanKai",
           "args": []
+        }
+      ],
+      "rawScripts": [
+        {
+          "frame": 1026,
+          "raw": "if (parent.banKai) {\n\tparent.$fighter_ctrler.addHpLosePercent(0.2);\n}\nelse {\n\tair.visible = false;\n}"
+        },
+        {
+          "frame": 116,
+          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tkatm\",{x:{start:10,add:1,max:30},y:{start:10,add:1,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 406,
+          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 492,
+          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:5,add:1,max:15},y:{start:-5,add:-1,max:-15},hold:60,hits:1});"
+        },
+        {
+          "frame": 768,
+          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 775,
+          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 782,
+          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 789,
+          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 796,
+          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 803,
+          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 810,
+          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 817,
+          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 824,
+          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
+        },
+        {
+          "frame": 831,
+          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
         }
       ]
     },
@@ -12003,6 +12174,24 @@
           "target": "mc",
           "op": "stop",
           "args": []
+        }
+      ],
+      "rawScripts": [
+        {
+          "frame": 376,
+          "raw": "if (parent.$fighter_ctrler.getSelf().isInAir) {\n\tparent.$mc_ctrler.idle();\n}"
+        },
+        {
+          "frame": 384,
+          "raw": "if(!parent.$fighter_ctrler.justHit(\"sh1\")){\n\tparent.$mc_ctrler.endAct();\n}"
+        },
+        {
+          "frame": 804,
+          "raw": "if(!parent.$fighter_ctrler.justHit(\"cbs2\")){\n\tparent.$mc_ctrler.idle();\n}"
+        },
+        {
+          "frame": 332,
+          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,add:1,max:30},hold:2,hits:1});"
         }
       ]
     },

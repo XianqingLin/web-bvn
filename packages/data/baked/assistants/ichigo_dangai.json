@@ -1,0 +1,50 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "ichigo_dangai",
+  "source": {
+    "kind": "xfl",
+    "path": "ichigo_dangai",
+    "hash": "da77072529b33fe3752da87400f1628fa9d68f37"
+  },
+  "actions": {
+    "atm1": {
+      "power": 100,
+      "hitType": 5,
+      "hitx": 5,
+      "hity": 0,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 38,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:100,hitType:5,hitx:5,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 14,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 28,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 32,
+        "raw": "$assisterCtrler.effect.shine(0x000000);"
+      }
+    ]
+  },
+  "symbols": {}
+}

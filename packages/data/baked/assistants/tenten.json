@@ -1,0 +1,214 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "tenten",
+  "source": {
+    "kind": "xfl",
+    "path": "tenten",
+    "hash": "ab5ea6c6dc260448cd5a9385c07ac9bed08aab33"
+  },
+  "actions": {
+    "atm1": {
+      "power": 10,
+      "hitType": 1,
+      "hitx": 2,
+      "hity": 0,
+      "hurtTime": 800,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm2": {
+      "power": 50,
+      "hitType": 6,
+      "hitx": 10,
+      "hity": 0,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 39,
+        "target": "assister",
+        "op": "fire",
+        "args": [
+          "atm1",
+          {
+            "x": {
+              "start": 20,
+              "hit": 1
+            },
+            "y": 0,
+            "hold": 1,
+            "hits": 1
+          }
+        ]
+      },
+      {
+        "frame": 45,
+        "target": "assister",
+        "op": "fire",
+        "args": [
+          "atm1",
+          {
+            "x": {
+              "start": 20,
+              "hit": 1
+            },
+            "y": 0,
+            "hold": 1,
+            "hits": 1
+          }
+        ]
+      },
+      {
+        "frame": 51,
+        "target": "assister",
+        "op": "fire",
+        "args": [
+          "atm1",
+          {
+            "x": {
+              "start": 20,
+              "hit": 1
+            },
+            "y": 0,
+            "hold": 1,
+            "hits": 1
+          }
+        ]
+      },
+      {
+        "frame": 57,
+        "target": "assister",
+        "op": "fire",
+        "args": [
+          "atm1",
+          {
+            "x": {
+              "start": 20,
+              "hit": 1
+            },
+            "y": 0,
+            "hold": 1,
+            "hits": 1
+          }
+        ]
+      },
+      {
+        "frame": 63,
+        "target": "assister",
+        "op": "fire",
+        "args": [
+          "atm1",
+          {
+            "x": {
+              "start": 20,
+              "hit": 1
+            },
+            "y": 0,
+            "hold": 1,
+            "hits": 1
+          }
+        ]
+      },
+      {
+        "frame": 77,
+        "target": "assister",
+        "op": "fire",
+        "args": [
+          "atm2",
+          {
+            "x": {
+              "start": 30,
+              "hit": 1
+            },
+            "y": 0,
+            "hold": 60,
+            "hits": 1
+          }
+        ]
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:10,hitType:1,hitx:2,hity:0,hurtTime:800,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:50,hitType:6,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 15,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 37,
+        "raw": "$assisterCtrler.effect.endBisha();\n$assisterCtrler.effect.shadow(0,200,0);"
+      },
+      {
+        "frame": 77,
+        "raw": "$assisterCtrler.effect.shine();"
+      },
+      {
+        "frame": 89,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 39,
+        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
+      },
+      {
+        "frame": 45,
+        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
+      },
+      {
+        "frame": 51,
+        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
+      },
+      {
+        "frame": 57,
+        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
+      },
+      {
+        "frame": 63,
+        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
+      },
+      {
+        "frame": 77,
+        "raw": "$assisterCtrler.fire(\"atm2\",{x:{start:30,hit:1},y:0,hold:60,hits:1});"
+      },
+      {
+        "frame": 76,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/mc_03": {
+      "labels": {
+        "loop": {
+          "index": 3,
+          "duration": 1
+        },
+        "hit": {
+          "index": 4,
+          "duration": 6
+        }
+      },
+      "triggers": []
+    },
+    "元件/mc_04": {
+      "labels": {
+        "loop": {
+          "index": 2,
+          "duration": 1
+        },
+        "hit": {
+          "index": 3,
+          "duration": 6
+        }
+      },
+      "triggers": []
+    }
+  }
+}

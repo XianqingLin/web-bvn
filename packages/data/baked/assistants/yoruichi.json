@@ -1,0 +1,62 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "yoruichi",
+  "source": {
+    "kind": "xfl",
+    "path": "yoruichi",
+    "hash": "28e11cde6dc09bab920fc5581306450aa6966e67"
+  },
+  "actions": {
+    "atm1": {
+      "power": 0,
+      "hitType": 0,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 0,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "moveOnce",
+        "args": [
+          155
+        ]
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\n//var defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\t//defineAction = $assisterCtrler.defineAction;\n\t\n\t//defineActions();\n}\n/*\nfunction defineActions():void{\n\tdefineAction(\"atm1\" , {power:0 , hitType:0 , hitx:0 , hity:0 , hurtTime:0 , hurtType:0 , isBreakDef:false});\n}*/"
+      },
+      {
+        "frame": 1,
+        "raw": "$assisterCtrler.effect.shine(0x0000FF);"
+      }
+    ]
+  },
+  "symbols": {}
+}

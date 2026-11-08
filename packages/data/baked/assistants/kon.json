@@ -1,0 +1,78 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "kon",
+  "source": {
+    "kind": "xfl",
+    "path": "kon",
+    "hash": "04d1659859ae47bbb627c7e440a8fb1ac47d04bf"
+  },
+  "actions": {
+    "atm1": {
+      "power": 10,
+      "hitType": 2,
+      "hitx": 1,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 64,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 68,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 68,
+        "target": "assister",
+        "op": "getTarget",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:10,hitType:2,hitx:1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 68,
+        "raw": "$assisterCtrler.getOwner().getBuffCtrl().attackUp(0.3,6);\n$assisterCtrler.getTarget().qi-=30;"
+      },
+      {
+        "frame": 14,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 29,
+        "raw": "$assisterCtrler.effect.endBisha();\n$assisterCtrler.effect.shadow(255,0,0);"
+      },
+      {
+        "frame": 36,
+        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+      },
+      {
+        "frame": 64,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 68,
+        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+      },
+      {
+        "frame": 36,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {}
+}

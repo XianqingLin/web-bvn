@@ -1,0 +1,247 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "byakuya",
+  "source": {
+    "kind": "xfl",
+    "path": "byakuya",
+    "hash": "2ca8776b7c5083d4f40edfcb0070184613abfd17"
+  },
+  "actions": {
+    "atm1": {
+      "power": 50,
+      "hitType": 11,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 1750,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {
+      "CHK": {
+        "index": 51,
+        "duration": 1
+      },
+      "CHK_False": {
+        "index": 52,
+        "duration": 18
+      },
+      "loop": {
+        "index": 70,
+        "duration": 4
+      }
+    },
+    "triggers": [
+      {
+        "frame": 0,
+        "target": "assister",
+        "op": "getAttacker",
+        "args": [
+          "atmmc"
+        ]
+      },
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "setHitTarget",
+        "args": [
+          "chkm",
+          "CHK"
+        ]
+      },
+      {
+        "frame": 50,
+        "target": "assister",
+        "op": "gotoAndPlay",
+        "args": [
+          "CHK_False"
+        ]
+      },
+      {
+        "frame": 51,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 51,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 51,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "checkFunc"
+          }
+        ]
+      },
+      {
+        "frame": 51,
+        "target": "assister",
+        "op": "addAttacker",
+        "args": [
+          "atmmc",
+          {
+            "x": {
+              "followTarget": true,
+              "offset": 0
+            },
+            "y": {
+              "followTarget": true,
+              "offset": -30
+            },
+            "applyG": false
+          }
+        ]
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "getTarget",
+        "args": []
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "checkFunc2"
+          }
+        ]
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "finish",
+        "args": []
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "checkFunc1"
+          }
+        ]
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 71,
+        "target": "assister",
+        "op": "finish",
+        "args": []
+      },
+      {
+        "frame": 71,
+        "target": "assister",
+        "op": "gotoAndPlay",
+        "args": [
+          "loop"
+        ]
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:50,hitType:11,hitx:0,hity:0,hurtTime:1750,hurtType:0,isBreakDef:false,isApplyG:false});\n}\n\nfunction getAttacker():* {\n\treturn $assisterCtrler.getAttacker(\"atmmc\");\n}\n\nvar attackerCtrler:*;\n// 刷新 attackerCtrler 引用\nfunction refreshAttackerCtrler():void {\n\tattackerCtrler = getAttacker();\n}"
+      },
+      {
+        "frame": 49,
+        "raw": "var judge:Boolean = false;\n$assisterCtrler.setHitTarget(\"chkm\", \"CHK\");"
+      },
+      {
+        "frame": 51,
+        "raw": "judge = true;\n\nfunction checkFunc():void {\n\trefreshAttackerCtrler();\n\t\n\tif ($assisterCtrler.getOwner().isAlive || !attackerCtrler) {\n\t\treturn;\n\t}\n\t\n\t// 如果释放过程中己方死亡，并且对象控制器存在，则销毁对象\n\tattackerCtrler.stopFollowTarget();\n\tattackerCtrler.removeSelf();\t\t\t\t// Attacker 移除自身\n\t\t\t\n\t$assisterCtrler.removeCustomFunc();\n}\n$assisterCtrler.addCustomFunc(checkFunc);"
+      },
+      {
+        "frame": 59,
+        "raw": "$assisterCtrler.removeCustomFunc();\n\n\n\nvar targetMcCtrl:* = $assisterCtrler.getTarget().getCtrler().getMcCtrl();\nfunction checkFunc1():void {\n\trefreshAttackerCtrler();\n\t\n\t// 判断对方是否处在受伤状态（非击飞，可被继续攻击的状态）\n\tvar targetState:int = $assisterCtrler.getOwner().getCtrler().getTargetState();\n\tif(targetState == 21) {\n\t\treturn;\n\t}\n\t\n\t// 如果对方脱离可被继续攻击状态或者双方中的一方死亡\n\tif (attackerCtrler) {\n\t\t// Attacker 播放结束动画\n\t\tattackerCtrler.gotoAndPlay(\"end\");\n\t}\n\t$assisterCtrler.removeCustomFunc();\n\t$assisterCtrler.addCustomFunc(checkFunc2);\n}\nfunction checkFunc2():void {\n\trefreshAttackerCtrler();\n\t\n\tif (attackerCtrler) {\n\t\treturn;\n\t}\n\t\n\t$assisterCtrler.removeCustomFunc();\n\t$assisterCtrler.finish();\n}\n\n\n// 有判定则执行侦听\nif (judge) {\n\t$assisterCtrler.addCustomFunc(checkFunc1);\n}\n\n$assisterCtrler.endAct();"
+      },
+      {
+        "frame": 71,
+        "raw": "// 不能设置为最后一帧 stop()，否则会被自动清理\nif (!judge) {\n\t$assisterCtrler.finish();\n}\n\n$assisterCtrler.gotoAndPlay(\"loop\");"
+      },
+      {
+        "frame": 18,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 46,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 51,
+        "raw": "import flash.display.MovieClip;\n\nif (!getAttacker()) {\n\tvar mc:MovieClip = new atmmc();\n\tmc.name = \"atmmc\";\n\tthis.addChild(mc);\n\t\n\t$assisterCtrler.addAttacker(\"atmmc\",{x:{followTarget:true,offset:0},y:{followTarget:true,offset:-30},applyG:false});\n}"
+      },
+      {
+        "frame": 49,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/mc_02": {
+      "labels": {
+        "end": {
+          "index": 9,
+          "duration": 6
+        }
+      },
+      "triggers": [],
+      "rawScripts": [
+        {
+          "frame": 0,
+          "raw": "var $attacker_ctrler:*;\n\nfunction setAttackerCtrler(attackerCtrler:*):void{\n\t$attacker_ctrler = attackerCtrler;\n}"
+        },
+        {
+          "frame": 4,
+          "raw": "$attacker_ctrler.effect.shine(0xFF0000);"
+        },
+        {
+          "frame": 8,
+          "raw": "$attacker_ctrler.stop();\n$attacker_ctrler.endAct();"
+        },
+        {
+          "frame": 9,
+          "raw": "$attacker_ctrler.stopFollowTarget();"
+        }
+      ]
+    }
+  }
+}

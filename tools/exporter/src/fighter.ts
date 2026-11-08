@@ -22,6 +22,7 @@ import {
   extractDefineActions,
   extractNamedDefine,
   extractStatAssignments,
+  scriptResidue,
   type AsArg,
 } from './asargs.js';
 import { frameAt, parseXflTimeline } from './xfl.js';
@@ -169,6 +170,8 @@ export function extractFighter(opts: ExtractFighterOptions): ExtractFighterResul
       actions,
       sounds: buildSounds(extractNamedDefine(script)),
     };
+    // 含未识别语句（形态切换状态变量等自定义逻辑）→ 保留原文
+    if (scriptResidue(script) !== '') form.rawScript = script;
     const fid = fighterIds.get(`${opts.id}#${frame}`);
     if (fid) form.fighterId = fid;
     forms.push(form);
@@ -194,11 +197,19 @@ export function extractFighter(opts: ExtractFighterOptions): ExtractFighterResul
               args: call.args as TriggerArg[],
             });
           }
+          if (scriptResidue(kf.script) !== '') {
+            data.rawScripts ??= [];
+            data.rawScripts.push({ frame: kf.index, raw: kf.script });
+          }
         }
       }
     }
     data.triggers.sort((a, b) => a.frame - b.frame);
-    if (Object.keys(data.labels).length > 0 || data.triggers.length > 0) {
+    if (
+      Object.keys(data.labels).length > 0 ||
+      data.triggers.length > 0 ||
+      (data.rawScripts !== undefined && data.rawScripts.length > 0)
+    ) {
       symbols[key] = data;
     }
   }

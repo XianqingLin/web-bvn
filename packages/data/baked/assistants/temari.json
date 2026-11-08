@@ -1,0 +1,130 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "temari",
+  "source": {
+    "kind": "xfl",
+    "path": "temari",
+    "hash": "8b196fdb22b9fa2c9d44fdb7f2549f937b5332f8"
+  },
+  "actions": {
+    "atm1": {
+      "power": 50,
+      "hitType": 5,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 2000,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "getTarget",
+        "args": []
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "getTarget",
+        "args": []
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "getSelf",
+        "args": []
+      },
+      {
+        "frame": 33,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "fuutonFunc"
+          }
+        ]
+      },
+      {
+        "frame": 33,
+        "target": "assister",
+        "op": "getGameSprites",
+        "args": []
+      },
+      {
+        "frame": 33,
+        "target": "assister",
+        "op": "isBullet",
+        "args": [
+          {
+            "$ref": "sp"
+          }
+        ]
+      },
+      {
+        "frame": 33,
+        "target": "assister",
+        "op": "getSelf",
+        "args": []
+      },
+      {
+        "frame": 33,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 33,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 144,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\n//var defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\t//defineAction = $assisterCtrler.defineAction;\n\t\n\t//defineActions();\n}\n/*\nfunction defineActions():void{\n\tdefineAction(\"atm1\" , {power:50 , hitType:5 , hitx:0 , hity:0 , hurtTime:2000 , hurtType:0 , isBreakDef:false});\n}*/"
+      },
+      {
+        "frame": 1,
+        "raw": "$assisterCtrler.endAct();\n\nvar targetHeavy:Number = $assisterCtrler.getTarget().heavy;\nvar targetSpeed:Number = $assisterCtrler.getTarget().speed;\n\t\nconst LEVEL:Array = [0.8, 0.65, 0.5, 0.35, 0.2];\nvar index:int = int(targetHeavy>5 ? 5:targetHeavy) - 1;\nvar level:Number = LEVEL[index];\n\nvar finalSpeed:Number = targetSpeed * level;\nvar selfDirect:int = $assisterCtrler.getSelf().direct;"
+      },
+      {
+        "frame": 33,
+        "raw": "var targetSP:* = $assisterCtrler.owner_fighter_ctrler.getTargetSP();\n\n$assisterCtrler.addCustomFunc(fuutonFunc);\nfunction fuutonFunc():void {\n\tsetTargetBulletSpeedLevel(level);\n\t\n\tvar targetState:int = $assisterCtrler.owner_fighter_ctrler.getTargetState();\n\tif (targetState == 23) {\n\t\treturn;\n\t}\n\t\n\ttargetSP.x += finalSpeed * selfDirect;\n}\nfunction setTargetBulletSpeedLevel(speedLevel:Number = 0):void {\n\tvar gameSprites:Vector.<*> = $assisterCtrler.getGameSprites();\n\tfor each(var sp:* in gameSprites) {\n\t\tif (!$assisterCtrler.isBullet(sp)) {\n\t\t\tcontinue;\n\t\t}\n\t\t\n\t\tvar isSelfTeam:Boolean = $assisterCtrler.getSelf().team.id == sp.team.id;\n\t\tif (isSelfTeam) {\n\t\t\tcontinue;\n\t\t}\n\t\t\n\t\tvar direct:int = sp.direct==selfDirect ? -1:1;\n\t\tsp.speedLevel = speedLevel * direct;\n\t}\n}\n\nvar ownerSpeed:Number = $assisterCtrler.getOwner().speed;\n$assisterCtrler.getOwner().getBuffCtrl().speedUp(ownerSpeed * 0.25, 6);"
+      },
+      {
+        "frame": 144,
+        "raw": "$assisterCtrler.removeCustomFunc();\nsetTargetBulletSpeedLevel();\ntargetSP = null;"
+      },
+      {
+        "frame": 15,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 30,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 33,
+        "raw": "$assisterCtrler.effect.shine(0x0000FF);"
+      }
+    ]
+  },
+  "symbols": {}
+}

@@ -110,14 +110,22 @@ export function parseObjectLiteral(t: string): Record<string, AsArg> {
 }
 
 export interface CtrlerCall {
-  target: 'mc' | 'fighter' | 'effect';
+  target: 'mc' | 'fighter' | 'effect' | 'assister';
   op: string;
   args: AsArg[];
 }
 
-/** 提取 (parent.)$xx_ctrler.op(...) 调用。 */
+/** ctrler 变量名 → 规范 target（辅助用 $assisterCtrler 驼峰命名）。 */
+const CTRLER_TARGET: Record<string, CtrlerCall['target']> = {
+  mc_ctrler: 'mc',
+  fighter_ctrler: 'fighter',
+  effect_ctrler: 'effect',
+  assisterCtrler: 'assister',
+};
+
+/** 提取 (parent.)$xx_ctrler.op(...) 简单调用（不含链式调用——链式部分会留在残余里）。 */
 export function extractCtrlerCalls(script: string): CtrlerCall[] {
-  const re = /(?:parent\.)?\$(mc|fighter|effect)_ctrler\.(\w+)\s*\(/g;
+  const re = /(?:parent\.)?\$(mc_ctrler|fighter_ctrler|effect_ctrler|assisterCtrler)\.(\w+)\s*\(/g;
   const calls: CtrlerCall[] = [];
   let m: RegExpExecArray | null;
   while ((m = re.exec(script)) !== null) {
@@ -125,7 +133,7 @@ export function extractCtrlerCalls(script: string): CtrlerCall[] {
     const closeIdx = matchBracket(script, openIdx);
     const argsRaw = script.slice(openIdx + 1, closeIdx).trim();
     calls.push({
-      target: m[1] as CtrlerCall['target'],
+      target: CTRLER_TARGET[m[1]!]!,
       op: m[2]!,
       args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg),
     });
@@ -157,6 +165,25 @@ export function extractStatAssignments(script: string): Record<string, number> {
     out[m[1]!] = Number(m[2]);
   }
   return out;
+}
+
+/**
+ * 计算脚本的"未识别残余"：剥掉注释、简单 ctrler 调用、defineXxx、
+ * 数值赋值、空转语句后剩下的内容。非空 ⇒ 该帧脚本需保留原文（raw）。
+ * 宁可误留（保留原文是安全方向），不可误丢。
+ */
+export function scriptResidue(script: string): string {
+  let s = script;
+  s = s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  s = s.replace(
+    /(?:parent\.)?\$(?:mc_ctrler|fighter_ctrler|effect_ctrler|assisterCtrler)\.\w+\s*\([^;{}]*\)\s*;?/g,
+    '',
+  );
+  s = s.replace(/\bdefine\w+\s*\([^;{}]*\)\s*;?/g, '');
+  s = s.replace(/\$\w+\.\w+\s*=\s*-?[\d.]+\s*;?/g, '');
+  s = s.replace(/if\s*\(\s*!\s*\$\w+\s*\)\s*return\s*;?/g, '');
+  s = s.replace(/\bstop\(\s*\)\s*;?/g, '').replace(/\breturn\s*;?/g, '');
+  return s.replace(/\s+/g, ' ').trim();
 }
 
 /** 提取 defineBishaFace / defineHurtSound / defineHurtFlySound / defineDieSound。 */

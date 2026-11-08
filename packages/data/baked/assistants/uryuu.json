@@ -1,0 +1,119 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "uryuu",
+  "source": {
+    "kind": "xfl",
+    "path": "uryuu",
+    "hash": "ae14e064e6612ed021d85d0f093531db3b6cfa2a"
+  },
+  "actions": {
+    "atm1": {
+      "power": 80,
+      "hitType": 5,
+      "hitx": 4,
+      "hity": 10,
+      "hurtTime": 800,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 16,
+        "target": "assister",
+        "op": "setApplyG",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 16,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          -0.01,
+          -150
+        ]
+      },
+      {
+        "frame": 40,
+        "target": "assister",
+        "op": "setApplyG",
+        "args": [
+          true
+        ]
+      },
+      {
+        "frame": 40,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          0,
+          -20
+        ]
+      },
+      {
+        "frame": 40,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          0,
+          1
+        ]
+      },
+      {
+        "frame": 44,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:80,hitType:5,hitx:4,hity:10,hurtTime:800,hurtType:0,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 19,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 38,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 46,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 12,
+        "raw": "$assisterCtrler.effect.shadow(0,100,255);"
+      },
+      {
+        "frame": 14,
+        "raw": "$assisterCtrler.effect.dash();"
+      },
+      {
+        "frame": 19,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 40,
+        "raw": "$assisterCtrler.effect.shine(0x00CCFF);"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/shape_02": {
+      "labels": {
+        "stop": {
+          "index": 20,
+          "duration": 1
+        }
+      },
+      "triggers": []
+    }
+  }
+}

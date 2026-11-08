@@ -1,0 +1,122 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "orihime",
+  "source": {
+    "kind": "xfl",
+    "path": "orihime",
+    "hash": "c55a3d27af75a6306cef29d639e3d40ccbf95bc2"
+  },
+  "actions": {
+    "atm1": {
+      "power": 0,
+      "hitType": 0,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 0,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 0,
+        "target": "assister",
+        "op": "getSelf",
+        "args": []
+      },
+      {
+        "frame": 1,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 10,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          6
+        ]
+      },
+      {
+        "frame": 20,
+        "target": "assister",
+        "op": "stopMove",
+        "args": []
+      },
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "checkHitOwner",
+        "args": [
+          "chkm"
+        ]
+      },
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "checkFunc"
+          }
+        ]
+      },
+      {
+        "frame": 69,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\n//var defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\t//defineAction = $assisterCtrler.defineAction;\n\t\n\t//defineActions();\n\tdefineBuffEffects();\n}\n/*\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:0,hitType:0,hitx:0,hity:0,hurtTime:0,hurtType:0,isBreakDef:false});\n}*/\n\nfunction defineBuffEffects():void {\n\tvar buffEffects:Object = {\n\t\tattrResistance: 0.2\n\t};\n\t\n\t$assisterCtrler.getSelf().buffEffects = buffEffects;\n}"
+      },
+      {
+        "frame": 49,
+        "raw": "const ADD_HP:Number = 7.5;\nconst ADD_QI:Number = 1;\n\nfunction checkFunc():void{\n\tif(!$assisterCtrler.checkHitOwner(\"chkm\")) {\n\t\treturn;\n\t}\n\t\n\t$assisterCtrler.getOwner().addHp(ADD_HP);\n\t$assisterCtrler.getOwner().addQi(ADD_QI);\n}\n$assisterCtrler.addCustomFunc(checkFunc);"
+      },
+      {
+        "frame": 12,
+        "raw": "$assisterCtrler.effect.walk();"
+      },
+      {
+        "frame": 19,
+        "raw": "$assisterCtrler.effect.walk();"
+      },
+      {
+        "frame": 24,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 47,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 49,
+        "raw": "$assisterCtrler.effect.shine(0x00FF00);"
+      },
+      {
+        "frame": 38,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {}
+}

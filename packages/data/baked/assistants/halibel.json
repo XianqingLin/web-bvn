@@ -1,0 +1,110 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "halibel",
+  "source": {
+    "kind": "xfl",
+    "path": "halibel",
+    "hash": "c6618ec5de4b100348c166478a4694d955a61a22"
+  },
+  "actions": {
+    "atm1": {
+      "power": 150,
+      "hitType": 5,
+      "hitx": 10,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 34,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          50,
+          null,
+          true
+        ]
+      },
+      {
+        "frame": 38,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          -15,
+          0
+        ]
+      },
+      {
+        "frame": 38,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          0.5,
+          0
+        ]
+      },
+      {
+        "frame": 41,
+        "target": "assister",
+        "op": "stopMove",
+        "args": []
+      },
+      {
+        "frame": 41,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          30,
+          0
+        ]
+      },
+      {
+        "frame": 46,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 46,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1.5,
+          0
+        ]
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:5,hitx:10,hity:0,hurtTime:500,hurtType:1,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 14,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 23,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 31,
+        "raw": "$assisterCtrler.effect.shadow(200,200,0);"
+      },
+      {
+        "frame": 41,
+        "raw": "$assisterCtrler.effect.dash();\n$assisterCtrler.effect.shine(0x00CCFF);"
+      },
+      {
+        "frame": 52,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      }
+    ]
+  },
+  "symbols": {}
+}

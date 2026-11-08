@@ -1,0 +1,94 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "yamamoto",
+  "source": {
+    "kind": "xfl",
+    "path": "yamamoto",
+    "hash": "73a6cb31caa72aefecbaf9634829ce237ad3037a"
+  },
+  "actions": {
+    "atm1": {
+      "power": 150,
+      "hitType": 7,
+      "hitx": 5,
+      "hity": -10,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": true
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 34,
+        "target": "assister",
+        "op": "checkHitOwner",
+        "args": [
+          "atm1"
+        ]
+      },
+      {
+        "frame": 34,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 34,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "checkFunc"
+          }
+        ]
+      },
+      {
+        "frame": 39,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 39,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:7,hitx:5,hity:-10,hurtTime:0,hurtType:1,isBreakDef:true});\n}"
+      },
+      {
+        "frame": 34,
+        "raw": "const LOSE_HP:Number = 10;\n\nfunction checkFunc():void{\n\tif(!$assisterCtrler.checkHitOwner(\"atm1\")){\n\t\treturn;\n\t}\n\t\n\t$assisterCtrler.getOwner().loseHp(LOSE_HP);\n}\n\n$assisterCtrler.addCustomFunc(checkFunc);"
+      },
+      {
+        "frame": 15,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 28,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 32,
+        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/mc_02": {
+      "labels": {
+        "stop": {
+          "index": 38,
+          "duration": 1
+        }
+      },
+      "triggers": []
+    }
+  }
+}

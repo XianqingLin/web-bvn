@@ -1,0 +1,78 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "hiruko",
+  "source": {
+    "kind": "xfl",
+    "path": "hiruko",
+    "hash": "e8551a2da0d27b2b7afa146f64f046ba1201bfd2"
+  },
+  "actions": {
+    "atm1": {
+      "power": 20,
+      "hitType": 7,
+      "hitx": 1,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm2": {
+      "power": 10,
+      "hitType": 4,
+      "hitx": 1,
+      "hity": 0,
+      "hurtTime": 600,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm3": {
+      "power": 10,
+      "hitType": 4,
+      "hitx": 1,
+      "hity": 0,
+      "hurtTime": 600,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 68,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:20,hitType:7,hitx:1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:10,hitType:4,hitx:1,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm3\",{power:10,hitType:4,hitx:1,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 12,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 29,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 30,
+        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/mc_03": {
+      "labels": {
+        "stop": {
+          "index": 44,
+          "duration": 1
+        }
+      },
+      "triggers": []
+    }
+  }
+}

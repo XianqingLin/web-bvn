@@ -1,0 +1,124 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "tsunate",
+  "source": {
+    "kind": "xfl",
+    "path": "tsunate",
+    "hash": "10f88ad9c089d0bc29bda86f920553c9f60bc845"
+  },
+  "actions": {
+    "atm1": {
+      "power": 150,
+      "hitType": 5,
+      "hitx": 15,
+      "hity": 8,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 6,
+        "target": "assister",
+        "op": "getOwner",
+        "args": []
+      },
+      {
+        "frame": 6,
+        "target": "assister",
+        "op": "addCustomFunc",
+        "args": [
+          {
+            "$ref": "func"
+          }
+        ]
+      },
+      {
+        "frame": 26,
+        "target": "assister",
+        "op": "removeCustomFunc",
+        "args": []
+      },
+      {
+        "frame": 38,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          50,
+          0,
+          true
+        ]
+      },
+      {
+        "frame": 44,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          15,
+          0
+        ]
+      },
+      {
+        "frame": 44,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 48,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:5,hitx:15,hity:8,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 6,
+        "raw": "function func():void{\n\tvar fighter_ctrler:* = $assisterCtrler.getOwner().getCtrler();\n\tfighter_ctrler.addHpLosePercent(0.0035);\n}\n\n$assisterCtrler.addCustomFunc(func);"
+      },
+      {
+        "frame": 36,
+        "raw": "$assisterCtrler.effect.dash();"
+      },
+      {
+        "frame": 44,
+        "raw": "$assisterCtrler.effect.shine(0xFFFF00);"
+      },
+      {
+        "frame": 44,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/mc_04": {
+      "labels": {},
+      "triggers": [],
+      "rawScripts": [
+        {
+          "frame": 4,
+          "raw": "this._name = \"atm1\";"
+        }
+      ]
+    },
+    "元件/shape_26": {
+      "labels": {
+        "stop": {
+          "index": 18,
+          "duration": 1
+        }
+      },
+      "triggers": []
+    }
+  }
+}

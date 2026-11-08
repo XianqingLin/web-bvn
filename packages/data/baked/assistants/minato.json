@@ -1,0 +1,207 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "minato",
+  "source": {
+    "kind": "xfl",
+    "path": "minato",
+    "hash": "22acc176120895d80b52f45da1855050c70b1d88"
+  },
+  "actions": {
+    "atm1": {
+      "power": 40,
+      "hitType": 3,
+      "hitx": 6,
+      "hity": 0,
+      "hurtTime": 1000,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm2": {
+      "power": 25,
+      "hitType": 6,
+      "hitx": 4,
+      "hity": 0,
+      "hurtTime": 1000,
+      "hurtType": 0,
+      "isBreakDef": true
+    },
+    "atm3": {
+      "power": 5,
+      "hitType": 4,
+      "hitx": 0,
+      "hity": 20,
+      "hurtTime": 300,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm4": {
+      "power": 25,
+      "hitType": 5,
+      "hitx": 0,
+      "hity": 20,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {
+      "HIT": {
+        "index": 60,
+        "duration": 30
+      },
+      "HIT_False": {
+        "index": 90,
+        "duration": 43
+      }
+    },
+    "triggers": [
+      {
+        "frame": 30,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          -100,
+          0,
+          false
+        ]
+      },
+      {
+        "frame": 30,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          17,
+          0
+        ]
+      },
+      {
+        "frame": 30,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          0.5,
+          0
+        ]
+      },
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "justHit",
+        "args": [
+          "atm1",
+          "HIT",
+          false
+        ]
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "gotoAndPlay",
+        "args": [
+          "HIT_False"
+        ]
+      },
+      {
+        "frame": 68,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          10,
+          0,
+          true
+        ]
+      },
+      {
+        "frame": 76,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      },
+      {
+        "frame": 89,
+        "target": "assister",
+        "op": "finish",
+        "args": []
+      },
+      {
+        "frame": 90,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          40,
+          0,
+          true
+        ]
+      },
+      {
+        "frame": 96,
+        "target": "assister",
+        "op": "moveToTarget",
+        "args": [
+          -20,
+          -200,
+          false
+        ]
+      },
+      {
+        "frame": 96,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          0,
+          20
+        ]
+      },
+      {
+        "frame": 124,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:40,hitType:3,hitx:6,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:25,hitType:6,hitx:4,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\n\tdefineAction(\"atm3\",{power:5,hitType:4,hitx:0,hity:20,hurtTime:300,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm4\",{power:25,hitType:5,hitx:0,hity:20,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 1,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 24,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 30,
+        "raw": "$assisterCtrler.effect.dash();\n$assisterCtrler.effect.shadow(200,200,0);"
+      },
+      {
+        "frame": 34,
+        "raw": "$assisterCtrler.effect.shine(0xFFFF00);"
+      },
+      {
+        "frame": 39,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 96,
+        "raw": "$assisterCtrler.effect.shadow(200,200,0);"
+      },
+      {
+        "frame": 101,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      },
+      {
+        "frame": 33,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      },
+      {
+        "frame": 72,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {}
+}

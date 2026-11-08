@@ -1,0 +1,88 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "rangiku",
+  "source": {
+    "kind": "xfl",
+    "path": "rangiku",
+    "hash": "c59e1aa35198743262c1512e33cb79bda9ce04a7"
+  },
+  "actions": {
+    "atm1": {
+      "power": 12,
+      "hitType": 4,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 500,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 44,
+        "target": "assister",
+        "op": "addAttacker",
+        "args": [
+          "atmmc",
+          {
+            "x": {
+              "moveToTarget": true,
+              "offset": 0
+            },
+            "y": {
+              "moveToTarget": true,
+              "offset": -25
+            },
+            "applyG": false
+          }
+        ]
+      },
+      {
+        "frame": 80,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:12,hitType:4,hitx:0,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 11,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 36,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 44,
+        "raw": "$assisterCtrler.addAttacker(\"atmmc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:true,offset:-25},applyG:false});"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/mc_01": {
+      "labels": {},
+      "triggers": [],
+      "rawScripts": [
+        {
+          "frame": 0,
+          "raw": " var $attacker_ctrler:*;\n \nfunction setAttackerCtrler(attackerCtrler:*):void{\n\t$attacker_ctrler = attackerCtrler;\n}\n"
+        },
+        {
+          "frame": 4,
+          "raw": "$attacker_ctrler.effect.shine(0x666666);"
+        },
+        {
+          "frame": 35,
+          "raw": "$attacker_ctrler.endAct();"
+        }
+      ]
+    }
+  }
+}

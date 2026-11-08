@@ -1,0 +1,76 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "kenpachi",
+  "source": {
+    "kind": "xfl",
+    "path": "kenpachi",
+    "hash": "bbabcf59080a7bcf5ddeb2d088fa2feccf85aa11"
+  },
+  "actions": {
+    "atm1": {
+      "power": 150,
+      "hitType": 5,
+      "hitx": 15,
+      "hity": 0,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "move",
+        "args": [
+          10,
+          0
+        ]
+      },
+      {
+        "frame": 59,
+        "target": "assister",
+        "op": "damping",
+        "args": [
+          1,
+          0
+        ]
+      },
+      {
+        "frame": 72,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:5,hitx:15,hity:0,hurtTime:0,hurtType:1,isReal:true});\n}"
+      },
+      {
+        "frame": 10,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 56,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 59,
+        "raw": "$assisterCtrler.effect.shadow(255,255,0);"
+      },
+      {
+        "frame": 63,
+        "raw": "$assisterCtrler.effect.shine(0xFFFF00);"
+      },
+      {
+        "frame": 76,
+        "raw": "$assisterCtrler.effect.endShadow();"
+      }
+    ]
+  },
+  "symbols": {}
+}

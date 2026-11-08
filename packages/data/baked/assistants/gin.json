@@ -1,0 +1,69 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "gin",
+  "source": {
+    "kind": "xfl",
+    "path": "gin",
+    "hash": "676a7f851bc962170c75c443a0b880910b0ab8fb"
+  },
+  "actions": {
+    "atm1": {
+      "power": 150,
+      "hitType": 5,
+      "hitx": 10,
+      "hity": 0,
+      "hurtTime": 0,
+      "hurtType": 1,
+      "isBreakDef": true
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 48,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:5,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:true});\n}"
+      },
+      {
+        "frame": 12,
+        "raw": "$assisterCtrler.effect.bisha();"
+      },
+      {
+        "frame": 39,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 42,
+        "raw": "$assisterCtrler.effect.shine();"
+      }
+    ]
+  },
+  "symbols": {
+    "元件/shape_01": {
+      "labels": {
+        "stop": {
+          "index": 16,
+          "duration": 2
+        }
+      },
+      "triggers": []
+    },
+    "元件/shape_02": {
+      "labels": {
+        "stop": {
+          "index": 12,
+          "duration": 1
+        }
+      },
+      "triggers": []
+    }
+  }
+}

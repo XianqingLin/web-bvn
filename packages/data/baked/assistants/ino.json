@@ -1,0 +1,81 @@
+{
+  "schema": "bvn/assistant@1",
+  "id": "ino",
+  "source": {
+    "kind": "xfl",
+    "path": "ino",
+    "hash": "df7b26162bd813a0fe17088d556b5be7fd27e3e7"
+  },
+  "actions": {
+    "atm1": {
+      "power": 25,
+      "hitType": 5,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 2000,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm2": {
+      "power": 25,
+      "hitType": 5,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 2000,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm3": {
+      "power": 25,
+      "hitType": 5,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 2000,
+      "hurtType": 0,
+      "isBreakDef": false
+    },
+    "atm4": {
+      "power": 25,
+      "hitType": 5,
+      "hitx": 0,
+      "hity": 0,
+      "hurtTime": 2000,
+      "hurtType": 0,
+      "isBreakDef": false
+    }
+  },
+  "timeline": {
+    "labels": {},
+    "triggers": [
+      {
+        "frame": 49,
+        "target": "assister",
+        "op": "endAct",
+        "args": []
+      }
+    ],
+    "rawScripts": [
+      {
+        "frame": 0,
+        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:25,hitType:5,hitx:0,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:25,hitType:5,hitx:0,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm3\",{power:25,hitType:5,hitx:0,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm4\",{power:25,hitType:5,hitx:0,hity:0,hurtTime:2000,hurtType:0,isBreakDef:false});\n}"
+      },
+      {
+        "frame": 19,
+        "raw": "$assisterCtrler.effect.bisha(false);"
+      },
+      {
+        "frame": 35,
+        "raw": "$assisterCtrler.effect.endBisha();"
+      },
+      {
+        "frame": 45,
+        "raw": "$assisterCtrler.effect.shine(0xFF00FF);"
+      },
+      {
+        "frame": 37,
+        "raw": "$assisterCtrler.effect.playSoundHit2();"
+      }
+    ]
+  },
+  "symbols": {}
+}
