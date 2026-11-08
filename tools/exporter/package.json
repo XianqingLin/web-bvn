@@ -1,0 +1,17 @@
+{
+  "name": "@bvn/exporter",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@bvn/data": "workspace:*",
+    "fast-xml-parser": "^5.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.2.0"
+  }
+}
