@@ -1,0 +1,750 @@
+// =====================================================================
+// BVN dump 桥 —— 注入 FighterTester 文档类的方法块（注入代码，非原版）
+//
+// 目的：不玩进游戏，直接把引擎运行时才有的三类数据 dump 成 JSON：
+//   1. 命名判定区几何：内层动画时间轴逐帧的 bdmn / atm* / AImain 子节点
+//      getBounds(root)（root 本地坐标，direct=1 朝右，与引擎
+//      FighterMC.findHitArea/findBodyArea 的参照系一致）
+//   2. HitVO 表：defineAction(id, vo) 注册的原始参数（角色 = 根时间轴
+//      各形态帧脚本逐帧懒注册；辅助 = setAssistCtrler 时一次性注册）
+//   3. 地图边界/出生点/地板：真实 MapMain.initlize() 计算的
+//      left/right/bottom/playerBottom/p1pos/p2pos/floors
+//
+// 原理（侦察结论）：
+//   - 角色 SWF root 是 MainTimeline：root.initFighter({fighter_ctrler,
+//     mc_ctrler, effect_ctrler}) 注入控制器引用；每个"形态"的帧脚本
+//     注册该形态 defineAction 后调 $fighter_ctrler.initMc(this.mc)
+//   - 辅助 SWF root.setAssistCtrler(ctrler)，ctrler.defineAction 即注册器
+//   - 引擎里 FighterMain.mc = _mainMc = SWF root（BaseGameSprite.mc getter）
+//   - 判定区参照系 = FighterMC._fighterDisplay = FighterMain.getDisplay() = root
+//
+// dump 方式：逐 root 帧 gotoAndStop（触发帧脚本注册）→ 对该形态内层 mc
+//   逐帧 gotoAndStop → 记录命名子节点 getBounds + 帧标签；内层帧脚本
+//   的所有 $*_ctrler 调用由 no-op 假控制器吸收，绝不改写游戏状态。
+// 输出：File.documentsDirectory/bvn-dump/*.json，全部完成后 exit(0)。
+// =====================================================================
+
+      // ==================== BVN dump 桥（注入代码，非原版）====================
+      private var _dumpItems:Array;
+      private var _dumpIdx:int = 0;
+      private var _dumpLog:Array;
+
+      // 启动诊断日志：最先写盘，定位"应用秒退"问题用
+      private function bvnBootLog(param1:String) : void
+      {
+         try
+         {
+            var f:File = File.documentsDirectory.resolvePath("bvn-dump/boot.log");
+            if(!f.parent.exists)
+            {
+               f.parent.createDirectory();
+            }
+            var s:FileStream = new FileStream();
+            s.open(f,"append");
+            s.writeUTFBytes("[" + new Date().time + "] " + param1 + "\n");
+            s.close();
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      private function startBvnDump() : void
+      {
+         bvnBootLog("startBvnDump enter");
+         try
+         {
+            this.loaderInfo.uncaughtErrorEvents.addEventListener("uncaughtError",function(param1:UncaughtErrorEvent) : void
+            {
+               bvnBootLog("UNCAUGHT: " + param1.message);
+            });
+         }
+         catch(ue:Error)
+         {
+            bvnBootLog("uncaught hook err: " + ue.message);
+         }
+         try
+         {
+            NativeApplication.nativeApplication.addEventListener("exiting",function(param1:*) : void
+            {
+               bvnBootLog("EXITING (orderly)");
+            });
+            NativeApplication.nativeApplication.addEventListener("deactivate",function(param1:*) : void
+            {
+               bvnBootLog("deactivate");
+            });
+            bvnBootLog("autoExit=" + NativeApplication.nativeApplication.autoExit);
+         }
+         catch(xe:Error)
+         {
+            bvnBootLog("exit hook err: " + xe.message);
+         }
+         _dumpLog = [];
+         _dumpItems = [];
+         var fs:* = FighterModel.I.getFighters();
+         for each(var fv:* in fs)
+         {
+            _dumpItems.push({
+               "kind":"fighter",
+               "id":fv.id,
+               "url":fv.fileUrl,
+               "name":fv.name,
+               "comicType":fv.comicType,
+               "startFrame":fv.startFrame,
+               "bgm":fv.bgm
+            });
+         }
+         var asl:* = AssisterModel.I.getAssisters();
+         for each(var av:* in asl)
+         {
+            _dumpItems.push({
+               "kind":"assister",
+               "id":av.id,
+               "url":av.fileUrl,
+               "name":av.name,
+               "comicType":0,
+               "startFrame":0,
+               "bgm":""
+            });
+         }
+         var mpl:* = MapModel.I.getAllMaps();
+         for each(var mv:* in mpl)
+         {
+            _dumpItems.push({
+               "kind":"map",
+               "id":mv.id,
+               "url":mv.fileUrl,
+               "name":mv.name,
+               "comicType":0,
+               "startFrame":0,
+               "bgm":mv.bgm
+            });
+         }
+         bvnBootLog("items built: " + _dumpItems.length);
+         bvnLog("dump items: " + _dumpItems.length);
+         _dumpIdx = 0;
+         setTimeout(bvnDumpNext,100);
+      }
+
+      private function bvnLog(param1:String) : void
+      {
+         _dumpLog.push(param1);
+         trace("[bvn-dump] " + param1);
+      }
+
+      private function bvnDumpNext() : void
+      {
+         if(_dumpIdx >= _dumpItems.length)
+         {
+            bvnFinish();
+            return;
+         }
+         var it:Object = _dumpItems[_dumpIdx];
+         bvnBootLog("next[" + _dumpIdx + "] " + it.kind + ":" + it.id);
+         try
+         {
+            bvnBootLog("probe1=" + bvnProbe1());
+         }
+         catch(pe1:Error)
+         {
+            bvnBootLog("PROBE1 ERR: " + pe1.errorID);
+         }
+         try
+         {
+            bvnBootLog("probe2=" + bvnProbe2());
+         }
+         catch(pe2:Error)
+         {
+            bvnBootLog("PROBE2 ERR: " + pe2.errorID);
+         }
+         try
+         {
+            bvnBootLog("probe3=" + bvnProbe3());
+         }
+         catch(pe3:Error)
+         {
+            bvnBootLog("PROBE3 ERR: " + pe3.errorID);
+         }
+         try
+         {
+            bvnDumpOne(it);
+         }
+         catch(de:Error)
+         {
+            bvnBootLog("DUMPONE ERR: " + de.errorID + " " + de.message + " :: " + de.getStackTrace());
+         }
+         _dumpIdx++;
+      }
+
+      // #1014 探针：逐个类隔离 VerifyError
+      private function bvnProbe1() : Boolean
+      {
+         var b:ByteArray = new ByteArray();
+         return b != null;
+      }
+
+      private function bvnProbe2() : Boolean
+      {
+         var l:Loader = new Loader();
+         return l != null;
+      }
+
+      private function bvnProbe3() : Boolean
+      {
+         var c:LoaderContext = new LoaderContext(false,new ApplicationDomain());
+         c.allowCodeImport = true;
+         return c != null;
+      }
+
+      private function bvnDumpOne(item:Object) : void
+      {
+         bvnBootLog("read " + item.url);
+         var bytes:ByteArray = bvnReadSwf(item.url);
+         bvnBootLog("read done: " + (bytes == null ? "null" : bytes.length + " bytes"));
+         if(bytes == null)
+         {
+            item.error = "无法读取 SWF: " + item.url;
+            bvnLog("FAIL read " + item.kind + ":" + item.id);
+            bvnWriteManifest();
+            setTimeout(bvnDumpNext,30);
+            return;
+         }
+         var loader:Loader = new Loader();
+         var ctx:LoaderContext = new LoaderContext(false,new ApplicationDomain());
+         ctx.allowCodeImport = true;
+         var onOk:Function = function(param1:Event) : void
+         {
+            bvnBootLog("loadOk " + item.id);
+            loader.contentLoaderInfo.removeEventListener("complete",onOk);
+            loader.contentLoaderInfo.removeEventListener("ioError",onFail);
+            try
+            {
+               if(item.kind == "map")
+               {
+                  bvnDumpMapContent(item,loader.content);
+               }
+               else
+               {
+                  bvnDumpCharContent(item,loader.content as MovieClip);
+               }
+               item.ok = true;
+            }
+            catch(e:Error)
+            {
+               item.error = e.message;
+               bvnLog("FAIL dump " + item.kind + ":" + item.id + " :: " + e.message);
+            }
+            try
+            {
+               loader.unloadAndStop(true);
+            }
+            catch(e2:Error)
+            {
+            }
+            bvnWriteManifest();
+            setTimeout(bvnDumpNext,30);
+         };
+         var onFail:Function = function(param1:Event) : void
+         {
+            loader.contentLoaderInfo.removeEventListener("complete",onOk);
+            loader.contentLoaderInfo.removeEventListener("ioError",onFail);
+            item.error = "loadBytes 失败";
+            bvnLog("FAIL load " + item.kind + ":" + item.id);
+            bvnWriteManifest();
+            setTimeout(bvnDumpNext,30);
+         };
+         loader.contentLoaderInfo.addEventListener("complete",onOk);
+         loader.contentLoaderInfo.addEventListener("ioError",onFail);
+         loader.loadBytes(bytes,ctx);
+      }
+
+      private function bvnReadSwf(param1:String) : ByteArray
+      {
+         var out:ByteArray = null;
+         try
+         {
+            var f:File = File.applicationDirectory.resolvePath(param1);
+            if(!f.exists)
+            {
+               return null;
+            }
+            var s:FileStream = new FileStream();
+            s.open(f,"read");
+            out = new ByteArray();
+            s.readBytes(out);
+            s.close();
+            out.position = 0;
+         }
+         catch(e:Error)
+         {
+            out = null;
+         }
+         return out;
+      }
+
+      // ---------- 角色 / 辅助 sweep ----------
+
+      private function bvnDumpCharContent(item:Object, root:MovieClip) : void
+      {
+         if(root == null)
+         {
+            item.error = "SWF root 不是 MovieClip";
+            return;
+         }
+         var acts:Object = {};
+         var actsOrder:Array = [];
+         var bishaFaces:Array = [];
+         var regsByRootFrame:Object = {};
+         var curRootFrame:int = 0;
+         var innerRef:* = null;
+
+         // defineAction 收集器 + 其余 API 一律 no-op（... rest 兼容任意参数）
+         var fakeCtrler:Object = {
+            "defineAction":function(param1:String, param2:Object) : void
+            {
+               acts[param1] = param2;
+               actsOrder.push(param1);
+               if(regsByRootFrame[curRootFrame] == null)
+               {
+                  regsByRootFrame[curRootFrame] = [];
+               }
+               regsByRootFrame[curRootFrame].push(param1);
+            },
+            "initMc":function(param1:*) : void
+            {
+               innerRef = param1;
+            },
+            "defineBishaFace":function(param1:String, param2:*) : void
+            {
+               bishaFaces.push(param1);
+            },
+            "getSelf":function(... rest) : * { return null; },
+            "justHit":function(... rest) : Boolean { return false; },
+            "targetInRange":function(... rest) : Boolean { return false; },
+            "moveToTarget":function(... rest) : void {},
+            "moveOnce":function(... rest) : void {},
+            "setCross":function(... rest) : void {},
+            "setDirectToTarget":function(... rest) : void {},
+            "setDirectReverse":function(... rest) : void {},
+            "doWanKai":function(... rest) : void {},
+            "addHpLosePercent":function(... rest) : void {},
+            "defineHurtSound":function(... rest) : void {},
+            "defineHurtFlySound":function(... rest) : void {},
+            "defineDieSound":function(... rest) : void {},
+            "defenseType":0,
+            "heavy":0,
+            "jumpPower":0,
+            "speed":0
+         };
+         // mc_ctrler / effect_ctrler 全 no-op（帧脚本对它们的调用全部吸收）
+         var mcNoops:Array = ["addQi","dash","dashStop","endAct","fire","gotoAndPlay","idle","justHitToPlay","loop","move","movePercent","setAirMove","setAttack","setAttackAIR","setBisha","setBishaAIR","setBishaSUPER","setBishaUP","setDash","setHitTarget","setHurtAction","setJump","setSkill","setSkillAIR","setSteelBody","setTouchFloor","setZhao","stop","stopMove","setBishaEnd","playVoice"];
+         var fakeMc:Object = {};
+         for each(var nm1:String in mcNoops)
+         {
+            fakeMc[nm1] = function(... rest) : * { return null; };
+         }
+         var effNoops:Array = ["bisha","dash","endBisha","endShadow","endShake","endWanKai","jump","playSoundHit","shadow","shake","shine","slowDown","startShake","startWanKai","walk"];
+         var fakeEff:Object = {};
+         for each(var nm2:String in effNoops)
+         {
+            fakeEff[nm2] = function(... rest) : * { return null; };
+         }
+
+         // 入口：角色 initFighter / 辅助 setAssistCtrler
+         var isFighterType:Boolean = false;
+         if(root.initFighter != null)
+         {
+            try
+            {
+               root.initFighter({
+                  "fighter_ctrler":fakeCtrler,
+                  "mc_ctrler":fakeMc,
+                  "effect_ctrler":fakeEff
+               });
+               isFighterType = true;
+            }
+            catch(ie:Error)
+            {
+               bvnBootLog("initFighter ERR " + item.id + ": " + ie.message);
+            }
+         }
+         if(!isFighterType && root.setAssistCtrler != null)
+         {
+            try
+            {
+               root.setAssistCtrler(fakeCtrler);
+            }
+            catch(ae:Error)
+            {
+               bvnBootLog("setAssistCtrler ERR " + item.id + ": " + ae.message);
+            }
+         }
+         if(!isFighterType && root.setAssistCtrler == null && root.initFighter == null)
+         {
+            item.error = "SWF 无 initFighter/setAssistCtrler 入口";
+            bvnLog("FAIL entry " + item.id);
+            return;
+         }
+
+         var forms:Array = [];
+         if(isFighterType)
+         {
+            // 角色：逐形态（root 帧）——帧脚本注册 defineAction + initMc(this.mc)
+            for(var r:int = 1; r <= root.totalFrames; r++)
+            {
+               curRootFrame = r;
+               innerRef = null;
+               var rerr:String = null;
+               try
+               {
+                  root.gotoAndStop(r);
+               }
+               catch(e:Error)
+               {
+                  rerr = e.message;
+               }
+               var inner:* = innerRef;
+               if(inner == null)
+               {
+                  inner = root.getChildByName("mc");
+               }
+               var form:Object = {
+                  "rootFrame":r,
+                  "actionsRegistered":regsByRootFrame[r] == null ? [] : regsByRootFrame[r],
+                  "inner":inner == null ? null : bvnSweepInner(inner,root)
+               };
+               if(root.currentLabel != null && root.currentLabel != "")
+               {
+                  form.rootLabel = root.currentLabel;
+               }
+               if(root.currentFrameLabel != null && root.currentFrameLabel != "")
+               {
+                  form.rootFrameLabel = root.currentFrameLabel;
+               }
+               if(root.currentFrame != r)
+               {
+                  form.rootMovedTo = root.currentFrame;
+               }
+               if(rerr != null)
+               {
+                  form.err = rerr;
+               }
+               forms.push(form);
+            }
+         }
+         else
+         {
+            // 辅助：root 本身就是动画时间轴，单次 sweep
+            curRootFrame = 0;
+            forms.push({
+               "rootFrame":1,
+               "actionsRegistered":regsByRootFrame[0] == null ? [] : regsByRootFrame[0],
+               "inner":bvnSweepInner(root,root)
+            });
+         }
+
+         var outData:Object = {
+            "kind":item.kind,
+            "id":item.id,
+            "name":item.name,
+            "fileUrl":item.url,
+            "comicType":item.comicType,
+            "startFrame":item.startFrame,
+            "bgm":item.bgm,
+            "rootTotalFrames":root.totalFrames,
+            "forms":forms,
+            "actions":acts,
+            "actionOrder":actsOrder,
+            "bishaFaces":bishaFaces
+         };
+         bvnWriteJson("char_" + item.kind + "_" + item.id + ".json",outData);
+      }
+
+      // 内层动画时间轴逐帧 sweep：命名子节点 getBounds(root)
+      private function bvnSweepInner(mc:*, rootRef:*) : Object
+      {
+         var m:MovieClip = mc as MovieClip;
+         if(m == null)
+         {
+            return {"err":"inner 不是 MovieClip"};
+         }
+         var out:Object = {"totalFrames":m.totalFrames,"frames":[]};
+         var aiDumped:Boolean = false;
+         for(var f:int = 1; f <= m.totalFrames; f++)
+         {
+            var ferr:String = null;
+            try
+            {
+               m.gotoAndStop(f);
+            }
+            catch(e:Error)
+            {
+               ferr = e.message;
+            }
+            var rec:Object = {"frame":m.currentFrame,"areas":[]};
+            var lbl:String = m.currentFrameLabel;
+            if(lbl != null && lbl != "")
+            {
+               rec.label = lbl;
+            }
+            var scl:String = m.currentLabel;
+            if(scl != null && scl != "")
+            {
+               rec.sceneLabel = scl;
+            }
+            if(m.currentFrame != f)
+            {
+               rec.movedTo = m.currentFrame;
+            }
+            if(ferr != null)
+            {
+               rec.err = ferr;
+            }
+            for(var i:int = 0; i < m.numChildren; i++)
+            {
+               var ch:DisplayObject = m.getChildAt(i);
+               var nm:String = ch.name;
+               if(nm == null || nm.indexOf("instance") == 0)
+               {
+                  continue;
+               }
+               if(nm == "AImain")
+               {
+                  if(!aiDumped)
+                  {
+                     out.aiRanges = bvnSweepAImain(ch as MovieClip,rootRef);
+                     aiDumped = true;
+                  }
+                  continue;
+               }
+               var b:Rectangle = ch.getBounds(rootRef);
+               rec.areas.push({"name":nm,"x":b.x,"y":b.y,"w":b.width,"h":b.height});
+            }
+            // 只留有信息量的帧（有判定区 / 有标签 / 有异常），控制体积
+            if(rec.areas.length > 0 || rec.label != null || rec.err != null || rec.movedTo != null)
+            {
+               out.frames.push(rec);
+            }
+         }
+         return out;
+      }
+
+      // AImain 子节点 = AI 活动范围（引擎 initHitRange：gotoAndStop(2) 后读）
+      private function bvnSweepAImain(am:MovieClip, rootRef:*) : Object
+      {
+         var out:Object = {};
+         try
+         {
+            am.gotoAndStop(2);
+            var arr:Array = [];
+            for(var i:int = 0; i < am.numChildren; i++)
+            {
+               var ch:DisplayObject = am.getChildAt(i);
+               var nm:String = ch.name;
+               if(nm == null || nm.indexOf("instance") == 0)
+               {
+                  continue;
+               }
+               var b:Rectangle = ch.getBounds(rootRef);
+               arr.push({"name":nm,"x":b.x,"y":b.y,"w":b.width,"h":b.height});
+            }
+            am.gotoAndStop(1);
+            out.frame2 = arr;
+         }
+         catch(e:Error)
+         {
+            out.err = e.message;
+         }
+         return out;
+      }
+
+      // ---------- 地图 dump（复用真实 MapMain.initlize 的计算）----------
+
+      private function bvnDumpMapContent(item:Object, content:*) : void
+      {
+         var spr:Sprite = content as Sprite;
+         if(spr == null)
+         {
+            item.error = "地图 SWF root 不是 Sprite";
+            return;
+         }
+         // initlize 会移除 line_*/p1/p2 节点，先抓 line_bottom 原始值算偏移
+         var gs:* = GameConfig.GAME_SIZE;
+         var lb:DisplayObject = spr.getChildByName("line_bottom");
+         var offset:Number = lb == null ? 0 : gs.y - lb.y;
+         var mm:MapMain = new MapMain(spr);
+         mm.initlize();
+         var out:Object = {
+            "kind":"map",
+            "id":item.id,
+            "name":item.name,
+            "fileUrl":item.url,
+            "bgm":item.bgm,
+            "gameSize":{"x":gs.x,"y":gs.y},
+            "bottomOffset":offset,
+            "left":mm.left,
+            "right":mm.right,
+            "bottom":mm.bottom,
+            "playerBottom":mm.playerBottom,
+            "mapBottomDistance":mm.getMapBottomDistance(),
+            "p1pos":mm.p1pos == null ? null : {"x":mm.p1pos.x,"y":mm.p1pos.y},
+            "p2pos":mm.p2pos == null ? null : {"x":mm.p2pos.x,"y":mm.p2pos.y}
+         };
+         var fc:DisplayObject = spr.getChildByName("floor");
+         if(fc != null)
+         {
+            var fl:Array = [];
+            for(var j:int = 0; j < fc.parent.numChildren; j++)
+            {
+               var sub:DisplayObject = fc.parent.getChildAt(j);
+               fl.push({
+                  "name":sub.name,
+                  "xFrom":fc.x + sub.x,
+                  "xTo":fc.x + sub.x + sub.width,
+                  "y":fc.y + sub.y + offset
+               });
+            }
+            out.floors = fl;
+         }
+         if(mm.mapLayer != null)
+         {
+            out.mapSize = {"w":mm.mapLayer.width,"h":mm.mapLayer.height};
+         }
+         bvnWriteJson("map_" + item.id + ".json",out);
+         mm.destory();
+      }
+
+      // ---------- 收尾 / IO / 序列化 ----------
+
+      private function bvnWriteManifest() : void
+      {
+         var okCount:int = 0;
+         var failCount:int = 0;
+         var items:Array = [];
+         for(var i:int = 0; i < _dumpItems.length; i++)
+         {
+            var it:Object = _dumpItems[i];
+            if(it.ok)
+            {
+               okCount++;
+            }
+            if(it.error != null)
+            {
+               failCount++;
+            }
+            items.push({"kind":it.kind,"id":it.id,"ok":it.ok == true,"error":it.error});
+         }
+         bvnWriteJson("manifest.json",{
+            "finished":_dumpIdx >= _dumpItems.length,
+            "done":_dumpIdx,
+            "total":_dumpItems.length,
+            "okCount":okCount,
+            "failCount":failCount,
+            "items":items,
+            "log":_dumpLog
+         });
+      }
+
+      private function bvnFinish() : void
+      {
+         bvnWriteManifest();
+         bvnLog("ALL DONE");
+         NativeApplication.nativeApplication.exit(0);
+      }
+
+      private function bvnWriteJson(param1:String, param2:*) : void
+      {
+         try
+         {
+            var f:File = File.documentsDirectory.resolvePath("bvn-dump/" + param1);
+            if(!f.parent.exists)
+            {
+               f.parent.createDirectory();
+            }
+            var s:FileStream = new FileStream();
+            s.open(f,"write");
+            s.writeUTFBytes(bvnJson(param2));
+            s.close();
+            bvnLog("written " + param1);
+         }
+         catch(e:Error)
+         {
+            bvnLog("FAIL write " + param1 + " :: " + e.message);
+         }
+      }
+
+      // 最小 JSON 序列化器：不依赖 flash.JSON（老 SWF 版本也能用）
+      private function bvnJson(param1:*) : String
+      {
+         if(param1 == null)
+         {
+            return "null";
+         }
+         if(param1 is String)
+         {
+            return "\"" + bvnEsc(param1 as String) + "\"";
+         }
+         if(param1 is Boolean)
+         {
+            return param1 ? "true" : "false";
+         }
+         if(param1 is int || param1 is uint)
+         {
+            return "" + param1;
+         }
+         if(param1 is Number)
+         {
+            var n:Number = param1;
+            if(isNaN(n))
+            {
+               return "null";
+            }
+            if(!isFinite(n))
+            {
+               return n > 0 ? "1e308" : "-1e308";
+            }
+            return "" + n;
+         }
+         if(param1 is Array)
+         {
+            var a:Array = param1 as Array;
+            var p1:Array = [];
+            for(var i:int = 0; i < a.length; i++)
+            {
+               p1.push(bvnJson(a[i]));
+            }
+            return "[" + p1.join(",") + "]";
+         }
+         if(param1 is Class)
+         {
+            return "\"" + bvnEsc(String(param1)) + "\"";
+         }
+         if(param1 is Object)
+         {
+            var p2:Array = [];
+            for(var k:String in param1)
+            {
+               var v:* = param1[k];
+               if(v is Function)
+               {
+                  continue;
+               }
+               p2.push("\"" + bvnEsc(k) + "\":" + bvnJson(v));
+            }
+            return "{" + p2.join(",") + "}";
+         }
+         return "\"" + bvnEsc(String(param1)) + "\"";
+      }
+
+      private function bvnEsc(param1:String) : String
+      {
+         var s:String = param1;
+         s = s.replace(/\\/g,"\\\\");
+         s = s.replace(/\"/g,"\\\"");
+         s = s.replace(/\r/g,"\\r");
+         s = s.replace(/\n/g,"\\n");
+         s = s.replace(/\t/g,"\\t");
+         return s;
+      }
+
+      // ==================== BVN dump 桥结束 ==================

@@ -5,7 +5,7 @@
 >
 > **项目文档导航**：写代码规范见 [ARCHITECTURE.md](ARCHITECTURE.md)（引擎契约）；架构设计见 [DESIGN.md](DESIGN.md)；原版逆向结论见 [BVN-module-map.md](BVN-module-map.md)；入口见 [CLAUDE.md](CLAUDE.md)。
 >
-> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness：core 骨架 + 确定性单测 + replay 门禁）✅；切片 2 进行中——离线提取 ✅（38 角色 + 37 辅助已烘焙进 `packages/data/baked/`），**下一步：运行时导出桥**（FFDec 注入主 SWF dump 判定区几何/HitVO/地图边界；注意用 `_release/extracted` 里的 Release 版主程序，仓库根的 FighterTester_ORG.swf 是旧版）。跑桥会弹游戏窗口，需用户确认。
+> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness）✅；切片 2 进行中——离线提取 ✅ + **运行时导出桥 ✅**（`tools/bridge`，FFDec 注入 FighterTester 自动遍历 dump；110/117 项成功，7 个失败均为 random 占位项；raw JSON 在 `_release/work/dump-json/`：判定区逐帧几何 + HitVO 表 + AImain 范围 + 地图边界/出生点/地板。**下一步：raw dump 转译进 `packages/data/baked/`**；遗留：orihime/yachiru 辅助的 actions 不全待修）。跑桥会弹游戏窗口，需用户确认。
 
 ---
 
