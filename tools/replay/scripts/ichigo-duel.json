@@ -1,0 +1,25 @@
+{
+  "name": "ichigo-duel",
+  "map": "KonohaMura",
+  "seed": 1,
+  "_comment": "切片 3 状态机/判定区/命中结算基线剧本。位定义：left=4 right=8 attack=16 jump=32。fighters 注入 ichigo 运行时定义（compileFighterRuntime）。",
+  "fighters": [{ "pkg": "ichigo" }, { "pkg": "ichigo" }],
+  "program": [
+    { "frames": 45, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 40, "p1": 0, "p2": 0 },
+    { "frames": 1, "p2": 16, "p1": 0 },
+    { "frames": 40, "p1": 0, "p2": 0 },
+    { "frames": 30, "p1": 4, "p2": 8 },
+    { "frames": 1, "p1": 32, "p2": 0 },
+    { "frames": 10, "p1": 8, "p2": 0 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 60, "p1": 0, "p2": 0 },
+    { "frames": 45, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 8, "p1": 16, "p2": 0 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 60, "p1": 0, "p2": 0 },
+    { "frames": 60, "p1": 0, "p2": 0 }
+  ]
+}

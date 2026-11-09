@@ -3,12 +3,30 @@ import { hashState, stableStringify } from './serialize.js';
 import {
   createInitialState,
   PLAYFIELD_HALF_WIDTH,
-  WALK_SPEED,
   type FighterState,
   type SimConfig,
   type SimState,
   type StageState,
 } from './state.js';
+import {
+  ActionState,
+  currentBodyRect,
+  rectsOverlap,
+  worldRect,
+  type FighterDef,
+  type FrameTrigger,
+} from './fighter/def.js';
+import {
+  advanceAnimation,
+  attackAreasWorld,
+  endAction,
+  enterDead,
+  enterHurt,
+  onLanded,
+  stepIntentsFor,
+  walkSpeed,
+} from './fighter/machine.js';
+import { createBehaviorRegistry, type BehaviorContext, type BehaviorHandler } from './fighter/behaviors.js';
 
 // 物理帧常量（原版 BaseGameSprite/GameLogic 语义 × SPEED_PLUS=0.5，即
 // 原版自己的 60fps 手感基准——见 DESIGN §3.1；空间容差类常量不乘系数）
@@ -20,6 +38,21 @@ const GRAVITY_CAP = 6;
 const GROUND_SNAP_BAND = 12;
 const FALL_LAND_SPEED = 2.5;
 const LAND_TOLERANCE = 10;
+/** 地面滑行摩擦（受击/倒地滑行衰减；POC 取义，原版按 HURT_DAMPING 结算） */
+const GROUND_FRICTION = 0.9;
+
+/**
+ * 速度线性衰减（原版 KyoUtils.num_wake：正负双向逼近 0）。
+ */
+function wake(v: number, k: number): number {
+  if (k <= 0 || v === 0) return v;
+  if (v > 0) {
+    v -= k;
+    return v < 0 ? 0 : v;
+  }
+  v += k;
+  return v > 0 ? 0 : v;
+}
 
 /**
  * 表现事件（契约 §表现事件表）。
@@ -57,20 +90,39 @@ export interface SimSnapshot {
  */
 export class Sim {
   private state: SimState;
+  /** 角色运行时定义注册表（静态配置，不进 SimState；快照恢复时重新注入） */
+  private defs: Map<number, FighterDef>;
+  /** def.triggers 按帧号预索引（注册表构造时建立） */
+  private triggerIndex: Map<number, Map<number, FrameTrigger[]>>;
+  /** behaviors 处理器注册表（契约硬规则 7） */
+  private behaviors: Record<string, BehaviorHandler>;
   /** 本 tick 的输入视图（瞬态，不进 SimState），与 fighters 同序 */
   private views: InputView[] = [];
   private events: SimEvent[] = [];
 
   constructor(config: SimConfig) {
     this.state = createInitialState(config);
+    this.defs = new Map();
+    this.triggerIndex = new Map();
+    for (const fc of config.fighters) {
+      if (fc.def) {
+        this.defs.set(fc.id, fc.def);
+        this.triggerIndex.set(fc.id, indexTriggers(fc.def));
+      }
+    }
+    this.behaviors = createBehaviorRegistry({ endAct: endAction });
   }
 
-  /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。 */
-  static fromState(state: SimState): Sim {
+  /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入。 */
+  static fromState(state: SimState, defs?: Iterable<[number, FighterDef]>): Sim {
     const sim = Object.create(Sim.prototype) as Sim;
     sim.state = structuredClone(state);
     sim.views = [];
     sim.events = [];
+    sim.defs = new Map(defs ?? []);
+    sim.triggerIndex = new Map();
+    for (const [id, def] of sim.defs) sim.triggerIndex.set(id, indexTriggers(def));
+    sim.behaviors = createBehaviorRegistry({ endAct: endAction });
     return sim;
   }
 
@@ -80,6 +132,11 @@ export class Sim {
 
   static deserializeState(json: string): SimState {
     return JSON.parse(json) as SimState;
+  }
+
+  /** 角色定义注册表（rollback 恢复时回传 fromState 用）。 */
+  getDefEntries(): [number, FighterDef][] {
+    return [...this.defs.entries()];
   }
 
   tick(inputs: InputFrame): SimSnapshot {
@@ -133,6 +190,10 @@ export class Sim {
     return true;
   }
 
+  private defOf(f: FighterState): FighterDef | null {
+    return this.defs.get(f.id) ?? null;
+  }
+
   // 1. 输入处理：位图 → 缓冲器 → 输入视图
   private stepInputs(inputs: InputFrame): void {
     const masks = [inputs.p1, inputs.p2];
@@ -141,25 +202,46 @@ export class Sim {
     );
   }
 
-  // 2. 意图决策：状态机读取意图尝试触发动作（骨架：仅更新朝向；状态表见 DESIGN §3.5）
+  // 2. 意图决策：状态机读取意图尝试触发动作（多实体按 id 升序）
   private stepIntents(): void {
-    const [a, b] = this.state.fighters;
-    if (a && b) {
-      a.facing = b.x >= a.x ? 1 : -1;
-      b.facing = a.x >= b.x ? 1 : -1;
+    const { fighters } = this.state;
+    for (let i = 0; i < fighters.length; i++) {
+      const f = fighters[i]!;
+      const def = this.defOf(f);
+      // 朝向：仅可行动状态自动面向对手（攻击/受击锁定，原版 direct 语义）
+      if (
+        (f.actionState === ActionState.NORMAL ||
+          f.actionState === ActionState.JUMP_ING) &&
+        f.hp > 0
+      ) {
+        const other = fighters[i === 0 ? 1 : 0];
+        if (other) f.facing = other.x >= f.x ? 1 : -1;
+      }
+      stepIntentsFor(f, def, this.views[i]!);
     }
   }
 
-  // 3. 物理积分（行走 + 显式速度 + 重力斜坡 + 多段地板落地 + 牵引边界）
+  // 3. 物理积分（行走 + 显式速度/阻尼 + 重力斜坡 + 多段地板落地 + 牵引边界）
   private stepPhysics(): void {
     const { stage, fighters } = this.state;
     for (let i = 0; i < fighters.length; i++) {
       const f = fighters[i]!;
       const view = this.views[i]!;
-      let dir = 0;
-      if (view.held(Btn.left)) dir -= 1;
-      if (view.held(Btn.right)) dir += 1;
-      f.vx = dir * WALK_SPEED;
+      const def = this.defOf(f);
+      const wasAirborne = !f.onGround;
+      // 行走：仅 NORMAL 且在地面（原版 renderFloorAction）；其余状态保留惯性
+      if (f.actionState === ActionState.NORMAL && f.onGround && f.hp > 0) {
+        let dir = 0;
+        if (view.held(Btn.left)) dir -= 1;
+        if (view.held(Btn.right)) dir += 1;
+        f.vx = dir * walkSpeed(def);
+      } else if (f.onGround && f.actionState !== ActionState.JUMP_ING) {
+        // 地面滑行摩擦（受击/倒地/死亡滑行）
+        f.vx = wake(f.vx, GROUND_FRICTION);
+      }
+      // 速度线性衰减（原版 renderVelocity + KyoUtils.num_wake）
+      f.vx = wake(f.vx, f.dampX);
+      f.vy = wake(f.vy, f.dampY);
       f.x += f.vx;
       f.y += f.vy;
       const airborne = this.resolveLanding(f, stage);
@@ -171,13 +253,21 @@ export class Sim {
           f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
           f.y += f.gRamp;
         }
+        f.onGround = false;
       } else {
         // 落地瞬间预置下次离地的初值（原版 setInAir(false) → _g=4）
         f.gRamp = GRAVITY_START;
+        if (wasAirborne) onLanded(f, def);
+        f.onGround = true;
       }
     }
     // 牵引边界（ADR-4）：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
     // 相机不进模拟（契约硬规则 5）。
+    this.clampPlayfield();
+  }
+
+  private clampPlayfield(): void {
+    const { stage, fighters } = this.state;
     if (fighters.length === 2) {
       const [a, b] = fighters as [FighterState, FighterState];
       const mid = (a.x + b.x) / 2;
@@ -199,24 +289,136 @@ export class Sim {
     }
   }
 
-  // 4. 推挤（骨架占位：body AABB 按 heavy 系数互推，随判定区一起实现）
-  private stepPush(): void {}
+  // 4. 推挤：body AABB 重叠时按 heavy 系数互推（原版 checkBodyHit 最小子集）
+  private stepPush(): void {
+    const { stage, fighters } = this.state;
+    if (fighters.length !== 2) return;
+    const [a, b] = fighters as [FighterState, FighterState];
+    const defA = this.defOf(a);
+    const defB = this.defOf(b);
+    if (!defA || !defB) return;
+    if (
+      a.hp <= 0 ||
+      b.hp <= 0 ||
+      a.actionState === ActionState.HURT_FLYING ||
+      b.actionState === ActionState.HURT_FLYING
+    ) {
+      return;
+    }
+    const bodyA = currentBodyRect({ animFrame: a.animFrame, def: defA });
+    const bodyB = currentBodyRect({ animFrame: b.animFrame, def: defB });
+    if (!bodyA || !bodyB) return;
+    const ra = worldRect(a, bodyA);
+    const rb = worldRect(b, bodyB);
+    const overlapX =
+      Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
+    const overlapY =
+      Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y);
+    if (overlapX <= 0 || overlapY <= 0) return;
+    const total = defA.heavy + defB.heavy;
+    const shareA = defB.heavy / total; // 越重挪得越少
+    const shareB = defA.heavy / total;
+    if (a.x <= b.x) {
+      a.x -= overlapX * shareA;
+      b.x += overlapX * shareB;
+    } else {
+      a.x += overlapX * shareA;
+      b.x -= overlapX * shareB;
+    }
+    // 推挤后仍受地图边界约束（原版版边卡住由对方承担全部位移，POC 简化为 clamp）
+    for (const f of [a, b]) {
+      f.x = Math.min(Math.max(f.x, stage.leftBound), stage.rightBound);
+    }
+  }
 
-  // 5. [动画帧] 动画推进 / 判定区刷新 / 击飞状态机 / 帧触发器（骨架占位）
-  private stepAnimation(): void {}
+  // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）
+  private stepAnimation(): void {
+    const { fighters, stage } = this.state;
+    for (let i = 0; i < fighters.length; i++) {
+      const f = fighters[i]!;
+      const def = this.defOf(f);
+      if (!def) {
+        advanceAnimation(f, null);
+        continue;
+      }
+      // 帧触发器（behaviors 注册表分派；同帧触发按注册顺序执行）
+      const byFrame = this.triggerIndex.get(f.id);
+      advanceAnimation(f, def, (frame) => {
+        const list = byFrame?.get(frame);
+        if (!list) return;
+        const ctx: BehaviorContext = {
+          f,
+          def,
+          fighters,
+          stage,
+          emit: (type, payload) => this.emit(type, payload),
+        };
+        for (const t of list) {
+          const handler = this.behaviors[t.op];
+          if (handler) handler(ctx, t.args);
+        }
+      });
+    }
+  }
 
-  // 6. [动画帧] 命中判定与结算（骨架占位；固定顺序 P1→P2→道具→辅助）
-  private stepHitResolution(): void {}
+  // 6. [动画帧] 命中判定与结算（固定顺序 P1→P2；道具/辅助后续切片接入）
+  private stepHitResolution(): void {
+    const { fighters } = this.state;
+    for (const atk of fighters) {
+      const atkDef = this.defOf(atk);
+      if (atk.actionState !== ActionState.ATTACK_ING || !atkDef) continue;
+      const hit = atkDef.actions[atk.attackId!];
+      if (!hit) continue;
+      const areas = attackAreasWorld(atk, atkDef);
+      if (areas.length === 0) continue;
+      for (const tgt of fighters) {
+        if (tgt.id === atk.id) continue;
+        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD) continue;
+        if (atk.attackHit.includes(tgt.id)) continue;
+        const tgtDef = this.defOf(tgt);
+        const bodyLocal = tgtDef
+          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+          : null;
+        if (!bodyLocal) continue;
+        const body = worldRect(tgt, bodyLocal);
+        const hitArea = areas.find((r) => rectsOverlap(r, body));
+        if (!hitArea) continue;
+        atk.attackHit.push(tgt.id);
+        this.applyHit(atk, tgt, tgtDef, hit, hitArea);
+      }
+    }
+  }
 
-  // 7. 流程事件：死亡、回合计时、比分、能量回复
+  /** 命中结算（原版 beHit/doHurt 最小子集：扣血 → 死亡/钢身/受击）。 */
+  private applyHit(
+    attacker: FighterState,
+    target: FighterState,
+    targetDef: FighterDef | null,
+    hit: { power: number; hitType: number; hitx: number; hity: number; hurtTime: number; hurtType: number; isBreakDef: boolean },
+    hitArea: { x: number; y: number; w: number; h: number },
+  ): void {
+    target.hp = Math.max(0, target.hp - hit.power);
+    this.emit('hit:connect', {
+      attacker: attacker.id,
+      target: target.id,
+      hitType: hit.hitType,
+      power: hit.power,
+      x: hitArea.x + hitArea.w / 2,
+      y: hitArea.y + hitArea.h / 2,
+    });
+    if (target.hp <= 0) {
+      enterDead(target, targetDef);
+      this.emit('fighter:ko', { fighter: target.id });
+      return;
+    }
+    if (target.steelBody) return; // 钢身：掉血但无受击状态变化（原版 doSteelHurt 子集）
+    enterHurt(target, targetDef, hit, attacker.facing, !target.onGround);
+  }
+
+  // 7. 流程事件：回合计时（死亡/比分随回合流程后续切片接入）
   private stepMatchFlow(): void {
     if (this.state.tick === 0) {
       this.emit('round:start', { round: this.state.match.round });
-    }
-    for (const f of this.state.fighters) {
-      if (f.hp <= 0) {
-        this.emit('fighter:ko', { fighter: f.id });
-      }
     }
     this.state.match.roundFrame += 1;
   }
@@ -233,4 +435,15 @@ export class Sim {
     this.state.tick += 1;
     return snapshot;
   }
+}
+
+/** def.triggers → 帧 → 触发列表（保持注册顺序）。 */
+function indexTriggers(def: FighterDef): Map<number, FrameTrigger[]> {
+  const map = new Map<number, FrameTrigger[]>();
+  for (const t of def.triggers) {
+    const list = map.get(t.frame);
+    if (list) list.push(t);
+    else map.set(t.frame, [t]);
+  }
+  return map;
 }

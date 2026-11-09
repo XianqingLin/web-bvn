@@ -73,6 +73,17 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 原版 `FighterMcCtrler`（~2200 行，逻辑与动画混合）是规格书不是抄写对象。移植版用显式状态表：`{ id, 动画, 结束条件, 可取消表, onEnter/onTick/onExit }`。状态码沿用原版枚举（`FighterActionState`）便于对照。受击/防御/钢身结算路径（module-map §5.6）是手感核心，对齐优先级最高。
 
+切片 3 已落地最小闭环（`core/fighter/{def,machine,behaviors}.ts`）：
+
+- **状态子集**：NORMAL / ATTACK_ING / JUMP_ING / HURT_ING / HURT_FLYING / HURT_DOWN / DEAD。攻击/受击锁定朝向与行动；受击计时结束后回 NORMAL。
+- **动画驱动**：`actLabel` + `animFrame`（内层时间轴绝对帧号，1 起，30Hz）。循环标签集合（站立/走/跳中/落）回绕播放，其余标签播完走 `endAction`（空中回 JUMP_ING，地面回 NORMAL）。`advanceAnimation` 语义为"先采样当前帧（帧触发器/判定区以此帧为准），再推进"。
+- **判定区接线**：`def.areas[animFrame]` 查表（baked 运行时 dump 几何，脚底锚点、direct=1 局部坐标）→ 世界 AABB（朝向镜像）。攻击判定名 = `<actionId>atm`；命中 = 攻击方 atm ∩ 受击方 bdmn（AABB 相交）。
+- **命中结算**（原版 doHurt 子集）：`hitx × 攻击者朝向`、空中 hity 补偿（HURT_Y_ADD_INAIR）、`hurtType==0` → HURT_ING（hurtTime ms→30Hz 帧换算 +3 偏移、下限 4）、否则 HURT_FLYING（水平不衰减，按击退方向翻转朝向）；钢身掉血不掉状态；一次攻击对一目标只结算一次（`attackHit`）；hp≤0 → DEAD + `fighter:ko`。
+- **速度衰减**：`dampX/dampY` 每 tick 双向线性逼近 0（原版 `KyoUtils.num_wake`）；跳跃 `vy=-jumpPower×0.5` + JUMP_DAMPING，上升段重力清零（原版 `applayG` 语义已核对）。
+- **POC 明确偏离**（后续切片收紧）：砍击无连段（attack 固定 k1/跳砍 kj1，映射表 kN→砍N）；无防御/瞬步/必杀/万解状态；无二段跳/快速下落；击飞无弹地/受身；`FighterActionState` 其余状态码待接。
+
+`FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
+
 ### 3.6 角色数据与帧触发器
 
 原版角色的玩法差异藏在 XFL 时间轴脚本里（`defineAction`/`fire`/`addAttacker`/形态切换，module-map §6.2）。移植版表达为 JSON 数据 + 帧触发原语（原语表见契约，扩充原语需契约/core/校验器三处同改）。38 角色脚本全部保留转译（ADR-6）；数据化不了的复杂机制收进 `core/fighter/behaviors/` 插件目录，不污染通用引擎。
@@ -143,5 +154,7 @@ TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客
 | 8 | 双精度浮点，不引入定点数 | 2026-11-08 |
 | 9 | 文档分层：契约（ARCHITECTURE.md）与设计文档分离，CLAUDE.md 做入口 | 2026-11-08 |
 | 10 | harness 先行：replay 哈希门禁与 core 骨架同期交付；core 单线程开发，批量任务才 fan-out | 2026-11-08 |
+| 11 | 角色定义（FighterDef）为静态配置：SimConfig 注入注册表、不进 SimState，快照恢复时回注（states 小、快照便宜） | 2026-11-09 |
+| 12 | 原版常量换算细则定案：速度/衰减类 ×SPEED_PLUS(0.5)，帧数类（hurtTime 折算后的动画帧、HURT_FRAME_OFFSET）与空间类不折算；hurtTime 按 ms→30Hz 帧换算再叠加原版偏移 | 2026-11-09 |
 
 推翻旧决策：标 ~~删除线~~ 并追加新行写明替代方案与日期。

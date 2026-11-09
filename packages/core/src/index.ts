@@ -3,3 +3,6 @@ export * from './rng.js';
 export * from './serialize.js';
 export * from './state.js';
 export * from './sim.js';
+export * from './fighter/def.js';
+export * from './fighter/machine.js';
+export * from './fighter/behaviors.js';

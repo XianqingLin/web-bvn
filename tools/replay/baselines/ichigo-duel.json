@@ -1,0 +1,34 @@
+{
+  "name": "ichigo-duel",
+  "seed": 1,
+  "map": "KonohaMura",
+  "ticks": 404,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "867e118f"
+    },
+    {
+      "tick": 119,
+      "hash": "72bfa251"
+    },
+    {
+      "tick": 179,
+      "hash": "ad400748"
+    },
+    {
+      "tick": 239,
+      "hash": "432d6cb3"
+    },
+    {
+      "tick": 299,
+      "hash": "e8d2ce2e"
+    },
+    {
+      "tick": 359,
+      "hash": "5eecb929"
+    }
+  ],
+  "finalHash": "4fa93fe9"
+}

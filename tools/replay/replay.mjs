@@ -17,8 +17,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDefaultConfig, Sim } from '@bvn/core';
-import { compileMapStage } from '@bvn/data';
-import { loadMapPackage } from '@bvn/data/node';
+import { compileFighterRuntime, compileMapStage } from '@bvn/data';
+import { loadFighterPackage, loadMapPackage, loadRuntimeFighterPackage } from '@bvn/data/node';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const BAKED_DIR = resolve(ROOT, 'packages/data/baked');
@@ -63,8 +63,25 @@ if (frames.length === 0) fail('剧本展开后为空。');
 const stride = Number(flags.stride ?? 60);
 // 剧本可指定 "map": "<baked 地图 id>" → 舞台/出生点来自真实地图数据；
 // 缺省用合成空场（createDefaultConfig，行为与切片 1 基准一致）。
+// 剧本可指定 "fighters": [{ "pkg": "<baked 角色包 id>" }, ...] → 注入角色运行时定义
+// （compileFighterRuntime：runtime dump 几何 + XFL 形态数值/触发）。
+function buildFighterDefs() {
+  const list = Array.isArray(script.fighters) ? script.fighters : [];
+  return list.map((f) => {
+    const runtime = loadRuntimeFighterPackage(BAKED_DIR, f.pkg, 'fighters-runtime');
+    const xfl = loadFighterPackage(BAKED_DIR, f.pkg);
+    return compileFighterRuntime(runtime, xfl);
+  });
+}
 function buildConfig(seed) {
-  if (!script.map) return createDefaultConfig(seed);
+  const defs = buildFighterDefs();
+  if (!script.map) {
+    const cfg = createDefaultConfig(seed);
+    defs.forEach((def, i) => {
+      if (cfg.fighters[i]) cfg.fighters[i].def = def;
+    });
+    return cfg;
+  }
   const { stage, p1Spawn, p2Spawn } = compileMapStage(loadMapPackage(BAKED_DIR, script.map));
   const groundY = stage.groundY;
   const fallbackSpawn = (i) => (i === 0 ? { x: 300, y: groundY } : { x: 700, y: groundY });
@@ -74,8 +91,8 @@ function buildConfig(seed) {
     seed,
     stage,
     fighters: [
-      { id: 1, x: s1.x, y: s1.y },
-      { id: 2, x: s2.x, y: s2.y },
+      { id: 1, x: s1.x, y: s1.y, ...(defs[0] ? { def: defs[0] } : {}) },
+      { id: 2, x: s2.x, y: s2.y, ...(defs[1] ? { def: defs[1] } : {}) },
     ],
   };
 }

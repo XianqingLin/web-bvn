@@ -1,4 +1,5 @@
 import { createPlayerInput, type PlayerInput } from './input.js';
+import type { FighterDef } from './fighter/def.js';
 
 /** 逻辑坐标系 1000×600，y 向下（DESIGN §5，与原版一致）。 */
 export const STAGE_WIDTH = 1000;
@@ -38,16 +39,37 @@ export interface FighterState {
   id: number;
   x: number;
   y: number;
-  /** 显式水平速度（行走/击退；骨架期=行走速度） */
+  /** 显式水平速度（行走/击退/击飞；行走时每 tick 由输入重置） */
   vx: number;
   /** 显式垂直速度（跳跃/击飞；重力不计入此值——见 gRamp） */
   vy: number;
+  /** 速度线性衰减（原版 _damping：每 tick 向 0 衰减 vx/vy；跳跃/受击时设置） */
+  dampX: number;
+  dampY: number;
   /** 重力位移斜坡（原版 BaseGameSprite._g：离地 GRAVITY_START 起，空中递增至封顶） */
   gRamp: number;
   facing: 1 | -1;
   hp: number;
-  /** 状态机状态码，沿用原版 FighterActionState 枚举（DESIGN §3.5）。骨架阶段仅 0=站立。 */
+  /** 气（原版 qi，上限 300；必杀资源） */
+  qi: number;
+  /** 状态机状态码（core/fighter/def.ts ActionState，原版 FighterActionState 子集） */
   actionState: number;
+  /** 是否在地面（物理落地判定结果；跳跃/击飞状态转移用） */
+  onGround: boolean;
+  /** 当前动画标签（内层时间轴；null = 未接角色数据） */
+  actLabel: string | null;
+  /** 当前动画帧（内层时间轴绝对帧号，1 起，30Hz） */
+  animFrame: number;
+  /** 标签锁定剩余帧（动画帧）：>0 时普通行动不覆盖标签（如 落地 恢复） */
+  labelLock: number;
+  /** 当前攻击动作 id（ATTACK_ING 期间非空） */
+  attackId: string | null;
+  /** 本次攻击已命中过的目标 id（一击一目标规则） */
+  attackHit: number[];
+  /** 受击/倒地剩余帧（动画帧计数） */
+  hurtTimer: number;
+  /** 钢身（setSteelBody 触发；受击不掉血外的状态变化） */
+  steelBody: boolean;
   input: PlayerInput;
 }
 
@@ -77,6 +99,8 @@ export interface FighterConfig {
   /** 出生高度（缺省 = stage.groundY；地图出生点在平台上时由配置方传入） */
   y?: number;
   hp?: number;
+  /** 角色运行时定义（缺省 = 合成骨架角色：无判定区/动作，仅物理） */
+  def?: FighterDef;
 }
 
 export interface SimConfig {
@@ -112,11 +136,22 @@ export function createInitialState(config: SimConfig): SimState {
       y: fc.y ?? config.stage.groundY,
       vx: 0,
       vy: 0,
+      dampX: 0,
+      dampY: 0,
       // 站立状态下的 gRamp 即离地初值（原版 setInAir(false) → _g=4，60Hz 折半 = 2）
       gRamp: 2,
       facing: (i === 0 ? 1 : -1) as 1 | -1,
       hp: fc.hp ?? DEFAULT_HP,
+      qi: 0,
       actionState: 0,
+      onGround: true,
+      actLabel: null,
+      animFrame: 0,
+      labelLock: 0,
+      attackId: null,
+      attackHit: [],
+      hurtTimer: 0,
+      steelBody: false,
       input: createPlayerInput(),
     }));
   return {
