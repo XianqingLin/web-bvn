@@ -44,6 +44,8 @@ export class BattleRenderer {
   /** 前景层（地图 floor 图层：绘制在角色脚前，原版 BVN 层序） */
   private mapFrontLayer: Container;
   private fighterLayer: Container;
+  private bulletLayer: Container;
+  private bulletGfx: Graphics;
   private fxLayer: Container;
   private hudLayer: Container;
   private sprites = new Map<number, FighterSprite>();
@@ -69,10 +71,19 @@ export class BattleRenderer {
     this.mapLayer = new Container();
     this.mapFrontLayer = new Container();
     this.fighterLayer = new Container();
+    this.bulletLayer = new Container();
+    this.bulletGfx = new Graphics();
     this.fxLayer = new Container();
     this.hudLayer = new Container();
-    // 层序：bg/map < 角色 < 前景 floor < 特效
-    this.world.addChild(this.mapLayer, this.fighterLayer, this.mapFrontLayer, this.fxLayer);
+    this.bulletLayer.addChild(this.bulletGfx);
+    // 层序：bg/map < 角色 < 飞行道具 < 前景 floor < 特效
+    this.world.addChild(
+      this.mapLayer,
+      this.fighterLayer,
+      this.bulletLayer,
+      this.mapFrontLayer,
+      this.fxLayer,
+    );
     app.stage.addChild(this.world, this.hudLayer);
     this.onResize();
     app.renderer.on('resize', this.onResize, this);
@@ -193,8 +204,35 @@ export class BattleRenderer {
       this.applyFrame(sp, f.actLabel !== null ? f.animFrame : 0);
     }
 
+    this.updateBullets(prev, next, alpha);
     this.updateCamera(next);
     this.updateHud(next);
+  }
+
+  /**
+   * 飞行道具（切片 8 占位表现）：命中矩形色块 + 按发射朝向的尖端。
+   * bullet 精灵图集（fire 元件自身时间轴）待后续切片接入图集管线。
+   */
+  private updateBullets(
+    prev: SimSnapshot,
+    next: SimSnapshot,
+    alpha: number,
+  ): void {
+    const g = this.bulletGfx;
+    g.clear();
+    for (const b of next.state.bullets) {
+      const p = prev.state.bullets.find((x) => x.id === b.id) ?? b;
+      const ix = p.x + (b.x - p.x) * alpha;
+      const iy = p.y + (b.y - p.y) * alpha;
+      // 颜色按 hitType 粗分（1-3 近战系红 / 4-6 魔法系紫 / 7-10 属性系橙 / 摔白）
+      const hitType = b.hit.hitType;
+      const color =
+        hitType <= 3 ? 0xff5544 : hitType <= 6 ? 0xcc66ff : hitType <= 10 ? 0xffaa33 : 0xffffff;
+      g.rect(ix, iy, b.w, b.h).fill({ color, alpha: 0.85 });
+      // 尖端：朝 facing 方向的小三角指示
+      const tipX = b.facing === 1 ? ix + b.w : ix;
+      g.moveTo(tipX, iy + b.h / 2 - 5).lineTo(tipX + b.facing * 8, iy + b.h / 2).lineTo(tipX, iy + b.h / 2 + 5).fill({ color, alpha: 0.85 });
+    }
   }
 
   /** 应用内层动画帧：查图集 form.frames[animFrame-1]。 */

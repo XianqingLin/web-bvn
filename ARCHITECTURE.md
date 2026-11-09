@@ -83,10 +83,12 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 角色 JSON 的 `triggers` 只允许使用以下原语；扩充原语类型 = 改本表 + core 实现（`core/fighter/behaviors.ts` 注册表）+ data 校验器，三处同 commit：
 
 - 移动类（速度值 ×SPEED_PLUS，ADR-12）：`move`、`movePercent`、`moveOnce`、`dash`、`stop`/`stopMove`、`damping`/`dampingPercent`
-- 状态/资源：`setSteelBody`、`addQi`、`endAct`（收招）
+- 状态/资源：`setSteelBody`、`addQi`、`endAct`（收招）、`setCross`、`isApplyG`、`setAirMove`、`setTouchFloor(label)`、`idle(frame?)`（主动回位）
+- 瞬步系（target 分流：mc=动作控制，effect=表现事件）：`dash`、`dashStop(p)`；纯表现：`shadow`/`endShadow`、`bisha`/`endBisha`、`slowDown(t)`、`walk`、`jump`、`touchFloor`
 - 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`
 - 表现原语（core 只发事件）：`playSoundHit1`、`playSoundHit2`、`shine`、`startShake`、`shake`、`endShake`
-- 已登记未实现（注册表未注册 → 确定性静默，接入时同 commit 补实现）：`fire`（飞行道具）、`addAttacker`、`switchForm`、`teleport`、`summon`、`sound`、`effect`（后两者以 playSoundHit*/shine/shake 代替）
+- 飞行道具：`fire(mcName, params?)`（切片 8；params 语料字段 x/y/hold/hits/hp，见 DESIGN §3.5）
+- 已登记未实现（注册表未注册 → 确定性静默，接入时同 commit 补实现）：`addAttacker`、`switchForm`、`teleport`、`summon`、`sound`、`effect`（后两者以 playSoundHit*/shine/shake 代替）、目标系（`moveToTarget`/`moveTarget`/`setHitTarget`/`justHit*`，摔技/抓取用）、`setSkillAIR`/`setBishaAIR`/`setAttackAIR`、`setJump`、万解系（`startWanKai` 等）
 
 ## 并行开发纪律
 

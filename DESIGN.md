@@ -90,7 +90,14 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **能量系统**：上限 100，普回 1/tick、攻击中 0.55、防御 0.4、过载 0.3；花费后 24 tick 冷却（原版 USE_ENERGY_CD）。
 - **连段槽**：帧触发 `setAttack("砍2")` 改写动作槽（对照 ichigo 砍1@134→砍2），同一时间轴内再按攻击接续；`_CHK` 相邻标签自动续播（招2→招2_CHK 等）。attack 槽重填默认于 endAction。
 - **动画映射修正**（切片 3 映射错误此片纠正）：`kjN→砍技N`、`tk→跳砍`、`tz→跳招`、`shN→摔N`、`zhN→招N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`（见 module-map §动作标签）。
-- **本片新偏离**（记录待收紧）：防御硬直无专用动画窗（原版 isDefenseHiting）；防御退出即时（原版 ~6 tick 延迟）；摔技未接（shN 需 moveTarget/抓取）；万解/瞬身步/空中瞬步/二段跳未做；ichigo 必杀无飞行道具（fire 原语未实现，登记静默）。
+- **本片新偏离**（记录待收紧）：防御硬直无专用动画窗（原版 isDefenseHiting）；防御退出即时（原版 ~6 tick 延迟）；摔技未接（shN 需 moveTarget/抓取）；万解/瞬身步/空中瞬步/二段跳未做。
+
+切片 8 补飞行道具 `fire` 原语 + 行为 op 词表 Tier-1（module-map §5.7，原版 `Bullet.as`/`FighterMcCtrler.fire`）：
+
+- **Bullet 语义**：速度存发射朝向的局部系（world 位移 = sx×SPEED_PLUS×facing）；addSpeed 净加速度/tick（原版 add×2 预乘）；maxSpeed/minSpeed 局部系 clamp（两朝向一致）；holdFrame = 秒×60；hitTimes=-1 无限；hp/hpMax 道具对撞互扣（hp -= 对方 hpMax）；必杀判定（actionId 含 "bs"）命中不回气。
+- **fire(mcName)**：发射帧上名为 mcName 的判定区 = 道具固定命中框；HitDef 去 atm 后缀查动作表；判定区/动作缺失 = 确定性静默。
+- **本片新偏离**（记录待收紧）：道具命中/超时即消散并发 `entity:despawn`（原版命中后残留命中演出子 MC——bullet 精灵图集未导出，render 暂以占位色块 + 事件表现，图集管线接入后收紧）；角色攻击摧毁道具不回气（原版 Bullet.beHit 亦无回气，取义一致但结算序规范化为 fighter→fighter → 攻击 vs 道具 → 道具 vs 角色 → 道具对撞，全部 id 升序，替代原版 children 插入序）；`dash` 语义纠正为原版 setVelocity（speed×v×SPEED_PLUS，v 缺省 3，穿越/免受击），切片 5 旧取义废弃。
+- **待补（切片 9 资源系统）**：近战命中不回气——原版命中回气 power×0.1（受击方亦回气），当前仅道具命中回气；replay 剧本因此无法自然攒气验证必杀弹道（合成 def 单测覆盖 fire 全路径）。
 
 `FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 

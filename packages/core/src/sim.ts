@@ -6,6 +6,7 @@ import {
   ENERGY_GAP_TICKS,
   ENERGY_MAX,
   PLAYFIELD_HALF_WIDTH,
+  type BulletState,
   type FighterState,
   type SimConfig,
   type SimState,
@@ -20,6 +21,7 @@ import {
   worldRect,
   type FighterDef,
   type FrameTrigger,
+  type HitDef,
 } from './fighter/def.js';
 import {
   advanceAnimation,
@@ -34,7 +36,12 @@ import {
   stepIntentsFor,
   walkSpeed,
 } from './fighter/machine.js';
-import { createBehaviorRegistry, type BehaviorContext, type BehaviorHandler } from './fighter/behaviors.js';
+import {
+  createBehaviorRegistry,
+  type BehaviorContext,
+  type BehaviorHandler,
+  type BulletSpawnSpec,
+} from './fighter/behaviors.js';
 
 // 物理帧常量（原版 BaseGameSprite/GameLogic 语义 × SPEED_PLUS=0.5，即
 // 原版自己的 60fps 手感基准——见 DESIGN §3.1；空间容差类常量不乘系数）
@@ -134,7 +141,7 @@ export class Sim {
         this.triggerIndex.set(fc.id, indexTriggers(fc.def));
       }
     }
-    this.behaviors = createBehaviorRegistry({ endAct: endAction });
+    this.behaviors = createBehaviorRegistry({ endAct: endAction, spawnBullet: (spec) => this.spawnBullet(spec) });
   }
 
   /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入；
@@ -152,7 +159,7 @@ export class Sim {
     sim.defs = new Map(defs ?? []);
     sim.triggerIndex = new Map();
     for (const [id, def] of sim.defs) sim.triggerIndex.set(id, indexTriggers(def));
-    sim.behaviors = createBehaviorRegistry({ endAct: endAction });
+    sim.behaviors = createBehaviorRegistry({ endAct: endAction, spawnBullet: (spec) => sim.spawnBullet(spec) });
     return sim;
   }
 
@@ -264,8 +271,12 @@ export class Sim {
       const view = this.views[i]!;
       const def = this.defOf(f);
       const wasAirborne = !f.onGround;
-      // 行走：仅 NORMAL 且在地面（原版 renderFloorAction）；其余状态保留惯性
-      if (f.actionState === ActionState.NORMAL && f.onGround && f.hp > 0) {
+      // 行走：NORMAL 且在地面（原版 renderFloorAction）；airMove（飞行系）空中也可
+      if (
+        f.actionState === ActionState.NORMAL &&
+        (f.onGround || f.airMove) &&
+        f.hp > 0
+      ) {
         let dir = 0;
         if (view.held(Btn.left)) dir -= 1;
         if (view.held(Btn.right)) dir += 1;
@@ -286,8 +297,11 @@ export class Sim {
       f.y += f.vy;
       const airborne = this.resolveLanding(f, stage);
       if (airborne) {
-        // 重力斜坡（原版 applayG(12)：上升段清零；下落段每 tick 递增后施为位移）
-        if (f.vy < 0) {
+        // 重力斜坡（原版 applayG(12)：上升段清零；下落段每 tick 递增后施为位移；
+        // isApplyG=false（飞行系）不施加重力）
+        if (!f.applyG) {
+          // 悬停：无重力位移
+        } else if (f.vy < 0) {
           f.gRamp = 0;
         } else {
           f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
@@ -301,9 +315,100 @@ export class Sim {
         f.onGround = true;
       }
     }
+    // 飞行道具推进（原版 Bullet.render：每 tick 位移/加速/钳制/寿命/出界）
+    this.stepBullets();
     // 牵引边界（ADR-4）：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
     // 相机不进模拟（契约硬规则 5）。
     this.clampPlayfield();
+  }
+
+  /** 飞行道具每 tick 推进（原版 Bullet.render；speedLevel 命中减速原版未接，略）。 */
+  private stepBullets(): void {
+    const { stage, bullets } = this.state;
+    const removed: number[] = [];
+    for (const b of bullets) {
+      // 位移（局部空间速度；x 沿发射朝向）+ 加速（add×2×SPEED_PLUS = add/tick）
+      b.x += b.sx * SPEED_PLUS * b.facing;
+      b.y += b.sy * SPEED_PLUS;
+      b.sx += b.addX;
+      b.sy += b.addY;
+      // 局部空间钳制（朝向镜像后两方向语义一致：sx∈[minX,maxX]，见 state.ts 注）
+      if (b.sx > b.maxX) b.sx = b.maxX;
+      if (b.sx < b.minX) b.sx = b.minX;
+      if (b.sy > b.maxY) b.sy = b.maxY;
+      if (b.sy < b.minY) b.sy = b.minY;
+      // 寿命（原版 holdFrame 递减至 0 → timeout/remove；此处置 despawn，命中
+      // 消散表现由渲染层经 entity:despawn 事件处理）
+      if (b.holdTicks >= 0 && --b.holdTicks <= 0) {
+        removed.push(b.id);
+        continue;
+      }
+      // 出界（原版 GameLogic.isOutRange：边界 ±20；bullet allowCrossMapXY 可越界飞行）
+      if (
+        b.x > stage.rightBound + 20 ||
+        b.x < stage.leftBound - 20 ||
+        b.y > stage.bottomY + 20
+      ) {
+        removed.push(b.id);
+      }
+    }
+    if (removed.length > 0) this.removeBullets(removed);
+  }
+
+  /** 发射（behaviors.fire 引擎桥）：判定区换算世界坐标 + 参数换算入 SimState。 */
+  private spawnBullet(spec: BulletSpawnSpec): void {
+    const { owner, name, local, hit, params } = spec;
+    const world = worldRect(owner, local);
+    const axis = (v: number | { start?: number; add?: number; max?: number; min?: number } | undefined) => {
+      if (typeof v === 'number') return { start: v, add: 0, max: 999, min: -999 };
+      return {
+        start: v?.start ?? 0,
+        add: v?.add ?? 0,
+        max: v?.max ?? 999,
+        min: v?.min ?? -999,
+      };
+    };
+    const ax = axis(params.x);
+    const ay = axis(params.y);
+    const hold = params.hold === undefined ? -1 : params.hold === -1 ? -1 : Math.round(params.hold * 60);
+    const bullet: BulletState = {
+      id: this.state.nextEntityId,
+      ownerId: owner.id,
+      facing: owner.facing,
+      name,
+      x: world.x,
+      y: world.y,
+      w: world.w,
+      h: world.h,
+      sx: ax.start,
+      sy: ay.start,
+      addX: ax.add,
+      addY: ay.add,
+      minX: ax.min,
+      maxX: ax.max,
+      minY: ay.min,
+      maxY: ay.max,
+      holdTicks: hold,
+      hitTimes: params.hits ?? -1,
+      hp: params.hp ?? 100,
+      hpMax: params.hp ?? 100,
+      hit: { ...hit },
+      hitAble: true,
+    };    this.state.nextEntityId += 1;
+    this.state.bullets.push(bullet);
+    this.state.bullets.sort((a, b) => a.id - b.id);
+    this.emit('entity:spawn', { kind: 'bullet', id: bullet.id, name: bullet.name, owner: owner.id });
+  }
+
+  private removeBullets(ids: number[]): void {
+    const set = new Set(ids);
+    this.state.bullets = this.state.bullets.filter((b) => {
+      if (set.has(b.id)) {
+        this.emit('entity:despawn', { kind: 'bullet', id: b.id });
+        return false;
+      }
+      return true;
+    });
   }
 
   private clampPlayfield(): void {
@@ -341,7 +446,9 @@ export class Sim {
       a.hp <= 0 ||
       b.hp <= 0 ||
       a.actionState === ActionState.HURT_FLYING ||
-      b.actionState === ActionState.HURT_FLYING
+      b.actionState === ActionState.HURT_FLYING ||
+      a.isCross ||
+      b.isCross // 原版 checkBodyHit：穿越态（瞬步）不参与推挤
     ) {
       return;
     }
@@ -392,18 +499,21 @@ export class Sim {
           fighters,
           stage,
           emit: (type, payload) => this.emit(type, payload),
+          spawnBullet: (spec) => this.spawnBullet(spec),
         };
         for (const t of list) {
           const handler = this.behaviors[t.op];
-          if (handler) handler(ctx, t.args);
+          if (handler) handler(ctx, t.args, t.target);
         }
       });
     }
   }
 
-  // 6. [动画帧] 命中判定与结算（固定顺序 P1→P2；道具/辅助后续切片接入）
+  // 6. [动画帧] 命中判定与结算。
+  // 固定顺序（本引擎 canonical，替代原版 children 插入序；两端一致即确定）：
+  //   角色→角色（P1→P2）→ 角色攻击→道具 → 道具→角色 → 道具→道具（均按 id 升序）
   private stepHitResolution(): void {
-    const { fighters } = this.state;
+    const { fighters, bullets } = this.state;
     for (const atk of fighters) {
       const atkDef = this.defOf(atk);
       if (atk.actionState !== ActionState.ATTACK_ING || !atkDef) continue;
@@ -426,33 +536,92 @@ export class Sim {
         const hitArea = areas.find((r) => rectsOverlap(r, body));
         if (!hitArea) continue;
         atk.attackHit.push(tgt.id);
-        this.applyHit(atk, tgt, tgtDef, hit, hitArea);
+        this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, hit, hitArea);
+      }
+      // 角色攻击 vs 敌方道具（原版 Bullet.beHit：hp -= power；摧毁不回气——简化偏离）
+      for (const b of bullets) {
+        if (!b.hitAble || b.ownerId === atk.id) continue;
+        const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
+        if (!areas.some((r) => rectsOverlap(r, bRect))) continue;
+        b.hp -= hit.power;
+        if (b.hp <= 0) this.despawnBullet(b.id);
       }
     }
+    // 道具 → 角色 / 道具 → 道具（2 人模型：ownerId 不同即敌对）
+    for (const b of bullets) {
+      if (!this.state.bullets.includes(b) || !b.hitAble) continue;
+      const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
+      const owner = this.state.fighters.find((f) => f.id === b.ownerId) ?? null;
+      let consumed = false;
+      for (const tgt of fighters) {
+        if (tgt.id === b.ownerId) continue;
+        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
+        const tgtDef = this.defOf(tgt);
+        const bodyLocal = tgtDef
+          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+          : null;
+        if (!bodyLocal) continue;
+        if (!rectsOverlap(bRect, worldRect(tgt, bodyLocal))) continue;
+        // 原版 Bullet.hit：非必杀命中 → 发射者回气 power×0.1（qi 上限 300）
+        if (owner && !isBishaAction(b.name.replace('atm', ''))) {
+          owner.qi = Math.min(300, owner.qi + b.hit.power * 0.1);
+        }
+        this.applyHit(b.ownerId, b.facing, b.x + b.w / 2, tgt, tgtDef, b.hit, bRect);
+        // 原版 hitTimes：每次命中递减，耗尽 → doHit（停止命中并消散）
+        if (b.hitTimes > 0 && --b.hitTimes <= 0) {
+          this.despawnBullet(b.id);
+          consumed = true;
+          break;
+        }
+      }
+      if (consumed) continue;
+      // 道具对撞（原版 Bullet.beHit：hp -= 对方 hpMax；双灭同帧按 id 序结算）
+      for (const other of bullets) {
+        if (other.id === b.id || !other.hitAble) continue;
+        if (other.ownerId === b.ownerId) continue;
+        const oRect = { x: other.x, y: other.y, w: other.w, h: other.h };
+        if (!rectsOverlap(bRect, oRect)) continue;
+        b.hp -= other.hpMax;
+        other.hp -= b.hpMax;
+        if (b.hp <= 0) this.despawnBullet(b.id);
+        if (other.hp <= 0) this.despawnBullet(other.id);
+        if (!this.state.bullets.includes(b)) break;
+      }
+    }
+  }
+
+  /** 道具命中消散（原版 doHit：_hitAble=false → 播 hit 段 → remove；此处置即时消散，偏离已记录）。 */
+  private despawnBullet(id: number): void {
+    this.removeBullets([id]);
   }
 
   /**
    * 命中结算（原版 beHit 分流：钢身 → 防御 → doHurt）。
    * 防御分支照 doDefenseHit：削血 5% → 能量不足则破防（doBreakDefense）→
    * 否则能量损耗 + 短暂无敌 + 击退（无防御硬直动画窗，POC 偏离已记录）。
+   * @param attackerId 攻击来源 id（角色或道具）
+   * @param attackerFacing 击退方向基准（角色=当前朝向；道具=发射时朝向）
+   * @param attackerX 攻击来源位置（背刺判定；道具=道具矩形中心）
    */
   private applyHit(
-    attacker: FighterState,
+    attackerId: number,
+    attackerFacing: 1 | -1,
+    attackerX: number,
     target: FighterState,
     targetDef: FighterDef | null,
-    hit: { power: number; hitType: number; hitx: number; hity: number; hurtTime: number; hurtType: number; isBreakDef: boolean },
+    hit: HitDef,
     hitArea: { x: number; y: number; w: number; h: number },
   ): void {
     const blocking =
       target.actionState === ActionState.DEFENCE_ING &&
       !(hit.hitType === 11 && hit.isBreakDef) &&
-      !this.checkDefDirect(target, attacker);
+      !this.checkDefDirect(target, attackerX, attackerFacing);
     const chip = blocking ? hit.power * DEFENSE_LOSE_HP_RATE : hit.power;
     const nextHp = Math.max(0, target.hp - chip);
     // 训练模式：假人不 KO（血最低保留 1）
     target.hp = this.training && nextHp <= 0 ? 1 : nextHp;
     this.emit('hit:connect', {
-      attacker: attacker.id,
+      attacker: attackerId,
       target: target.id,
       hitType: hit.hitType,
       power: hit.power,
@@ -483,7 +652,7 @@ export class Sim {
         target.energy = 0;
         target.energyOverload = true;
         target.energyGap = ENERGY_GAP_TICKS;
-        enterGuardBreak(target, targetDef, hit, attacker.facing);
+        enterGuardBreak(target, targetDef, hit, attackerFacing);
         this.emit('fighter:guardBreak', { fighter: target.id });
         return;
       }
@@ -491,19 +660,23 @@ export class Sim {
       target.energyGap = ENERGY_GAP_TICKS;
       target.beHitGap = defenseGapTicks(hit);
       target.isAllowBeHit = false;
-      target.vx = hit.hitx * attacker.facing * SPEED_PLUS;
+      target.vx = hit.hitx * attackerFacing * SPEED_PLUS;
       target.dampX = DEFENSE_DAMP_X;
       void defenseHoldTicks(hit);
       return;
     }
     if (target.steelBody) return; // 钢身：掉血但无受击状态变化（原版 doSteelHurt 子集）
-    enterHurt(target, targetDef, hit, attacker.facing, !target.onGround);
+    enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
   }
 
-  /** 背刺判定（原版 checkDefDirect）：防御者背对攻击者 → 防御无效。 */
-  private checkDefDirect(defender: FighterState, attacker: FighterState): boolean {
-    if (defender.x < attacker.x - 5) return defender.facing < 0 && attacker.facing < 0;
-    if (defender.x > attacker.x + 5) return defender.facing > 0 && attacker.facing > 0;
+  /** 背刺判定（原版 checkDefDirect）：防御者背对攻击来源 → 防御无效。 */
+  private checkDefDirect(
+    defender: FighterState,
+    attackerX: number,
+    attackerFacing: 1 | -1,
+  ): boolean {
+    if (defender.x < attackerX - 5) return defender.facing < 0 && attackerFacing < 0;
+    if (defender.x > attackerX + 5) return defender.facing > 0 && attackerFacing > 0;
     return false;
   }
 
@@ -569,4 +742,9 @@ function indexTriggers(def: FighterDef): Map<number, FrameTrigger[]> {
     else map.set(t.frame, [t]);
   }
   return map;
+}
+
+/** 原版 HitVO.isBisha：动作 id 含 bs/sbs/cbs/kbs（子串 bs 覆盖全部）。 */
+function isBishaAction(actionId: string): boolean {
+  return actionId.includes('bs');
 }

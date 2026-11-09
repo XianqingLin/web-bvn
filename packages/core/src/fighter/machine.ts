@@ -121,6 +121,10 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
     f.isAllowBeHit = true;
   }
   f.slots = defaultSlots(def);
+  // 原版 _action.clearAction()：动作边界清除 per-action 标志
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
   if (f.onGround) {
     if (f.actionState !== ActionState.HURT_ING && f.actionState !== ActionState.HURT_DOWN) {
       f.actionState = ActionState.NORMAL;
@@ -161,6 +165,10 @@ export function startAttack(
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
+  // 原版 clearAction：新动作清除 per-action 标志
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
   return true;
 }
 
@@ -256,6 +264,10 @@ function startSkill(
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
+  // 原版 clearAction：新动作清除 per-action 标志
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
   return true;
 }
 
@@ -499,6 +511,18 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
     f.dampX = HURT_DAMP_X;
     return;
   }
+  // 触地续接（原版 touchFloor()：setTouchFloor 预约的标签在触地时接管，
+  // 普通跳跃落地同样消费；受击落地除外）
+  if (f.touchFloor !== null && f.actionState !== ActionState.DEAD) {
+    const tf = def?.labels[f.touchFloor];
+    if (tf) {
+      f.actLabel = f.touchFloor;
+      f.animFrame = tf.index + 1;
+      f.labelLock = 0;
+      f.touchFloor = null;
+      return;
+    }
+  }
   if (f.actionState === ActionState.JUMP_ING) {
     f.actionState = ActionState.NORMAL;
     f.dampY = 0;
@@ -531,6 +555,9 @@ export function enterHurt(
 
   f.attackId = null;
   f.labelLock = 0;
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
   f.vx = hitx * SPEED_PLUS;
   f.vy = hity * SPEED_PLUS;
   f.dampY = HURT_DAMP_Y;

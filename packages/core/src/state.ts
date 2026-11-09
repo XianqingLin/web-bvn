@@ -1,5 +1,5 @@
 import { createPlayerInput, type PlayerInput } from './input.js';
-import { defaultSlots, type FighterDef, type FighterSlots } from './fighter/def.js';
+import { defaultSlots, type FighterDef, type FighterSlots, type HitDef } from './fighter/def.js';
 
 /** 逻辑坐标系 1000×600，y 向下（DESIGN §5，与原版一致）。 */
 export const STAGE_WIDTH = 1000;
@@ -87,7 +87,58 @@ export interface FighterState {
   beHitGap: number;
   /** 动作槽（连段/技能/必杀当前可用动作；帧触发改写，endAction 重填） */
   slots: FighterSlots;
+  /** 穿越版边/免推挤（原版 isCross：dash 期间为 true；落地/新动作清除） */
+  isCross: boolean;
+  /** 是否施加重力斜坡（原版 isApplyG：飞行系角色置 false） */
+  applyG: boolean;
+  /** 空中可行走（原版 airMove：飞行系角色；新动作清除） */
+  airMove: boolean;
+  /** 空中动作触地续接标签（原版 setTouchFloor；触地或新动作清除） */
+  touchFloor: string | null;
   input: PlayerInput;
+}
+
+/**
+ * 飞行道具（原版 Bullet 子集，module-map §5.7）。
+ * 命中矩形 = 发射帧命名子对象判定区（fire 参数 mcName 对应 def.areas 项），
+ * 尺寸固定、随速度平移；x 速度存局部空间（沿 facing），世界位移 = sx×SPEED_PLUS×facing。
+ */
+export interface BulletState {
+  id: number;
+  /** 发射者 fighter id（命中结算归属/气回充） */
+  ownerId: number;
+  /** 发射时朝向（x 局部速度沿此方向；命中击退方向也取它而非 owner 当前朝向） */
+  facing: 1 | -1;
+  /** 元件名（如 zh1atm；渲染/调试表现用，逻辑不消费） */
+  name: string;
+  /** 命中矩形（世界坐标） */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** 局部空间速度（60Hz：位移 = s×SPEED_PLUS，加速 = add/tick，见 ADR-12 换算） */
+  sx: number;
+  sy: number;
+  /** 每 tick 加速度（原版 params.x.add×2×SPEED_PLUS = add/tick） */
+  addX: number;
+  addY: number;
+  /** 局部空间速度钳制（朝向镜像后两方向语义一致：sx∈[minX,maxX]） */
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  /** 剩余存在 tick（原版 params.hold 秒×FPS_GAME=60）；-1 = 永久 */
+  holdTicks: number;
+  /** 剩余命中次数（原版 params.hits）；-1 = 无限 */
+  hitTimes: number;
+  /** 道具对撞血量（原版 params.hp，缺省 100；被击 = 对方 hpMax 或攻击 power） */
+  hp: number;
+  /** 血量上限（对撞伤害基准 = 对方 hpMax） */
+  hpMax: number;
+  /** 命中定义（发射动作的 HitDef 拷贝） */
+  hit: HitDef;
+  /** 仍可命中（hits 耗尽/被摧毁后 false） */
+  hitAble: boolean;
 }
 
 export interface MatchState {
@@ -107,6 +158,10 @@ export interface SimState {
   stage: StageState;
   /** 始终按 id 升序（契约硬规则 3：多实体同帧更新定序遍历）。 */
   fighters: FighterState[];
+  /** 飞行道具（含独立道具后续形态），按 id 升序 */
+  bullets: BulletState[];
+  /** 实体 id 分配计数器（bullets/后续 attacker/assister 共用） */
+  nextEntityId: number;
   match: MatchState;
 }
 
@@ -179,6 +234,10 @@ export function createInitialState(config: SimConfig): SimState {
       energyGap: 0,
       isAllowBeHit: true,
       beHitGap: 0,
+      isCross: false,
+      applyG: true,
+      airMove: false,
+      touchFloor: null,
       slots: defaultSlots(fc.def ?? null),
       input: createPlayerInput(),
     }));
@@ -187,6 +246,8 @@ export function createInitialState(config: SimConfig): SimState {
     rngState: config.seed >>> 0,
     stage: { ...config.stage },
     fighters,
+    bullets: [],
+    nextEntityId: 1,
     match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
   };
 }
