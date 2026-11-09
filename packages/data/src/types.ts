@@ -135,3 +135,111 @@ export interface AssistantPackage {
   timeline: SymbolData;
   symbols: Record<string, SymbolData>;
 }
+
+/* =====================================================================
+ * 运行时导出（bvn/fighter-runtime@1 / bvn/map@1）
+ *
+ * 来源：tools/bridge 注入原版 AIR 应用自动 dump（tools/bridge/inject-methods.as3）。
+ * 只有运行时才拿得到的数据：命名判定区逐帧几何（引擎 getBounds 的真实值，
+ * XFL 静态解析无法可靠复现矩阵叠加）、AImain AI 活动范围、地图边界/出生点/地板。
+ * 坐标系：root 本地坐标、direct=1（朝右）、x/y 为矩形左上角——
+ * 与引擎 FighterMC.findHitArea/findBodyArea 的 getBounds(_fighterDisplay) 参照系一致。
+ * ===================================================================== */
+
+/** 判定区矩形（root 本地坐标，direct=1 朝右）。 */
+export interface AreaRect {
+  /** 命名子节点名：bdmn=受击体区 / atmN=命中区 / AImain 子节点=AI 范围 */
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** 内层主动画时间轴一帧的判定区（30Hz；只收含判定区的帧，空帧隐式为无判定）。 */
+export interface RuntimeFrameAreas {
+  /** 帧号（1 起，与原版时间轴一致） */
+  frame: number;
+  /** 帧标签（若有；引擎 goFrame 按标签寻帧） */
+  label?: string;
+  areas: AreaRect[];
+  /** dump 时帧脚本异常（该帧数据可能不完整） */
+  err?: string;
+}
+
+/** 一个形态的内层动画时间轴几何（角色）或 root 时间轴几何（辅助，单形态）。 */
+export interface RuntimeFormGeometry {
+  /** 根时间轴帧号（1 起；辅助恒为 1） */
+  rootFrame: number;
+  /** 本形态帧脚本注册的 action id（懒注册顺序，佐证 defineAction 归属形态） */
+  actionsRegistered: string[];
+  totalFrames: number;
+  /** 标签 → 区间（index 0 起；由带标签帧与相邻标签推导，duration 含至下一标签前） */
+  labels: Record<string, LabelRange>;
+  frames: RuntimeFrameAreas[];
+  /** AImain 子节点（AI 出招/移动范围，引擎 initHitRange 读取后即移除） */
+  aiRanges?: AreaRect[];
+  aiRangesErr?: string;
+  /** dump 时形态级异常（帧脚本抛错，该形态数据可能不完整） */
+  err?: string;
+}
+
+/**
+ * 运行时角色/辅助烘焙包。
+ * actions 为运行时 HitVO 表（原版 defineAction 参数逐字段对应），
+ * 兼作 XFL 静态提取（bvn/fighter@1）的交叉验证证据——字段漂移见
+ * baked/runtime-ingest-report.json。
+ */
+export interface RuntimeFighterPackage {
+  schema: 'bvn/fighter-runtime@1';
+  id: string;
+  source: {
+    kind: 'runtime-dump';
+    path: string;
+    hash: string;
+  };
+  /** fighter=角色（多形态） / assister=辅助（单形态，root 即动画时间轴） */
+  kind: 'fighter' | 'assister';
+  rootTotalFrames: number;
+  forms: RuntimeFormGeometry[];
+  actions: Record<string, ActionDef>;
+  /** defineAction 注册顺序（重复注册 = 覆盖，与引擎 _hitObj 行为一致） */
+  actionOrder: string[];
+  /** bishaFaces 绑定名（万解特写） */
+  bishaFaces: string[];
+}
+
+/** 地图地板段（引擎 FloorVO：[xFrom,xTo] 高度 y，可站立/可落击）。 */
+export interface MapFloor {
+  name: string;
+  xFrom: number;
+  xTo: number;
+  y: number;
+}
+
+/** 地图烘焙包（引擎 MapMain.initlize 的计算结果）。 */
+export interface MapPackage {
+  schema: 'bvn/map@1';
+  id: string;
+  name: string;
+  source: {
+    kind: 'runtime-dump';
+    path: string;
+    hash: string;
+  };
+  bgm: string;
+  fileUrl: string;
+  gameSize: { x: number; y: number };
+  /** 版边（归一后坐标：bottom = gameSize.y） */
+  left: number;
+  right: number;
+  bottom: number;
+  /** 玩家可站底线（低于 bottom 的死亡线语义见 module-map） */
+  playerBottom: number;
+  /** 出生点（缺省 = 地图未标注，引擎回退默认摆位） */
+  p1pos: { x: number; y: number } | null;
+  p2pos: { x: number; y: number } | null;
+  floors: MapFloor[];
+  /** 前景层宽度（相机牵引边界参考） */
+  mapSize?: { w: number; h: number };
+}

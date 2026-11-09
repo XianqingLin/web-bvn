@@ -1,0 +1,13 @@
+{
+  "name": "@bvn/runtime-ingest",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "ingest": "node dist/main.js"
+  },
+  "dependencies": {
+    "@bvn/data": "workspace:*"
+  }
+}

@@ -26,7 +26,7 @@ app → render → core ← net      （依赖只许向下；data 被各层只�
 - **core**：确定性模拟，60Hz 固定 tick，纯 TS 无 DOM，可在 Node 运行（对拍/单测/服务端校验依赖此点）。
 - **render**：PixiJS，只读快照 + 表现事件，插值渲染，相机纯渲染职责。
 - **app**：场景、键位采集、音频；非确定性层。
-- **data**：烘焙产物（角色/地图 JSON + 图集元数据），由 `tools/exporter` 从原版 SWF 导出。
+- **data**：烘焙产物（角色/地图 JSON + 图集元数据），双来源：`tools/exporter` XFL 静态提取（bvn/fighter@1、bvn/assistant@1）+ `tools/runtime-ingest` 运行时 dump 转译（bvn/fighter-runtime@1 判定区几何、bvn/map@1 地图边界/出生点/地板；由 `tools/bridge` 注入原版 AIR 应用导出）。运行时数据兼作 XFL 提取的交叉验证证据（见 baked/runtime-ingest-report.json）。
 - **net**：帧同步（阶段 2），对 core 单向依赖。
 
 目录与子系统接口的规范性定义见契约；这里只记理由：core 独立成包并用 lint 切断向上依赖，是因为"逻辑/渲染解耦"靠自觉守不住（原版就是反面教材，逻辑层与显示列表深度耦合）。

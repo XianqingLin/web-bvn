@@ -1,0 +1,58 @@
+{
+  "schema": "bvn/map@1",
+  "id": "Seireitei",
+  "name": "静灵廷",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_Seireitei.json",
+    "hash": "cbcb3ef52487d9f73e958b6c1b460c8383ff4eef"
+  },
+  "bgm": "assets/bgm/stg_wind.mp3",
+  "fileUrl": "assets/map/Seireitei.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 999,
+  "bottom": 600,
+  "playerBottom": 572,
+  "p1pos": {
+    "x": 374.1,
+    "y": 572
+  },
+  "p2pos": {
+    "x": 638.35,
+    "y": 572
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 492.35
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1000.2,
+      "y": 617.15
+    },
+    {
+      "name": "front",
+      "xFrom": 430.75,
+      "xTo": 496.7,
+      "y": 863.85
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 930.1,
+      "y": 779.7
+    }
+  ],
+  "mapSize": {
+    "w": 999.95,
+    "h": 742.9
+  }
+}

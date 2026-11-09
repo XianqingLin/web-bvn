@@ -1,0 +1,52 @@
+{
+  "schema": "bvn/map@1",
+  "id": "UchihaMura",
+  "name": "宇智波村",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_UchihaMura.json",
+    "hash": "c79be7440234a172e3427f88e3752370ac2e6e86"
+  },
+  "bgm": "assets/bgm/stg_village.mp3",
+  "fileUrl": "assets/map/UchihaMura.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1000,
+  "bottom": 600,
+  "playerBottom": 571,
+  "p1pos": {
+    "x": 377.1,
+    "y": 571
+  },
+  "p2pos": {
+    "x": 635.1,
+    "y": 571
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 492.35
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1000.3,
+      "y": 617.15
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 1000.75,
+      "y": 779.7
+    }
+  ],
+  "mapSize": {
+    "w": 1000.05,
+    "h": 349
+  }
+}

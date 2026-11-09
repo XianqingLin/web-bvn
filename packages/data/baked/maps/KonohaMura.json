@@ -1,0 +1,52 @@
+{
+  "schema": "bvn/map@1",
+  "id": "KonohaMura",
+  "name": "木叶村",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_KonohaMura.json",
+    "hash": "68530128544201f2fc2f0fd139a1edc31fa7719f"
+  },
+  "bgm": "assets/bgm/stg_village.mp3",
+  "fileUrl": "assets/map/KonohaMura.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1000,
+  "bottom": 600,
+  "playerBottom": 570,
+  "p1pos": {
+    "x": 387.85,
+    "y": 570
+  },
+  "p2pos": {
+    "x": 638.85,
+    "y": 570
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 492.35
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1000.3,
+      "y": 617.15
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 971.55,
+      "y": 779.7
+    }
+  ],
+  "mapSize": {
+    "w": 1000.05,
+    "h": 222
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema": "bvn/map@1",
+  "id": "KirinoMura",
+  "name": "雾隐村",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_KirinoMura.json",
+    "hash": "13a6967600cee8a7b24912d83444ae67623d7e3d"
+  },
+  "bgm": "assets/bgm/stg_village.mp3",
+  "fileUrl": "assets/map/KirinoMura.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1499,
+  "bottom": 600,
+  "playerBottom": 570,
+  "p1pos": {
+    "x": 746.1,
+    "y": 570
+  },
+  "p2pos": {
+    "x": 1013.05,
+    "y": 570
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 287.35
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1500.3,
+      "y": 287.35
+    },
+    {
+      "name": "front",
+      "xFrom": 430.75,
+      "xTo": 999.8,
+      "y": 463.85
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 1435.15,
+      "y": 574.7
+    }
+  ],
+  "mapSize": {
+    "w": 1500.05,
+    "h": 600
+  }
+}

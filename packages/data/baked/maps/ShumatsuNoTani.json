@@ -1,0 +1,52 @@
+{
+  "schema": "bvn/map@1",
+  "id": "ShumatsuNoTani",
+  "name": "终结之谷",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_ShumatsuNoTani.json",
+    "hash": "3d5bddd72dfd75897aef37a889e627605530b709"
+  },
+  "bgm": "assets/bgm/stg_waterfall.mp3",
+  "fileUrl": "assets/map/ShumatsuNoTani.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1000,
+  "bottom": 600,
+  "playerBottom": 572,
+  "p1pos": {
+    "x": 365.1,
+    "y": 479.25
+  },
+  "p2pos": {
+    "x": 637.85,
+    "y": 469.25
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 492.35
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1000.3,
+      "y": 617.15
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 999.85,
+      "y": 779.7
+    }
+  ],
+  "mapSize": {
+    "w": 1000.05,
+    "h": 361
+  }
+}

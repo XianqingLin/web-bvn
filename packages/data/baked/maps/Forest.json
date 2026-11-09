@@ -1,0 +1,58 @@
+{
+  "schema": "bvn/map@1",
+  "id": "Forest",
+  "name": "森林",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_Forest.json",
+    "hash": "78aa55a13a53ce754343eb14a1b8d7c65d5c0c19"
+  },
+  "bgm": "assets/bgm/stg_wind.mp3",
+  "fileUrl": "assets/map/Forest.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1620,
+  "bottom": 600,
+  "playerBottom": 556.85,
+  "p1pos": {
+    "x": 528.1,
+    "y": 314.85
+  },
+  "p2pos": {
+    "x": 791,
+    "y": 314.85
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": -81.75,
+      "xTo": 718.25,
+      "y": 350.2
+    },
+    {
+      "name": "map",
+      "xFrom": -81.75,
+      "xTo": 1538.3,
+      "y": 15.05
+    },
+    {
+      "name": "front",
+      "xFrom": -201.75,
+      "xTo": 2082.55,
+      "y": 623.55
+    },
+    {
+      "name": "floor",
+      "xFrom": -163.5,
+      "xTo": 1209.95,
+      "y": 541.55
+    }
+  ],
+  "mapSize": {
+    "w": 1620.05,
+    "h": 718
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "bvn/map@1",
+  "id": "DanGai",
+  "name": "断界",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_DanGai.json",
+    "hash": "53b63611788d2c6f362128df1f07ad4a8e67b3fc"
+  },
+  "bgm": "assets/bgm/stg_cave.mp3",
+  "fileUrl": "assets/map/DanGai.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1000,
+  "bottom": 600,
+  "playerBottom": 571,
+  "p1pos": {
+    "x": 377.1,
+    "y": 571
+  },
+  "p2pos": {
+    "x": 615.1,
+    "y": 571
+  },
+  "floors": [],
+  "mapSize": {
+    "w": 1000.05,
+    "h": 525
+  }
+}

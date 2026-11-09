@@ -2,6 +2,9 @@ import type {
   ActionDef,
   AssistantPackage,
   FighterPackage,
+  MapPackage,
+  RuntimeFighterPackage,
+  RuntimeFrameAreas,
   SymbolData,
   TriggerArg,
   TriggerDef,
@@ -187,5 +190,130 @@ export function validateAssistantPackage(pkg: AssistantPackage): ValidationResul
     validateSymbol(name, sym, out);
   }
 
+  return out;
+}
+
+/* ---------------------------------------------------------------------
+ * 运行时导出包校验（bvn/fighter-runtime@1 / bvn/map@1）
+ * ------------------------------------------------------------------- */
+
+/** 非法区域名：Flash 自动实例名（dump 侧已滤，防御性保留） */
+const INSTANCE_NAME_RE = /^instance\d+/;
+
+function validateAreaRect(ctx: string, a: { name: unknown; x: unknown; y: unknown; w: unknown; h: unknown }, out: ValidationResult): void {
+  if (typeof a.name !== 'string' || a.name.length === 0 || INSTANCE_NAME_RE.test(a.name)) {
+    out.errors.push(`${ctx}: 区域名非法 "${a.name}"`);
+  }
+  for (const f of ['x', 'y', 'w', 'h'] as const) {
+    if (!isFiniteNumber(a[f])) out.errors.push(`${ctx}: ${f} 必须是有限数值`);
+  }
+  if (isFiniteNumber(a.w) && a.w < 0) out.warnings.push(`${ctx}: w<0`);
+  if (isFiniteNumber(a.h) && a.h < 0) out.warnings.push(`${ctx}: h<0`);
+}
+
+function validateRuntimeForm(ctx: string, f: RuntimeFighterPackage['forms'][number], out: ValidationResult): void {
+  if (!isInt(f.rootFrame) || f.rootFrame < 1) out.errors.push(`${ctx}: rootFrame 必须是正整数`);
+  if (!isInt(f.totalFrames) || f.totalFrames < 0) out.errors.push(`${ctx}: totalFrames 必须是非负整数`);
+  if (
+    f.totalFrames === 0 &&
+    ((f.frames ?? []).length > 0 || Object.keys(f.labels ?? {}).length > 0)
+  ) {
+    out.errors.push(`${ctx}: totalFrames=0（占位形态）时不得含几何数据`);
+  }
+  if (!Array.isArray(f.actionsRegistered)) out.errors.push(`${ctx}: actionsRegistered 必须是数组`);
+  if (!Array.isArray(f.frames)) out.errors.push(`${ctx}: frames 必须是数组`);
+  else {
+    let lastFrame = 0;
+    for (const fr of f.frames as RuntimeFrameAreas[]) {
+      if (!isInt(fr.frame) || fr.frame < 1 || fr.frame > f.totalFrames) {
+        out.errors.push(`${ctx}: 帧号越界 ${fr.frame} (1..${f.totalFrames})`);
+        continue;
+      }
+      if (fr.frame <= lastFrame) out.errors.push(`${ctx}: frames 未按帧号升序 @${fr.frame}`);
+      lastFrame = fr.frame;
+      if (!Array.isArray(fr.areas)) out.errors.push(`${ctx}: areas 必须是数组`);
+      else fr.areas.forEach((a, i) => validateAreaRect(`${ctx}@frame${fr.frame}[${i}]`, a, out));
+    }
+  }
+  const sorted = Object.entries(f.labels ?? {}).sort((a, b) => a[1].index - b[1].index);
+  for (const [label, r] of sorted) {
+    if (!isInt(r.index) || r.index < 0 || !isInt(r.duration) || r.duration <= 0) {
+      out.errors.push(`${ctx}: label "${label}" index/duration 非法`);
+      continue;
+    }
+    if (r.index + r.duration > f.totalFrames) {
+      out.warnings.push(`${ctx}: label "${label}" 区间超出 totalFrames`);
+    }
+  }
+  if (f.aiRanges) f.aiRanges.forEach((a, i) => validateAreaRect(`${ctx}.aiRanges[${i}]`, a, out));
+}
+
+/** 校验运行时角色/辅助烘焙包。 */
+export function validateRuntimeFighterPackage(pkg: RuntimeFighterPackage): ValidationResult {
+  const out: ValidationResult = { errors: [], warnings: [] };
+
+  if (pkg.schema !== 'bvn/fighter-runtime@1') {
+    out.errors.push(`schema 必须是 "bvn/fighter-runtime@1"，收到 "${pkg.schema}"`);
+  }
+  if (!pkg.id) out.errors.push('缺 id');
+  if (!pkg.source || pkg.source.kind !== 'runtime-dump' || !pkg.source.hash) {
+    out.errors.push('缺 source 版本戳（kind/path/hash）');
+  }
+  if (pkg.kind !== 'fighter' && pkg.kind !== 'assister') {
+    out.errors.push(`kind 必须是 fighter|assister，收到 "${pkg.kind}"`);
+  }
+  if (!Array.isArray(pkg.forms) || pkg.forms.length === 0) {
+    out.errors.push('forms 不能为空');
+  } else {
+    if (pkg.kind === 'assister' && pkg.forms.length > 1) {
+      out.errors.push('assister 是单形态包');
+    }
+    pkg.forms.forEach((f, i) => validateRuntimeForm(`form[${i}]`, f, out));
+  }
+
+  for (const [aid, a] of Object.entries(pkg.actions ?? {})) {
+    validateAction(`action "${aid}"`, a, out);
+  }
+  if (Object.keys(pkg.actions ?? {}).length === 0) {
+    out.warnings.push('无 defineAction 数据（对照 XFL 静态提取确认覆盖）');
+  }
+  if (!Array.isArray(pkg.actionOrder)) out.errors.push('actionOrder 必须是数组');
+  if (!Array.isArray(pkg.bishaFaces)) out.errors.push('bishaFaces 必须是数组');
+
+  return out;
+}
+
+/** 校验地图烘焙包。 */
+export function validateMapPackage(pkg: MapPackage): ValidationResult {
+  const out: ValidationResult = { errors: [], warnings: [] };
+
+  if (pkg.schema !== 'bvn/map@1') {
+    out.errors.push(`schema 必须是 "bvn/map@1"，收到 "${pkg.schema}"`);
+  }
+  if (!pkg.id) out.errors.push('缺 id');
+  if (!pkg.name) out.errors.push('缺 name');
+  if (!pkg.source || pkg.source.kind !== 'runtime-dump' || !pkg.source.hash) {
+    out.errors.push('缺 source 版本戳（kind/path/hash）');
+  }
+  for (const f of ['left', 'right', 'bottom', 'playerBottom'] as const) {
+    if (!isFiniteNumber(pkg[f])) out.errors.push(`${f} 必须是有限数值`);
+  }
+  if (isFiniteNumber(pkg.left) && isFiniteNumber(pkg.right) && pkg.right <= pkg.left) {
+    out.errors.push('right 必须大于 left');
+  }
+  if (isFiniteNumber(pkg.playerBottom) && isFiniteNumber(pkg.bottom) && pkg.playerBottom > pkg.bottom) {
+    out.warnings.push('playerBottom 低于 bottom（引擎语义：越小越低）');
+  }
+  if (!Array.isArray(pkg.floors)) out.errors.push('floors 必须是数组');
+  else {
+    pkg.floors.forEach((fl, i) => {
+      if (!isFiniteNumber(fl.xFrom) || !isFiniteNumber(fl.xTo) || !isFiniteNumber(fl.y)) {
+        out.errors.push(`floors[${i}]: 非有限数值`);
+      }
+      if (isFiniteNumber(fl.xFrom) && isFiniteNumber(fl.xTo) && fl.xTo < fl.xFrom) {
+        out.warnings.push(`floors[${i}]: xTo < xFrom`);
+      }
+    });
+  }
   return out;
 }

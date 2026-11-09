@@ -1,0 +1,1383 @@
+{
+  "generatedAt": "2026-11-09T01:38:12.910Z",
+  "dumpDir": "C:\\Users\\29437\\Desktop\\Projects\\web-bvn\\OpenBleachVsNaruto\\_release\\work\\dump-json",
+  "counts": {
+    "fighters": 58,
+    "assistants": 37,
+    "maps": 15,
+    "areaFrames": 115279
+  },
+  "validation": [
+    {
+      "id": "byakuya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "gaara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "gin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "grimmjow",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "halibel",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "hinata",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "hiruko",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ichigo_dangai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ikkaku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ino",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "itachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "jiraiya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kenpachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kimimaro",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "madara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "minato",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "nemu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "obito_majime",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ogihci_vasteLord",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "orihime",
+      "errors": [],
+      "warnings": [
+        "无 defineAction 数据（对照 XFL 静态提取确认覆盖）"
+      ]
+    },
+    {
+      "id": "rangiku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "sai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "sakura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "shikamaru",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "shishio",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "soifon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "starrk",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "suigetsu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "temari",
+      "errors": [],
+      "warnings": [
+        "无 defineAction 数据（对照 XFL 静态提取确认覆盖）"
+      ]
+    },
+    {
+      "id": "tenten",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "tsuchikage",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "tsunate",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "uryuu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "yachiru",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "yamamoto",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "yoruichi",
+      "errors": [],
+      "warnings": [
+        "无 defineAction 数据（对照 XFL 静态提取确认覆盖）"
+      ]
+    },
+    {
+      "id": "aizen",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "byakuya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "byakuya_bankai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "chad",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "deidara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "gaara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "gin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "grimmjow",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ichigo",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ichigo_bankai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ichigo_vizored",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ichigo_vizored_half",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ichigo_zero",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ikkaku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "itachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "jiraiya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "juggo",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kakashi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kakashi_kamui",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "karin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kenpachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kenshin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kenshin_battousai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "killerbee",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "kimimaro",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "konan",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "lee",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "lee_tomon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "madara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "mayuri",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "naruto",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "naruto_fourTail",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "naruto_kyubi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "naruto_oneTail",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "naruto_sennin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "neji",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "obito",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "obito_majime",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ogihci",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ogihci_bankai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "orihime",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "orochimaru",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "pain",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "renji",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "rukia",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "rukia_shikai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "sakura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "sasuke",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "sasuke_juin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "sasuke_susanoo",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "soifon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "starrk",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "temari",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "toushirou",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "toushirou_bankai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ulquiorra",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ulquiorra_resurreccion",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "uryuu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "DanGai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "Forest",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "GenSe",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "GoteiJusantai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "HotSpring",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "KirinoMura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "KonohaMura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "Roof",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "Rukongai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "Seireitei",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ShumatsuNoTani",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "Sokyoku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "UchihaMura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "UchinaruSekai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "ZangetsuHaka",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:aizen",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:byakuya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:chad",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:deidara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:gaara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:gin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:grimmjow",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:ichigo",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:ikkaku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:itachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:jiraiya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:juggo",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:kakashi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:karin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:kenpachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:kenshin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:killerbee",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:kimimaro",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:konan",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:lee",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:madara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:mayuri",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:naruto",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:neji",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:obito",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:orihime",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:orochimaru",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:pain",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:renji",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:rukia",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:sakura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:sasuke",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:soifon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:starrk",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:temari",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:toushirou",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:ulquiorra",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-fighter:uryuu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:byakuya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:gaara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:gin",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:grimmjow",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:halibel",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:hinata",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:hiruko",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:ichigo_dangai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:ikkaku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:ino",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:itachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:jiraiya",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:kenpachi",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:kimimaro",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:kon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:madara",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:minato",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:nemu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:obito_majime",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:ogihci_vasteLord",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:orihime",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:rangiku",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:sai",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:sakura",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:shikamaru",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:shishio",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:soifon",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:starrk",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:suigetsu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:temari",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:tenten",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:tsuchikage",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:tsunate",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:uryuu",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:yachiru",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:yamamoto",
+      "errors": [],
+      "warnings": []
+    },
+    {
+      "id": "xfl-assistant:yoruichi",
+      "errors": [],
+      "warnings": []
+    }
+  ],
+  "xflDrift": {
+    "assister:byakuya": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:gaara": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:gin": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:grimmjow": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:halibel": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:hinata": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:hiruko": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:ichigo_dangai": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:ikkaku": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:ino": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:itachi": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:jiraiya": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:kenpachi": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:kimimaro": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:kon": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:madara": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:minato": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:nemu": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:obito_majime": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:ogihci_vasteLord": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:orihime": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [
+        "atm1"
+      ],
+      "fieldDrift": {}
+    },
+    "assister:rangiku": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:sai": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:sakura": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:shikamaru": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:shishio": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:soifon": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:starrk": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:suigetsu": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:temari": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [
+        "atm1"
+      ],
+      "fieldDrift": {}
+    },
+    "assister:tenten": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:tsuchikage": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:tsunate": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:uryuu": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:yachiru": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:yamamoto": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "assister:yoruichi": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [
+        "atm1"
+      ],
+      "fieldDrift": {}
+    },
+    "fighter:aizen": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:byakuya": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:chad": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:deidara": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:gaara": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:gin": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:grimmjow": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:ichigo": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:ikkaku": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:itachi": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:jiraiya": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:juggo": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:kakashi": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:karin": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:kenpachi": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:kenshin": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:killerbee": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:kimimaro": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:konan": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:lee": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:madara": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:mayuri": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:naruto": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:neji": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:obito": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:orihime": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:orochimaru": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:pain": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:renji": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:rukia": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:sakura": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:sasuke": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:soifon": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:starrk": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:temari": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:toushirou": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:ulquiorra": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    },
+    "fighter:uryuu": {
+      "onlyInRuntime": [],
+      "onlyInXfl": [],
+      "fieldDrift": {}
+    }
+  },
+  "extraActionKeys": {
+    "assister:byakuya:atm1": [
+      "isApplyG"
+    ],
+    "assister:kenpachi:atm1": [
+      "isReal"
+    ],
+    "assister:soifon:atm1": [
+      "isReal"
+    ],
+    "fighter:aizen:cbs": [
+      "isReal"
+    ],
+    "fighter:ikkaku:cbs": [
+      "isReal"
+    ],
+    "fighter:karin:sbs": [
+      "isReal"
+    ],
+    "fighter:kenshin:cbs": [
+      "isReal"
+    ],
+    "fighter:kenshin_battousai:cbs": [
+      "isReal"
+    ],
+    "fighter:mayuri:zh2": [
+      "isReal"
+    ],
+    "fighter:naruto:sbs2": [
+      "checkDirect"
+    ],
+    "fighter:naruto_fourTail:sbs2": [
+      "checkDirect"
+    ],
+    "fighter:naruto_kyubi:sbs2": [
+      "checkDirect"
+    ],
+    "fighter:naruto_oneTail:sbs2": [
+      "checkDirect"
+    ],
+    "fighter:naruto_sennin:sbs2": [
+      "checkDirect"
+    ],
+    "fighter:toushirou:kj1": [
+      "isReal"
+    ],
+    "fighter:toushirou:bs1": [
+      "isReal"
+    ],
+    "fighter:toushirou_bankai:kj1": [
+      "isReal"
+    ],
+    "fighter:toushirou_bankai:bs1": [
+      "isReal"
+    ]
+  },
+  "notes": []
+}

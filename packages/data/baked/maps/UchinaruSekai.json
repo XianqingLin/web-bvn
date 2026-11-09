@@ -1,0 +1,58 @@
+{
+  "schema": "bvn/map@1",
+  "id": "UchinaruSekai",
+  "name": "内心世界",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_UchinaruSekai.json",
+    "hash": "0b8c81ba78ce7b34b6ddc3faee6f5a08e57846c7"
+  },
+  "bgm": "assets/bgm/stg_wind.mp3",
+  "fileUrl": "assets/map/UchinaruSekai.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1500,
+  "bottom": 600,
+  "playerBottom": 557.35,
+  "p1pos": {
+    "x": 639.15,
+    "y": 557.35
+  },
+  "p2pos": {
+    "x": 936.15,
+    "y": 557.35
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 454.7
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1500.3,
+      "y": 543.85
+    },
+    {
+      "name": "front",
+      "xFrom": 430.25,
+      "xTo": 2052.55,
+      "y": 800.55
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 1500.7,
+      "y": 742.05
+    }
+  ],
+  "mapSize": {
+    "w": 1500.05,
+    "h": 600
+  }
+}

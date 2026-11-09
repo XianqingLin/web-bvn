@@ -1,0 +1,52 @@
+{
+  "schema": "bvn/map@1",
+  "id": "Roof",
+  "name": "楼顶",
+  "source": {
+    "kind": "runtime-dump",
+    "path": "dump-json/map_Roof.json",
+    "hash": "9dc85150fdf95f2810c0acf38bef7315a87d5d35"
+  },
+  "bgm": "assets/bgm/stg_wind.mp3",
+  "fileUrl": "assets/map/Roof.swf",
+  "gameSize": {
+    "x": 800,
+    "y": 600
+  },
+  "left": 0,
+  "right": 1000,
+  "bottom": 600,
+  "playerBottom": 578,
+  "p1pos": {
+    "x": 373.7,
+    "y": 115.4
+  },
+  "p2pos": {
+    "x": 628.95,
+    "y": 115.4
+  },
+  "floors": [
+    {
+      "name": "bg",
+      "xFrom": 0.25,
+      "xTo": 800.25,
+      "y": 382.35
+    },
+    {
+      "name": "map",
+      "xFrom": 0.25,
+      "xTo": 1000.3,
+      "y": 397.1
+    },
+    {
+      "name": "floor",
+      "xFrom": 0.5,
+      "xTo": 907.35,
+      "y": 669.7
+    }
+  ],
+  "mapSize": {
+    "w": 1000.05,
+    "h": 585
+  }
+}
