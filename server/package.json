@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node relay.mjs"
+    "start": "node room-server.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"

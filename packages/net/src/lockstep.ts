@@ -24,12 +24,12 @@ export interface LockstepOptions {
   /** 本端玩家位（= fighter id） */
   localPlayer: PlayerSlot;
   /** 配置指纹（makeConfigHash）；提供则开跑前互验 */
-  configHash?: string;
-  inputDelay?: number;
-  hashStride?: number;
-  onDesync?: (tick: number, localHash: string, remoteHash: string) => void;
-  onPeerLost?: () => void;
-  onConfigMismatch?: (localHash: string, remoteHash: string) => void;
+  configHash?: string | undefined;
+  inputDelay?: number | undefined;
+  hashStride?: number | undefined;
+  onDesync?: ((tick: number, localHash: string, remoteHash: string) => void) | undefined;
+  onPeerLost?: (() => void) | undefined;
+  onConfigMismatch?: ((localHash: string, remoteHash: string) => void) | undefined;
 }
 
 export class LockstepClient implements InputSource {

@@ -1,25 +1,31 @@
 /**
- * lockstep 最小协议（切片 6 / ADR-14）。
- * 中继只解析 welcome/hello/start（连接编排），input/hash 原样透传不解析——
- * 切片 7 房间服务器长出来时此表是消息词表的底稿。
+ * lockstep + 房间协议（切片 6/7，ADR-14/15）。
+ * 服务器解析连接编排（create/join/welcome/hello/start/error），
+ * input/hash 原样透传给同房间对端，不解析。
  */
 import { fnv1a, stableStringify, type ButtonMask } from '@bvn/core';
 
-/** 玩家位次（= sim 里的 fighter id）。 */
+/** 玩家位次（= sim 里的 fighter id；create→1，join→2）。 */
 export type PlayerSlot = 1 | 2;
 
 export type NetMessage =
-  /** 中继 → 客户端：连接建立，分配位次 */
-  | { t: 'welcome'; player: PlayerSlot }
-  /** 客户端 → 对端（经中继透传）：本端配置指纹，两端互验防错配 */
+  /** 客户端 → 服务器：创建房间（成为 P1） */
+  | { t: 'create' }
+  /** 客户端 → 服务器：加入房间（成为 P2） */
+  | { t: 'join'; room: string }
+  /** 服务器 → 客户端：入房成功，分配位次与房间号 */
+  | { t: 'welcome'; player: PlayerSlot; room: string }
+  /** 服务器 → 客户端：入房失败（room-not-found / room-full），随后关闭连接 */
+  | { t: 'error'; code: string; message?: string }
+  /** 客户端 → 对端（经服务器透传）：本端配置指纹，两端互验防错配 */
   | { t: 'hello'; player: PlayerSlot; configHash: string }
-  /** 中继 → 双方：两玩家就绪，同时开跑 */
+  /** 服务器 → 双方：两玩家就绪，同时开跑 */
   | { t: 'start' }
   /** 单端单 tick 输入位图（lockstep 唯一的高频消息） */
   | { t: 'input'; tick: number; mask: ButtonMask }
   /** 定期失步检测（每 HASH_STRIDE tick 一次状态哈希） */
   | { t: 'hash'; tick: number; hash: string }
-  /** 中继 → 存活方：对端断开 */
+  /** 服务器 → 存活方：对端断开（断线处理 = 冻结等待，判负归阶段 4） */
   | { t: 'peer-lost' };
 
 /**

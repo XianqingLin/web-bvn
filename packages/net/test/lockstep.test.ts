@@ -24,7 +24,8 @@ import {
   LockstepClient,
   makeConfigHash,
   loopbackPair,
-  wsTransport,
+  startSession,
+  RoomJoinError,
 } from '../src/index.js';
 import type { WsLike } from '../src/index.js';
 
@@ -238,54 +239,122 @@ describe('lockstep（loopback 同进程）', () => {
   });
 });
 
-describe('lockstep（真实 ws relay 进程端到端）', () => {
+describe('房间服务器（真实进程端到端）', () => {
+  /** spawn room-server，等 stdout 端口号 */
+  async function spawnServer(): Promise<{ proc: ReturnType<typeof spawn>; port: number }> {
+    const serverPath = fileURLToPath(new URL('../../../server/room-server.mjs', import.meta.url));
+    const proc = spawn(process.execPath, [serverPath], {
+      env: { ...process.env, PORT: '0' },
+      stdio: ['ignore', 'pipe', 'inherit'],
+    });
+    const port = await new Promise<number>((res, rej) => {
+      let out = '';
+      proc.stdout!.on('data', (d: Buffer) => {
+        out += d.toString();
+        const m = out.match(/room-server listening (\d+)/);
+        if (m) res(Number(m[1]));
+      });
+      proc.on('exit', (code) => rej(new Error(`room-server 提前退出：${code}`)));
+    });
+    return { proc, port };
+  }
+
+  function openSocket(port: number): Promise<WebSocket> {
+    return new Promise((res, rej) => {
+      const sock = new WebSocket(`ws://127.0.0.1:${port}`);
+      sock.on('open', () => res(sock));
+      sock.on('error', rej);
+    });
+  }
+
   it(
-    '两客户端经 relay 对跑剧本：finalHash 一致且等于单机直跑',
+    'create + join 对跑剧本：finalHash 一致且等于单机直跑',
     { timeout: 30_000 },
     async () => {
-      const relayPath = fileURLToPath(new URL('../../../server/relay.mjs', import.meta.url));
-      const proc = spawn(process.execPath, [relayPath], {
-        env: { ...process.env, PORT: '0' },
-        stdio: ['ignore', 'pipe', 'inherit'],
-      });
-      const port = await new Promise<number>((res, rej) => {
-        let out = '';
-        proc.stdout!.on('data', (d: Buffer) => {
-          out += d.toString();
-          const m = out.match(/relay listening (\d+)/);
-          if (m) res(Number(m[1]));
-        });
-        proc.on('exit', (code) => rej(new Error(`relay 提前退出：${code}`)));
-      });
-
+      const { proc, port } = await spawnServer();
       try {
-        const connect = (player: 1 | 2) =>
-          new Promise<{ client: LockstepClient }>((res, rej) => {
-            const sock = new WebSocket(`ws://127.0.0.1:${port}`);
-            sock.on('open', () => {
-              const client = new LockstepClient({
-                transport: wsTransport(sock as unknown as WsLike),
-                localPlayer: player,
-                configHash: CFG_HASH,
-              });
-              res({ client });
-            });
-            sock.on('error', rej);
+        const sockA = await openSocket(port);
+        const welcomed: string[] = [];
+        // 注意：startSession 要等到 start 广播才 resolve，而 start 需要双方
+        // hello——create/join 必须并发进行，不能先 await A 再连 B
+        const pA = startSession(sockA as unknown as WsLike, {
+          action: 'create',
+          configHash: CFG_HASH,
+          onWelcome: (_p, room) => welcomed.push(room),
+        });
+        const sockB = await openSocket(port);
+        const joinWhenReady = async () => {
+          while (welcomed.length === 0) await sleep(2);
+          return startSession(sockB as unknown as WsLike, {
+            action: 'join',
+            room: welcomed[0]!,
+            configHash: CFG_HASH,
           });
-        const [{ client: ca }, { client: cb }] = await Promise.all([connect(1), connect(2)]);
-        // relay 收齐双方 hello 后广播 start
-        await Promise.all([ca.waitStarted(), cb.waitStarted()]);
+        };
+        const [sa, sb] = await Promise.all([pA, joinWhenReady()]);
+        expect(sb.player).toBe(2);
+        expect(welcomed).toHaveLength(1);
+        expect(welcomed[0]!).toMatch(/^[A-Z2-9]{4}$/);
+
         const [hashA, hashB] = await drivePairAsync(
-          ca,
-          cb,
+          sa.client,
+          sb.client,
           new Sim(createDefaultConfig(1)),
           new Sim(createDefaultConfig(1)),
         );
         expect(hashA).toBe(hashB);
         expect(hashA).toBe(runDirect());
+        sockA.close();
+        sockB.close();
       } finally {
         proc.kill();
       }
     },
   );
+
+  it('加入不存在的房间 → RoomJoinError(room-not-found)', { timeout: 30_000 }, async () => {
+    const { proc, port } = await spawnServer();
+    try {
+      const sock = await openSocket(port);
+      await expect(
+        startSession(sock as unknown as WsLike, { action: 'join', room: 'ZZZZ' }),
+      ).rejects.toBeInstanceOf(RoomJoinError);
+      sock.close();
+    } finally {
+      proc.kill();
+    }
+  });
+
+  it('房间满员 → RoomJoinError(room-full)', { timeout: 30_000 }, async () => {
+    const { proc, port } = await spawnServer();
+    try {
+      const sockA = await openSocket(port);
+      const welcomed: string[] = [];
+      const pA = startSession(sockA as unknown as WsLike, {
+        action: 'create',
+        configHash: CFG_HASH,
+        onWelcome: (_p, room) => welcomed.push(room),
+      });
+      const sockB = await openSocket(port);
+      const joinWhenReady = async () => {
+        while (welcomed.length === 0) await sleep(2);
+        return startSession(sockB as unknown as WsLike, {
+          action: 'join',
+          room: welcomed[0]!,
+          configHash: CFG_HASH,
+        });
+      };
+      const [, { room }] = await Promise.all([pA, joinWhenReady()]);
+      // 两人已就位并 start；第三个连接应被拒
+      const sockC = await openSocket(port);
+      await expect(
+        startSession(sockC as unknown as WsLike, { action: 'join', room }),
+      ).rejects.toMatchObject({ code: 'room-full' });
+      sockA.close();
+      sockB.close();
+      sockC.close();
+    } finally {
+      proc.kill();
+    }
+  });
 });

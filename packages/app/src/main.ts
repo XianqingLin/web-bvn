@@ -13,9 +13,8 @@ import { Application } from 'pixi.js';
 import { Sim, Btn, type ButtonMask, type InputSource } from '@bvn/core';
 import {
   INPUT_DELAY,
-  LockstepClient,
+  startSession,
   makeConfigHash,
-  wsTransport,
   type WsLike,
 } from '@bvn/net';
 import { compileFighterRuntime, compileMapStage } from '@bvn/data';
@@ -81,9 +80,10 @@ class KeyboardSource implements InputSource {
 async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode') ?? 'solo';
+  // net 模式下 role 只选键位（位次由房间服务器分配）：role=p2 用方向键，
+  // 避免同机双窗口两套键盘互抢；两机联调时各自省略即可
   const netRole = mode === 'net' ? (params.get('role') === 'p2' ? 2 : 1) : null;
   const netPort = params.get('port') ?? '8787';
-  // solo 用 WASD；net 同机双窗口各占一端，role=p2 用方向键避免两窗口抢同一套键
   const keymap = netRole === 2 ? KEYMAP_P2 : KEYMAP_P1;
 
   const app = new Application();
@@ -157,26 +157,49 @@ async function boot(): Promise<void> {
       if (stepped || acc > 0) renderer.update(acc);
     });
   } else {
-    // —— net：lockstep 联机（同机双窗口经 server/relay.mjs 镜像联调） ——
+    // —— net：lockstep 联机（房间服务器 create/join，局域网两机或同机双窗口） ——
+    // ?mode=net&action=create            开新房（P1），房间码显示在提示里
+    // ?mode=net&action=join&room=ABCD    加入房间（P2）
     sim = makeSim(false);
+    const action = params.get('action') === 'join' ? 'join' : 'create';
+    const joinRoom = params.get('room') ?? undefined;
+    if (action === 'join' && !joinRoom) throw new Error('join 需要 &room=房间码');
+    const runningHint = () => `房间 ${currentRoom} —— 联机 P${player}（延迟 ${INPUT_DELAY} 帧）`;
+    let currentRoom = joinRoom ?? '…';
+    let player: 1 | 2 = action === 'create' ? 1 : 2;
+
+    renderer.setHint(action === 'create' ? '创建房间中…' : `加入房间 ${joinRoom}…`);
     const socket = new WebSocket(`ws://localhost:${netPort}`);
-    const client = new LockstepClient({
-      transport: wsTransport(socket as unknown as WsLike),
-      localPlayer: netRole,
+    await new Promise<void>((res, rej) => {
+      socket.addEventListener('open', () => res(), { once: true });
+      socket.addEventListener('error', () => rej(new Error('无法连接房间服务器')), { once: true });
+    });
+    let peerLost = false;
+    const { client } = await startSession(socket as unknown as WsLike, {
+      action,
+      room: joinRoom,
       configHash: makeConfigHash({
         seed: NET_SEED,
         stage,
         fighters: [FIGHTER_ID, FIGHTER_ID],
       }),
+      onWelcome: (p, room) => {
+        player = p;
+        currentRoom = room;
+        renderer.setHint(`房间 ${room} —— 你是 P${p}，等待对手…`);
+      },
       onDesync: (tick, a, b) => renderer.setHint(`失步！tick ${tick}（${a} vs ${b}）`),
-      onPeerLost: () => renderer.setHint('对端断开'),
+      onPeerLost: () => {
+        peerLost = true;
+        renderer.setHint('对端断开——冻结等待（对手回到房间可继续）');
+      },
       onConfigMismatch: () => renderer.setHint('配置不一致：两端地图/角色/种子必须相同'),
     });
-    renderer.setHint(`联机 P${netRole} —— 等待对手加入…`);
-    await client.waitStarted();
     client.prime(maskFor(keymap));
-    renderer.setHint(`联机 P${netRole} —— 开跑！（本地输入延迟 ${INPUT_DELAY} 帧）`);
+    renderer.setHint(runningHint());
+
     let nextTick = 0;
+    let stalledSince = -1;
     app.ticker.add(() => {
       const now = performance.now();
       acc += Math.min(now - last, 100);
@@ -190,6 +213,14 @@ async function boot(): Promise<void> {
         client.poll(maskFor(keymap));
         nextTick++;
         stepped = true;
+      }
+      // 停步看门狗：>5s 无进展提示可能断线（断线处理 = 冻结等待，判负归阶段 4）
+      if (!stepped && nextTick > 0 && !peerLost) {
+        if (stalledSince < 0) stalledSince = now;
+        else if (now - stalledSince > 5000) renderer.setHint('等待对手输入…（对手可能卡顿或已断线）');
+      } else {
+        if (stalledSince >= 0 && !peerLost) renderer.setHint(runningHint());
+        stalledSince = -1;
       }
       if (stepped || acc > 0) renderer.update(acc);
     });
