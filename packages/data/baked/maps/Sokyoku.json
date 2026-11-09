@@ -1,22 +1,38 @@
 {
-  "schema": "bvn/map@1",
-  "id": "Sokyoku",
-  "name": "双极之丘",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_Sokyoku.json",
-    "hash": "138b62931d4cc236416c170b0dec642e81289cd3"
-  },
   "bgm": "assets/bgm/stg_wind.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/Sokyoku.swf",
+  "floors": [
+    {
+      "name": "instance17294",
+      "xFrom": 275.3,
+      "xTo": 775.5,
+      "y": 478.6
+    },
+    {
+      "name": "instance17296",
+      "xFrom": 0.25,
+      "xTo": 426.5,
+      "y": 372.35
+    },
+    {
+      "name": "instance17298",
+      "xFrom": 656.65,
+      "xTo": 1000.5,
+      "y": 372.35
+    }
+  ],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "Sokyoku",
   "left": 0,
-  "right": 1000,
-  "bottom": 600,
-  "playerBottom": 571.85,
+  "mapSize": {
+    "h": 236.95,
+    "w": 999.9
+  },
+  "name": "双极之丘",
   "p1pos": {
     "x": 374.1,
     "y": 571.85
@@ -25,28 +41,12 @@
     "x": 637.1,
     "y": 571.85
   },
-  "floors": [
-    {
-      "name": "bg",
-      "xFrom": 0.25,
-      "xTo": 800.25,
-      "y": 494.2
-    },
-    {
-      "name": "map",
-      "xFrom": 0.25,
-      "xTo": 1000.15,
-      "y": 618.85
-    },
-    {
-      "name": "floor",
-      "xFrom": 0.5,
-      "xTo": 1000.75,
-      "y": 783.55
-    }
-  ],
-  "mapSize": {
-    "w": 999.9,
-    "h": 236.95
+  "playerBottom": 571.85,
+  "right": 1000,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "7bb2c47f4699a16b1f5077ec7d12eac69fccd41d",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_Sokyoku.json"
   }
 }

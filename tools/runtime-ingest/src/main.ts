@@ -103,9 +103,45 @@ function sha1(data: string | Buffer): string {
   return createHash('sha1').update(data).digest('hex');
 }
 
-function readDump<T>(file: string): { data: T; raw: Buffer } {
-  const raw = readFileSync(resolve(DUMP_DIR, file));
-  return { data: JSON.parse(raw.toString('utf8')) as T, raw };
+/**
+ * dump 原文键序不确定（AS3 for-in 顺序随环境波动），
+ * source.hash 必须对 canonical（排序键）形式计算，
+ * 否则每次重 dump 全部 baked 的 hash 字段都会漂移。
+ */
+function canonicalJson(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
+  if (v !== null && typeof v === 'object') {
+    return `{${Object.keys(v)
+      .sort()
+      .map((k) => `${JSON.stringify(k)}:${canonicalJson((v as Record<string, unknown>)[k])}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(v);
+}
+
+/**
+ * 深度排序记录型对象的键（数组保持顺序——数组是语义顺序：
+ * forms 帧序 / frames 帧号升序 / actionOrder 注册序 / floors 显示序）。
+ * dump 原文的 for-in 键序随环境波动，不排序则每次重 dump 输出文件全漂移。
+ */
+function sortRecordKeys<T>(v: T): T {
+  if (Array.isArray(v)) return v.map(sortRecordKeys) as unknown as T;
+  if (v !== null && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(v as Record<string, unknown>).sort()) {
+      out[k] = sortRecordKeys((v as Record<string, unknown>)[k]);
+    }
+    return out as unknown as T;
+  }
+  return v;
+}
+
+function serializePkg(pkg: unknown, indent?: number): string {
+  return JSON.stringify(sortRecordKeys(pkg), null, indent);
+}
+
+function readDump<T>(file: string): T {
+  return JSON.parse(readFileSync(resolve(DUMP_DIR, file), 'utf8')) as T;
 }
 
 /** 标签区间推导：带标签帧（1 起）→ [index(0 起), duration（至下一标签前）]。 */
@@ -141,7 +177,7 @@ function normalizeAction(raw: Record<string, unknown>): { def: ActionDef; extraK
   return { def, extraKeys };
 }
 
-function convertChar(dump: DumpChar, file: string, raw: Buffer): RuntimeFighterPackage {
+function convertChar(dump: DumpChar, file: string): RuntimeFighterPackage {
   const kind = dump.kind === 'assister' ? 'assister' : 'fighter';
   const forms: RuntimeFormGeometry[] = [];
   for (const form of dump.forms) {
@@ -206,7 +242,7 @@ function convertChar(dump: DumpChar, file: string, raw: Buffer): RuntimeFighterP
   return {
     schema: 'bvn/fighter-runtime@1',
     id: dump.id,
-    source: { kind: 'runtime-dump', path: `dump-json/${file}`, hash: sha1(raw) },
+    source: { kind: 'runtime-dump', path: `dump-json/${file}`, hash: sha1(canonicalJson(dump)) },
     kind,
     rootTotalFrames: dump.rootTotalFrames,
     forms,
@@ -216,12 +252,12 @@ function convertChar(dump: DumpChar, file: string, raw: Buffer): RuntimeFighterP
   };
 }
 
-function convertMap(dump: DumpMap, file: string, raw: Buffer): MapPackage {
+function convertMap(dump: DumpMap, file: string): MapPackage {
   return {
     schema: 'bvn/map@1',
     id: dump.id,
     name: dump.name,
-    source: { kind: 'runtime-dump', path: `dump-json/${file}`, hash: sha1(raw) },
+    source: { kind: 'runtime-dump', path: `dump-json/${file}`, hash: sha1(canonicalJson(dump)) },
     bgm: dump.bgm ?? '',
     fileUrl: dump.fileUrl ?? '',
     gameSize: { x: dump.gameSize.x, y: dump.gameSize.y },
@@ -319,15 +355,15 @@ function main(): void {
   let failures = 0;
 
   for (const file of charFiles) {
-    const { data, raw } = readDump<DumpChar>(file);
-    const pkg = convertChar(data, file, raw);
+    const data = readDump<DumpChar>(file);
+    const pkg = convertChar(data, file);
     const res = validateRuntimeFighterPackage(pkg);
     report.validation.push({ id: pkg.id, errors: res.errors, warnings: res.warnings });
     if (res.errors.length > 0) failures++;
     const dir = pkg.kind === 'assister' ? 'assistants-runtime' : 'fighters-runtime';
     writeFileSync(
       resolve(BAKED, dir, `${pkg.id}.json`),
-      JSON.stringify(pkg),
+      serializePkg(pkg),
       'utf8',
     );
     if (pkg.kind === 'assister') {
@@ -357,12 +393,12 @@ function main(): void {
   }
 
   for (const file of mapFiles) {
-    const { data, raw } = readDump<DumpMap>(file);
-    const pkg = convertMap(data, file, raw);
+    const data = readDump<DumpMap>(file);
+    const pkg = convertMap(data, file);
     const res = validateMapPackage(pkg);
     report.validation.push({ id: pkg.id, errors: res.errors, warnings: res.warnings });
     if (res.errors.length > 0) failures++;
-    writeFileSync(resolve(BAKED, 'maps', `${pkg.id}.json`), JSON.stringify(pkg, null, 2), 'utf8');
+    writeFileSync(resolve(BAKED, 'maps', `${pkg.id}.json`), serializePkg(pkg, 2), 'utf8');
     report.counts.maps++;
   }
 

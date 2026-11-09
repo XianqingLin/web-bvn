@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-09T01:38:12.910Z",
-  "dumpDir": "C:\\Users\\29437\\Desktop\\Projects\\web-bvn\\OpenBleachVsNaruto\\_release\\work\\dump-json",
+  "generatedAt": "2026-11-09T02:27:37.047Z",
+  "dumpDir": "C:\\Users\\29437\\Documents\\bvn-dump",
   "counts": {
     "fighters": 58,
     "assistants": 37,
@@ -1366,10 +1366,10 @@
     "fighter:naruto_sennin:sbs2": [
       "checkDirect"
     ],
-    "fighter:toushirou:kj1": [
+    "fighter:toushirou:bs1": [
       "isReal"
     ],
-    "fighter:toushirou:bs1": [
+    "fighter:toushirou:kj1": [
       "isReal"
     ],
     "fighter:toushirou_bankai:kj1": [

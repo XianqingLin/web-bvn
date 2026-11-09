@@ -1,22 +1,19 @@
 {
-  "schema": "bvn/map@1",
-  "id": "ZangetsuHaka",
-  "name": "斩魂刀冢",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_ZangetsuHaka.json",
-    "hash": "d0f92e37372066ac1f041f60feda99008309aa05"
-  },
   "bgm": "assets/bgm/stg_wind.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/ZangetsuHaka.swf",
+  "floors": [],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "ZangetsuHaka",
   "left": 0,
-  "right": 2047,
-  "bottom": 600,
-  "playerBottom": 554,
+  "mapSize": {
+    "h": 216,
+    "w": 2047.2
+  },
+  "name": "斩魂刀冢",
   "p1pos": {
     "x": 903.1,
     "y": 554
@@ -25,9 +22,12 @@
     "x": 1148.1,
     "y": 554
   },
-  "floors": [],
-  "mapSize": {
-    "w": 2047.2,
-    "h": 216
+  "playerBottom": 554,
+  "right": 2047,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "d6ce34c5a560acb4f833797c238882338f636379",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_ZangetsuHaka.json"
   }
 }

@@ -1,22 +1,19 @@
 {
-  "schema": "bvn/map@1",
-  "id": "DanGai",
-  "name": "断界",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_DanGai.json",
-    "hash": "53b63611788d2c6f362128df1f07ad4a8e67b3fc"
-  },
   "bgm": "assets/bgm/stg_cave.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/DanGai.swf",
+  "floors": [],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "DanGai",
   "left": 0,
-  "right": 1000,
-  "bottom": 600,
-  "playerBottom": 571,
+  "mapSize": {
+    "h": 525,
+    "w": 1000.05
+  },
+  "name": "断界",
   "p1pos": {
     "x": 377.1,
     "y": 571
@@ -25,9 +22,12 @@
     "x": 615.1,
     "y": 571
   },
-  "floors": [],
-  "mapSize": {
-    "w": 1000.05,
-    "h": 525
+  "playerBottom": 571,
+  "right": 1000,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "5a1219599809b23d6242c6285107934a9fff0fde",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_DanGai.json"
   }
 }

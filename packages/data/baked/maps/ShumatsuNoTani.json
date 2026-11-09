@@ -1,22 +1,86 @@
 {
-  "schema": "bvn/map@1",
-  "id": "ShumatsuNoTani",
-  "name": "终结之谷",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_ShumatsuNoTani.json",
-    "hash": "3d5bddd72dfd75897aef37a889e627605530b709"
-  },
   "bgm": "assets/bgm/stg_waterfall.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/ShumatsuNoTani.swf",
+  "floors": [
+    {
+      "name": "instance17444",
+      "xFrom": 0.5,
+      "xTo": 71.6,
+      "y": 363.8
+    },
+    {
+      "name": "instance17446",
+      "xFrom": 11.05,
+      "xTo": 214.05,
+      "y": 498.75
+    },
+    {
+      "name": "instance17448",
+      "xFrom": 796.45,
+      "xTo": 991.55,
+      "y": 499.75
+    },
+    {
+      "name": "instance17450",
+      "xFrom": 130.8,
+      "xTo": 193.6,
+      "y": 352.35
+    },
+    {
+      "name": "instance17452",
+      "xFrom": 177.6,
+      "xTo": 242.6,
+      "y": 268.3
+    },
+    {
+      "name": "instance17454",
+      "xFrom": 765.85,
+      "xTo": 830.3,
+      "y": 276.3
+    },
+    {
+      "name": "instance17456",
+      "xFrom": 807.45,
+      "xTo": 870.8,
+      "y": 352.95
+    },
+    {
+      "name": "instance17458",
+      "xFrom": 882.35,
+      "xTo": 999.85,
+      "y": 362.95
+    },
+    {
+      "name": "instance17460",
+      "xFrom": 327.6,
+      "xTo": 399.7,
+      "y": 479.4
+    },
+    {
+      "name": "instance17462",
+      "xFrom": 464.7,
+      "xTo": 536.25,
+      "y": 515.6
+    },
+    {
+      "name": "instance17464",
+      "xFrom": 602.2,
+      "xTo": 674.3,
+      "y": 469.4
+    }
+  ],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "ShumatsuNoTani",
   "left": 0,
-  "right": 1000,
-  "bottom": 600,
-  "playerBottom": 572,
+  "mapSize": {
+    "h": 361,
+    "w": 1000.05
+  },
+  "name": "终结之谷",
   "p1pos": {
     "x": 365.1,
     "y": 479.25
@@ -25,28 +89,12 @@
     "x": 637.85,
     "y": 469.25
   },
-  "floors": [
-    {
-      "name": "bg",
-      "xFrom": 0.25,
-      "xTo": 800.25,
-      "y": 492.35
-    },
-    {
-      "name": "map",
-      "xFrom": 0.25,
-      "xTo": 1000.3,
-      "y": 617.15
-    },
-    {
-      "name": "floor",
-      "xFrom": 0.5,
-      "xTo": 999.85,
-      "y": 779.7
-    }
-  ],
-  "mapSize": {
-    "w": 1000.05,
-    "h": 361
+  "playerBottom": 572,
+  "right": 1000,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "4a29c3da01ef7b829e43ad276ebed0a2fb83663f",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_ShumatsuNoTani.json"
   }
 }

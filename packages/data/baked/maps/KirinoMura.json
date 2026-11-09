@@ -1,22 +1,62 @@
 {
-  "schema": "bvn/map@1",
-  "id": "KirinoMura",
-  "name": "雾隐村",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_KirinoMura.json",
-    "hash": "13a6967600cee8a7b24912d83444ae67623d7e3d"
-  },
   "bgm": "assets/bgm/stg_village.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/KirinoMura.swf",
+  "floors": [
+    {
+      "name": "instance17556",
+      "xFrom": 66.95,
+      "xTo": 593.4,
+      "y": 428
+    },
+    {
+      "name": "instance17558",
+      "xFrom": 704.6,
+      "xTo": 1047.3,
+      "y": 428
+    },
+    {
+      "name": "instance17560",
+      "xFrom": 1179,
+      "xTo": 1339.65,
+      "y": 430.75
+    },
+    {
+      "name": "instance17562",
+      "xFrom": 625.35,
+      "xTo": 681.25,
+      "y": 498.05
+    },
+    {
+      "name": "instance17564",
+      "xFrom": 36.5,
+      "xTo": 98.15,
+      "y": 530.3
+    },
+    {
+      "name": "instance17566",
+      "xFrom": 1056.5,
+      "xTo": 1118.15,
+      "y": 530.3
+    },
+    {
+      "name": "instance17568",
+      "xFrom": 1409.5,
+      "xTo": 1471.15,
+      "y": 530.3
+    }
+  ],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "KirinoMura",
   "left": 0,
-  "right": 1499,
-  "bottom": 600,
-  "playerBottom": 570,
+  "mapSize": {
+    "h": 600,
+    "w": 1500.05
+  },
+  "name": "雾隐村",
   "p1pos": {
     "x": 746.1,
     "y": 570
@@ -25,34 +65,12 @@
     "x": 1013.05,
     "y": 570
   },
-  "floors": [
-    {
-      "name": "bg",
-      "xFrom": 0.25,
-      "xTo": 800.25,
-      "y": 287.35
-    },
-    {
-      "name": "map",
-      "xFrom": 0.25,
-      "xTo": 1500.3,
-      "y": 287.35
-    },
-    {
-      "name": "front",
-      "xFrom": 430.75,
-      "xTo": 999.8,
-      "y": 463.85
-    },
-    {
-      "name": "floor",
-      "xFrom": 0.5,
-      "xTo": 1435.15,
-      "y": 574.7
-    }
-  ],
-  "mapSize": {
-    "w": 1500.05,
-    "h": 600
+  "playerBottom": 570,
+  "right": 1499,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "be3a2be87afc26c3164c005d89ebcae6df530973",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_KirinoMura.json"
   }
 }

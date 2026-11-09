@@ -1,22 +1,38 @@
 {
-  "schema": "bvn/map@1",
-  "id": "Forest",
-  "name": "森林",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_Forest.json",
-    "hash": "78aa55a13a53ce754343eb14a1b8d7c65d5c0c19"
-  },
   "bgm": "assets/bgm/stg_wind.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/Forest.swf",
+  "floors": [
+    {
+      "name": "instance17534",
+      "xFrom": 114.75,
+      "xTo": 1488.2,
+      "y": 440.1
+    },
+    {
+      "name": "instance17536",
+      "xFrom": 200.5,
+      "xTo": 1413.35,
+      "y": 315.05
+    },
+    {
+      "name": "instance17538",
+      "xFrom": 880.4,
+      "xTo": 1073,
+      "y": 266.5
+    }
+  ],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "Forest",
   "left": 0,
-  "right": 1620,
-  "bottom": 600,
-  "playerBottom": 556.85,
+  "mapSize": {
+    "h": 718,
+    "w": 1620.05
+  },
+  "name": "森林",
   "p1pos": {
     "x": 528.1,
     "y": 314.85
@@ -25,34 +41,12 @@
     "x": 791,
     "y": 314.85
   },
-  "floors": [
-    {
-      "name": "bg",
-      "xFrom": -81.75,
-      "xTo": 718.25,
-      "y": 350.2
-    },
-    {
-      "name": "map",
-      "xFrom": -81.75,
-      "xTo": 1538.3,
-      "y": 15.05
-    },
-    {
-      "name": "front",
-      "xFrom": -201.75,
-      "xTo": 2082.55,
-      "y": 623.55
-    },
-    {
-      "name": "floor",
-      "xFrom": -163.5,
-      "xTo": 1209.95,
-      "y": 541.55
-    }
-  ],
-  "mapSize": {
-    "w": 1620.05,
-    "h": 718
+  "playerBottom": 556.85,
+  "right": 1620,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "44cf13197729acd51ad9707cd9082ff700d6888e",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_Forest.json"
   }
 }

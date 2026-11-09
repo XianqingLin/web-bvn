@@ -1,22 +1,19 @@
 {
-  "schema": "bvn/map@1",
-  "id": "GoteiJusantai",
-  "name": "护廷十三队",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_GoteiJusantai.json",
-    "hash": "f54c991f489d38fe0a22b6dd43dfec479cf216c3"
-  },
   "bgm": "assets/bgm/stg_village.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/GoteiJusantai.swf",
+  "floors": [],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "GoteiJusantai",
   "left": 0,
-  "right": 1307,
-  "bottom": 600,
-  "playerBottom": 553.9,
+  "mapSize": {
+    "h": 1000,
+    "w": 1307.05
+  },
+  "name": "护廷十三队",
   "p1pos": {
     "x": 494.1,
     "y": 553.9
@@ -25,9 +22,12 @@
     "x": 757.1,
     "y": 553.9
   },
-  "floors": [],
-  "mapSize": {
-    "w": 1307.05,
-    "h": 1000
+  "playerBottom": 553.9,
+  "right": 1307,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "b604e518358649f826d209cde11c08b6d7f21828",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_GoteiJusantai.json"
   }
 }

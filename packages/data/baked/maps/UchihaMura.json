@@ -1,22 +1,50 @@
 {
-  "schema": "bvn/map@1",
-  "id": "UchihaMura",
-  "name": "宇智波村",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_UchihaMura.json",
-    "hash": "c79be7440234a172e3427f88e3752370ac2e6e86"
-  },
   "bgm": "assets/bgm/stg_village.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/UchihaMura.swf",
+  "floors": [
+    {
+      "name": "instance17504",
+      "xFrom": -0.15,
+      "xTo": 762.7,
+      "y": 418.65
+    },
+    {
+      "name": "instance17506",
+      "xFrom": 756.75,
+      "xTo": 999.95,
+      "y": 485.15
+    },
+    {
+      "name": "instance17508",
+      "xFrom": 743,
+      "xTo": 943.45,
+      "y": 391.65
+    },
+    {
+      "name": "instance17510",
+      "xFrom": 756.75,
+      "xTo": 1000,
+      "y": 254.6
+    },
+    {
+      "name": "instance17512",
+      "xFrom": -0.25,
+      "xTo": 610.85,
+      "y": 254.6
+    }
+  ],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "UchihaMura",
   "left": 0,
-  "right": 1000,
-  "bottom": 600,
-  "playerBottom": 571,
+  "mapSize": {
+    "h": 349,
+    "w": 1000.05
+  },
+  "name": "宇智波村",
   "p1pos": {
     "x": 377.1,
     "y": 571
@@ -25,28 +53,12 @@
     "x": 635.1,
     "y": 571
   },
-  "floors": [
-    {
-      "name": "bg",
-      "xFrom": 0.25,
-      "xTo": 800.25,
-      "y": 492.35
-    },
-    {
-      "name": "map",
-      "xFrom": 0.25,
-      "xTo": 1000.3,
-      "y": 617.15
-    },
-    {
-      "name": "floor",
-      "xFrom": 0.5,
-      "xTo": 1000.75,
-      "y": 779.7
-    }
-  ],
-  "mapSize": {
-    "w": 1000.05,
-    "h": 349
+  "playerBottom": 571,
+  "right": 1000,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "35a4a691c370b111dfde5f785308ed0e13416ece",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_UchihaMura.json"
   }
 }

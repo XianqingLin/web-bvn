@@ -593,10 +593,12 @@
          var fc:DisplayObject = spr.getChildByName("floor");
          if(fc != null)
          {
+            // 原版 MapMain.initFloor 遍历 floor 容器自身的子对象（平台段）；
+            // 此前误遍历 fc.parent（bg/map/front 等图层）， floors 全是图层矩形
             var fl:Array = [];
-            for(var j:int = 0; j < fc.parent.numChildren; j++)
+            for(var j:int = 0; j < fc.numChildren; j++)
             {
-               var sub:DisplayObject = fc.parent.getChildAt(j);
+               var sub:DisplayObject = fc.getChildAt(j);
                fl.push({
                   "name":sub.name,
                   "xFrom":fc.x + sub.x,

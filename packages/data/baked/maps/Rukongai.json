@@ -1,22 +1,56 @@
 {
-  "schema": "bvn/map@1",
-  "id": "Rukongai",
-  "name": "流魂街",
-  "source": {
-    "kind": "runtime-dump",
-    "path": "dump-json/map_Rukongai.json",
-    "hash": "0adaf3306ce9240bc07bc463d83cffb6d8d704d8"
-  },
   "bgm": "assets/bgm/stg_village.mp3",
+  "bottom": 600,
   "fileUrl": "assets/map/Rukongai.swf",
+  "floors": [
+    {
+      "name": "instance17232",
+      "xFrom": 9.85,
+      "xTo": 243.8,
+      "y": 463.2
+    },
+    {
+      "name": "instance17234",
+      "xFrom": 385.45,
+      "xTo": 529.15,
+      "y": 447.2
+    },
+    {
+      "name": "instance17236",
+      "xFrom": 537.4,
+      "xTo": 764.1,
+      "y": 471.2
+    },
+    {
+      "name": "instance17238",
+      "xFrom": 592.55,
+      "xTo": 724.7,
+      "y": 399.25
+    },
+    {
+      "name": "instance17240",
+      "xFrom": 842.6,
+      "xTo": 999.85,
+      "y": 494.5
+    },
+    {
+      "name": "instance17242",
+      "xFrom": 848.85,
+      "xTo": 999.85,
+      "y": 423.15
+    }
+  ],
   "gameSize": {
     "x": 800,
     "y": 600
   },
+  "id": "Rukongai",
   "left": 0,
-  "right": 1000,
-  "bottom": 600,
-  "playerBottom": 571,
+  "mapSize": {
+    "h": 326.95,
+    "w": 999.9
+  },
+  "name": "流魂街",
   "p1pos": {
     "x": 374.1,
     "y": 571
@@ -25,34 +59,12 @@
     "x": 637,
     "y": 571
   },
-  "floors": [
-    {
-      "name": "bg",
-      "xFrom": 0.25,
-      "xTo": 800.25,
-      "y": 492.35
-    },
-    {
-      "name": "map",
-      "xFrom": 0.25,
-      "xTo": 1000.15,
-      "y": 617.15
-    },
-    {
-      "name": "front",
-      "xFrom": 430.75,
-      "xTo": 2083.7,
-      "y": 863.85
-    },
-    {
-      "name": "floor",
-      "xFrom": 0.5,
-      "xTo": 990.5,
-      "y": 779.7
-    }
-  ],
-  "mapSize": {
-    "w": 999.9,
-    "h": 326.95
+  "playerBottom": 571,
+  "right": 1000,
+  "schema": "bvn/map@1",
+  "source": {
+    "hash": "cbe7c0ae63024599d7d0ed6085d328ed53b8c9ea",
+    "kind": "runtime-dump",
+    "path": "dump-json/map_Rukongai.json"
   }
 }
