@@ -5,7 +5,7 @@
 >
 > **项目文档导航**：写代码规范见 [ARCHITECTURE.md](ARCHITECTURE.md)（引擎契约）；架构设计见 [DESIGN.md](DESIGN.md)；原版逆向结论见 [BVN-module-map.md](BVN-module-map.md)；入口见 [CLAUDE.md](CLAUDE.md)。
 >
-> **当前进度**：阶段 0（逆向梳理）✅ 完成 → 产出 BVN-module-map.md；架构设计 ✅ 完成；下一步进入阶段 1（POC），切片定义见 DESIGN.md §9。
+> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness：core 骨架 + 确定性单测 + replay 门禁）✅；切片 2 进行中——离线提取 ✅（38 角色 + 37 辅助已烘焙进 `packages/data/baked/`），**下一步：运行时导出桥**（FFDec 注入主 SWF dump 判定区几何/HitVO/地图边界；注意用 `_release/extracted` 里的 Release 版主程序，仓库根的 FighterTester_ORG.swf 是旧版）。跑桥会弹游戏窗口，需用户确认。
 
 ---
 
