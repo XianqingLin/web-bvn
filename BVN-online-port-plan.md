@@ -5,7 +5,7 @@
 >
 > **项目文档导航**：写代码规范见 [ARCHITECTURE.md](ARCHITECTURE.md)（引擎契约）；架构设计见 [DESIGN.md](DESIGN.md)；原版逆向结论见 [BVN-module-map.md](BVN-module-map.md)；入口见 [CLAUDE.md](CLAUDE.md)。
 >
-> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness）✅；切片 2 进行中——离线提取 ✅ + **运行时导出桥 ✅**（`tools/bridge`，FFDec 注入 FighterTester 自动遍历 dump；110/117 项成功，7 个失败均为 random 占位项；raw JSON 在 `_release/work/dump-json/`：判定区逐帧几何 + HitVO 表 + AImain 范围 + 地图边界/出生点/地板。**下一步：raw dump 转译进 `packages/data/baked/`**；遗留：orihime/yachiru 辅助的 actions 不全待修）。跑桥会弹游戏窗口，需用户确认。
+> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness）✅；**切片 2 ✅**——离线提取 ✅ + 运行时导出桥 ✅（`tools/bridge`，110/117 项成功，7 个失败均为 random 占位项）+ **dump 转译 ✅**（`tools/runtime-ingest` → `packages/data/baked/`：fighters-runtime 58 包 + assistants-runtime 37 包 + maps 15 包，115,279 判定区帧；与 XFL 静态提取交叉验证零字段漂移，报告见 `baked/runtime-ingest-report.json`。遗留：orihime/yachiru 辅助的运行时 actions 为空（dump 侧 #1009），XFL 数据兜底）。**下一步：切片 3——core 消费 runtime 数据（判定区/地图边界接线）+ behaviors 插件目录启动。**
 
 ---
 
