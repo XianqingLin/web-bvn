@@ -6,7 +6,8 @@
  *   baked map JSON → compileMapStage；图集 JSON → render.load()。
  * 输入经 InputSource 抽象喂 sim（DESIGN §9.7）：
  *   ?mode=solo（默认）训练模式：键盘源，P2 假人，R 键重置；
- *   ?mode=net&role=p1|p2[&port=8787]  lockstep 联机：同机开两个窗口各占一端，
+ *   ?mode=net&action=create|join&room=码[&server=ws://host:port][&port=8787][&role=p2]
+ *     lockstep 联机：房间服务器编排（create 开房拿码，join 凭码入房），
  *     输入源 = LockstepClient（远端输入未到时本帧停步等待）。
  */
 import { Application } from 'pixi.js';
@@ -83,7 +84,9 @@ async function boot(): Promise<void> {
   // net 模式下 role 只选键位（位次由房间服务器分配）：role=p2 用方向键，
   // 避免同机双窗口两套键盘互抢；两机联调时各自省略即可
   const netRole = mode === 'net' ? (params.get('role') === 'p2' ? 2 : 1) : null;
-  const netPort = params.get('port') ?? '8787';
+  // 房间服务器地址：?server=ws://host:port（云服务器部署用）；
+  // 缺省 ws://localhost[:port]（本机联调）
+  const netServer = params.get('server') ?? `ws://localhost:${params.get('port') ?? '8787'}`;
   const keymap = netRole === 2 ? KEYMAP_P2 : KEYMAP_P1;
 
   const app = new Application();
@@ -169,7 +172,7 @@ async function boot(): Promise<void> {
     let player: 1 | 2 = action === 'create' ? 1 : 2;
 
     renderer.setHint(action === 'create' ? '创建房间中…' : `加入房间 ${joinRoom}…`);
-    const socket = new WebSocket(`ws://localhost:${netPort}`);
+    const socket = new WebSocket(netServer);
     await new Promise<void>((res, rej) => {
       socket.addEventListener('open', () => res(), { once: true });
       socket.addEventListener('error', () => rej(new Error('无法连接房间服务器')), { once: true });
