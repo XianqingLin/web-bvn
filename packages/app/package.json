@@ -10,6 +10,7 @@
   "dependencies": {
     "@bvn/core": "workspace:*",
     "@bvn/data": "workspace:*",
+    "@bvn/net": "workspace:*",
     "@bvn/render": "workspace:*",
     "pixi.js": "^8.6.6"
   },

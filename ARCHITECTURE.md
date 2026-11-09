@@ -37,7 +37,8 @@ packages/
   data/     JSON schema、加载器、校验器（烘焙产物，只读）
   render/   PixiJS 渲染：消费快照与表现事件，插值，相机，HUD
   app/      场景流转、键位采集、音频、 subsystem 宿主
-server/     Node 房间服务器（阶段 2）
+  net/      lockstep 联机客户端：协议词表 / 传输抽象 / 输入延迟与失步检测（阶段 2）
+server/     Node 输入中继（切片 6 最小 relay；阶段 2 长成房间服务器）
 tools/      exporter（SWF→JSON/spritesheet）、replay（哈希门禁）、capture
 OpenBleachVsNaruto/  bvn-ai-public/   原版参考仓库（仓库根，只读，gitignore；
                     构建产物禁止依赖，BVN-module-map.md 的链接以此为准）

@@ -151,7 +151,7 @@ TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客
 4. render ✅（切片 4 + 切片 5 清遗留）：帧动画、地图层、相机、基础 HUD；切片 5 补相机 clamp 接舞台边界、floor 前景层遮挡、HUD 回合文本；
 5. app ✅（切片 4 + 切片 5 训练模式）：dev 预览页（键盘 → ButtonMask → tick → 渲染）；训练模式 = P2 假人（输入恒空）+ 无限血 + R 键重置；
 6. **切片 5 = 阶段 1 收尾** ✅：确定性单测 40 过、replay 门禁四剧本（含新增 ichigo-mechanics）过。遗留池（不阻塞阶段 2）：摔技/万解/空中瞬步/二段跳/必杀飞行道具（fire 原语）；
-7. **切片 6 = 联机地基**：`InputSource` 抽象（本地键盘 / replay / 网络统一喂 sim，sim 本身零改动）+ lockstep 客户端（输入延迟帧、帧号对齐、输入缓冲）+ 同机双客户端经本地服务器镜像联调；
+7. **切片 6 = 联机地基** ✅：`InputSource` 抽象（本地键盘 / replay / 网络统一喂 sim，sim 本身零改动）+ lockstep 客户端（输入延迟帧、帧号对齐、输入缓冲）+ 同机双客户端经本地服务器镜像联调。落地（ADR-14）：`core/inputSource` 接口 + `ScriptedInputSource`（剧本回放源，tools/replay 剧本同构）；`packages/net`——协议词表（welcome/hello/start/input/hash/peer-lost）、`Transport` 抽象（`loopbackPair` 内存直连 + `wsTransport` 浏览器/node ws 双兼容）、`LockstepClient`（本地输入延迟 INPUT_DELAY=3 帧、按 tick 输入缓冲、每 HASH_STRIDE=60 tick 交换状态哈希检测失步、hello 配置指纹互验）；`server/relay.mjs` 最小中继（分配位次、收齐 hello 广播 start、input/hash 纯透传）。联调门禁：双客户端 loopback 对跑剧本 finalHash 相等且等于单机直跑（抽象零漂移）+ 停步语义 + 失步检测 + 真实 relay 进程 ws 端到端；app dev 页 `?mode=net&role=p1|p2` 双窗口联机入口。
 8. **切片 7 = 房间服务器**：Node.js WebSocket 房间（创建/加入、输入中继、断线最小处理：超时判负或冻结等待），局域网两机联调；
 9. 公网联调与延迟体验调优视切片 7 结果立项（输入延迟帧自适应、可选升级 rollback——归阶段 4）。
 
@@ -174,5 +174,6 @@ TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客
 | 11 | 角色定义（FighterDef）为静态配置：SimConfig 注入注册表、不进 SimState，快照恢复时回注（states 小、快照便宜） | 2026-11-09 |
 | 12 | 原版常量换算细则定案：速度/衰减类 ×SPEED_PLUS(0.5)，帧数类（hurtTime 折算后的动画帧、HURT_FRAME_OFFSET）与空间类不折算；hurtTime 按 ms→30Hz 帧换算再叠加原版偏移 | 2026-11-09 |
 | 13 | 图集管线：AIR runtime capture 桥逐帧栅格化（矢量符号必须运行时渲染）+ 像素哈希去重 + Node shelf 打包；锚点 = 内容相对角色 root 原点 bounds；地图走同桥逐子图层截取 | 2026-11-09 |
+| 14 | lockstep 最小协议：消息词表 welcome/hello/start/input/hash/peer-lost；本地输入延迟 INPUT_DELAY=3 帧（采样槽 = 完成 tick 数 + delay）；失步检测 = 每 HASH_STRIDE=60 tick 交换状态哈希；hello 携带配置指纹（seed+舞台+角色标识）开跑前互验；中继只做连接编排，input/hash 纯透传（切片 7 房间服务器以词表为底稿） | 2026-11-09 |
 
 推翻旧决策：标 ~~删除线~~ 并追加新行写明替代方案与日期。

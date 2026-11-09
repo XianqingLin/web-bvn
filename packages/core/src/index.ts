@@ -1,4 +1,5 @@
 export * from './input.js';
+export * from './inputSource.js';
 export * from './rng.js';
 export * from './serialize.js';
 export * from './state.js';

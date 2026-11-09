@@ -184,6 +184,9 @@ importers:
       '@bvn/data':
         specifier: workspace:*
         version: link:../data
+      '@bvn/net':
+        specifier: workspace:*
+        version: link:../net
       '@bvn/render':
         specifier: workspace:*
         version: link:../render
@@ -207,6 +210,25 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.19.2)
 
+  packages/net:
+    dependencies:
+      '@bvn/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.19.2
+      '@types/ws':
+        specifier: ^8.5.0
+        version: 8.18.2
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/node@24.19.2)
+      ws:
+        specifier: ^8.18.0
+        version: 8.22.1
+
   packages/render:
     dependencies:
       '@bvn/core':
@@ -222,6 +244,12 @@ importers:
       vitest:
         specifier: ^3.2.0
         version: 3.2.7(@types/node@24.19.2)
+
+  server:
+    dependencies:
+      ws:
+        specifier: ^8.18.0
+        version: 8.22.1
 
   tools/atlas-pack:
     dependencies:
@@ -746,6 +774,9 @@ packages:
   '@types/pngjs@6.0.5':
     resolution: {integrity: sha512-0k5eKfrA83JOZPppLtS2C7OUtyNAl2wKNxfyYl9Q5g9lPkgBl/9hNyAu6HuEH2J4XmIv2znEpkDd0SaZVxW6iQ==}
 
+  '@types/ws@8.18.2':
+    resolution: {integrity: sha512-67MQl+fpWKVTT1NYdnmo3U4sc/xPo/zQBncVnI74qmQa0z/b+1g6iYqNmGCPbxO+zz2aklb08a0oHfegiVd0/w==}
+
   '@vitest/expect@3.2.7':
     resolution: {integrity: sha512-E8eBXaKibuvH2pSZErOjdVb5vF4PbKYcrnluBTYxEk1l/VhhwZg1kZQsdtjq+CsF5CFydf2Rdkz7jDHKSisi3w==}
 
@@ -1102,6 +1133,18 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
+  ws@8.22.1:
+    resolution: {integrity: sha512-oyL6OPYme/CmiFvNuGzeoxCJ4nOrZE2O1FwM9MWM1AsGri6nLXB2pg+lNA8aLeXMSav0J6eIVS1j6vUPzUtK9g==}
+    engines: {node: '>=10.0.0'}
+    peerDependencies:
+      bufferutil: ^4.0.1
+      utf-8-validate: '>=5.0.2'
+    peerDependenciesMeta:
+      bufferutil:
+        optional: true
+      utf-8-validate:
+        optional: true
+
   xml-naming@0.3.0:
     resolution: {integrity: sha512-ghig2TBE/H11aOVgmahA3MhimvkBr6JIYknH/Dhdk10nXwdbIqBJsbfMxpvFPG8bAw77gN29aQWvKpmVoPlvPQ==}
     engines: {node: '>=16.0.0'}
@@ -1366,6 +1409,10 @@ snapshots:
       undici-types: 7.24.6
 
   '@types/pngjs@6.0.5':
+    dependencies:
+      '@types/node': 24.19.2
+
+  '@types/ws@8.18.2':
     dependencies:
       '@types/node': 24.19.2
 
@@ -1744,5 +1791,7 @@ snapshots:
     dependencies:
       siginfo: 2.0.0
       stackback: 0.0.2
+
+  ws@8.22.1: {}
 
   xml-naming@0.3.0: {}
