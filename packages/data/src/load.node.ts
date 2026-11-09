@@ -13,6 +13,7 @@ import type {
   MapPackage,
   RuntimeFighterPackage,
 } from './types.js';
+import type { FighterAtlas, MapAtlas } from './assets.js';
 import {
   validateAssistantPackage,
   validateFighterPackage,
@@ -20,6 +21,7 @@ import {
   validateRuntimeFighterPackage,
   type ValidationResult,
 } from './validate.js';
+import { validateFighterAtlas, validateMapAtlas } from './assets.js';
 
 function readValidated<T>(path: string, schema: string, validate: (pkg: T) => ValidationResult): T {
   let parsed: unknown;
@@ -36,7 +38,7 @@ function readValidated<T>(path: string, schema: string, validate: (pkg: T) => Va
   if (res.errors.length > 0) {
     throw new Error(`${path} 校验失败:\n  ${res.errors.join('\n  ')}`);
   }
-  return pkg;
+  return pkg as T;
 }
 
 /** 加载并校验地图包（baked/maps/<id>.json，schema bvn/map@1）。 */
@@ -76,5 +78,23 @@ export function loadAssistantPackage(bakedDir: string, id: string): AssistantPac
     join(bakedDir, 'assistants', `${id}.json`),
     'bvn/assistant@1',
     validateAssistantPackage,
+  );
+}
+
+/** 加载并校验角色/辅助图集（assets/<kind>/<id>.atlas.json，schema bvn/atlas@1）。 */
+export function loadFighterAtlas(assetsDir: string, id: string, kind: 'fighters' | 'assistants'): FighterAtlas {
+  return readValidated<FighterAtlas>(
+    join(assetsDir, kind, `${id}.atlas.json`),
+    'bvn/atlas@1',
+    validateFighterAtlas,
+  );
+}
+
+/** 加载并校验地图图集（assets/maps/<id>.atlas.json，schema bvn/map-atlas@1）。 */
+export function loadMapAtlas(assetsDir: string, id: string): MapAtlas {
+  return readValidated<MapAtlas>(
+    join(assetsDir, 'maps', `${id}.atlas.json`),
+    'bvn/map-atlas@1',
+    validateMapAtlas,
   );
 }

@@ -1,0 +1,886 @@
+// =====================================================================
+// BVN capture 桥 —— 注入 FighterTester 文档类的方法块（注入代码，非原版）
+//
+// 目的：把角色/辅助/地图的视觉内容栅格化导出，供 web 渲染层做图集：
+//   1. 角色/辅助：逐（root 形态帧 × 内层动画帧）gotoAndStop，把 root
+//      渲染进 BitmapData，PNG 落盘；按像素哈希去重（大量帧同姿势）。
+//      每帧记录内容相对 root 的 bounds（root 局部原点 = 引擎角色坐标，
+//      翻转绕原点 —— BaseGameSprite: _mainMc.x=_x; scaleX=direct*scale）。
+//   2. 地图：移除 line_*/p1/p2（同 MapMain.initlize），逐子图层渲染
+//      PNG + 记录子图层相对地图 root 的偏移。
+//
+// 输出：File.documentsDirectory/bvn-atlas/
+//   png/<kind>_<id>/<n>.png          唯一帧位图（n = 序号）
+//   atlas_char_<kind>_<id>.json      帧→png 映射 + 每帧 root 局部 bounds
+//   atlas_map_<id>.json              地图子图层 png + 偏移
+// 全部完成后 exit(0)。
+//
+// PNG 编码：手写实现（目标 SWF ver17 = FP11.0，无 BitmapData.encode）。
+// 类型 6（RGBA）+ filter 0；IDAT 用 ByteArray.compress()（zlib）。
+// =====================================================================
+
+      // ==================== BVN capture 桥（注入代码，非原版）====================
+      private var _capItems:Array;
+      private var _capIdx:int = 0;
+      private var _capLog:Array;
+
+      private function capBootLog(param1:String) : void
+      {
+         try
+         {
+            var f:File = File.documentsDirectory.resolvePath("bvn-atlas/boot.log");
+            if(!f.parent.exists)
+            {
+               f.parent.createDirectory();
+            }
+            var s:FileStream = new FileStream();
+            s.open(f,"append");
+            s.writeUTFBytes("[" + new Date().time + "] " + param1 + "\n");
+            s.close();
+         }
+         catch(e:Error)
+         {
+         }
+      }
+
+      private function startBvnCapture() : void
+      {
+         capBootLog("startBvnCapture enter");
+         try
+         {
+            this.loaderInfo.uncaughtErrorEvents.addEventListener("uncaughtError",function(param1:UncaughtErrorEvent) : void
+            {
+               capBootLog("UNCAUGHT: " + param1.message);
+            });
+         }
+         catch(ue:Error)
+         {
+            capBootLog("uncaught hook err: " + ue.message);
+         }
+         _capLog = [];
+         _capItems = [];
+         var fs:* = FighterModel.I.getFighters();
+         for each(var fv:* in fs)
+         {
+            _capItems.push({"kind":"fighter","id":fv.id,"url":fv.fileUrl});
+         }
+         var asl:* = AssisterModel.I.getAssisters();
+         for each(var av:* in asl)
+         {
+            _capItems.push({"kind":"assister","id":av.id,"url":av.fileUrl});
+         }
+         var mpl:* = MapModel.I.getAllMaps();
+         for each(var mv:* in mpl)
+         {
+            _capItems.push({"kind":"map","id":mv.id,"url":mv.fileUrl});
+         }
+         capBootLog("items built: " + _capItems.length);
+         capLog("capture items: " + _capItems.length);
+         _capIdx = 0;
+         setTimeout(capNext,100);
+      }
+
+      private function capLog(param1:String) : void
+      {
+         _capLog.push(param1);
+         trace("[bvn-atlas] " + param1);
+      }
+
+      private function capNext() : void
+      {
+         if(_capIdx >= _capItems.length)
+         {
+            capFinish();
+            return;
+         }
+         var it:Object = _capItems[_capIdx];
+         capBootLog("next[" + _capIdx + "] " + it.kind + ":" + it.id);
+         try
+         {
+            capOne(it);
+         }
+         catch(de:Error)
+         {
+            capBootLog("CAPONE ERR: " + de.errorID + " " + de.message + " :: " + de.getStackTrace());
+         }
+         _capIdx++;
+      }
+
+      private function capOne(item:Object) : void
+      {
+         var bytes:ByteArray = capReadSwf(item.url);
+         if(bytes == null)
+         {
+            item.error = "无法读取 SWF: " + item.url;
+            capLog("FAIL read " + item.kind + ":" + item.id);
+            capWriteManifest();
+            setTimeout(capNext,30);
+            return;
+         }
+         var loader:Loader = new Loader();
+         var ctx:LoaderContext = new LoaderContext(false,new ApplicationDomain());
+         ctx.allowCodeImport = true;
+         var onOk:Function = function(param1:Event) : void
+         {
+            loader.contentLoaderInfo.removeEventListener("complete",onOk);
+            loader.contentLoaderInfo.removeEventListener("ioError",onFail);
+            try
+            {
+               if(item.kind == "map")
+               {
+                  capMap(item,loader.content);
+               }
+               else
+               {
+                  capChar(item,loader.content as MovieClip);
+               }
+               item.ok = true;
+            }
+            catch(e:Error)
+            {
+               item.error = e.message;
+               capLog("FAIL capture " + item.kind + ":" + item.id + " :: " + e.message);
+            }
+            try
+            {
+               loader.unloadAndStop(true);
+            }
+            catch(e2:Error)
+            {
+            }
+            capWriteManifest();
+            setTimeout(capNext,30);
+         };
+         var onFail:Function = function(param1:Event) : void
+         {
+            loader.contentLoaderInfo.removeEventListener("complete",onOk);
+            loader.contentLoaderInfo.removeEventListener("ioError",onFail);
+            item.error = "loadBytes 失败";
+            capLog("FAIL load " + item.kind + ":" + item.id);
+            capWriteManifest();
+            setTimeout(capNext,30);
+         };
+         loader.contentLoaderInfo.addEventListener("complete",onOk);
+         loader.contentLoaderInfo.addEventListener("ioError",onFail);
+         loader.loadBytes(bytes,ctx);
+      }
+
+      private function capReadSwf(param1:String) : ByteArray
+      {
+         var out:ByteArray = null;
+         try
+         {
+            var f:File = File.applicationDirectory.resolvePath(param1);
+            if(!f.exists)
+            {
+               return null;
+            }
+            var s:FileStream = new FileStream();
+            s.open(f,"read");
+            out = new ByteArray();
+            s.readBytes(out);
+            s.close();
+            out.position = 0;
+         }
+         catch(e:Error)
+         {
+            out = null;
+         }
+         return out;
+      }
+
+      // ---------- 角色 / 辅助 capture ----------
+
+      private function capChar(item:Object, root:MovieClip) : void
+      {
+         if(root == null)
+         {
+            item.error = "SWF root 不是 MovieClip";
+            return;
+         }
+
+         // no-op 控制器（同 dump 桥：帧脚本的 ctrler 调用全部吸收）
+         var innerRef:* = null;
+         var fakeCtrler:Object = {
+            "defineAction":function(param1:String, param2:Object) : void {},
+            "initMc":function(param1:*) : void
+            {
+               innerRef = param1;
+            },
+            "defineBishaFace":function(param1:String, param2:*) : void {},
+            "getSelf":function(... rest) : * { return null; },
+            "justHit":function(... rest) : Boolean { return false; },
+            "targetInRange":function(... rest) : Boolean { return false; },
+            "moveToTarget":function(... rest) : void {},
+            "moveOnce":function(... rest) : void {},
+            "setCross":function(... rest) : void {},
+            "setDirectToTarget":function(... rest) : void {},
+            "setDirectReverse":function(... rest) : void {},
+            "doWanKai":function(... rest) : void {},
+            "addHpLosePercent":function(... rest) : void {},
+            "defineHurtSound":function(... rest) : void {},
+            "defineHurtFlySound":function(... rest) : void {},
+            "defineDieSound":function(... rest) : void {},
+            "defenseType":0,
+            "heavy":0,
+            "jumpPower":0,
+            "speed":0
+         };
+         var mcNoops:Array = ["addQi","dash","dashStop","endAct","fire","gotoAndPlay","idle","justHitToPlay","loop","move","movePercent","setAirMove","setAttack","setAttackAIR","setBisha","setBishaAIR","setBishaSUPER","setBishaUP","setDash","setHitTarget","setHurtAction","setJump","setSkill","setSkillAIR","setSteelBody","setTouchFloor","setZhao","stop","stopMove","setBishaEnd","playVoice"];
+         var fakeMc:Object = {};
+         for each(var nm1:String in mcNoops)
+         {
+            fakeMc[nm1] = function(... rest) : * { return null; };
+         }
+         var effNoops:Array = ["bisha","dash","endBisha","endShadow","endShake","endWanKai","jump","playSoundHit","shadow","shake","shine","slowDown","startShake","startWanKai","walk"];
+         var fakeEff:Object = {};
+         for each(var nm2:String in effNoops)
+         {
+            fakeEff[nm2] = function(... rest) : * { return null; };
+         }
+
+         var isFighterType:Boolean = false;
+         if(root.initFighter != null)
+         {
+            try
+            {
+               root.initFighter({
+                  "fighter_ctrler":fakeCtrler,
+                  "mc_ctrler":fakeMc,
+                  "effect_ctrler":fakeEff
+               });
+               isFighterType = true;
+            }
+            catch(ie:Error)
+            {
+               capBootLog("initFighter ERR " + item.id + ": " + ie.message);
+            }
+         }
+         if(!isFighterType && root.setAssistCtrler != null)
+         {
+            try
+            {
+               root.setAssistCtrler(fakeCtrler);
+            }
+            catch(ae:Error)
+            {
+               capBootLog("setAssistCtrler ERR " + item.id + ": " + ae.message);
+            }
+         }
+         if(!isFighterType && root.setAssistCtrler == null && root.initFighter == null)
+         {
+            item.error = "SWF 无 initFighter/setAssistCtrler 入口";
+            capLog("FAIL entry " + item.id);
+            return;
+         }
+
+         // 唯一帧收集：哈希 → png 序号
+         var seen:Object = {};
+         var pngCount:int = 0;
+         var pngList:Array = [];
+         var rootFrames:Array = [];
+
+         if(isFighterType)
+         {
+            for(var r:int = 1; r <= root.totalFrames; r++)
+            {
+               innerRef = null;
+               try
+               {
+                  root.gotoAndStop(r);
+               }
+               catch(e:Error)
+               {
+                  capBootLog("root goto " + item.id + " r" + r + " ERR: " + e.message);
+               }
+               var inner:* = innerRef;
+               if(inner == null)
+               {
+                  inner = root.getChildByName("mc");
+               }
+               var formRec:Object = {"rootFrame":r,"frames":[]};
+               if(inner != null && inner is MovieClip && inner.totalFrames > 0)
+               {
+                  capSweepFrames(item,root,inner,seen,pngList,function():int
+                  {
+                     pngCount++;
+                     return pngCount;
+                  },formRec.frames);
+               }
+               rootFrames.push(formRec);
+            }
+         }
+         else
+         {
+            // 辅助：root 本身就是动画时间轴
+            var formRec2:Object = {"rootFrame":1,"frames":[]};
+            capSweepFrames(item,root,root,seen,pngList,function():int
+            {
+               pngCount++;
+               return pngCount;
+            },formRec2.frames);
+            rootFrames.push(formRec2);
+         }
+
+         var outData:Object = {
+            "kind":item.kind,
+            "id":item.id,
+            "fileUrl":item.url,
+            "pngCount":pngList.length,
+            "pngs":pngList,
+            "rootFrames":rootFrames
+         };
+         capWriteJson("atlas_char_" + item.kind + "_" + item.id + ".json",outData);
+         capLog("captured " + item.kind + ":" + item.id + " pngs=" + pngList.length);
+      }
+
+      // 逐标签镜像 FighterMC.goFrame/renderAnimate 语义采集：
+      // 姿势画在子剪辑自身时间轴，引擎每 tick「主时间轴 nextFrame + 子剪辑推进 1 格」
+      // （renderChildren），主时间轴关键帧只是放置载体——单纯 gotoAndStop(f) 子剪辑
+      // 全停在初始帧，截不到姿势（首次实现即败于此）。
+      // 采集序列：gotoAndStop(标签起始) → advanceChildren → 截图(k=0)
+      //          → [nextFrame + advanceChildren → 截图(k=1..d-1)]。
+      // 输出帧号 = 绝对内层帧（core animFrame 语义）；标签外帧记空（引擎不显示）。
+      private function capSweepFrames(item:Object, rootRef:DisplayObject, mc:MovieClip, seen:Object, pngList:Array, nextId:Function, outFrames:Array) : void
+      {
+         // 只排除判定区标记节点（atm*/bdmn*/AImain*）——未命名 instance* 是姿势美术载体
+         var skipRe:RegExp = /^(atm|bdmn|AImain)/;
+         for(var f:int = 1; f <= mc.totalFrames; f++)
+         {
+            outFrames.push({"frame":f,"png":-1});
+         }
+         var labels:Array = mc.currentLabels;
+         for(var li:int = 0; li < labels.length; li++)
+         {
+            var lab:* = labels[li];
+            var s:int = lab.frame;
+            var d:int = (li < labels.length - 1 ? labels[li + 1].frame : mc.totalFrames + 1) - s;
+            if(d < 1)
+            {
+               d = 1;
+            }
+            try
+            {
+               mc.gotoAndStop(s);
+            }
+            catch(e:Error)
+            {
+               capBootLog("label goto " + item.id + " " + lab.name + " ERR: " + e.message);
+            }
+            capAdvanceChildren(mc,skipRe);
+            capShotFrame(item,rootRef,mc,s,seen,pngList,nextId,outFrames,skipRe);
+            for(var k:int = 1; k < d; k++)
+            {
+               try
+               {
+                  mc.nextFrame();
+               }
+               catch(e2:Error)
+               {
+                  capBootLog("label next " + item.id + " " + lab.name + " ERR: " + e2.message);
+               }
+               capAdvanceChildren(mc,skipRe);
+               capShotFrame(item,rootRef,mc,s + k,seen,pngList,nextId,outFrames,skipRe);
+            }
+         }
+      }
+
+      // 镜像 FighterMC.renderChildren：子 MovieClip 每 tick 推进 1 格（到尾回绕），
+      // 名为 AImain/bdmn/atm* 的标记节点与 currentFrameLabel=="stop" 的子剪辑除外
+      private function capAdvanceChildren(mc:MovieClip, skipRe:RegExp) : void
+      {
+         for(var i:int = 0; i < mc.numChildren; i++)
+         {
+            var c1:MovieClip = mc.getChildAt(i) as MovieClip;
+            if(c1 == null)
+            {
+               continue;
+            }
+            var nm:String = c1.name;
+            if(nm != null && (nm == "AImain" || nm == "bdmn" || nm.indexOf("atm") != -1))
+            {
+               continue;
+            }
+            if(c1.totalFrames < 2)
+            {
+               continue;
+            }
+            if(c1.currentFrameLabel == "stop")
+            {
+               continue;
+            }
+            if(c1.currentFrame == c1.totalFrames)
+            {
+               c1.gotoAndStop(1);
+            }
+            else
+            {
+               c1.nextFrame();
+            }
+         }
+      }
+
+      // 单帧采集：算内容 bounds（相对 rootRef）→ 渲染 → 哈希去重落盘
+      private function capShotFrame(item:Object, rootRef:DisplayObject, mc:MovieClip, f:int, seen:Object, pngList:Array, nextId:Function, outFrames:Array, skipRe:RegExp) : void
+      {
+            // 内容 bounds：rootRef 局部坐标系，排除判定区标记节点
+            var rx:Number = 1e9;
+            var ry:Number = 1e9;
+            var rx2:Number = -1e9;
+            var ry2:Number = -1e9;
+            var has:Boolean = false;
+            for(var i:int = 0; i < mc.numChildren; i++)
+            {
+               var ch:DisplayObject = mc.getChildAt(i);
+               var nm:String = ch.name;
+               if(nm == null || skipRe.test(nm))
+               {
+                  continue;
+               }
+               var b:Rectangle = ch.getBounds(rootRef);
+               if(b.width <= 0 || b.height <= 0)
+               {
+                  continue;
+               }
+               if(b.x < rx)
+               {
+                  rx = b.x;
+               }
+               if(b.y < ry)
+               {
+                  ry = b.y;
+               }
+               if(b.x + b.width > rx2)
+               {
+                  rx2 = b.x + b.width;
+               }
+               if(b.y + b.height > ry2)
+               {
+                  ry2 = b.y + b.height;
+               }
+               has = true;
+            }
+            if(!has)
+            {
+               // 无可见内容：该帧记空（引用 null png）
+               outFrames[f - 1] = {"frame":f,"png":-1};
+               return;
+            }
+            var rw:int = Math.ceil(rx2 - rx) + 2;
+            var rh:int = Math.ceil(ry2 - ry) + 2;
+            if(rw > 1024 || rh > 1024)
+            {
+               capBootLog("SIZE CAP " + item.id + " f" + f + " " + rw + "x" + rh);
+               rw = Math.min(rw,1024);
+               rh = Math.min(rh,1024);
+            }
+            var bmp:BitmapData = new BitmapData(rw,rh,true,0);
+            var mtx:Matrix = new Matrix(1,0,0,1,-(rx - 1),-(ry - 1));
+            try
+            {
+               bmp.draw(rootRef,mtx,null,null,new Rectangle(0,0,rw,rh));
+            }
+            catch(e2:Error)
+            {
+               capBootLog("draw " + item.id + " f" + f + " ERR: " + e2.message);
+               bmp.dispose();
+               outFrames[f - 1] = {"frame":f,"png":-1};
+               return;
+            }
+            capHashPair(bmp);
+            var key:String = rw + "x" + rh + ":" + _h1 + ":" + _h2;
+            var pngId:int = -1;
+            if(seen[key] != null)
+            {
+               pngId = seen[key];
+               bmp.dispose();
+            }
+            else
+            {
+               pngId = nextId();
+               seen[key] = pngId;
+               var png:ByteArray = capPngEncode(bmp);
+               bmp.dispose();
+               capWritePng(item.kind + "_" + item.id,pngId,png);
+               pngList.push({"id":pngId,"w":rw,"h":rh});
+            }
+            outFrames[f - 1] = {
+               "frame":f,
+               "png":pngId,
+               "x":Math.round((rx - 1) * 100) / 100,
+               "y":Math.round((ry - 1) * 100) / 100
+            };
+      }
+
+      // FNV-1a 32bit 单遍取双哈希（写入成员 _h1/_h2）：h1 覆盖 RGBA 全字节，
+      // h2 只覆盖 RGB（跳 alpha 字节），双哈希降碰撞。
+      private var _h1:uint;
+      private var _h2:uint;
+
+      private function capHashPair(bmp:BitmapData) : void
+      {
+         var px:ByteArray = bmp.getPixels(new Rectangle(0,0,bmp.width,bmp.height));
+         px.position = 0;
+         var a:uint = 2166136261;
+         var b:uint = 2166136261;
+         var n:int = px.length;
+         // FNV 素数乘法用移位分解（h*16777619 mod 2^32）：
+         // AS3 的 * 是浮点乘，超过 2^53 丢精度，不能用
+         for(var i:int = 0; i < n; i++)
+         {
+            a = a ^ px[i];
+            a += (a << 1) + (a << 4) + (a << 7) + (a << 8) + (a << 24);
+            if((i & 3) != 3)
+            {
+               b = b ^ px[i];
+               b += (b << 1) + (b << 4) + (b << 7) + (b << 8) + (b << 24);
+            }
+         }
+         px.length = 0;
+         _h1 = a;
+         _h2 = b;
+      }
+
+      // ---------- 地图 capture：逐子图层 PNG + 偏移 ----------
+
+      private function capMap(item:Object, content:*) : void
+      {
+         var spr:Sprite = content as Sprite;
+         if(spr == null)
+         {
+            item.error = "地图 SWF root 不是 Sprite";
+            return;
+         }
+         // 同 MapMain.initlize：移除 line_*/p1/p2 等标记节点
+         var junk:Array = [];
+         for(var i:int = 0; i < spr.numChildren; i++)
+         {
+            var c:DisplayObject = spr.getChildAt(i);
+            var cn:String = c.name;
+            if(cn == null)
+            {
+               continue;
+            }
+            if(cn.indexOf("line_") == 0 || cn == "p1" || cn == "p2")
+            {
+               junk.push(c);
+            }
+         }
+         for each(var j:DisplayObject in junk)
+         {
+            spr.removeChild(j);
+         }
+
+         var layers:Array = [];
+         var pngCount:int = 0;
+         for(var k:int = 0; k < spr.numChildren; k++)
+         {
+            var ch:DisplayObject = spr.getChildAt(k);
+            var b:Rectangle = ch.getBounds(ch);
+            var bw:int = Math.ceil(b.width);
+            var bh:int = Math.ceil(b.height);
+            if(bw <= 0 || bh <= 0 || bw > 4096 || bh > 4096)
+            {
+               capBootLog("map layer skip " + item.id + " " + ch.name + " " + bw + "x" + bh);
+               continue;
+            }
+            var bmp:BitmapData = new BitmapData(bw,bh,true,0);
+            try
+            {
+               bmp.draw(ch,new Matrix(1,0,0,1,-b.x,-b.y),null,null,new Rectangle(0,0,bw,bh));
+            }
+            catch(e:Error)
+            {
+               capBootLog("map draw " + item.id + " " + ch.name + " ERR: " + e.message);
+               bmp.dispose();
+               continue;
+            }
+            var pngId:int = pngCount++;
+            capWritePng("map_" + item.id,pngId,capPngEncode(bmp));
+            bmp.dispose();
+            layers.push({
+               "name":ch.name,
+               "png":pngId,
+               "w":bw,
+               "h":bh,
+               "x":Math.round(ch.x * 100) / 100,
+               "y":Math.round(ch.y * 100) / 100,
+               "bx":Math.round(b.x * 100) / 100,
+               "by":Math.round(b.y * 100) / 100
+            });
+         }
+         var outData:Object = {
+            "id":item.id,
+            "fileUrl":item.url,
+            "layers":layers
+         };
+         capWriteJson("atlas_map_" + item.id + ".json",outData);
+         capLog("captured map " + item.id + " layers=" + layers.length);
+      }
+
+      // ---------- PNG 编码（最小实现：RGBA / filter 0 / zlib）----------
+
+      private var _crcTable:Array;
+
+      private function capCrcTable() : Array
+      {
+         if(_crcTable != null)
+         {
+            return _crcTable;
+         }
+         _crcTable = [];
+         for(var n:uint = 0; n < 256; n++)
+         {
+            var c:uint = n;
+            for(var k:int = 0; k < 8; k++)
+            {
+               if(c & 1)
+               {
+                  c = 3988292384 ^ (c >>> 1);
+               }
+               else
+               {
+                  c = c >>> 1;
+               }
+            }
+            _crcTable[n] = c;
+         }
+         return _crcTable;
+      }
+
+      private function capCrc32(buf:ByteArray, start:int, len:int) : uint
+      {
+         var t:Array = capCrcTable();
+         var c:uint = 4294967295;
+         var end:int = start + len;
+         for(var i:int = start; i < end; i++)
+         {
+            c = t[(c ^ buf[i]) & 255] ^ (c >>> 8);
+         }
+         return (c ^ 4294967295) & 4294967295;
+      }
+
+      private function capPngEncode(bmp:BitmapData) : ByteArray
+      {
+         var w:int = bmp.width;
+         var h:int = bmp.height;
+         // getPixels：ARGB 序（每像素 4 字节）→ 重排为 RGBA + 行首 filter 0
+         var px:ByteArray = bmp.getPixels(new Rectangle(0,0,w,h));
+         var raw:ByteArray = new ByteArray();
+         var stride:int = w * 4;
+         px.position = 0;
+         for(var y:int = 0; y < h; y++)
+         {
+            raw.writeByte(0);
+            for(var x4:int = 0; x4 < stride; x4 += 4)
+            {
+               var base:int = y * stride + x4;
+               raw.writeByte(px[base + 1]);
+               raw.writeByte(px[base + 2]);
+               raw.writeByte(px[base + 3]);
+               raw.writeByte(px[base]);
+            }
+         }
+         px.length = 0;
+         raw.compress();
+
+         var out:ByteArray = new ByteArray();
+         out.writeBytes(capPngSig());
+         capChunk(out,"IHDR",capIhdr(w,h));
+         capChunk(out,"IDAT",raw);
+         capChunk(out,"IEND",new ByteArray());
+         return out;
+      }
+
+      private function capPngSig() : ByteArray
+      {
+         var b:ByteArray = new ByteArray();
+         b.writeByte(137);
+         b.writeByte(80);
+         b.writeByte(78);
+         b.writeByte(71);
+         b.writeByte(13);
+         b.writeByte(10);
+         b.writeByte(26);
+         b.writeByte(10);
+         return b;
+      }
+
+      private function capIhdr(w:int, h:int) : ByteArray
+      {
+         var b:ByteArray = new ByteArray();
+         b.endian = Endian.BIG_ENDIAN;
+         b.writeInt(w);
+         b.writeInt(h);
+         b.writeByte(8);
+         b.writeByte(6);
+         b.writeByte(0);
+         b.writeByte(0);
+         b.writeByte(0);
+         return b;
+      }
+
+      private function capChunk(out:ByteArray, type:String, data:ByteArray) : void
+      {
+         var len:int = data.length;
+         var body:ByteArray = new ByteArray();
+         body.endian = Endian.BIG_ENDIAN;
+         body.writeUTFBytes(type);
+         body.writeBytes(data);
+         out.endian = Endian.BIG_ENDIAN;
+         out.writeInt(len);
+         out.writeBytes(body);
+         out.writeInt(capCrc32(body,0,body.length));
+      }
+
+      // ---------- 收尾 / IO ----------
+
+      private function capWriteManifest() : void
+      {
+         var okCount:int = 0;
+         var failCount:int = 0;
+         var items:Array = [];
+         for(var i:int = 0; i < _capItems.length; i++)
+         {
+            var it:Object = _capItems[i];
+            if(it.ok)
+            {
+               okCount++;
+            }
+            if(it.error != null)
+            {
+               failCount++;
+            }
+            items.push({"kind":it.kind,"id":it.id,"ok":it.ok == true,"error":it.error});
+         }
+         capWriteJson("manifest.json",{
+            "finished":_capIdx >= _capItems.length,
+            "done":_capIdx,
+            "total":_capItems.length,
+            "okCount":okCount,
+            "failCount":failCount,
+            "items":items,
+            "log":_capLog
+         });
+      }
+
+      private function capFinish() : void
+      {
+         capWriteManifest();
+         capLog("ALL DONE");
+         NativeApplication.nativeApplication.exit(0);
+      }
+
+      private function capWriteJson(param1:String, param2:*) : void
+      {
+         try
+         {
+            var f:File = File.documentsDirectory.resolvePath("bvn-atlas/" + param1);
+            if(!f.parent.exists)
+            {
+               f.parent.createDirectory();
+            }
+            var s:FileStream = new FileStream();
+            s.open(f,"write");
+            s.writeUTFBytes(capJson(param2));
+            s.close();
+            capLog("written " + param1);
+         }
+         catch(e:Error)
+         {
+            capLog("FAIL write " + param1 + " :: " + e.message);
+         }
+      }
+
+      private function capWritePng(param1:String, param2:int, param3:ByteArray) : void
+      {
+         try
+         {
+            var dir:File = File.documentsDirectory.resolvePath("bvn-atlas/png/" + param1);
+            if(!dir.exists)
+            {
+               dir.createDirectory();
+            }
+            var f:File = dir.resolvePath(param2 + ".png");
+            var s:FileStream = new FileStream();
+            s.open(f,"write");
+            s.writeBytes(param3);
+            s.close();
+         }
+         catch(e:Error)
+         {
+            capLog("FAIL write png " + param1 + "/" + param2 + " :: " + e.message);
+         }
+      }
+
+      // 最小 JSON 序列化器（同 dump 桥）
+      private function capJson(param1:*) : String
+      {
+         if(param1 == null)
+         {
+            return "null";
+         }
+         if(param1 is String)
+         {
+            return "\"" + capEsc(param1 as String) + "\"";
+         }
+         if(param1 is Boolean)
+         {
+            return param1 ? "true" : "false";
+         }
+         if(param1 is int || param1 is uint)
+         {
+            return "" + param1;
+         }
+         if(param1 is Number)
+         {
+            var n:Number = param1;
+            if(isNaN(n))
+            {
+               return "null";
+            }
+            if(!isFinite(n))
+            {
+               return n > 0 ? "1e308" : "-1e308";
+            }
+            return "" + n;
+         }
+         if(param1 is Array)
+         {
+            var a:Array = param1 as Array;
+            var p1:Array = [];
+            for(var i:int = 0; i < a.length; i++)
+            {
+               p1.push(capJson(a[i]));
+            }
+            return "[" + p1.join(",") + "]";
+         }
+         if(param1 is Class)
+         {
+            return "\"" + capEsc(String(param1)) + "\"";
+         }
+         var p2:Array = [];
+         for(var k:String in param1)
+         {
+            var v:* = param1[k];
+            if(v is Function)
+            {
+               continue;
+            }
+            p2.push("\"" + capEsc(k) + "\":" + capJson(v));
+         }
+         return "{" + p2.join(",") + "}";
+      }
+
+      private function capEsc(param1:String) : String
+      {
+         var s:String = param1;
+         s = s.replace(/\\/g,"\\\\");
+         s = s.replace(/\"/g,"\\\"");
+         s = s.replace(/\r/g,"\\r");
+         s = s.replace(/\n/g,"\\n");
+         s = s.replace(/\t/g,"\\t");
+         return s;
+      }
+
+      // ==================== BVN capture 桥结束 ==================

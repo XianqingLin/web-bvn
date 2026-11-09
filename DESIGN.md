@@ -99,7 +99,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 ## 4. 数据与素材管线
 
 - **导出**：FFDec 反编译主 SWF + 注入导出脚本（ADR-5，参考 bvn-ai-public 的状态桥），运行时遍历 dump 帧标签、`getBounds` 判定几何、`defineAction` 表、帧触发点、地图边界/地板/出生点。输出带源 SWF 哈希版本戳。
-- **图集**：SWF 帧位图 → spritesheet PNG + 帧元数据（锚点/偏移），工具阶段 1 定。
+- **图集**（ADR-13，切片 4 定案）：原版角色/辅助图形是矢量符号（XFL 库几乎无位图），必须运行时栅格化——`tools/atlas-capture`（AIR capture 桥，范式同 dump 桥）。**关键语义**：姿势美术画在内层子剪辑自身的时间轴里，引擎每 tick 手动驱动（`FighterMC.renderAnimate`：主时间轴 `nextFrame()` + `renderChildren()` 把每个姿势子剪辑推进 1 格）——单纯 `gotoAndStop(f)` 子剪辑停在初始帧截不到姿势。capture 逐标签镜像引擎时序（`gotoAndStop(标签起始)` → 推进子剪辑 → 截图 → `nextFrame`+推进 → 截图），输出帧号 = 绝对内层帧（与 core `animFrame` 一致）→ `BitmapData.draw(root)` → 手写 PNG 编码（SWF ver17 无 `BitmapData.encode`）→ **像素哈希去重**（166k 帧引用 → 46k 唯一帧）；`tools/atlas-pack`（Node + pngjs）shelf 装包 2048² sheet，排序固定可复现。锚点契约：每帧记内容相对**角色 root 原点**的 bounds 偏移——原版 `BaseGameSprite` 直接 `_mainMc.x=_x; scaleX=direct`，即角色坐标 = root 局部原点、翻转绕原点，render 端 `translate(x,y) → scaleX(direct) → draw(bounds 偏移)` 复现。地图背景走同一 capture 桥（逐子图层 PNG + 偏移）。产物 `packages/data/assets/`（gitignore，管线可再生）。
 - **配置**：原版 fighter/select/map/mission XML → JSON。
 
 ## 5. 渲染层
@@ -156,5 +156,6 @@ TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客
 | 10 | harness 先行：replay 哈希门禁与 core 骨架同期交付；core 单线程开发，批量任务才 fan-out | 2026-11-08 |
 | 11 | 角色定义（FighterDef）为静态配置：SimConfig 注入注册表、不进 SimState，快照恢复时回注（states 小、快照便宜） | 2026-11-09 |
 | 12 | 原版常量换算细则定案：速度/衰减类 ×SPEED_PLUS(0.5)，帧数类（hurtTime 折算后的动画帧、HURT_FRAME_OFFSET）与空间类不折算；hurtTime 按 ms→30Hz 帧换算再叠加原版偏移 | 2026-11-09 |
+| 13 | 图集管线：AIR runtime capture 桥逐帧栅格化（矢量符号必须运行时渲染）+ 像素哈希去重 + Node shelf 打包；锚点 = 内容相对角色 root 原点 bounds；地图走同桥逐子图层截取 | 2026-11-09 |
 
 推翻旧决策：标 ~~删除线~~ 并追加新行写明替代方案与日期。

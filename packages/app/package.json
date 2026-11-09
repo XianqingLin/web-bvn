@@ -1,0 +1,19 @@
+{
+  "name": "@bvn/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@bvn/core": "workspace:*",
+    "@bvn/data": "workspace:*",
+    "@bvn/render": "workspace:*",
+    "pixi.js": "^8.6.6"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}
