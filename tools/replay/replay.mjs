@@ -14,8 +14,14 @@
  * 退出码：0 一致/仅运行；1 哈希不一致（门禁失败）；2 用法/IO 错误。
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createDefaultConfig, Sim } from '@bvn/core';
+import { compileMapStage } from '@bvn/data';
+import { loadMapPackage } from '@bvn/data/node';
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const BAKED_DIR = resolve(ROOT, 'packages/data/baked');
 
 function fail(msg) {
   console.error(`replay: ${msg}`);
@@ -55,7 +61,25 @@ for (const seg of script.program) {
 if (frames.length === 0) fail('剧本展开后为空。');
 
 const stride = Number(flags.stride ?? 60);
-const sim = new Sim(createDefaultConfig(script.seed ?? 1));
+// 剧本可指定 "map": "<baked 地图 id>" → 舞台/出生点来自真实地图数据；
+// 缺省用合成空场（createDefaultConfig，行为与切片 1 基准一致）。
+function buildConfig(seed) {
+  if (!script.map) return createDefaultConfig(seed);
+  const { stage, p1Spawn, p2Spawn } = compileMapStage(loadMapPackage(BAKED_DIR, script.map));
+  const groundY = stage.groundY;
+  const fallbackSpawn = (i) => (i === 0 ? { x: 300, y: groundY } : { x: 700, y: groundY });
+  const s1 = p1Spawn ?? fallbackSpawn(0);
+  const s2 = p2Spawn ?? fallbackSpawn(1);
+  return {
+    seed,
+    stage,
+    fighters: [
+      { id: 1, x: s1.x, y: s1.y },
+      { id: 2, x: s2.x, y: s2.y },
+    ],
+  };
+}
+const sim = new Sim(buildConfig(script.seed ?? 1));
 const checkpoints = [];
 let lastHash = '';
 for (let i = 0; i < frames.length; i++) {
@@ -66,6 +90,7 @@ for (let i = 0; i < frames.length; i++) {
 const result = {
   name: script.name ?? scriptPath,
   seed: script.seed ?? 1,
+  map: script.map ?? null,
   ticks: frames.length,
   stride,
   checkpoints,

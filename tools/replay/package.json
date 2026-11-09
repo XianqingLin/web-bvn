@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@bvn/core": "workspace:*"
+    "@bvn/core": "workspace:*",
+    "@bvn/data": "workspace:*"
   }
 }

@@ -10,18 +10,40 @@ export const STAGE_HEIGHT = 600;
  */
 export const PLAYFIELD_HALF_WIDTH = 500;
 
-// —— 以下常量为骨架占位值，exporter 就绪后由角色/地图 JSON 数据驱动 ——
-export const GRAVITY_PER_TICK = 0.5;
+// —— 以下常量为骨架占位值，角色数据接线后由角色 JSON 驱动 ——
 export const WALK_SPEED = 4;
-export const DEFAULT_FLOOR_Y = 500;
+export const DEFAULT_GROUND_Y = 500;
 export const DEFAULT_HP = 1000;
+
+/** 可站立平台段（原版 FloorVO：x ∈ [xFrom, xTo]，站面高度 y，y 向下）。 */
+export interface FloorSpan {
+  xFrom: number;
+  xTo: number;
+  y: number;
+}
+
+/** 地图静态几何（每场战斗不变，但仍属 SimState 以支持整体快照/恢复）。 */
+export interface StageState {
+  leftBound: number;
+  rightBound: number;
+  /** 主地面（原版 line_player_bottom，落地判定的兜底吸附面） */
+  groundY: number;
+  /** 死亡线（原版 line_bottom；出界判定用它，死亡流程接线前仅记录） */
+  bottomY: number;
+  /** 可站立平台段（主地面以外的悬空平台），按 xFrom 升序 */
+  floors: FloorSpan[];
+}
 
 export interface FighterState {
   id: number;
   x: number;
   y: number;
+  /** 显式水平速度（行走/击退；骨架期=行走速度） */
   vx: number;
+  /** 显式垂直速度（跳跃/击飞；重力不计入此值——见 gRamp） */
   vy: number;
+  /** 重力位移斜坡（原版 BaseGameSprite._g：离地 GRAVITY_START 起，空中递增至封顶） */
+  gRamp: number;
   facing: 1 | -1;
   hp: number;
   /** 状态机状态码，沿用原版 FighterActionState 枚举（DESIGN §3.5）。骨架阶段仅 0=站立。 */
@@ -34,13 +56,6 @@ export interface MatchState {
   roundFrame: number;
   p1Wins: number;
   p2Wins: number;
-}
-
-/** 地图静态几何（每场战斗不变，但仍属 SimState 以支持整体快照/恢复）。 */
-export interface StageState {
-  leftBound: number;
-  rightBound: number;
-  floorY: number;
 }
 
 /**
@@ -59,6 +74,8 @@ export interface SimState {
 export interface FighterConfig {
   id: number;
   x: number;
+  /** 出生高度（缺省 = stage.groundY；地图出生点在平台上时由配置方传入） */
+  y?: number;
   hp?: number;
 }
 
@@ -68,11 +85,17 @@ export interface SimConfig {
   fighters: FighterConfig[];
 }
 
-/** 骨架默认配置：P1/P2 在空地图两侧对峙。 */
+/** 骨架默认配置：P1/P2 在空地图两侧对峙（合成舞台，与真实地图数据无关）。 */
 export function createDefaultConfig(seed: number): SimConfig {
   return {
     seed,
-    stage: { leftBound: 0, rightBound: STAGE_WIDTH, floorY: DEFAULT_FLOOR_Y },
+    stage: {
+      leftBound: 0,
+      rightBound: STAGE_WIDTH,
+      groundY: DEFAULT_GROUND_Y,
+      bottomY: STAGE_HEIGHT,
+      floors: [],
+    },
     fighters: [
       { id: 1, x: 300 },
       { id: 2, x: 700 },
@@ -86,9 +109,11 @@ export function createInitialState(config: SimConfig): SimState {
     .map((fc, i) => ({
       id: fc.id,
       x: fc.x,
-      y: config.stage.floorY,
+      y: fc.y ?? config.stage.groundY,
       vx: 0,
       vy: 0,
+      // 站立状态下的 gRamp 即离地初值（原版 setInAir(false) → _g=4，60Hz 折半 = 2）
+      gRamp: 2,
       facing: (i === 0 ? 1 : -1) as 1 | -1,
       hp: fc.hp ?? DEFAULT_HP,
       actionState: 0,

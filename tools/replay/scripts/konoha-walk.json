@@ -1,0 +1,13 @@
+{
+  "name": "konoha-walk",
+  "map": "KonohaMura",
+  "seed": 1,
+  "program": [
+    { "frames": 60, "p1": 8, "p2": 4 },
+    { "frames": 60, "p1": 4, "p2": 8 },
+    { "frames": 30, "p1": 0, "p2": 0 },
+    { "frames": 60, "p1": 8, "p2": 0 },
+    { "frames": 60, "p1": 4, "p2": 0 },
+    { "frames": 30, "p1": 0, "p2": 0 }
+  ]
+}

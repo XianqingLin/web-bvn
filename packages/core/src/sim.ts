@@ -2,13 +2,24 @@ import { advancePlayerInput, Btn, InputView, type InputFrame } from './input.js'
 import { hashState, stableStringify } from './serialize.js';
 import {
   createInitialState,
-  GRAVITY_PER_TICK,
   PLAYFIELD_HALF_WIDTH,
   WALK_SPEED,
   type FighterState,
   type SimConfig,
   type SimState,
+  type StageState,
 } from './state.js';
+
+// 物理帧常量（原版 BaseGameSprite/GameLogic 语义 × SPEED_PLUS=0.5，即
+// 原版自己的 60fps 手感基准——见 DESIGN §3.1；空间容差类常量不乘系数）
+//   重力斜坡：原版 applayG(12)/setInAir 的 _g（px/帧@30fps）→ 60Hz 减半
+//   穿台阈值：原版 vy ≥ 5*SPEED_PLUS；吸附带/平台容差是空间量，保持原值
+const GRAVITY_START = 2;
+const GRAVITY_STEP = 0.6;
+const GRAVITY_CAP = 6;
+const GROUND_SNAP_BAND = 12;
+const FALL_LAND_SPEED = 2.5;
+const LAND_TOLERANCE = 10;
 
 /**
  * 表现事件（契约 §表现事件表）。
@@ -88,6 +99,40 @@ export class Sim {
     this.events.push({ tick: this.state.tick, type, payload });
   }
 
+  /**
+   * 垂直落地判定，语义对照原版 GameLogic.isInAir（module-map §地图几何）。
+   * 返回是否仍在空中（true 时调用方施加重力斜坡）：
+   *   1. 上升（vy<0）不落地；
+   *   2. 落到 groundY - GROUND_SNAP_BAND 之下 → 吸附主地面（优先于平台段）；
+   *   3. 快速下落（vy ≥ FALL_LAND_SPEED）→ 穿过平台段（原版同规则：
+   *      原版检查的是显式速度 _velocity.y，不含重力斜坡位移）；
+   *   4. 其余情况：平台段 ±LAND_TOLERANCE 命中（x 在段内且 y 邻近）→ 吸附该平台。
+   * 偏离原版：去掉 floor-contact 缓存——它只是性能优化，可观测行为不变
+   * （缓存命中的条件与全量扫描等价）。
+   */
+  private resolveLanding(f: FighterState, stage: StageState): boolean {
+    if (f.vy < 0) return true;
+    if (f.y > stage.groundY - GROUND_SNAP_BAND) {
+      f.y = stage.groundY;
+      f.vy = 0;
+      return false;
+    }
+    if (f.vy >= FALL_LAND_SPEED) return true;
+    for (const fl of stage.floors) {
+      if (
+        f.x > fl.xFrom &&
+        f.x < fl.xTo &&
+        f.y > fl.y - LAND_TOLERANCE &&
+        f.y < fl.y + LAND_TOLERANCE
+      ) {
+        f.y = fl.y;
+        f.vy = 0;
+        return false;
+      }
+    }
+    return true;
+  }
+
   // 1. 输入处理：位图 → 缓冲器 → 输入视图
   private stepInputs(inputs: InputFrame): void {
     const masks = [inputs.p1, inputs.p2];
@@ -105,7 +150,7 @@ export class Sim {
     }
   }
 
-  // 3. 物理积分（骨架：行走 + 重力 + 地板 + 牵引边界）
+  // 3. 物理积分（行走 + 显式速度 + 重力斜坡 + 多段地板落地 + 牵引边界）
   private stepPhysics(): void {
     const { stage, fighters } = this.state;
     for (let i = 0; i < fighters.length; i++) {
@@ -115,12 +160,20 @@ export class Sim {
       if (view.held(Btn.left)) dir -= 1;
       if (view.held(Btn.right)) dir += 1;
       f.vx = dir * WALK_SPEED;
-      f.vy += GRAVITY_PER_TICK;
       f.x += f.vx;
       f.y += f.vy;
-      if (f.y >= stage.floorY) {
-        f.y = stage.floorY;
-        f.vy = 0;
+      const airborne = this.resolveLanding(f, stage);
+      if (airborne) {
+        // 重力斜坡（原版 applayG(12)：上升段清零；下落段每 tick 递增后施为位移）
+        if (f.vy < 0) {
+          f.gRamp = 0;
+        } else {
+          f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
+          f.y += f.gRamp;
+        }
+      } else {
+        // 落地瞬间预置下次离地的初值（原版 setInAir(false) → _g=4）
+        f.gRamp = GRAVITY_START;
       }
     }
     // 牵引边界（ADR-4）：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。

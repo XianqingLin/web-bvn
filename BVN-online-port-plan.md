@@ -5,7 +5,7 @@
 >
 > **项目文档导航**：写代码规范见 [ARCHITECTURE.md](ARCHITECTURE.md)（引擎契约）；架构设计见 [DESIGN.md](DESIGN.md)；原版逆向结论见 [BVN-module-map.md](BVN-module-map.md)；入口见 [CLAUDE.md](CLAUDE.md)。
 >
-> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness）✅；**切片 2 ✅**——离线提取 ✅ + 运行时导出桥 ✅（`tools/bridge`，110/117 项成功，7 个失败均为 random 占位项）+ **dump 转译 ✅**（`tools/runtime-ingest` → `packages/data/baked/`：fighters-runtime 58 包 + assistants-runtime 37 包 + maps 15 包，115,279 判定区帧；与 XFL 静态提取交叉验证零字段漂移，报告见 `baked/runtime-ingest-report.json`。遗留：orihime/yachiru 辅助的运行时 actions 为空（dump 侧 #1009），XFL 数据兜底）。**下一步：切片 3——core 消费 runtime 数据（判定区/地图边界接线）+ behaviors 插件目录启动。**
+> **当前进度**（2026-11-09）：阶段 0 ✅；阶段 1 切片 1（harness）✅；切片 2 ✅（提取 + 导出桥 + 转译入库，fighters-runtime 58 包 + assistants-runtime 37 包 + maps 15 包，115,279 判定区帧，与 XFL 交叉验证零漂移；遗留：orihime/yachiru 运行时 actions 为空 #1009，XFL 兜底）。**切片 3 进行中**——① 数据修复 ✅：dump 桥 floors bug 修复并重跑（15 张地图真实平台段入库，如 ShumatsuNoTani 11 段与出生点吻合）+ ingest 确定性加固（canonical hash + 记录键排序，两轮 dump 产物逐字节一致）；② 地图接线 ✅：`@bvn/data` 加载器（`/node` 入口）+ `compileMapStage`、core `StageState` 多段地板化（floors/groundY/bottomY）、物理改原版重力斜坡模型（`_g`：离地 2 起、+0.6/tick、封顶 6，60Hz 折半即原版 60fps 的 SPEED_PLUS=0.5 基准）、平台吸附/穿台判定对齐 `GameLogic.isInAir` 语义、replay 支持 `"map"` 字段（konoha-walk 基准入库）。门禁全过（build + 确定性单测 + 双剧本哈希）。**下一步：切片 3 余下——判定区接线（bdmn/atm 逐帧几何）+ 状态机动作切换 + behaviors 插件目录。**
 
 ---
 

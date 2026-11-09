@@ -1,0 +1,30 @@
+{
+  "name": "konoha-walk",
+  "seed": 1,
+  "map": "KonohaMura",
+  "ticks": 300,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "d654ae92"
+    },
+    {
+      "tick": 119,
+      "hash": "6afe4ee4"
+    },
+    {
+      "tick": 179,
+      "hash": "a597e3cf"
+    },
+    {
+      "tick": 239,
+      "hash": "9b042eca"
+    },
+    {
+      "tick": 299,
+      "hash": "43201c9a"
+    }
+  ],
+  "finalHash": "43201c9a"
+}

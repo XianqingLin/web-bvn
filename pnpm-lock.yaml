@@ -206,6 +206,9 @@ importers:
       '@bvn/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@bvn/data':
+        specifier: workspace:*
+        version: link:../../packages/data
 
   tools/runtime-ingest:
     dependencies:
