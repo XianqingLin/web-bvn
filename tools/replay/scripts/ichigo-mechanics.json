@@ -1,0 +1,23 @@
+{
+  "name": "ichigo-mechanics",
+  "map": "KonohaMura",
+  "seed": 1,
+  "_comment": "切片 5 机制剧本：防御削血/防御退出、瞬步（能量）、技、必杀按键（无气不发动）。位：down=2 left=4 right=8 attack=16 dash=64 skill=128 superSkill=256。",
+  "fighters": [{ "pkg": "ichigo" }, { "pkg": "ichigo" }],
+  "program": [
+    { "frames": 40, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 2 },
+    { "frames": 30, "p1": 0, "p2": 2 },
+    { "frames": 1, "p1": 0, "p2": 0 },
+    { "frames": 20, "p1": 64, "p2": 0 },
+    { "frames": 30, "p1": 0, "p2": 0 },
+    { "frames": 1, "p1": 128, "p2": 0 },
+    { "frames": 40, "p1": 0, "p2": 0 },
+    { "frames": 1, "p1": 256, "p2": 0 },
+    { "frames": 40, "p1": 0, "p2": 0 },
+    { "frames": 30, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 2 },
+    { "frames": 40, "p1": 0, "p2": 2 },
+    { "frames": 40, "p1": 0, "p2": 0 }
+  ]
+}

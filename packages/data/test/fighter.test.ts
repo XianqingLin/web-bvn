@@ -26,9 +26,9 @@ describe('compileFighterRuntime（RuntimeFighterPackage → core 角色定义）
   it('攻击标签映射按 checkFrame 语义只收存在的标签', () => {
     expect(def.attackLabels['k1']).toBe('砍1');
     expect(def.attackLabels['k2']).toBe('砍2');
-    expect(def.attackLabels['kj1']).toBe('跳砍');
-    // 必杀族 POC 不映射
-    expect(def.attackLabels['bs']).toBeUndefined();
+    // 切片 5 修正：kjN→砍技N（原 kj1→跳砍 系误读），tk→跳砍
+    expect(def.attackLabels['kj1']).toBe('砍技1');
+    expect(def.attackLabels['bs']).toBe('必杀');
   });
 
   it('判定区按帧收录，攻击判定名 = <actionId>atm', () => {

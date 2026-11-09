@@ -52,9 +52,12 @@ export interface FighterView {
 const DEFAULT_STATS = { speed: 6, jumpPower: 15, heavy: 3 };
 
 /**
- * POC 动作 → 动画标签映射（原版 FighterMcCtrler 的 setAttack 帧名约定）。
- * 覆盖通用砍击族：kN→砍N、kjN→跳砍/跳招、tk/tz→摔1/摔2。
- * 技/必杀族的帧名各角色可自定义（setSkill、setBisha 系触发），留给 behaviors 接线。
+ * 动作 id → 动画标签映射（切片 5 按判定区实证修正，原版 FighterMcCtrler
+ * setAttack/setSkill/setBisha 系默认帧名约定，module-map §5.3）：
+ *   kN→砍N；kjN→砍技N（攻击取消技，非跳砍——kj1atm 判定区实证在砍技1 段）；
+ *   tk/tz→跳砍/跳招（空中攻击/技能）；zhN→招N；shN→摔N；
+ *   bs→必杀、sbs→上必杀、cbs→超必杀。
+ * 标签不存在 = 该动作不可用（原版 checkFrame 语义）。
  */
 function deriveAttackLabel(
   actionId: string,
@@ -62,13 +65,17 @@ function deriveAttackLabel(
 ): string | null {
   const m = /^k(\d+)$/.exec(actionId);
   if (m) return labels[`砍${m[1]}`] !== undefined ? `砍${m[1]}` : null;
-  if (/^kj\d+$/.test(actionId)) {
-    if (labels['跳砍'] !== undefined) return '跳砍';
-    if (labels['跳招'] !== undefined) return '跳招';
-    return null;
-  }
-  if (actionId === 'tk') return labels['摔1'] !== undefined ? '摔1' : null;
-  if (actionId === 'tz') return labels['摔2'] !== undefined ? '摔2' : null;
+  const kj = /^kj(\d+)$/.exec(actionId);
+  if (kj) return labels[`砍技${kj[1]}`] !== undefined ? `砍技${kj[1]}` : null;
+  const zh = /^zh(\d+)$/.exec(actionId);
+  if (zh) return labels[`招${zh[1]}`] !== undefined ? `招${zh[1]}` : null;
+  const sh = /^sh(\d+)$/.exec(actionId);
+  if (sh) return labels[`摔${sh[1]}`] !== undefined ? `摔${sh[1]}` : null;
+  if (actionId === 'tk') return labels['跳砍'] !== undefined ? '跳砍' : null;
+  if (actionId === 'tz') return labels['跳招'] !== undefined ? '跳招' : null;
+  if (actionId === 'bs') return labels['必杀'] !== undefined ? '必杀' : null;
+  if (actionId === 'sbs') return labels['上必杀'] !== undefined ? '上必杀' : null;
+  if (actionId === 'cbs') return labels['超必杀'] !== undefined ? '超必杀' : null;
   return null;
 }
 

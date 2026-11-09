@@ -76,22 +76,88 @@ export interface FighterDef {
 
 /**
  * 动作状态码（原版 FighterActionState，module-map §5.2）。
- * POC 子集：普通/攻击/跳跃/受击/击飞/倒地/死亡。
- * 防御(20)、瞬步(15)、必杀(12/13)、万解(50) 等后续切片接入。
+ * 切片 5 子集：+技能(11)/必杀(12/13)/瞬步(15)/防御(20)。
+ * 万解(50)/FREEZE(40)/换人系后续接入。
  */
 export const ActionState = {
   /** 普通（站立/行走/落地恢复） */
   NORMAL: 0,
   ATTACK_ING: 10,
+  SKILL_ING: 11,
+  BISHA_ING: 12,
+  BISHA_SUPER_ING: 13,
   JUMP_ING: 14,
+  DASH_ING: 15,
+  DEFENCE_ING: 20,
   HURT_ING: 21,
   HURT_FLYING: 22,
   HURT_DOWN: 23,
   DEAD: 30,
 } as const;
 
-/** 循环播放的动作标签（其余标签播完即结束动作）。 */
-export const LOOP_LABELS: ReadonlySet<string> = new Set(['站立', '走', '跳中', '落']);
+/** 循环播放的动作标签（其余标签播完即结束动作）。防御循环按住 ↓ 期间保持。 */
+export const LOOP_LABELS: ReadonlySet<string> = new Set(['站立', '走', '跳中', '落', '防御']);
+
+/** 原版 FighterActionState.isAttacking：能量回充/状态门用。 */
+export function isAttackingState(v: number): boolean {
+  return (
+    v === ActionState.ATTACK_ING ||
+    v === ActionState.SKILL_ING ||
+    v === ActionState.BISHA_ING ||
+    v === ActionState.BISHA_SUPER_ING
+  );
+}
+
+/**
+ * 动作槽（原版 FighterAction，module-map §5.3）：当前可触发动作 id → 动画标签。
+ * 空槽 = 动作不可用。槽内容可被角色帧触发改写（setAttack("砍2") 即连段），
+ * endAction 时按 def 标签存在性重填默认值（原版 setAllAct + checkFrame）。
+ * 存的是「动画标签」，命中结算经 attackLabels 反查动作 id。
+ */
+export interface FighterSlots {
+  attack: string | null;
+  skill1: string | null;
+  skill2: string | null;
+  zhao1: string | null;
+  zhao2: string | null;
+  zhao3: string | null;
+  bisha: string | null;
+  bishaQi: number;
+  bishaUp: string | null;
+  bishaUpQi: number;
+  bishaSuper: string | null;
+  bishaSuperQi: number;
+  dash: string | null;
+}
+
+/** 动作槽默认值（原版 FighterAction 字段缺省 + setAllAct 默认帧名）。 */
+export function defaultSlots(def: FighterDef | null): FighterSlots {
+  const has = (name: string): boolean => def?.labels[name] !== undefined;
+  return {
+    attack: has('砍1') ? '砍1' : null,
+    skill1: has('砍技1') ? '砍技1' : null,
+    skill2: has('砍技2') ? '砍技2' : null,
+    zhao1: has('招1') ? '招1' : null,
+    zhao2: has('招2') ? '招2' : null,
+    zhao3: has('招3') ? '招3' : null,
+    bisha: has('必杀') ? '必杀' : null,
+    bishaQi: 100,
+    bishaUp: has('上必杀') ? '上必杀' : null,
+    bishaUpQi: 100,
+    bishaSuper: has('超必杀') ? '超必杀' : null,
+    bishaSuperQi: 300,
+    dash: has('瞬步') ? '瞬步' : null,
+  };
+}
+
+/** 标签 → 动作 id（attackLabels 反查；连段槽存标签，命中结算要动作 id）。 */
+export function actionIdForLabel(def: FighterDef | null, label: string): string | null {
+  if (!def) return null;
+  for (const [id, l] of Object.entries(def.attackLabels)) {
+    if (l === label) return id;
+  }
+  return null;
+}
 
 /** SPEED_PLUS：原版速度类反编译值换算系数（GameConfig.SPEED_PLUS=30/FPS_GAME=0.5）。 */
 export const SPEED_PLUS = 0.5;

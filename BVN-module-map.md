@@ -335,6 +335,9 @@ defineAction("cbs",{power:450,hitType:5,hitx:40,hity:0,hurtTime:0,hurtType:1,isB
 $fighter_ctrler.defineBishaFace("Ichigo_1", bsface1);
 ```
 
+**动作 id → 动画标签映射**（切片 5 核对原版 `FighterKeyCtrler` 按键分流后定案；切片 3 的 kj1→跳砍 系误读，已纠正）：
+`kN→砍N`、`kjN→砍技N`（下+攻击 / 上+攻击的技）、`zhN→招N`（skill 键系）、`tk→跳砍`（空中攻击）、`tz→跳招`、`shN→摔N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`。
+
 **结论**：这些脚本属于“角色逻辑”，必须转译，不能只当素材。38 个角色 + 37 个辅助都要做，但体格小（单角色 3~19 KB）。
 
 ### 6.3 动画符号内的几何

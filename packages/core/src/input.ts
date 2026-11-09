@@ -4,6 +4,12 @@
  * just-down 与缓冲由 core 从位图历史本地推导，不存在"键盘状态"旁路。
  */
 
+/**
+ * 抽象按键位图（对齐原版 GameInputer 抽象键，module-map §5.5）：
+ * 左/右/上/下/攻击/跳/瞬步/技能/必杀/辅助。
+ * 防御 = down（原版 FighterKeyCtrler.defense() 即 ↓ 按住）；
+ * 技/必杀的实际招式由 ±上/下 修饰（zhao1-3 / bisha 系）。
+ */
 export const Btn = {
   up: 1 << 0,
   down: 1 << 1,
@@ -12,10 +18,12 @@ export const Btn = {
   attack: 1 << 4,
   jump: 1 << 5,
   dash: 1 << 6,
-  skill1: 1 << 7,
-  skill2: 1 << 8,
-  special: 1 << 9,
-  guard: 1 << 10,
+  /** 技能键（原版 skill：单独=招1，+下=招2，+上=招3） */
+  skill: 1 << 7,
+  /** 必杀键（原版 superSkill：单独=必杀 100 气，+下=超必杀 300 气） */
+  superSkill: 1 << 8,
+  /** 辅助键（阶段后续接线） */
+  assist: 1 << 9,
 } as const;
 
 export type ButtonMask = number;

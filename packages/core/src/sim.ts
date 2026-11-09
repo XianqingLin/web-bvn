@@ -2,6 +2,9 @@ import { advancePlayerInput, Btn, InputView, type InputFrame } from './input.js'
 import { hashState, stableStringify } from './serialize.js';
 import {
   createInitialState,
+  DEFAULT_HP,
+  ENERGY_GAP_TICKS,
+  ENERGY_MAX,
   PLAYFIELD_HALF_WIDTH,
   type FighterState,
   type SimConfig,
@@ -11,7 +14,9 @@ import {
 import {
   ActionState,
   currentBodyRect,
+  isAttackingState,
   rectsOverlap,
+  SPEED_PLUS,
   worldRect,
   type FighterDef,
   type FrameTrigger,
@@ -21,7 +26,10 @@ import {
   attackAreasWorld,
   endAction,
   enterDead,
+  enterGuardBreak,
   enterHurt,
+  defenseGapTicks,
+  defenseHoldTicks,
   onLanded,
   stepIntentsFor,
   walkSpeed,
@@ -40,6 +48,19 @@ const FALL_LAND_SPEED = 2.5;
 const LAND_TOLERANCE = 10;
 /** 地面滑行摩擦（受击/倒地滑行衰减；POC 取义，原版按 HURT_DAMPING 结算） */
 const GROUND_FRICTION = 0.9;
+
+// —— 能量（原版 GameConfig/FighterMain，速率 ×SPEED_PLUS=0.5，ADR-12） ——
+// ENERGY_GAP_TICKS 从 state.js 导入（机器与 sim 共用）
+const ENERGY_ADD_NORMAL = 1; // 2 × 0.5
+const ENERGY_ADD_DEFENSE = 0.4; // 0.8 × 0.5
+const ENERGY_ADD_ATTACKING = 0.55; // 1.1 × 0.5
+const ENERGY_ADD_OVERLOAD = 0.3; // 0.6 × 0.5
+/** 防御削血比例（原版 DEFENSE_LOSE_HP_RATE，比例量不折算） */
+const DEFENSE_LOSE_HP_RATE = 0.05;
+/** 防御命中击退衰减（原版 DEFENSE_DAMPING_X=1@30fps → 0.5/tick） */
+const DEFENSE_DAMP_X = 0.5;
+/** 训练模式血量回复（POC 取义） */
+const TRAINING_REGEN = 2;
 
 /**
  * 速度线性衰减（原版 KyoUtils.num_wake：正负双向逼近 0）。
@@ -99,9 +120,12 @@ export class Sim {
   /** 本 tick 的输入视图（瞬态，不进 SimState），与 fighters 同序 */
   private views: InputView[] = [];
   private events: SimEvent[] = [];
+  /** 训练模式（SimConfig.training）：假人不 KO、血量恒定回复。 */
+  private training: boolean;
 
   constructor(config: SimConfig) {
     this.state = createInitialState(config);
+    this.training = config.training ?? false;
     this.defs = new Map();
     this.triggerIndex = new Map();
     for (const fc of config.fighters) {
@@ -113,12 +137,18 @@ export class Sim {
     this.behaviors = createBehaviorRegistry({ endAct: endAction });
   }
 
-  /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入。 */
-  static fromState(state: SimState, defs?: Iterable<[number, FighterDef]>): Sim {
+  /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入；
+   *  SimConfig 的非状态开关（training）经 opts 回传。 */
+  static fromState(
+    state: SimState,
+    defs?: Iterable<[number, FighterDef]>,
+    opts?: { training?: boolean },
+  ): Sim {
     const sim = Object.create(Sim.prototype) as Sim;
     sim.state = structuredClone(state);
     sim.views = [];
     sim.events = [];
+    sim.training = opts?.training ?? false;
     sim.defs = new Map(defs ?? []);
     sim.triggerIndex = new Map();
     for (const [id, def] of sim.defs) sim.triggerIndex.set(id, indexTriggers(def));
@@ -208,7 +238,9 @@ export class Sim {
     for (let i = 0; i < fighters.length; i++) {
       const f = fighters[i]!;
       const def = this.defOf(f);
-      // 朝向：仅可行动状态自动面向对手（攻击/受击锁定，原版 direct 语义）
+      const view = this.views[i]!;
+      // 朝向：可行动状态自动面向对手（原版 direct 语义）；
+      // 防御态为手动朝向（原版 renderDefense：按住方向即转向）。
       if (
         (f.actionState === ActionState.NORMAL ||
           f.actionState === ActionState.JUMP_ING) &&
@@ -216,8 +248,11 @@ export class Sim {
       ) {
         const other = fighters[i === 0 ? 1 : 0];
         if (other) f.facing = other.x >= f.x ? 1 : -1;
+      } else if (f.actionState === ActionState.DEFENCE_ING) {
+        if (view.held(Btn.left)) f.facing = -1;
+        else if (view.held(Btn.right)) f.facing = 1;
       }
-      stepIntentsFor(f, def, this.views[i]!);
+      stepIntentsFor(f, def, view);
     }
   }
 
@@ -235,8 +270,13 @@ export class Sim {
         if (view.held(Btn.left)) dir -= 1;
         if (view.held(Btn.right)) dir += 1;
         f.vx = dir * walkSpeed(def);
-      } else if (f.onGround && f.actionState !== ActionState.JUMP_ING) {
-        // 地面滑行摩擦（受击/倒地/死亡滑行）
+      } else if (
+        f.onGround &&
+        (f.actionState === ActionState.HURT_ING ||
+          f.actionState === ActionState.HURT_DOWN ||
+          f.actionState === ActionState.DEAD)
+      ) {
+        // 地面滑行摩擦（仅受击/倒地/死亡；瞬步/防御速度走自身衰减或置零）
         f.vx = wake(f.vx, GROUND_FRICTION);
       }
       // 速度线性衰减（原版 renderVelocity + KyoUtils.num_wake）
@@ -374,6 +414,8 @@ export class Sim {
       for (const tgt of fighters) {
         if (tgt.id === atk.id) continue;
         if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD) continue;
+        // 原版 checkHit：isAllowBeHit=false 一侧整体排除（瞬步/防御无敌窗）
+        if (!tgt.isAllowBeHit) continue;
         if (atk.attackHit.includes(tgt.id)) continue;
         const tgtDef = this.defOf(tgt);
         const bodyLocal = tgtDef
@@ -389,7 +431,11 @@ export class Sim {
     }
   }
 
-  /** 命中结算（原版 beHit/doHurt 最小子集：扣血 → 死亡/钢身/受击）。 */
+  /**
+   * 命中结算（原版 beHit 分流：钢身 → 防御 → doHurt）。
+   * 防御分支照 doDefenseHit：削血 5% → 能量不足则破防（doBreakDefense）→
+   * 否则能量损耗 + 短暂无敌 + 击退（无防御硬直动画窗，POC 偏离已记录）。
+   */
   private applyHit(
     attacker: FighterState,
     target: FighterState,
@@ -397,12 +443,20 @@ export class Sim {
     hit: { power: number; hitType: number; hitx: number; hity: number; hurtTime: number; hurtType: number; isBreakDef: boolean },
     hitArea: { x: number; y: number; w: number; h: number },
   ): void {
-    target.hp = Math.max(0, target.hp - hit.power);
+    const blocking =
+      target.actionState === ActionState.DEFENCE_ING &&
+      !(hit.hitType === 11 && hit.isBreakDef) &&
+      !this.checkDefDirect(target, attacker);
+    const chip = blocking ? hit.power * DEFENSE_LOSE_HP_RATE : hit.power;
+    const nextHp = Math.max(0, target.hp - chip);
+    // 训练模式：假人不 KO（血最低保留 1）
+    target.hp = this.training && nextHp <= 0 ? 1 : nextHp;
     this.emit('hit:connect', {
       attacker: attacker.id,
       target: target.id,
       hitType: hit.hitType,
       power: hit.power,
+      blocked: blocking,
       x: hitArea.x + hitArea.w / 2,
       y: hitArea.y + hitArea.h / 2,
     });
@@ -411,14 +465,83 @@ export class Sim {
       this.emit('fighter:ko', { fighter: target.id });
       return;
     }
+    if (blocking) {
+      // 防御损耗能量：破防技 = 90% 上限，否则 min(50, power/5)（原版 doDefenseHit）
+      const drain = hit.isBreakDef
+        ? Math.round(ENERGY_MAX * 0.9)
+        : Math.min(50, Math.floor(hit.power / 5));
+      this.emit('fighter:guard', { fighter: target.id });
+      if (target.energy < drain) {
+        // 破防：额外削血 power/10（原版 doBreakDefense）
+        target.hp -= hit.power / 10;
+        if (target.hp <= 0) {
+          target.hp = 0;
+          enterDead(target, targetDef);
+          this.emit('fighter:ko', { fighter: target.id });
+          return;
+        }
+        target.energy = 0;
+        target.energyOverload = true;
+        target.energyGap = ENERGY_GAP_TICKS;
+        enterGuardBreak(target, targetDef, hit, attacker.facing);
+        this.emit('fighter:guardBreak', { fighter: target.id });
+        return;
+      }
+      target.energy -= drain;
+      target.energyGap = ENERGY_GAP_TICKS;
+      target.beHitGap = defenseGapTicks(hit);
+      target.isAllowBeHit = false;
+      target.vx = hit.hitx * attacker.facing * SPEED_PLUS;
+      target.dampX = DEFENSE_DAMP_X;
+      void defenseHoldTicks(hit);
+      return;
+    }
     if (target.steelBody) return; // 钢身：掉血但无受击状态变化（原版 doSteelHurt 子集）
     enterHurt(target, targetDef, hit, attacker.facing, !target.onGround);
   }
 
-  // 7. 流程事件：回合计时（死亡/比分随回合流程后续切片接入）
+  /** 背刺判定（原版 checkDefDirect）：防御者背对攻击者 → 防御无效。 */
+  private checkDefDirect(defender: FighterState, attacker: FighterState): boolean {
+    if (defender.x < attacker.x - 5) return defender.facing < 0 && attacker.facing < 0;
+    if (defender.x > attacker.x + 5) return defender.facing > 0 && attacker.facing > 0;
+    return false;
+  }
+
+  // 7. 流程事件：能量回充 / 无敌窗计时 / 训练回复 / 回合计时
   private stepMatchFlow(): void {
     if (this.state.tick === 0) {
       this.emit('round:start', { round: this.state.match.round });
+    }
+    const { fighters } = this.state;
+    for (let i = 0; i < fighters.length; i++) {
+      const f = fighters[i]!;
+      // 防御命中无敌窗（原版 renderBeHitGap：计满恢复可被命中）
+      if (f.beHitGap > 0) {
+        f.beHitGap -= 1;
+        if (f.beHitGap === 0 && f.actionState !== ActionState.DASH_ING) {
+          f.isAllowBeHit = true;
+        }
+      }
+      // 能量回充（原版 renderEnergy：速率 ×SPEED_PLUS，ADR-12）
+      if (f.energyGap > 0) {
+        f.energyGap -= 1;
+      } else if (f.energy < ENERGY_MAX) {
+        if (f.energyOverload) {
+          f.energy = Math.min(ENERGY_MAX, f.energy + ENERGY_ADD_OVERLOAD);
+          if (f.energy > 30) f.energyOverload = false;
+        } else if (f.actionState === ActionState.DEFENCE_ING) {
+          f.energy += ENERGY_ADD_DEFENSE;
+        } else if (isAttackingState(f.actionState)) {
+          f.energy += ENERGY_ADD_ATTACKING;
+        } else {
+          f.energy += ENERGY_ADD_NORMAL;
+        }
+        if (f.energy > ENERGY_MAX) f.energy = ENERGY_MAX;
+      }
+      // 训练模式：血量恒定回复（2/tick，瞬回 MAX 的 1/15 秒级体感）
+      if (this.training && f.hp > 0 && f.hp < DEFAULT_HP) {
+        f.hp = Math.min(DEFAULT_HP, f.hp + TRAINING_REGEN);
+      }
     }
     this.state.match.roundFrame += 1;
   }

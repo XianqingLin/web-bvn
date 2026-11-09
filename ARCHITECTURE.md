@@ -67,7 +67,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 | event | payload | 说明 |
 |---|---|---|
-| `hit:connect` | `{ attacker, target, hitType, power, x, y }` | 命中成立 |
+| `hit:connect` | `{ attacker, target, hitType, power, blocked, x, y }` | 命中成立（blocked = 被防御，削血 5%） |
 | `fighter:guard` / `fighter:guardBreak` | `{ fighter }` | 防御成功 / 破防 |
 | `fighter:ko` | `{ fighter }` | 击倒 |
 | `entity:spawn` / `entity:despawn` | `{ kind, id }` | 飞行道具/独立道具/辅助 |
@@ -79,10 +79,13 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 ## 帧触发原语表（FrameTrigger）
 
-角色 JSON 的 `triggers` 只允许使用以下原语；扩充原语类型 = 改本表 + core 实现 + data 校验器，三处同 commit：
+角色 JSON 的 `triggers` 只允许使用以下原语；扩充原语类型 = 改本表 + core 实现（`core/fighter/behaviors.ts` 注册表）+ data 校验器，三处同 commit：
 
-- 逻辑原语（core 执行，进快照）：`fire`（飞行道具）、`addAttacker`、`switchForm`、`teleport`、`summon`
-- 表现原语（core 只发事件）：`sound`、`effect`
+- 移动类（速度值 ×SPEED_PLUS，ADR-12）：`move`、`movePercent`、`moveOnce`、`dash`、`stop`/`stopMove`、`damping`/`dampingPercent`
+- 状态/资源：`setSteelBody`、`addQi`、`endAct`（收招）
+- 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`
+- 表现原语（core 只发事件）：`playSoundHit1`、`playSoundHit2`、`shine`、`startShake`、`shake`、`endShake`
+- 已登记未实现（注册表未注册 → 确定性静默，接入时同 commit 补实现）：`fire`（飞行道具）、`addAttacker`、`switchForm`、`teleport`、`summon`、`sound`、`effect`（后两者以 playSoundHit*/shine/shake 代替）
 
 ## 并行开发纪律
 

@@ -5,7 +5,7 @@
  * 动画帧/朝向取最新快照；相机纯渲染（ADR-4）；HUD 读快照；
  * 表现事件按 tick 去重消费（不回读 sim 内部状态）。
  */
-import { Application, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, MapAtlas } from '@bvn/data';
 import { frameTexture, loadFighterAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedMapAtlas } from './atlas.js';
@@ -41,11 +41,15 @@ interface FighterSprite {
 export class BattleRenderer {
   private world: Container;
   private mapLayer: Container;
+  /** 前景层（地图 floor 图层：绘制在角色脚前，原版 BVN 层序） */
+  private mapFrontLayer: Container;
   private fighterLayer: Container;
   private fxLayer: Container;
   private hudLayer: Container;
   private sprites = new Map<number, FighterSprite>();
   private mapLoaded: LoadedMapAtlas | null = null;
+  private roundText: Text | null = null;
+  private hintText: Text | null = null;
 
   private prev: SimSnapshot | null = null;
   private next: SimSnapshot | null = null;
@@ -63,10 +67,12 @@ export class BattleRenderer {
   constructor(private app: Application) {
     this.world = new Container();
     this.mapLayer = new Container();
+    this.mapFrontLayer = new Container();
     this.fighterLayer = new Container();
     this.fxLayer = new Container();
     this.hudLayer = new Container();
-    this.world.addChild(this.mapLayer, this.fighterLayer, this.fxLayer);
+    // 层序：bg/map < 角色 < 前景 floor < 特效
+    this.world.addChild(this.mapLayer, this.fighterLayer, this.mapFrontLayer, this.fxLayer);
     app.stage.addChild(this.world, this.hudLayer);
     this.onResize();
     app.renderer.on('resize', this.onResize, this);
@@ -108,6 +114,7 @@ export class BattleRenderer {
 
   private buildMap(): void {
     this.mapLayer.removeChildren();
+    this.mapFrontLayer.removeChildren();
     const loaded = this.mapLoaded;
     if (!loaded) return;
     loaded.atlas.layers.forEach((ly, i) => {
@@ -116,7 +123,9 @@ export class BattleRenderer {
       const sp = new Sprite(tex);
       // 图层 display 原点偏移 + 内容 bounds 偏移（均相对地图 root）
       sp.position.set(ly.x + ly.bx, ly.y + ly.by);
-      this.mapLayer.addChild(sp);
+      // floor 层 = 脚前前景（角色走在地面图后面，原版 BVN 层序）
+      if (ly.name === 'floor') this.mapFrontLayer.addChild(sp);
+      else this.mapLayer.addChild(sp);
     });
   }
 
@@ -225,11 +234,15 @@ export class BattleRenderer {
     this.camY += (midY - this.camY) * k;
     this.zoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
 
-    // 相机不进模拟（ADR-4）：纯渲染变换。地图边界 clamp 后续接线 baked 地图数据。
+    // 相机不进模拟（ADR-4）：纯渲染变换。按快照舞台边界 clamp（版边牵引的渲染面）。
+    const st = snap.state.stage;
     const halfW = this.viewW / this.zoom / 2;
     const halfH = this.viewH / this.zoom / 2;
-    const cx = Math.min(Math.max(this.camX, halfW), LOGICAL_W - halfW);
-    const cy = Math.min(Math.max(this.camY, halfH), LOGICAL_H - halfH);
+    const loX = st.leftBound + halfW;
+    const hiX = st.rightBound - halfW;
+    const cx = loX > hiX ? (st.leftBound + st.rightBound) / 2 : Math.min(Math.max(this.camX, loX), hiX);
+    // 垂直：地面附近为锚，跳起最多上移 260（避免脱离地图）
+    const cy = Math.min(Math.max(this.camY, st.groundY - 260), st.groundY);
     this.world.scale.set(this.zoom);
     this.world.position.set(this.viewW / 2 - cx * this.zoom, this.viewH / 2 - cy * this.zoom);
   }
@@ -260,9 +273,25 @@ export class BattleRenderer {
       g.rect(x0 + 1, y0 + 19, (barW * 0.6 - 2) * qiRatio, 4).fill(0xffd54f, 1);
     });
     const m = snap.state.match;
-    const roundText = `R${m.round}  ${m.p1Wins} - ${m.p2Wins}`;
     g.rect(this.viewW / 2 - 60, pad, 120, 26).fill(0x000000, 0.5);
-    // 文本用 Pixi Text 会引入字体，POC 先用色块 + 位置示意；文本接线在切片 5
-    void roundText;
+    if (!this.roundText) {
+      this.roundText = new Text('', { fontFamily: 'monospace', fontSize: 18, fill: 0xffffff });
+      this.roundText.anchor.set(0.5);
+      this.roundText.position.set(this.viewW / 2, pad + 13);
+      this.hudLayer.addChild(this.roundText);
+    }
+    this.roundText.text = `R${m.round}  ${m.p1Wins} - ${m.p2Wins}`;
+    this.roundText.visible = true;
+  }
+
+  /** 装配方（app）可选：屏幕底部按键提示。 */
+  setHint(text: string): void {
+    if (!this.hintText) {
+      this.hintText = new Text('', { fontFamily: 'monospace', fontSize: 13, fill: 0x9aa0b0 });
+      this.hintText.anchor.set(0.5, 1);
+      this.hintText.position.set(this.viewW / 2, this.viewH - 8);
+      this.hudLayer.addChild(this.hintText);
+    }
+    this.hintText.text = text;
   }
 }

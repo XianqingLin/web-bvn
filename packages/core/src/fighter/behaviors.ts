@@ -9,7 +9,7 @@
  * 未注册 op 一律忽略（确定性静默）。
  * 词表扩充 = 契约 §帧触发表 + 本注册表 + data 校验器三处同 commit。
  */
-import type { BehaviorArg, FighterDef } from './def.js';
+import type { BehaviorArg, FighterDef, FighterSlots } from './def.js';
 import { SPEED_PLUS } from './def.js';
 import type { FighterState, StageState } from '../state.js';
 
@@ -89,6 +89,44 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.qi = Math.min(QI_MAX, ctx.f.qi + num(args[0]));
   },
 
+  // —— 动作槽（原版 FighterAction 槽改写；连段 = 时间轴第 N 帧 setAttack("砍2")） ——
+  // setAttack(label?)：改写攻击槽（可选参数 = 指定标签，缺省恢复默认）
+  setAttack(ctx, args) {
+    setSlot(ctx, 'attack', args[0]);
+  },
+  setSkill1(ctx, args) {
+    setSlot(ctx, 'skill1', args[0]);
+  },
+  setSkill2(ctx, args) {
+    setSlot(ctx, 'skill2', args[0]);
+  },
+  setZhao1(ctx, args) {
+    setSlot(ctx, 'zhao1', args[0]);
+  },
+  setZhao2(ctx, args) {
+    setSlot(ctx, 'zhao2', args[0]);
+  },
+  setZhao3(ctx, args) {
+    setSlot(ctx, 'zhao3', args[0]);
+  },
+  // setBisha(label?, qi?)：必杀槽 + 可选气耗覆盖
+  setBisha(ctx, args) {
+    setSlot(ctx, 'bisha', args[0]);
+    if (typeof args[1] === 'number') ctx.f.slots.bishaQi = args[1];
+  },
+  setBishaUP(ctx, args) {
+    setSlot(ctx, 'bishaUp', args[0]);
+    if (typeof args[1] === 'number') ctx.f.slots.bishaUpQi = args[1];
+  },
+  setBishaSUPER(ctx, args) {
+    setSlot(ctx, 'bishaSuper', args[0]);
+    if (typeof args[1] === 'number') ctx.f.slots.bishaSuperQi = args[1];
+  },
+  // setDash(label?)：瞬步标签覆盖
+  setDash(ctx, args) {
+    setSlot(ctx, 'dash', args[0]);
+  },
+
   // —— 表现原语（core 只发事件，render 消费；音效 id 沿用原版语义命名） ——
   playSoundHit1(ctx) {
     ctx.emit('sound', { id: 'hit1', x: ctx.f.x, y: ctx.f.y });
@@ -112,6 +150,25 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
 
 function firstArg(args: BehaviorArg[]): Record<string, unknown> {
   return args.length > 0 ? { arg: args[0] } : {};
+}
+
+/** 存动画标签的动作槽键（bishaQi 等数值槽除外）。 */
+type LabelSlotKey = {
+  [K in keyof FighterSlots]: FighterSlots[K] extends string | null ? K : never;
+}[keyof FighterSlots];
+
+/** 动作槽改写（args[0] 缺省 = 清空；只接受该角色存在的标签）。 */
+function setSlot(
+  ctx: BehaviorContext,
+  key: LabelSlotKey,
+  value: BehaviorArg | undefined,
+): void {
+  const label = typeof value === 'string' ? value : null;
+  if (label !== null && ctx.def?.labels[label] !== undefined) {
+    ctx.f.slots[key] = label;
+  } else {
+    ctx.f.slots[key] = null;
+  }
 }
 
 /**

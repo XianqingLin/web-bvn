@@ -24,6 +24,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 }
 
 // ---------- 键盘 → ButtonMask ----------
+// P1：WASD 移动 / S 防御（按住↓），J 攻击 K 跳 L 瞬步 U 技 I 必杀
 const KEYMAP: Record<string, number> = {
   KeyW: Btn.up,
   KeyS: Btn.down,
@@ -32,8 +33,8 @@ const KEYMAP: Record<string, number> = {
   KeyJ: Btn.attack,
   KeyK: Btn.jump,
   KeyL: Btn.dash,
-  KeyU: Btn.skill1,
-  KeyI: Btn.special,
+  KeyU: Btn.skill,
+  KeyI: Btn.superSkill,
   ArrowUp: Btn.up,
   ArrowDown: Btn.down,
   ArrowLeft: Btn.left,
@@ -71,14 +72,18 @@ async function boot(): Promise<void> {
   const mapPkg = await fetchJson<import('@bvn/data').MapPackage>(`${BAKED}/maps/${MAP_ID}.json`);
   const { stage, p1Spawn, p2Spawn } = compileMapStage(mapPkg);
 
-  const sim = new Sim({
-    seed: 1,
-    stage,
-    fighters: [
-      { id: 1, x: p1Spawn?.x ?? 300, y: p1Spawn?.y ?? stage.groundY, def },
-      { id: 2, x: p2Spawn?.x ?? 700, y: p2Spawn?.y ?? stage.groundY, def },
-    ],
-  });
+  const makeSim = (): Sim =>
+    new Sim({
+      seed: 1,
+      stage,
+      // 训练模式：P2 假人（不输入），血量恒定回复不 KO，R 键重置
+      training: true,
+      fighters: [
+        { id: 1, x: p1Spawn?.x ?? 300, y: p1Spawn?.y ?? stage.groundY, def },
+        { id: 2, x: p2Spawn?.x ?? 700, y: p2Spawn?.y ?? stage.groundY, def },
+      ],
+    });
+  let sim = makeSim();
 
   // 渲染装配
   const renderer = new BattleRenderer(app);
@@ -92,6 +97,11 @@ async function boot(): Promise<void> {
   });
 
   // 主循环：固定 60Hz tick（accumulate）+ 每渲染帧 update
+  renderer.setHint('A/D 移动  W跳  S防御  J攻击  L瞬步  U技  I必杀  R重置');
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyR') sim = makeSim();
+  });
+
   const TICK_MS = 1000 / 60;
   let acc = 0;
   let last = performance.now();

@@ -1,0 +1,30 @@
+{
+  "name": "ichigo-mechanics",
+  "seed": 1,
+  "map": "KonohaMura",
+  "ticks": 315,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "bbf95285"
+    },
+    {
+      "tick": 119,
+      "hash": "011e9e0a"
+    },
+    {
+      "tick": 179,
+      "hash": "8d09cd2f"
+    },
+    {
+      "tick": 239,
+      "hash": "4e6f7f7f"
+    },
+    {
+      "tick": 299,
+      "hash": "3972ddaf"
+    }
+  ],
+  "finalHash": "2ca66665"
+}

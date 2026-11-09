@@ -82,6 +82,16 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **速度衰减**：`dampX/dampY` 每 tick 双向线性逼近 0（原版 `KyoUtils.num_wake`）；跳跃 `vy=-jumpPower×0.5` + JUMP_DAMPING，上升段重力清零（原版 `applayG` 语义已核对）。
 - **POC 明确偏离**（后续切片收紧）：砍击无连段（attack 固定 k1/跳砍 kj1，映射表 kN→砍N）；无防御/瞬步/必杀/万解状态；无二段跳/快速下落；击飞无弹地/受身；`FighterActionState` 其余状态码待接。
 
+切片 5 补全防御/瞬步/技/必杀最小集（照原版 `FighterKeyCtrler`/`doDefenseHit`/`doBreakDefense` 语义）：
+
+- **防御**：按住 ↓（`DEFENCE_ING`），命中削血 5% + 能量损耗 min(50, power/5)（破防技 = 90% 上限）；能量不足 → 破防（HURT_ING 42 tick、额外削血 power/10、击退夹 [5,10]）。背刺判定照原版 checkDefDirect（受击方与攻击方同向 = 挡住，背对 = 硬直）。防御分支允许出手清单照原版 setDefenseAction 槽子集（砍技1/招2/超必杀/瞬步）。
+- **瞬步**：能量 20 可透支（透支 → 过载 0.3/tick 慢回至 >30 解除）；DASH_ING 期间不可被命中，方向取按住的 ←/→。
+- **技/必杀**：attack/±↓/↑ 组合由槽位分流（skill1/zhao1 等槽）；必杀耗气 100（上/超 100/300），气不足不动。SKILL_ING / BISHA_ING / BISHA_SUPER_ING 照 `FighterActionState` 枚举。
+- **能量系统**：上限 100，普回 1/tick、攻击中 0.55、防御 0.4、过载 0.3；花费后 24 tick 冷却（原版 USE_ENERGY_CD）。
+- **连段槽**：帧触发 `setAttack("砍2")` 改写动作槽（对照 ichigo 砍1@134→砍2），同一时间轴内再按攻击接续；`_CHK` 相邻标签自动续播（招2→招2_CHK 等）。attack 槽重填默认于 endAction。
+- **动画映射修正**（切片 3 映射错误此片纠正）：`kjN→砍技N`、`tk→跳砍`、`tz→跳招`、`shN→摔N`、`zhN→招N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`（见 module-map §动作标签）。
+- **本片新偏离**（记录待收紧）：防御硬直无专用动画窗（原版 isDefenseHiting）；防御退出即时（原版 ~6 tick 延迟）；摔技未接（shN 需 moveTarget/抓取）；万解/瞬身步/空中瞬步/二段跳未做；ichigo 必杀无飞行道具（fire 原语未实现，登记静默）。
+
 `FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 
 ### 3.6 角色数据与帧触发器
@@ -131,14 +141,21 @@ TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客
 
 ## 9. 阶段 1 切片（POC）
 
-1. **harness**：`packages/core` 骨架 + 确定性单测 + `tools/replay` 门禁；
-2. `tools/exporter`：导出 ichigo + kon + 1 张地图的 JSON/图集；
-3. core：tick 管线全覆盖（走/跳/砍/技/必杀/受击/防御/击飞/落地/推挤/牵引边界）；
-4. render：帧动画、地图层、相机、基础 HUD；
-5. app：本地双人 + 训练模式（无限血/时间）；
-6. 验收：确定性单测过、replay 门禁过、ichigo 基础动作链对拍在容差内。
+> 2026-11-09 重排：本地双人/训练模式移出主线，进扩展项池（见立项书 §六）；阶段 1 以
+> "单机对战闭环验收"收尾，随后直接进入阶段 2 联机。理由：lockstep 联机天然给出双方
+> 输入，本地双人是最后才被需要的能力；联机是项目核心目标，尽早打通端到端。
 
-明确不做：联机、rollback、第二个角色、完整菜单流、街机模式、音效（事件队列留好）。
+1. **harness** ✅（切片 1）：`packages/core` 骨架 + 确定性单测 + `tools/replay` 门禁；
+2. `tools/exporter` ✅（切片 2）：导出 ichigo + kon + 1 张地图的 JSON/图集；
+3. core ✅（切片 3 最小闭环 + 切片 5 补全）：7 态动作机 + 判定区 + 命中结算 + 推挤；切片 5 补防御/瞬步/技/必杀最小集 + 能量系统 + 连段槽（见 §3.5），达到"能打一场完整对局"；
+4. render ✅（切片 4 + 切片 5 清遗留）：帧动画、地图层、相机、基础 HUD；切片 5 补相机 clamp 接舞台边界、floor 前景层遮挡、HUD 回合文本；
+5. app ✅（切片 4 + 切片 5 训练模式）：dev 预览页（键盘 → ButtonMask → tick → 渲染）；训练模式 = P2 假人（输入恒空）+ 无限血 + R 键重置；
+6. **切片 5 = 阶段 1 收尾** ✅：确定性单测 40 过、replay 门禁四剧本（含新增 ichigo-mechanics）过。遗留池（不阻塞阶段 2）：摔技/万解/空中瞬步/二段跳/必杀飞行道具（fire 原语）；
+7. **切片 6 = 联机地基**：`InputSource` 抽象（本地键盘 / replay / 网络统一喂 sim，sim 本身零改动）+ lockstep 客户端（输入延迟帧、帧号对齐、输入缓冲）+ 同机双客户端经本地服务器镜像联调；
+8. **切片 7 = 房间服务器**：Node.js WebSocket 房间（创建/加入、输入中继、断线最小处理：超时判负或冻结等待），局域网两机联调；
+9. 公网联调与延迟体验调优视切片 7 结果立项（输入延迟帧自适应、可选升级 rollback——归阶段 4）。
+
+阶段 1 明确不做：本地双人、rollback、第二个可操作角色、完整菜单流、街机模式、音效（事件队列留好）。本地双人进扩展项池，最后做。
 
 ## 10. 决策记录（ADR）
 

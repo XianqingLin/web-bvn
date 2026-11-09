@@ -1,5 +1,5 @@
 import { createPlayerInput, type PlayerInput } from './input.js';
-import type { FighterDef } from './fighter/def.js';
+import { defaultSlots, type FighterDef, type FighterSlots } from './fighter/def.js';
 
 /** 逻辑坐标系 1000×600，y 向下（DESIGN §5，与原版一致）。 */
 export const STAGE_WIDTH = 1000;
@@ -15,6 +15,11 @@ export const PLAYFIELD_HALF_WIDTH = 500;
 export const WALK_SPEED = 4;
 export const DEFAULT_GROUND_Y = 500;
 export const DEFAULT_HP = 1000;
+
+/** 能量上限（原版 FighterMain.energyMax=100）。 */
+export const ENERGY_MAX = 100;
+/** 能量回充冷却 tick（原版 USE_ENERGY_CD(0.8s)×30 = 24，帧数类不折算）。 */
+export const ENERGY_GAP_TICKS = 24;
 
 /** 可站立平台段（原版 FloorVO：x ∈ [xFrom, xTo]，站面高度 y，y 向下）。 */
 export interface FloorSpan {
@@ -62,7 +67,7 @@ export interface FighterState {
   animFrame: number;
   /** 标签锁定剩余帧（动画帧）：>0 时普通行动不覆盖标签（如 落地 恢复） */
   labelLock: number;
-  /** 当前攻击动作 id（ATTACK_ING 期间非空） */
+  /** 当前攻击动作 id（攻击/技能/必杀状态期间非空） */
   attackId: string | null;
   /** 本次攻击已命中过的目标 id（一击一目标规则） */
   attackHit: number[];
@@ -70,6 +75,18 @@ export interface FighterState {
   hurtTimer: number;
   /** 钢身（setSteelBody 触发；受击不掉血外的状态变化） */
   steelBody: boolean;
+  /** 能量（瞬步/防御消耗；上限 100，原版 FighterMain.energy） */
+  energy: number;
+  /** 能量透支（原版 energyOverLoad：透支后慢回至 >30 解除） */
+  energyOverload: boolean;
+  /** 能量回充冷却（原版 USE_ENERGY_CD × 30 = 24 tick） */
+  energyGap: number;
+  /** 是否可被命中（瞬步/防御命中无敌窗；原版 isAllowBeHit） */
+  isAllowBeHit: boolean;
+  /** 防御命中后的无敌剩余 tick（原版 _beHitGap，DEFENSE_GAP_FRAME=4） */
+  beHitGap: number;
+  /** 动作槽（连段/技能/必杀当前可用动作；帧触发改写，endAction 重填） */
+  slots: FighterSlots;
   input: PlayerInput;
 }
 
@@ -107,6 +124,11 @@ export interface SimConfig {
   seed: number;
   stage: StageState;
   fighters: FighterConfig[];
+  /**
+   * 训练模式：命中方与受击方血量恒定回复（不 KO）、计时冻结。
+   * 冻结/回复在 stepMatchFlow 内确定性执行，进哈希，两端一致。
+   */
+  training?: boolean;
 }
 
 /** 骨架默认配置：P1/P2 在空地图两侧对峙（合成舞台，与真实地图数据无关）。 */
@@ -152,6 +174,12 @@ export function createInitialState(config: SimConfig): SimState {
       attackHit: [],
       hurtTimer: 0,
       steelBody: false,
+      energy: ENERGY_MAX,
+      energyOverload: false,
+      energyGap: 0,
+      isAllowBeHit: true,
+      beHitGap: 0,
+      slots: defaultSlots(fc.def ?? null),
       input: createPlayerInput(),
     }));
   return {
