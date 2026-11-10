@@ -64,6 +64,8 @@ function patchSource() {
       import flash.filesystem.FileStream;
       import flash.geom.Matrix;
       import flash.geom.Rectangle;
+      import flash.media.SoundMixer;
+      import flash.media.SoundTransform;
       import flash.system.ApplicationDomain;
       import flash.system.LoaderContext;
       import flash.utils.ByteArray;

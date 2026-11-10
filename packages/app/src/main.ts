@@ -25,7 +25,7 @@ const BAKED = '/packages/data/baked';
 const ASSETS = '/packages/data/assets';
 
 const FIGHTER_ID = 'ichigo';
-const ASSIST_ID = 'minato'; // 切片 12 demo：召唤辅助（O 键；minato = 图集帧覆盖最全 72/133）
+const ASSIST_ID = 'gaara'; // 切片 13：capture 桥修复后任一辅助全帧可见；选 gaara（修复前 0%）作验收样本
 const MAP_ID = 'KonohaMura';
 const NET_SEED = 1;
 

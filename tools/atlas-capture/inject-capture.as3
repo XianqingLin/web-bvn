@@ -45,6 +45,14 @@
 
       private function startBvnCapture() : void
       {
+         // 全局静音：采集过程逐帧触发大量音效（帧声音/脚本播音），太吵
+         try
+         {
+            SoundMixer.soundTransform = new SoundTransform(0);
+         }
+         catch(se:Error)
+         {
+         }
          capBootLog("startBvnCapture enter");
          try
          {
@@ -59,20 +67,47 @@
          }
          _capLog = [];
          _capItems = [];
+         // 可选 kind 过滤：Documents/bvn-atlas/capture-only.txt 存在时只采集该 kind
+         //（如 "assister"），用于桥修复后的局部重采，避免全量重跑 166k 角色帧。
+         var onlyKind:String = null;
+         try
+         {
+            var fo:File = File.documentsDirectory.resolvePath("bvn-atlas/capture-only.txt");
+            if(fo.exists)
+            {
+               var sf0:FileStream = new FileStream();
+               sf0.open(fo,"read");
+               onlyKind = sf0.readUTFBytes(sf0.bytesAvailable).replace(/[\r\n\s]/g,"");
+               sf0.close();
+               capBootLog("filter kind=" + onlyKind);
+            }
+         }
+         catch(fe:Error)
+         {
+         }
          var fs:* = FighterModel.I.getFighters();
          for each(var fv:* in fs)
          {
-            _capItems.push({"kind":"fighter","id":fv.id,"url":fv.fileUrl});
+            if(onlyKind == null || onlyKind == "fighter")
+            {
+               _capItems.push({"kind":"fighter","id":fv.id,"url":fv.fileUrl});
+            }
          }
          var asl:* = AssisterModel.I.getAssisters();
          for each(var av:* in asl)
          {
-            _capItems.push({"kind":"assister","id":av.id,"url":av.fileUrl});
+            if(onlyKind == null || onlyKind == "assister")
+            {
+               _capItems.push({"kind":"assister","id":av.id,"url":av.fileUrl});
+            }
          }
          var mpl:* = MapModel.I.getAllMaps();
          for each(var mv:* in mpl)
          {
-            _capItems.push({"kind":"map","id":mv.id,"url":mv.fileUrl});
+            if(onlyKind == null || onlyKind == "map")
+            {
+               _capItems.push({"kind":"map","id":mv.id,"url":mv.fileUrl});
+            }
          }
          capBootLog("items built: " + _capItems.length);
          capLog("capture items: " + _capItems.length);
@@ -312,9 +347,13 @@
          }
          else
          {
-            // 辅助：root 本身就是动画时间轴
+            // 辅助：root 本身就是动画时间轴，引擎 goFight 后每 tick
+            // renderChildren + nextFrame 连续播放——不用标签扫描（2026-11-10 修复）：
+            // 26/37 辅助 root 时间轴无帧标签（currentLabels 空 → 标签扫描一格不扫），
+            // 11 个首标签靠后（byakuya 首标签在 52 帧 → 出场段 1~51 全漏）。
+            capBootLog("assist labels " + item.id + " n=" + root.currentLabels.length + " total=" + root.totalFrames);
             var formRec2:Object = {"rootFrame":1,"frames":[]};
-            capSweepFrames(item,root,root,seen,pngList,function():int
+            capSweepAllFrames(item,root,root,seen,pngList,function():int
             {
                pngCount++;
                return pngCount;
@@ -382,6 +421,33 @@
                capAdvanceChildren(mc,skipRe);
                capShotFrame(item,rootRef,mc,s + k,seen,pngList,nextId,outFrames,skipRe);
             }
+         }
+      }
+
+      // 辅助专用：连续全时间轴扫描，逐帧 gotoAndStop(f) + 推进子剪辑 + 截图。
+      // 引擎对辅助按 nextFrame 逐帧驱动（Assister.renderAnimate），显示帧 f 时
+      // playhead 就在 f——逐帧定位即引擎语义；gotoAndStop 还对时间轴脚本里
+      // 的 gotoAndPlay 跳帧免疫（每次迭代重新定位）。子剪辑推进沿用
+      // capAdvanceChildren（镜像 renderChildren，每 tick 一格）。
+      private function capSweepAllFrames(item:Object, rootRef:DisplayObject, mc:MovieClip, seen:Object, pngList:Array, nextId:Function, outFrames:Array) : void
+      {
+         var skipRe:RegExp = /^(atm|bdmn|AImain)/;
+         for(var f0:int = 1; f0 <= mc.totalFrames; f0++)
+         {
+            outFrames.push({"frame":f0,"png":-1});
+         }
+         for(var f:int = 1; f <= mc.totalFrames; f++)
+         {
+            try
+            {
+               mc.gotoAndStop(f);
+            }
+            catch(e:Error)
+            {
+               capBootLog("assist goto " + item.id + " f" + f + " ERR: " + e.message);
+            }
+            capAdvanceChildren(mc,skipRe);
+            capShotFrame(item,rootRef,mc,f,seen,pngList,nextId,outFrames,skipRe);
          }
       }
 
@@ -737,6 +803,27 @@
 
       private function capWriteManifest() : void
       {
+         // 过滤重采（capture-only.txt）时只覆盖本次采集的条目，其余沿用上次 manifest
+         var prev:Object = {};
+         try
+         {
+            var fm:File = File.documentsDirectory.resolvePath("bvn-atlas/manifest.json");
+            if(fm.exists)
+            {
+               var sm:FileStream = new FileStream();
+               sm.open(fm,"read");
+               var mold:Object = JSON.parse(sm.readUTFBytes(sm.bytesAvailable));
+               sm.close();
+               for each(var mi:Object in mold.items)
+               {
+                  prev[mi.kind + ":" + mi.id] = mi;
+               }
+            }
+         }
+         catch(pe:Error)
+         {
+         }
+         var cur:Object = {};
          var okCount:int = 0;
          var failCount:int = 0;
          var items:Array = [];
@@ -751,7 +838,15 @@
             {
                failCount++;
             }
+            cur[it.kind + ":" + it.id] = true;
             items.push({"kind":it.kind,"id":it.id,"ok":it.ok == true,"error":it.error});
+         }
+         for(var key:String in prev)
+         {
+            if(cur[key] == null)
+            {
+               items.push(prev[key]);
+            }
          }
          capWriteJson("manifest.json",{
             "finished":_capIdx >= _capItems.length,
