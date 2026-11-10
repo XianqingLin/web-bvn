@@ -675,12 +675,6 @@
           "args": []
         },
         {
-          "frame": 154,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 160,
           "target": "mc",
           "op": "endAct",
@@ -1440,44 +1434,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 85,
-          "raw": "parent.$mc_ctrler.fire(\"tkatm\",{x:16,y:12,hold:0.5,hits:1});"
-        },
-        {
-          "frame": 90,
-          "raw": "parent.$mc_ctrler.fire(\"tkatm\",{x:16,y:12,hold:0.5,hits:1});"
-        },
-        {
-          "frame": 95,
-          "raw": "parent.$mc_ctrler.fire(\"tkatm\",{x:16,y:12,hold:0.5,hits:1});"
-        },
-        {
-          "frame": 118,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:20,y:10,hold:1,hits:1});"
-        },
-        {
-          "frame": 148,
-          "raw": "parent.$mc_ctrler.fire(\"k1atm\",{x:15,hold:0.3,hits:1,hp:50});"
-        },
-        {
-          "frame": 179,
-          "raw": "parent.$mc_ctrler.fire(\"k2atm\",{x:15,hold:0.5,hits:1});"
-        },
-        {
-          "frame": 213,
-          "raw": "parent.$mc_ctrler.fire(\"k3atm\",{x:15,y:5,hold:0.5,hits:1,hp:50});\nparent.$mc_ctrler.fire(\"k31atm\",{x:18,y:2,hold:0.5,hits:1,hp:50});\nparent.$mc_ctrler.fire(\"k32atm\",{x:12,y:8,hold:0.5,hits:1,hp:50});"
-        },
-        {
-          "frame": 330,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:25,hold:60,hits:1});"
-        },
-        {
-          "frame": 432,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh2mc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:true,offset:-500},applyG:true});"
         }
       ]
     },

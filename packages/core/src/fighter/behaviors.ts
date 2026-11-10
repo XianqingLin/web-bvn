@@ -9,7 +9,7 @@
  * 未注册 op 一律忽略（确定性静默）。
  * 词表扩充 = 契约 §帧触发表 + 本注册表 + data 校验器三处同 commit。
  */
-import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef } from './def.js';
+import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef, TriggerCondition } from './def.js';
 import { ActionState, SPEED_PLUS, defaultSlots } from './def.js';
 import { enterDead, switchForm, HURT_DAMP_Y } from './machine.js';
 import type { FighterState, StageState } from '../state.js';
@@ -687,6 +687,107 @@ function setSlot(
   } else {
     ctx.f.slots[key] = null;
   }
+}
+
+// —— 条件查询求值（切片 11：if/else 帧触发；语义 = 原版 FighterCtrler 查询方法） ——
+
+/** getSelf()/getTargetSP() 的属性链读取白名单（未知属性 = null，真值判定为假）。 */
+function fighterProp(f: FighterState, def: FighterDef | null, prop: string | undefined): number | boolean | null {
+  switch (prop) {
+    case 'isInAir':
+      return !f.onGround;
+    case 'onGround':
+      return f.onGround;
+    case 'actionState':
+      return f.actionState;
+    case 'hp':
+      return f.hp;
+    case 'hpMax':
+      return f.hpMax;
+    case 'qi':
+      return f.qi;
+    case 'energy':
+      return f.energy;
+    case 'x':
+      return f.x;
+    case 'y':
+      return f.y;
+    case 'speed':
+      return def?.speed ?? null;
+    case 'jumpPower':
+      return def?.jumpPower ?? null;
+    case 'heavy':
+      return def?.heavy ?? null;
+    default:
+      return null;
+  }
+}
+
+const CONDITION_QUERIES: Record<
+  string,
+  (cond: TriggerCondition, ctx: BehaviorContext) => number | boolean | null
+> = {
+  // justHit(hitId, includeDefense?)：目标最近被动作 hitId 命中（含防御命中可选）
+  justHit: (cond, ctx) => {
+    const hitid = typeof cond.args[0] === 'string' ? cond.args[0] : null;
+    const t = targetOf(ctx);
+    if (hitid === null || t === null) return false;
+    return t.lastHurtHitId === hitid || (cond.args[1] === true && t.lastDefHitId === hitid);
+  },
+  // targetInRange([minX,maxX], [minY,maxY]?)：前向距离窗（x 沿自身朝向，y = 目标-自身）
+  targetInRange: (cond, ctx) => {
+    const t = targetOf(ctx);
+    if (t === null) return false;
+    const xDis = ctx.f.facing > 0 ? t.x - ctx.f.x : ctx.f.x - t.x;
+    const yDis = t.y - ctx.f.y;
+    const rx = Array.isArray(cond.args[0]) ? cond.args[0] : null;
+    const ry = Array.isArray(cond.args[1]) ? cond.args[1] : null;
+    const inR = (d: number, r: BehaviorArg[] | null): boolean =>
+      r === null ? true : num(r[0]) <= d && d <= num(r[1]);
+    return inR(xDis, rx) && inR(yDis, ry);
+  },
+  // getTargetState()：目标 actionState（常与 cmp 比较）
+  getTargetState: (_cond, ctx) => targetOf(ctx)?.actionState ?? 0,
+  // getSelf().prop / getTargetSP().prop：属性链读取
+  getSelf: (cond, ctx) => fighterProp(ctx.f, ctx.def, cond.path?.[0]),
+  getTargetSP: (cond, ctx) => {
+    const t = targetOf(ctx);
+    return t !== null ? fighterProp(t, ctx.def, cond.path?.[0]) : null;
+  },
+};
+
+/** 数值/布尔比较（cmp 缺省 = AS 真值判定）。 */
+function applyCompare(v: number | boolean | null, cond: TriggerCondition): boolean {
+  if (cond.cmp) {
+    const n = typeof v === 'boolean' ? (v ? 1 : 0) : v === null ? Number.NaN : v;
+    const w = typeof cond.cmp.value === 'boolean' ? (cond.cmp.value ? 1 : 0) : cond.cmp.value;
+    switch (cond.cmp.op) {
+      case '==':
+        return n === w;
+      case '!=':
+        return n !== w;
+      case '<':
+        return n < w;
+      case '>':
+        return n > w;
+      case '<=':
+        return n <= w;
+      case '>=':
+        return n >= w;
+    }
+  }
+  // AS 真值：0/NaN/null/false 为假
+  return v !== null && v !== false && !(typeof v === 'number' && v === 0);
+}
+
+/** 条件触发求值（纯读、确定性；未知查询 op = false）。 */
+export function evaluateTriggerCondition(cond: TriggerCondition, ctx: BehaviorContext): boolean {
+  const query = CONDITION_QUERIES[cond.op];
+  let v: number | boolean | null = false;
+  if (query) v = query(cond, ctx);
+  let result = applyCompare(v, cond);
+  if (cond.negate) result = !result;
+  return result;
 }
 
 /**

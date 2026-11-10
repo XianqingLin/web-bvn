@@ -1568,51 +1568,6 @@
           "args": []
         },
         {
-          "frame": 828,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "bs"
-          ]
-        },
-        {
-          "frame": 828,
-          "target": "mc",
-          "op": "getAttacker",
-          "args": [
-            "bsmc"
-          ]
-        },
-        {
-          "frame": 828,
-          "target": "mc",
-          "op": "addAttacker",
-          "args": [
-            "bsmc",
-            {
-              "x": {
-                "followTarget": true,
-                "offset": 0
-              },
-              "y": {
-                "followTarget": true,
-                "offset": -20
-              },
-              "applyG": false
-            }
-          ]
-        },
-        {
-          "frame": 828,
-          "target": "effect",
-          "op": "shine",
-          "args": [
-            {
-              "$expr": "0xFF0000"
-            }
-          ]
-        },
-        {
           "frame": 836,
           "target": "effect",
           "op": "endShadow",
@@ -1938,18 +1893,33 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
-          "frame": 426,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:18,y:0,hold:60,hits:1});"
-        },
+          "frame": 828,
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "bs"
+            ]
+          },
+          "then": [
+            {
+              "target": "effect",
+              "op": "shine",
+              "args": [
+                {
+                  "$expr": "0xFF0000"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "rawScripts": [
         {
           "frame": 828,
           "raw": "if(parent.$fighter_ctrler.justHit(\"bs\")){\n\tvar mc = parent.$mc_ctrler.getAttacker(\"bsmc\");\n\tif(mc){\n\t\tmc.gotoAndPlay(\"double_hit\");\n\t}else{\n\t\tparent.$mc_ctrler.addAttacker(\"bsmc\",{x:{followTarget:true,offset:0},y:{followTarget:true,offset:-20},applyG:false});\n\t}\n\tparent.$effect_ctrler.shine(0xFF0000);\n}\n"
-        },
-        {
-          "frame": 1068,
-          "raw": "parent.$mc_ctrler.fire(\"cbsatm\",{x:{start:30,add:1,max:60,hit:5},hold:60,hits:1,hp:500});"
         }
       ]
     },

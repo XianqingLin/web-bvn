@@ -1344,12 +1344,6 @@
           "args": []
         },
         {
-          "frame": 232,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 239,
           "target": "mc",
           "op": "endAct",
@@ -1700,15 +1694,6 @@
         },
         {
           "frame": 455,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.1,
-            0.1
-          ]
-        },
-        {
-          "frame": 455,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -1722,15 +1707,6 @@
           "target": "effect",
           "op": "playSoundHit1",
           "args": []
-        },
-        {
-          "frame": 464,
-          "target": "mc",
-          "op": "movePercent",
-          "args": [
-            2,
-            -2
-          ]
         },
         {
           "frame": 464,
@@ -2334,12 +2310,6 @@
           "op": "doWanKai",
           "args": []
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 738,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc\",{applyG:false});"
-        }
       ]
     },
     "元件/mc_041": {
@@ -2654,12 +2624,6 @@
           "args": []
         },
         {
-          "frame": 138,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 143,
           "target": "mc",
           "op": "idle",
@@ -2713,12 +2677,6 @@
           "frame": 159,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 159,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2791,12 +2749,6 @@
           "frame": 192,
           "target": "mc",
           "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 192,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2971,12 +2923,6 @@
         {
           "frame": 290,
           "target": "mc",
-          "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 290,
-          "target": "mc",
           "op": "setBisha",
           "args": []
         },
@@ -3049,12 +2995,6 @@
           "args": [
             "砍1"
           ]
-        },
-        {
-          "frame": 338,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 341,
@@ -3451,24 +3391,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 74,
-          "raw": "parent.$mc_ctrler.fire(\"tkatm\",{x:{start:15,add:-0.5,hit:8},y:{start:10,add:-0.3,hit:6},hold:60,hits:3});"
-        },
-        {
-          "frame": 279,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:20,add:-0.5,hit:8,min:8},y:0,hold:3,hits:4});"
-        },
-        {
-          "frame": 393,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh3mc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:false,offset:0},applyG:false});"
-        },
-        {
-          "frame": 692,
-          "raw": "parent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:false,offset:0},applyG:false});"
         }
       ]
     },
@@ -4138,24 +4060,6 @@
           "target": "mc",
           "op": "idle",
           "args": []
-        },
-        {
-          "frame": 291,
-          "target": "mc",
-          "op": "move",
-          "args": [
-            8,
-            0
-          ]
-        },
-        {
-          "frame": 291,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            0.4,
-            0
-          ]
         },
         {
           "frame": 291,
@@ -5012,32 +4916,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 682,
-          "raw": "\n\n//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh3mc\",{applyG:false});"
-        },
-        {
-          "frame": 954,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"sbsmc\",{x:{moveToTarget:true,offset:0,range:[50,300]},applyG:false});"
-        },
-        {
-          "frame": 295,
-          "raw": "\n\n//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"k5mc\",{applyG:false});"
-        },
-        {
-          "frame": 397,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"kj1mc\",{x:{moveToTarget:true,offset:0},applyG:false});"
-        },
-        {
-          "frame": 460,
-          "raw": "\n\n//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"kj2mc\",{applyG:false});"
-        },
-        {
-          "frame": 840,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"bsmc\",{applyG:false});"
         }
       ]
     },

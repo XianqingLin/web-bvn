@@ -638,15 +638,6 @@
           ]
         },
         {
-          "frame": 79,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
-            -3
-          ]
-        },
-        {
           "frame": 81,
           "target": "effect",
           "op": "playSoundHit1",
@@ -662,12 +653,6 @@
           "frame": 92,
           "target": "mc",
           "op": "setSkillAIR",
-          "args": []
-        },
-        {
-          "frame": 92,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -870,12 +855,6 @@
           "args": []
         },
         {
-          "frame": 161,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 165,
           "target": "mc",
           "op": "endAct",
@@ -964,12 +943,6 @@
           "args": []
         },
         {
-          "frame": 182,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 189,
           "target": "mc",
           "op": "endAct",
@@ -1026,12 +999,6 @@
           "args": []
         },
         {
-          "frame": 226,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 233,
           "target": "mc",
           "op": "endAct",
@@ -1039,20 +1006,6 @@
         },
         {
           "frame": 242,
-          "target": "mc",
-          "op": "idle",
-          "args": []
-        },
-        {
-          "frame": 253,
-          "target": "mc",
-          "op": "getAttacker",
-          "args": [
-            "kj1mc"
-          ]
-        },
-        {
-          "frame": 253,
           "target": "mc",
           "op": "idle",
           "args": []
@@ -1219,12 +1172,6 @@
           "frame": 320,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 320,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1416,24 +1363,6 @@
           ]
         },
         {
-          "frame": 439,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            0.1,
-            0
-          ]
-        },
-        {
-          "frame": 439,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
-            0
-          ]
-        },
-        {
           "frame": 441,
           "target": "effect",
           "op": "playSoundHit2",
@@ -1515,24 +1444,6 @@
         },
         {
           "frame": 498,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            0.2,
-            0.3
-          ]
-        },
-        {
-          "frame": 498,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            2,
-            3
-          ]
-        },
-        {
-          "frame": 498,
           "target": "effect",
           "op": "slowDown",
           "args": [
@@ -1582,28 +1493,10 @@
         {
           "frame": 519,
           "target": "mc",
-          "op": "move",
-          "args": [
-            3,
-            3
-          ]
-        },
-        {
-          "frame": 519,
-          "target": "mc",
           "op": "damping",
           "args": [
             0.3,
             0.3
-          ]
-        },
-        {
-          "frame": 519,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            3,
-            -3
           ]
         },
         {
@@ -1724,15 +1617,6 @@
           "op": "damping",
           "args": [
             1,
-            0
-          ]
-        },
-        {
-          "frame": 640,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            -10,
             0
           ]
         },

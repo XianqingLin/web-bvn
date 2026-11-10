@@ -922,12 +922,6 @@
           "args": []
         },
         {
-          "frame": 209,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 217,
           "target": "mc",
           "op": "endAct",
@@ -1123,15 +1117,6 @@
           "op": "damping",
           "args": [
             0.02,
-            0
-          ]
-        },
-        {
-          "frame": 374,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            -10,
             0
           ]
         },
@@ -1531,36 +1516,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 875,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc2\",{x:{moveToTarget:true,offset:0},applyG:false});"
-        },
-        {
-          "frame": 83,
-          "raw": "parent.$mc_ctrler.fire(\"tkatm\",{x:{start:1,add:0.5,max:20},y:{start:1,add:0.5,max:10},hold:5,hits:1});"
-        },
-        {
-          "frame": 86,
-          "raw": "parent.$mc_ctrler.fire(\"tk2atm\",{x:{start:1,add:0.5,max:20},y:{start:1,add:0.5,max:10},hold:5,hits:1});"
-        },
-        {
-          "frame": 295,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:20,add:-0.8},y:{start:-20,add:0.8},hits:1,hold:0.9});"
-        },
-        {
-          "frame": 374,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,hit:1},hold:2,hits:1});"
-        },
-        {
-          "frame": 655,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"bsmc\",{x:{moveToTarget:true,offset:0,range:[0,600]},applyG:false});"
-        },
-        {
-          "frame": 799,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{moveToTarget:true,offset:0},applyG:false});"
         }
       ]
     },

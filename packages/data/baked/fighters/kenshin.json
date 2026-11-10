@@ -1106,12 +1106,6 @@
           "args": []
         },
         {
-          "frame": 188,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 196,
           "target": "mc",
           "op": "endAct",
@@ -1137,15 +1131,6 @@
           "op": "movePercent",
           "args": [
             1.4,
-            0
-          ]
-        },
-        {
-          "frame": 208,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.13999999999999999,
             0
           ]
         },
@@ -1221,12 +1206,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 230,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 240,
@@ -1665,15 +1644,6 @@
         {
           "frame": 520,
           "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.2,
-            0
-          ]
-        },
-        {
-          "frame": 520,
-          "target": "mc",
           "op": "setSteelBody",
           "args": [
             true,
@@ -1738,15 +1708,6 @@
           "op": "damping",
           "args": [
             0.2,
-            0
-          ]
-        },
-        {
-          "frame": 534,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
             0
           ]
         },
@@ -2319,15 +2280,6 @@
           ]
         },
         {
-          "frame": 129,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            50,
-            0
-          ]
-        },
-        {
           "frame": 130,
           "target": "mc",
           "op": "addQi",
@@ -2419,12 +2371,6 @@
           "args": []
         },
         {
-          "frame": 161,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 165,
           "target": "mc",
           "op": "endAct",
@@ -2454,12 +2400,6 @@
           "frame": 181,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 181,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2522,12 +2462,6 @@
           "frame": 206,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 206,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2599,12 +2533,6 @@
           "args": []
         },
         {
-          "frame": 236,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 242,
           "target": "mc",
           "op": "endAct",
@@ -2654,30 +2582,6 @@
           "frame": 257,
           "target": "effect",
           "op": "shine",
-          "args": []
-        },
-        {
-          "frame": 261,
-          "target": "mc",
-          "op": "setBishaUP",
-          "args": []
-        },
-        {
-          "frame": 261,
-          "target": "mc",
-          "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 261,
-          "target": "mc",
-          "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 261,
-          "target": "mc",
-          "op": "setZhao1",
           "args": []
         },
         {
@@ -2920,15 +2824,6 @@
         },
         {
           "frame": 383,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            0
-          ]
-        },
-        {
-          "frame": 383,
           "target": "effect",
           "op": "shine",
           "args": []
@@ -3052,12 +2947,6 @@
           "args": [
             "砍5"
           ]
-        },
-        {
-          "frame": 485,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 492,
@@ -3255,15 +3144,6 @@
         },
         {
           "frame": 621,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
-            0
-          ]
-        },
-        {
-          "frame": 621,
           "target": "effect",
           "op": "playSoundHit2",
           "args": []
@@ -3295,15 +3175,6 @@
           "op": "movePercent",
           "args": [
             4,
-            0
-          ]
-        },
-        {
-          "frame": 661,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.4,
             0
           ]
         },
@@ -3380,15 +3251,6 @@
           "op": "damping",
           "args": [
             0.2,
-            0
-          ]
-        },
-        {
-          "frame": 675,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
             0
           ]
         },
@@ -3474,15 +3336,6 @@
         },
         {
           "frame": 780,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            1,
-            0
-          ]
-        },
-        {
-          "frame": 780,
           "target": "effect",
           "op": "shine",
           "args": []
@@ -3530,15 +3383,6 @@
           "args": [
             0,
             2
-          ]
-        },
-        {
-          "frame": 866,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0,
-            0.2
           ]
         },
         {
@@ -3920,12 +3764,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 1087,
-          "raw": "parent.$mc_ctrler.moveTarget({followmc:\"move_mc\",speed:10});"
         }
       ]
     },

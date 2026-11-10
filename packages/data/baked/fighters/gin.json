@@ -629,12 +629,6 @@
           ]
         },
         {
-          "frame": 155,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 161,
           "target": "mc",
           "op": "endAct",
@@ -821,12 +815,6 @@
           "args": []
         },
         {
-          "frame": 244,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 251,
           "target": "mc",
           "op": "endAct",
@@ -979,12 +967,6 @@
           "args": [
             "招2_QK"
           ]
-        },
-        {
-          "frame": 332,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 338,
@@ -1149,12 +1131,6 @@
           "args": []
         },
         {
-          "frame": 420,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 424,
           "target": "mc",
           "op": "endAct",
@@ -1269,12 +1245,6 @@
           "frame": 515,
           "target": "mc",
           "op": "setAttack",
-          "args": []
-        },
-        {
-          "frame": 515,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {

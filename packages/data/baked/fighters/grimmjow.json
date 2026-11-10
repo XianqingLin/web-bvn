@@ -971,14 +971,6 @@
           "args": []
         },
         {
-          "frame": 318,
-          "target": "effect",
-          "op": "slowDown",
-          "args": [
-            0.5
-          ]
-        },
-        {
           "frame": 321,
           "target": "mc",
           "op": "movePercent",
@@ -1104,55 +1096,6 @@
           "args": [
             1,
             0
-          ]
-        },
-        {
-          "frame": 394,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              1000
-            ]
-          ]
-        },
-        {
-          "frame": 394,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -70,
-            0,
-            false
-          ]
-        },
-        {
-          "frame": 394,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            150,
-            0
-          ]
-        },
-        {
-          "frame": 397,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              1000
-            ]
-          ]
-        },
-        {
-          "frame": 397,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "招3_0"
           ]
         },
         {
@@ -1344,15 +1287,6 @@
         },
         {
           "frame": 621,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0,
-            0.05
-          ]
-        },
-        {
-          "frame": 621,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -1477,36 +1411,6 @@
           "target": "effect",
           "op": "dash",
           "args": []
-        },
-        {
-          "frame": 721,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              -50,
-              500
-            ]
-          ]
-        },
-        {
-          "frame": 721,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -50,
-            -50,
-            false
-          ]
-        },
-        {
-          "frame": 721,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            200,
-            -150
-          ]
         },
         {
           "frame": 721,
@@ -1640,18 +1544,97 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 394,
-          "raw": "parent.$mc_ctrler.movePercent(1,0);\n\nif(parent.$fighter_ctrler.targetInRange([0,1000])){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-70,0,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(150,0);\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                1000
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -70,
+                0,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                150,
+                0
+              ]
+            }
+          ]
         },
         {
           "frame": 397,
-          "raw": "if(!parent.$fighter_ctrler.targetInRange([0,1000])){\n\tparent.$mc_ctrler.gotoAndPlay(\"招3_0\");\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                1000
+              ]
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "gotoAndPlay",
+              "args": [
+                "招3_0"
+              ]
+            }
+          ]
         },
         {
           "frame": 721,
-          "raw": "if(parent.$fighter_ctrler.targetInRange([-50,500])){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-50,-50,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(200,-150);\n}\n\nparent.$mc_ctrler.move(8,-8);"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                -50,
+                500
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -50,
+                -50,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                200,
+                -150
+              ]
+            }
+          ]
         }
       ]
     },

@@ -323,10 +323,6 @@
           "raw": "$attacker_ctrler.move(3,0);\n$attacker_ctrler.damping(0.1,0);"
         },
         {
-          "frame": 40,
-          "raw": "var target:* = $attacker_ctrler.owner_fighter_ctrler.getTargetSP();\nvar owner :* = target ? target.getCurrentTarget() : null;\n\nconst NO_HIT:Array = [0, 20, 21, 22, 23, 24];\nif (!owner || NO_HIT.indexOf(owner.actionState) == -1) {\n\t$attacker_ctrler.gotoAndPlay(\"no_hit\");\n}"
-        },
-        {
           "frame": 43,
           "raw": "$attacker_ctrler.endAct();"
         },
@@ -896,38 +892,6 @@
           "args": []
         },
         {
-          "frame": 170,
-          "target": "mc",
-          "op": "getAttacker",
-          "args": [
-            "k3mc"
-          ]
-        },
-        {
-          "frame": 170,
-          "target": "mc",
-          "op": "addAttacker",
-          "args": [
-            "k3mc"
-          ]
-        },
-        {
-          "frame": 170,
-          "target": "mc",
-          "op": "gotoAndStop",
-          "args": [
-            "砍技12"
-          ]
-        },
-        {
-          "frame": 170,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "砍4"
-          ]
-        },
-        {
           "frame": 177,
           "target": "mc",
           "op": "setZhao2",
@@ -959,12 +923,6 @@
           "frame": 177,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 177,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1039,30 +997,6 @@
           "op": "addQi",
           "args": [
             5
-          ]
-        },
-        {
-          "frame": 247,
-          "target": "mc",
-          "op": "getAttacker",
-          "args": [
-            "kj1mc"
-          ]
-        },
-        {
-          "frame": 247,
-          "target": "mc",
-          "op": "addAttacker",
-          "args": [
-            "kj1mc"
-          ]
-        },
-        {
-          "frame": 247,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "砍技1_SP"
           ]
         },
         {
@@ -1186,15 +1120,6 @@
         },
         {
           "frame": 283,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
-          ]
-        },
-        {
-          "frame": 283,
           "target": "effect",
           "op": "shine",
           "args": []
@@ -1221,15 +1146,6 @@
           "args": [
             0.5,
             0.5
-          ]
-        },
-        {
-          "frame": 285,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
           ]
         },
         {
@@ -1622,15 +1538,6 @@
           ]
         },
         {
-          "frame": 598,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
-          ]
-        },
-        {
           "frame": 600,
           "target": "mc",
           "op": "move",
@@ -1646,15 +1553,6 @@
           "args": [
             0.3,
             0.3
-          ]
-        },
-        {
-          "frame": 600,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
           ]
         },
         {
@@ -1715,15 +1613,6 @@
           "args": [
             80,
             0
-          ]
-        },
-        {
-          "frame": 620,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
           ]
         },
         {
@@ -2132,10 +2021,6 @@
         {
           "frame": 247,
           "raw": "if(!parent.$mc_ctrler.getAttacker(\"kj1mc\")){\n\tparent.$mc_ctrler.addAttacker(\"kj1mc\");\n}else{\n\tparent.$mc_ctrler.gotoAndPlay(\"砍技1_SP\");\n}"
-        },
-        {
-          "frame": 597,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"sbs_effect\",{applyG:false});"
         }
       ]
     },

@@ -1,0 +1,10 @@
+{
+  "name": "@bvn/batch-validate",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@bvn/core": "workspace:*",
+    "@bvn/data": "workspace:*"
+  }
+}

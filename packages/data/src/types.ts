@@ -49,6 +49,39 @@ export interface TriggerDef {
 }
 
 /**
+ * 条件查询（原版帧脚本 `if($xx_ctrler.query(...)){...}else{...}` 的结构化形态，
+ * 切片 11）。查询 op 语料集：justHit / targetInRange / getTargetState /
+ * getSelf / getTargetSP（原版 FighterCtrler，均为纯读、无副作用）。
+ */
+export interface TriggerCondition {
+  target: TriggerDef['target'];
+  op: string;
+  args: TriggerArg[];
+  /** 原版 `!` 前缀取反 */
+  negate?: boolean;
+  /** 查询后取的属性链（如 `getSelf().isInAir` → ['isInAir']） */
+  path?: string[];
+  /** 属性值与字面量比较（缺省 = 真值判定，AS 语义：0/空 为假） */
+  cmp?: { op: '==' | '!=' | '<' | '>' | '<=' | '>='; value: number | boolean };
+}
+
+/** 条件分支体内的简单调用（与 TriggerDef 同构，去掉 frame 与条件字段）。 */
+export interface TriggerCall {
+  target: TriggerDef['target'];
+  op: string;
+  args: TriggerArg[];
+}
+
+/** 条件触发：cond 成立执行 then，否则执行 else（切片 11）。 */
+export interface CondTriggerDef {
+  /** 符号时间轴内的帧号（0 起，与 TriggerDef 对齐） */
+  frame: number;
+  cond: TriggerCondition;
+  then?: TriggerCall[];
+  else?: TriggerCall[];
+}
+
+/**
  * 结构化提取无法覆盖的帧脚本原文（如辅助的链式调用/任意赋值/形态切换状态变量）。
  * 保留目的：转译参考与 behaviors 插件目录（ADR-6）的输入。**不直接进引擎执行。**
  */
@@ -67,6 +100,12 @@ export interface LabelRange {
 export interface SymbolData {
   labels: Record<string, LabelRange>;
   triggers: TriggerDef[];
+  /**
+   * 条件触发（切片 11：if/else 帧脚本结构化）。
+   * 条件不可解析的 if 语句不在此列——抑制分支体发射并整体保留 rawScript
+   * （修复旧提取「两分支无条件都发」的语义 bug）。
+   */
+  condTriggers?: CondTriggerDef[];
   /** 含未识别语句的帧脚本原文（按 frame 升序） */
   rawScripts?: RawFrameScript[];
 }

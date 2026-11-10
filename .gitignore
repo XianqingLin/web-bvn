@@ -13,3 +13,6 @@ tools/vendor/
 
 # 采集产物图集（245MB 二进制；tools/atlas-capture + tools/atlas-pack 可再生）
 /packages/data/assets/
+
+# batch-validate 生成报告（baseline.json 是门禁基线，入库；报告可再生）
+/tools/batch-validate/report.json

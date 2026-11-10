@@ -2671,16 +2671,6 @@
           "op": "stop",
           "args": []
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 121,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:10,add:1,max:30},y:{start:10,add:1,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 402,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:30},hold:60,hits:1});"
-        }
       ]
     },
     "元件/mc_062": {

@@ -112,11 +112,19 @@ export function compileFighterRuntime(
   }
   if (xflForm) Object.assign(actions, xflForm.actions);
 
-  // 帧触发：XFL 符号时间轴，帧号 0 起 → 1 起
+  // 帧触发：XFL 符号时间轴，帧号 0 起 → 1 起。
+  // 条件触发（切片 11）并入同列表：op='if' 由 core 分派器识别求值
   const symbol = xflForm?.symbol ? xfl?.symbols[xflForm.symbol] : undefined;
   const triggers: TriggerDef[] = symbol
     ? symbol.triggers.map((t) => ({ ...t, frame: t.frame + 1 }))
     : [];
+  if (symbol?.condTriggers) {
+    for (const t of symbol.condTriggers) {
+      // 条件触发映射为 op='if' 条目（cond/then/else 随附；core 按此分派）
+      triggers.push({ ...t, frame: t.frame + 1, target: 'mc', op: 'if', args: [] } as TriggerDef);
+    }
+    triggers.sort((a, b) => a.frame - b.frame);
+  }
 
   const areas: Record<number, AreaRect[]> = {};
   for (const fr of form.frames) {

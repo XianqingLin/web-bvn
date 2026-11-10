@@ -115,14 +115,6 @@ export interface CtrlerCall {
   args: AsArg[];
 }
 
-/** ctrler 变量名 → 规范 target（辅助用 $assisterCtrler 驼峰命名）。 */
-const CTRLER_TARGET: Record<string, CtrlerCall['target']> = {
-  mc_ctrler: 'mc',
-  fighter_ctrler: 'fighter',
-  effect_ctrler: 'effect',
-  assisterCtrler: 'assister',
-};
-
 /** 提取 (parent.)$xx_ctrler.op(...) 简单调用（不含链式调用——链式部分会留在残余里）。 */
 export function extractCtrlerCalls(script: string): CtrlerCall[] {
   const re = /(?:parent\.)?\$(mc_ctrler|fighter_ctrler|effect_ctrler|assisterCtrler)\.(\w+)\s*\(/g;
@@ -203,3 +195,333 @@ export function extractNamedDefine(script: string): { op: string; args: AsArg[] 
   }
   return out;
 }
+
+// —— 帧脚本语句级解析（切片 11：if/else 条件触发） ——
+
+/** 条件查询（TriggerCondition 的导出器侧形态）。 */
+export interface CondQuery {
+  target: CtrlerCall['target'];
+  op: string;
+  args: AsArg[];
+  negate?: boolean;
+  path?: string[];
+  cmp?: { op: '==' | '!=' | '<' | '>' | '<=' | '>='; value: number | boolean };
+}
+
+/** 条件触发（CondTriggerDef 的导出器侧形态）。 */
+export interface CondStatement {
+  cond: CondQuery;
+  then?: CtrlerCall[];
+  else?: CtrlerCall[];
+}
+
+/** 帧脚本语句解析结果。 */
+export type FrameStatement =
+  | { kind: 'call'; call: CtrlerCall }
+  | { kind: 'cond'; stmt: CondStatement; residue: string | null }
+  | { kind: 'unparsed'; text: string };
+
+/** 条件查询 op 白名单（与 core 求值器/数据校验器三处同 commit）。 */
+const CONDITION_OPS = new Set(['justHit', 'targetInRange', 'getTargetState', 'getSelf', 'getTargetSP']);
+
+/** 剥注释（行注释 + 块注释；字符串内容不动）。 */
+export function stripComments(s: string): string {
+  let out = '';
+  let i = 0;
+  let quote: string | null = null;
+  while (i < s.length) {
+    const c = s[i]!;
+    if (quote) {
+      out += c;
+      if (c === '\\' && i + 1 < s.length) {
+        out += s[i + 1]!;
+        i += 2;
+        continue;
+      }
+      if (c === quote) quote = null;
+      i++;
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      quote = c;
+      out += c;
+      i++;
+      continue;
+    }
+    if (c === '/' && s[i + 1] === '/') {
+      while (i < s.length && s[i] !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && s[i + 1] === '*') {
+      const end = s.indexOf('*/', i + 2);
+      i = end === -1 ? s.length : end + 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
+}
+
+/** 跳过空白读一个标识符；返回 [name, nextIndex]，无标识符返回 null。 */
+function readIdent(s: string, i: number): [string, number] | null {
+  const m = /^[ \t\r\n]*([A-Za-z_$][\w$]*)/.exec(s.slice(i));
+  if (!m) return null;
+  return [m[1]!, i + m[0].length];
+}
+
+/** 解析 if 条件表达式为查询；不可识别返回 null。 */
+function parseCondQuery(raw: string): CondQuery | null {
+  let s = raw.trim();
+  // 整体括号包裹 → 逐层剥壳
+  for (;;) {
+    if (s.startsWith('(') && s.endsWith(')')) {
+      let ok = false;
+      try {
+        ok = matchBracket(s, 0) === s.length - 1;
+      } catch {
+        ok = false;
+      }
+      if (ok) {
+        s = s.slice(1, -1).trim();
+        continue;
+      }
+    }
+    break;
+  }
+  let negate = false;
+  if (s.startsWith('!')) {
+    negate = true;
+    s = s.slice(1).trim();
+  }
+  const call = /^(?:parent\.)?\$(mc_ctrler|fighter_ctrler|effect_ctrler)\.(\w+)\s*\(/.exec(s);
+  if (!call) return null;
+  const openIdx = s.indexOf('(', call[0].length - 1);
+  let closeIdx: number;
+  try {
+    closeIdx = matchBracket(s, openIdx);
+  } catch {
+    return null;
+  }
+  const argsRaw = s.slice(openIdx + 1, closeIdx).trim();
+  let rest = s.slice(closeIdx + 1).trim();
+  const query: CondQuery = {
+    target: CTRLER_TARGET[call[1]!]!,
+    op: call[2]!,
+    args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg),
+  };
+  if (!CONDITION_OPS.has(query.op)) return null;
+  if (query.target !== 'fighter') return null;
+  // 属性链：.prop(.prop)*（如 getSelf().isInAir）
+  if (rest.startsWith('.')) {
+    const m = /^\.([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)/.exec(rest);
+    if (!m) return null;
+    query.path = m[1]!.split('.');
+    rest = rest.slice(m[0].length).trim();
+  }
+  // 比较：== != < > <= >= 字面量
+  if (rest !== '') {
+    const cmp = /^(==|!=|<=|>=|<|>)\s*(-?[\d.]+|true|false)\s*$/.exec(rest);
+    if (!cmp) return null;
+    const value = cmp[2] === 'true' ? true : cmp[2] === 'false' ? false : Number(cmp[2]);
+    query.cmp = { op: cmp[1] as '==' | '!=' | '<' | '>' | '<=' | '>=', value };
+  }
+  if (negate) query.negate = true;
+  return query;
+}
+
+/**
+ * 帧脚本 → 语句列表（if/else 条件 + 简单 ctrler 调用）。
+ * var 声明 / stop / return 等无行为语句忽略；
+ * 无法识别的语句原样进 unparsed。解析永不抛错（非法输入 = unparsed）。
+ */
+export function parseFrameStatements(scriptRaw: string): FrameStatement[] {
+  const script = stripComments(scriptRaw);
+  const out: FrameStatement[] = [];
+
+  /** 语句分类：简单调用 / 空转（null = 忽略）/ 其他（unparsed）。 */
+  const classifySimple = (text: string): FrameStatement | null => {
+    if (text === '' || text === ';') return null;
+    if (/^(?:var|const|let)\b/.test(text)) return null;
+    if (/^return\b/.test(text)) return null;
+    const body = text.replace(/;\s*$/, '').trim();
+    if (/^stop\s*\(\s*\)$/.test(body)) return null;
+    const call = /^(?:parent\.)?\$(mc_ctrler|fighter_ctrler|effect_ctrler)\.(\w+)\s*\(/.exec(body);
+    if (call && body.endsWith(')')) {
+      const openIdx = body.indexOf('(', call[0].length - 1);
+      try {
+        const closeIdx = matchBracket(body, openIdx);
+        if (closeIdx === body.length - 1) {
+          const argsRaw = body.slice(openIdx + 1, closeIdx).trim();
+          return {
+            kind: 'call',
+            call: {
+              target: CTRLER_TARGET[call[1]!]!,
+              op: call[2]!,
+              args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg),
+            },
+          };
+        }
+      } catch {
+        /* fallthrough → unparsed */
+      }
+    }
+    return { kind: 'unparsed', text };
+  };
+
+  /** 读到语句结尾（';' 或深度 0 的 '}'），返回 [endIndex, text]。 */
+  const readToEnd = (start: number): [number, string] => {
+    let depth = 0;
+    let quote: string | null = null;
+    for (let j = start; j < script.length; j++) {
+      const c = script[j]!;
+      if (quote) {
+        if (c === '\\') j++;
+        else if (c === quote) quote = null;
+        continue;
+      }
+      if (c === '"' || c === "'") quote = c;
+      else if (c === '(' || c === '{' || c === '[') depth++;
+      else if (c === ')' || c === '}' || c === ']') depth--;
+      else if (c === ';' && depth === 0) {
+        return [j + 1, script.slice(start, j + 1)];
+      }
+      if (depth < 0 || (depth === 0 && c === '}' && j > start)) {
+        // 无分号结尾的语句（块边界处）
+        return [j, script.slice(start, j)];
+      }
+    }
+    return [script.length, script.slice(start)];
+  };
+
+  /** 解析块文本为调用列表；含任何非调用语句 → clean=false。 */
+  const parseBody = (text: string): { calls: CtrlerCall[]; clean: boolean } => {
+    const stmts = parseFrameStatements(text);
+    const calls: CtrlerCall[] = [];
+    let clean = true;
+    for (const st of stmts) {
+      if (st.kind === 'call') calls.push(st.call);
+      else clean = false;
+    }
+    return { calls, clean };
+  };
+
+  let i = 0;
+  while (i < script.length) {
+    if (/\s/.test(script[i]!)) {
+      i++;
+      continue;
+    }
+    if (script[i] === '}') {
+      // 游离闭括号（所属块已被整体消费）→ 跳过
+      i++;
+      continue;
+    }
+    const id = readIdent(script, i);
+    if (id && id[0] === 'if') {
+      const stmtStart = i;
+      let j = id[1] + /^[ \t\r\n]*/.exec(script.slice(id[1]))![0].length;
+      if (script[j] !== '(') {
+        const [end, text] = readToEnd(i);
+        const st = classifySimple(text);
+        if (st) out.push(st);
+        i = end;
+        continue;
+      }
+      let condExpr = '';
+      let k: number;
+      try {
+        const close = matchBracket(script, j);
+        condExpr = script.slice(j + 1, close);
+        k = close + 1;
+      } catch {
+        const [end, text] = readToEnd(i);
+        const st = classifySimple(text);
+        if (st) out.push(st);
+        i = end;
+        continue;
+      }
+      let thenCalls: CtrlerCall[] | undefined;
+      let elseCalls: CtrlerCall[] | undefined;
+      let clean = true;
+      k += /^[ \t\r\n]*/.exec(script.slice(k))![0].length;
+      // then（花括号块或单语句）
+      if (script[k] === '{') {
+        try {
+          const close = matchBracket(script, k);
+          const body = parseBody(script.slice(k + 1, close));
+          thenCalls = body.calls;
+          clean = clean && body.clean;
+          k = close + 1;
+        } catch {
+          clean = false;
+          k = script.length;
+        }
+      } else {
+        const [end, text] = readToEnd(k);
+        const st = classifySimple(text);
+        if (st?.kind === 'call') thenCalls = [st.call];
+        else if (st !== null) clean = false;
+        k = end;
+      }
+      // else（可选；else-if 链按不支持处理 → clean=false）
+      const k2 = k + /^[ \t\r\n]*/.exec(script.slice(k))![0].length;
+      const elseId = readIdent(script, k2);
+      if (elseId && elseId[0] === 'else') {
+        let m = elseId[1] + /^[ \t\r\n]*/.exec(script.slice(elseId[1]))![0].length;
+        if (script[m] === '{') {
+          try {
+            const close = matchBracket(script, m);
+            const body = parseBody(script.slice(m + 1, close));
+            elseCalls = body.calls;
+            clean = clean && body.clean;
+            k = close + 1;
+          } catch {
+            clean = false;
+            k = script.length;
+          }
+        } else {
+          const [end, text] = readToEnd(m);
+          const st = classifySimple(text);
+          if (st?.kind === 'call') elseCalls = [st.call];
+          else clean = false;
+          k = end;
+        }
+      } else {
+        k = k2;
+      }
+      const cond = parseCondQuery(condExpr);
+      const hasCalls = (thenCalls?.length ?? 0) + (elseCalls?.length ?? 0) > 0;
+      if (cond !== null) {
+        const stmt: CondStatement = { cond };
+        if (thenCalls !== undefined) stmt.then = thenCalls;
+        if (elseCalls !== undefined) stmt.else = elseCalls;
+        out.push({
+          kind: 'cond',
+          stmt,
+          residue: clean ? null : script.slice(stmtStart, k),
+        });
+      } else if (hasCalls) {
+        // 条件不可识别（跨帧变量/非查询）但分支有调用 → 整体保留原文，
+        // 抑制分支体发射（修复旧提取「两分支无条件都发」）
+        out.push({ kind: 'unparsed', text: script.slice(stmtStart, k) });
+      }
+      // 无调用的未知条件（守卫 if 等）→ 忽略
+      i = k;
+      continue;
+    }
+    const [end, text] = readToEnd(i);
+    const st = classifySimple(text);
+    if (st) out.push(st);
+    i = end;
+  }
+  return out;
+}
+
+/** ctrler 变量名 → 规范 target（辅助用 $assisterCtrler 驼峰命名）。 */
+const CTRLER_TARGET: Record<string, CtrlerCall['target']> = {
+  mc_ctrler: 'mc',
+  fighter_ctrler: 'fighter',
+  effect_ctrler: 'effect',
+  assisterCtrler: 'assister',
+};

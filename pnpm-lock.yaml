@@ -261,6 +261,15 @@ importers:
         specifier: ^6.0.5
         version: 6.0.5
 
+  tools/batch-validate:
+    dependencies:
+      '@bvn/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@bvn/data':
+        specifier: workspace:*
+        version: link:../../packages/data
+
   tools/exporter:
     dependencies:
       '@bvn/data':

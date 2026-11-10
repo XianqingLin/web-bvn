@@ -49,6 +49,30 @@ export type BehaviorArg =
   | { [key: string]: BehaviorArg }
   | { $ref: string };
 
+/**
+ * 条件查询（原版帧脚本 if($xx_ctrler.query()){...}else{...}，切片 11）。
+ * 查询 op 语料集：justHit / targetInRange / getTargetState / getSelf /
+ * getTargetSP（原版 FighterCtrler，纯读无副作用）。
+ */
+export interface TriggerCondition {
+  target: string;
+  op: string;
+  args: BehaviorArg[];
+  /** 原版 `!` 前缀取反 */
+  negate?: boolean;
+  /** 查询后取的属性链（如 getSelf().isInAir → ['isInAir']） */
+  path?: string[];
+  /** 属性值与字面量比较（缺省 = 真值判定，AS 语义：0/空 为假） */
+  cmp?: { op: '==' | '!=' | '<' | '>' | '<=' | '>='; value: number | boolean };
+}
+
+/** 条件分支体内的简单调用。 */
+export interface TriggerBranchCall {
+  target: string;
+  op: string;
+  args: BehaviorArg[];
+}
+
 /** 帧触发（帧号 1 起，与 areas 的 frame 对齐）。 */
 export interface FrameTrigger {
   frame: number;
@@ -56,6 +80,10 @@ export interface FrameTrigger {
   target: string;
   op: string;
   args: BehaviorArg[];
+  /** 条件触发（op='if'）：cond 成立执行 then，否则执行 else */
+  cond?: TriggerCondition;
+  then?: TriggerBranchCall[];
+  else?: TriggerBranchCall[];
 }
 
 /** 角色运行时定义（一个形态的完整战斗数据）。 */

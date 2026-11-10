@@ -1590,36 +1590,6 @@
           ]
         },
         {
-          "frame": 324,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              300
-            ]
-          ]
-        },
-        {
-          "frame": 324,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -20,
-            null,
-            false
-          ]
-        },
-        {
-          "frame": 324,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            300,
-            0
-          ]
-        },
-        {
           "frame": 331,
           "target": "effect",
           "op": "playSoundHit2",
@@ -1686,15 +1656,6 @@
           "args": [
             0.2,
             0.2
-          ]
-        },
-        {
-          "frame": 353,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
-            -5
           ]
         },
         {
@@ -2402,25 +2363,6 @@
           ]
         },
         {
-          "frame": 930,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "cbs1",
-            false
-          ]
-        },
-        {
-          "frame": 930,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -10,
-            0,
-            false
-          ]
-        },
-        {
           "frame": 933,
           "target": "mc",
           "op": "setSteelBody",
@@ -2584,14 +2526,62 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 324,
-          "raw": "//敌人是否在攻击范围内\n\nif(parent.$fighter_ctrler.targetInRange([0,300])){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-20,null,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(300,0);\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                300
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -20,
+                null,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                300,
+                0
+              ]
+            }
+          ]
         },
         {
           "frame": 930,
-          "raw": "parent.$mc_ctrler.damping(6,0); //移动阻尼，参数为X,Y\n\nif(parent.$fighter_ctrler.justHit(\"cbs1\",false)){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-10,0,false);\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "cbs1",
+              false
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -10,
+                0,
+                false
+              ]
+            }
+          ]
         }
       ]
     },
@@ -3070,12 +3060,6 @@
           ]
         },
         {
-          "frame": 153,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 159,
           "target": "mc",
           "op": "endAct",
@@ -3123,12 +3107,6 @@
           "frame": 177,
           "target": "mc",
           "op": "setSkill1",
-          "args": []
-        },
-        {
-          "frame": 177,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -3281,36 +3259,6 @@
         },
         {
           "frame": 268,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              300
-            ]
-          ]
-        },
-        {
-          "frame": 268,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -30,
-            0,
-            false
-          ]
-        },
-        {
-          "frame": 268,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            300,
-            0
-          ]
-        },
-        {
-          "frame": 268,
           "target": "mc",
           "op": "move",
           "args": [
@@ -3373,12 +3321,6 @@
           "frame": 279,
           "target": "mc",
           "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 279,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -3616,21 +3558,6 @@
           ]
         },
         {
-          "frame": 429,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 429,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
           "frame": 434,
           "target": "mc",
           "op": "endAct",
@@ -3836,36 +3763,6 @@
           "args": []
         },
         {
-          "frame": 604,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              500
-            ]
-          ]
-        },
-        {
-          "frame": 604,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -20,
-            null,
-            false
-          ]
-        },
-        {
-          "frame": 604,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            500,
-            0
-          ]
-        },
-        {
           "frame": 611,
           "target": "effect",
           "op": "shine",
@@ -3971,15 +3868,6 @@
         {
           "frame": 652,
           "target": "mc",
-          "op": "move",
-          "args": [
-            0,
-            10
-          ]
-        },
-        {
-          "frame": 652,
-          "target": "mc",
           "op": "setTouchFloor",
           "args": [
             "必杀_TF",
@@ -4030,31 +3918,8 @@
         {
           "frame": 664,
           "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 664,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
-          "frame": 664,
-          "target": "effect",
           "op": "shine",
           "args": []
-        },
-        {
-          "frame": 666,
-          "target": "fighter",
-          "op": "loseHp",
-          "args": [
-            100
-          ]
         },
         {
           "frame": 666,
@@ -4160,14 +4025,6 @@
           "args": [
             0,
             3
-          ]
-        },
-        {
-          "frame": 787,
-          "target": "fighter",
-          "op": "loseHp",
-          "args": [
-            200
           ]
         },
         {
@@ -4436,23 +4293,77 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 268,
-          "raw": "//敌人是否在攻击范围内\n\nif(parent.$fighter_ctrler.targetInRange([0,300])){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-30,0,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(300,0);\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                300
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -30,
+                0,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                300,
+                0
+              ]
+            }
+          ]
         },
         {
           "frame": 604,
-          "raw": "//敌人是否在攻击范围内\n\nif(parent.$fighter_ctrler.targetInRange([0,500])){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-20,null,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(500,0);\n}"
-        },
-        {
-          "frame": 643,
-          "raw": "if(parent.$fighter_ctrler.target) parent.$fighter_ctrler.target.visible = false;\nparent.$mc_ctrler.moveTarget({followmc:\"move_mc\"});"
-        },
-        {
-          "frame": 665,
-          "raw": "if(parent.$fighter_ctrler.target) parent.$fighter_ctrler.target.visible = true;"
-        },
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                500
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -20,
+                null,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                500,
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "rawScripts": [
         {
           "frame": 666,
           "raw": "if(parent.$fighter_ctrler.hp>300){\n\tparent.$fighter_ctrler.loseHp(100);\n}"

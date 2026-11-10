@@ -839,12 +839,6 @@
           "args": []
         },
         {
-          "frame": 81,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 85,
           "target": "mc",
           "op": "idle",
@@ -967,15 +961,6 @@
           ]
         },
         {
-          "frame": 137,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
-            0
-          ]
-        },
-        {
           "frame": 139,
           "target": "effect",
           "op": "playSoundHit1",
@@ -999,12 +984,6 @@
           "frame": 143,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 143,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1056,12 +1035,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 163,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 169,
@@ -1127,12 +1100,6 @@
           "frame": 184,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 184,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1368,15 +1335,6 @@
         },
         {
           "frame": 278,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            -10
-          ]
-        },
-        {
-          "frame": 278,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -1485,12 +1443,6 @@
           "frame": 322,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 322,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1660,12 +1612,6 @@
         },
         {
           "frame": 438,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
-          "frame": 438,
           "target": "effect",
           "op": "endShadow",
           "args": []
@@ -1740,15 +1686,6 @@
           "op": "move",
           "args": [
             35,
-            0
-          ]
-        },
-        {
-          "frame": 529,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            30,
             0
           ]
         },
@@ -1848,15 +1785,6 @@
         },
         {
           "frame": 639,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            70,
-            -70
-          ]
-        },
-        {
-          "frame": 639,
           "target": "effect",
           "op": "shine",
           "args": []
@@ -1885,15 +1813,6 @@
           "args": [
             0.12,
             0.12
-          ]
-        },
-        {
-          "frame": 642,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            -10
           ]
         },
         {
@@ -2068,12 +1987,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 733,
-          "raw": "parent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{moveToTarget:true,offset:0,range:[0,600]},applyG:false});"
         }
       ]
     },
@@ -2340,12 +2253,6 @@
           "args": []
         },
         {
-          "frame": 93,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 97,
           "target": "mc",
           "op": "idle",
@@ -2361,15 +2268,6 @@
           ]
         },
         {
-          "frame": 102,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -2
-          ]
-        },
-        {
           "frame": 103,
           "target": "mc",
           "op": "addQi",
@@ -2381,15 +2279,6 @@
           "frame": 108,
           "target": "mc",
           "op": "move",
-          "args": [
-            -1,
-            -1
-          ]
-        },
-        {
-          "frame": 108,
-          "target": "fighter",
-          "op": "moveOnce",
           "args": [
             -1,
             -1
@@ -2507,12 +2396,6 @@
           "args": []
         },
         {
-          "frame": 155,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 160,
           "target": "mc",
           "op": "endAct",
@@ -2567,12 +2450,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 175,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 181,
@@ -2632,12 +2509,6 @@
           "frame": 200,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 200,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2731,12 +2602,6 @@
           "args": [
             "砍技2_1"
           ]
-        },
-        {
-          "frame": 261,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 268,
@@ -3250,24 +3115,6 @@
           "target": "fighter",
           "op": "doWanKai",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 703,
-          "raw": "\n\n//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{moveToTarget:true,offset:10,range:[0,400]},y:{moveToTarget:true,offset:-30,range:[-200,200]},applyG:false});\n\n\n//如果比较复杂，需要在MC内部加入代码，实现接口\n/*\nvar $attacker_ctrler:*;\nfunction setAttackerCtrler(attackerCtrler:*):void{\n\t$attacker_ctrler = attackerCtrler;\n}\n\n//调用效果接口，等同于parent.$effect_ctrler\n$attacker_ctrler.effect\n\n//动作结束，用于AI判断\n$attacker_ctrler.endAct();\n\n//移动\n$attacker_ctrler.move(0,0);\n\n//阻尼\n$attacker_ctrler.damping(0,0);\n\n//停止播放\n$attacker_ctrler.stop();\n\n//跳到帧并播放\n$attacker_ctrler.gotoAndPlay(\"帧名称\");\n\n//跳到帧并停止\n$attacker_ctrler.gotoAndStop(\"帧名称\");\n\n//落地时跳转帧\n$attacker_ctrler.setTouchFloor(\"帧名称\");\n\n*/\n"
-        },
-        {
-          "frame": 115,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tz1atm\",{x:13,y:7,hold:2,hits:1});"
-        },
-        {
-          "frame": 117,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tz2atm\",{x:10,y:10,hold:2,hits:1});"
-        },
-        {
-          "frame": 119,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tz3atm\",{x:7,y:13,hold:2,hits:1});"
         }
       ]
     },

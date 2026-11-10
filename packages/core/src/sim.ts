@@ -43,6 +43,7 @@ import {
 } from './fighter/machine.js';
 import {
   createBehaviorRegistry,
+  evaluateTriggerCondition,
   type AttackerSpawnSpec,
   type BehaviorContext,
   type BehaviorHandler,
@@ -722,6 +723,15 @@ export class Sim {
           switchForm: (g, frameNum) => this.doSwitchForm(g, frameNum),
         };
         for (const t of list) {
+          if (t.cond) {
+            // 条件触发（切片 11）：cond 求值 → then/else 分支体内调用依次分派
+            const branch = evaluateTriggerCondition(t.cond, ctx) ? t.then : t.else;
+            for (const c of branch ?? []) {
+              const h = this.behaviors[c.op];
+              if (h) h(ctx, c.args, c.target);
+            }
+            continue;
+          }
           const handler = this.behaviors[t.op];
           if (handler) handler(ctx, t.args, t.target);
         }

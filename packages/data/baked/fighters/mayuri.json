@@ -597,12 +597,6 @@
           "args": []
         },
         {
-          "frame": 97,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 104,
           "target": "mc",
           "op": "idle",
@@ -790,12 +784,6 @@
           ]
         },
         {
-          "frame": 167,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 172,
           "target": "mc",
           "op": "endAct",
@@ -841,12 +829,6 @@
           "frame": 204,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 204,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1454,12 +1436,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 870,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc\",{applyG:true});\n"
         }
       ]
     },

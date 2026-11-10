@@ -1905,20 +1905,6 @@
           "op": "stop",
           "args": []
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 328,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh2mc\",{x:{moveToTarget:true,offset:0},applyG:false});"
-        },
-        {
-          "frame": 435,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,hit:3},hold:1,hits:3});"
-        },
-        {
-          "frame": 906,
-          "raw": "parent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:false,offset:0},applyG:false});"
-        }
       ]
     },
     "元件/mc_005": {

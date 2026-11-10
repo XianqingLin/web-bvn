@@ -783,15 +783,6 @@
           ]
         },
         {
-          "frame": 76,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -2
-          ]
-        },
-        {
           "frame": 78,
           "target": "effect",
           "op": "playSoundHit1",
@@ -858,15 +849,6 @@
         },
         {
           "frame": 96,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -5
-          ]
-        },
-        {
-          "frame": 96,
           "target": "effect",
           "op": "shine",
           "args": [
@@ -926,12 +908,6 @@
           "args": []
         },
         {
-          "frame": 121,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 126,
           "target": "mc",
           "op": "endAct",
@@ -980,12 +956,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 140,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 145,
@@ -1045,12 +1015,6 @@
           "frame": 156,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 156,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1150,12 +1114,6 @@
           "args": []
         },
         {
-          "frame": 225,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 235,
           "target": "mc",
           "op": "endAct",
@@ -1231,12 +1189,6 @@
           "frame": 331,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 331,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1396,15 +1348,6 @@
         },
         {
           "frame": 557,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            -15
-          ]
-        },
-        {
-          "frame": 557,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -1439,15 +1382,6 @@
           "args": [
             1,
             0.05
-          ]
-        },
-        {
-          "frame": 574,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            -1
           ]
         },
         {
@@ -1513,15 +1447,6 @@
           "args": [
             "空中必杀_TF",
             true
-          ]
-        },
-        {
-          "frame": 627,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            -15
           ]
         },
         {
@@ -1906,12 +1831,6 @@
           "args": []
         },
         {
-          "frame": 86,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 90,
           "target": "mc",
           "op": "idle",
@@ -1950,15 +1869,6 @@
           "args": [
             0,
             0.5
-          ]
-        },
-        {
-          "frame": 99,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -5
           ]
         },
         {
@@ -2019,12 +1929,6 @@
           "frame": 125,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 125,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2276,15 +2180,6 @@
         },
         {
           "frame": 246,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -40
-          ]
-        },
-        {
-          "frame": 246,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -2318,15 +2213,6 @@
           ]
         },
         {
-          "frame": 249,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -5
-          ]
-        },
-        {
           "frame": 251,
           "target": "effect",
           "op": "endShadow",
@@ -2345,12 +2231,6 @@
           "args": [
             "砍技2_1"
           ]
-        },
-        {
-          "frame": 271,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 272,
@@ -2386,15 +2266,6 @@
           "args": [
             0,
             0.5
-          ]
-        },
-        {
-          "frame": 280,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -5
           ]
         },
         {
@@ -2491,15 +2362,6 @@
         },
         {
           "frame": 350,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            60,
-            0
-          ]
-        },
-        {
-          "frame": 350,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -2552,15 +2414,6 @@
         },
         {
           "frame": 354,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            0
-          ]
-        },
-        {
-          "frame": 354,
           "target": "effect",
           "op": "endShadow",
           "args": []
@@ -2595,12 +2448,6 @@
           "frame": 364,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 364,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2675,15 +2522,6 @@
           ]
         },
         {
-          "frame": 397,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            4,
-            -5
-          ]
-        },
-        {
           "frame": 401,
           "target": "mc",
           "op": "endAct",
@@ -2754,15 +2592,6 @@
           "op": "damping",
           "args": [
             3,
-            0
-          ]
-        },
-        {
-          "frame": 439,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            60,
             0
           ]
         },
@@ -2956,15 +2785,6 @@
         },
         {
           "frame": 647,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
-            0
-          ]
-        },
-        {
-          "frame": 647,
           "target": "effect",
           "op": "slowDown",
           "args": [
@@ -2986,15 +2806,6 @@
           "op": "damping",
           "args": [
             1.05,
-            0
-          ]
-        },
-        {
-          "frame": 651,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            10,
             0
           ]
         },
@@ -3201,12 +3012,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 305,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:30},hold:60,hits:1});"
         }
       ]
     },

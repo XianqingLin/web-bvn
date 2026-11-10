@@ -120,6 +120,12 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **词表 Tier-2 收尾**：`switchForm` 注册为通用形态切换原语（语义同 doWanKai）；`teleport`（移形换位=换人）/`summon`（辅助召唤）原版引擎与语料均无实例，归辅助系统切片实现（已核对全语料）。
 - **本片新偏离**（记录待收紧）：快速下落阻尼取 0（匀速 2.5/tick）——原版 damping 1 在 60Hz 语境首 tick 即跌破穿平台阈值 FALL_LAND_SPEED，穿平台语义不保；快速下落前置于防御检查（原版 doJumpDown 代码序在 defense 后但 `_action.clear()` 覆盖防御态，净效果等价）；防御态发起后接瞬身步延迟一拍（经输入缓冲，原版同 tick 不提前 return）；起跳延迟置于物理积分后处理（首个上升位移出现在下一 tick）；空中攻击下修 dampY 语义不变沿用切片 9。replay 四基准全部重冻（跳跃延迟 + 逐区结算均改变哈希，见提交说明）。
 
+切片 11 补全角色批量化验收 + 条件触发器（导出器 §6.3 语句级解析收尾，原版 `FighterCtrler` 查询系 targetInRange/justHit/getTargetState/getSelfSP）：
+
+- **批量化验收门禁 `tools/batch-validate`**（`pnpm batch:validate`）：58 角色（形态变体 fighterId → XFL 基座包解析）逐个 ①编译冒烟（`compileFighterForms` runtime 几何 + XFL 数值/触发合流）；②op 覆盖差（各形态触发 op ∪ vs behaviors 注册表，未注册即「确定性静默」的语义缺口，条件触发 op `if` 单列）；③真实地图自对战冒烟（固定输入剧本覆盖砍/技/招/跳/空中/瞬步/必杀系/防御/万解全路径；hp/qi 放宽防提前 KO 截断动作路径）——双跑哈希一致（隐性非确定性检测）+ 快照恢复续跑一致（序列化路径覆盖）；④`--expect` 对 `tools/batch-validate/baseline.json` 基线门禁（哈希/覆盖变化即失败）。
+- **条件触发器（重大语义修复）**：原版帧脚本 `if($xx_ctrler.query()){...}else{...}` 此前被导出器拉平为**无条件双分支全执行**——真实行为 bug（如 gaara 命中后必杀永远接后跳）。新模型：导出器语句级解析 if/else（简单调用体；条件可解析 → `condTriggers`；不可解析条件含调用 → 整段抑制 + rawScript 残留；纯卫语句丢弃），data 层 `frame+1` 合流进 triggers，core `FrameTrigger.cond/then/else`——`evaluateTriggerCondition` 求值后按 then/else 分派。查询 op 语义（原版 FighterCtrler.as 对齐）：`justHit(hitId, includeDefense?)`（目标 `lastHurtHitId` 匹配，includeDefense 时含 `lastDefHitId`）/`targetInRange(rx, ry?)`（朝向相对 x 窗 + y 差窗）/`getTargetState`/`getSelf`/`getTargetSP`（属性链 + cmp 比较运算；属性走 `fighterProp` 白名单：`isInAir = !onGround`、hp/qi/energy/x/y/actionState 等，speed/jumpPower/heavy 读 def）。未知查询 op = false（确定性静默），未知 op 的分支体不执行。
+- **本片新偏离/已知缺口**（记录待收紧）：不可解析条件的帧脚本整段抑制（224 处 rawScript 残留逐条审计：仅 4 处 gaara `getAttacker` 变量模式行为无差——attacker 内层时间轴本就未导出，前后均为确定性空转）；攻击方 MC 脚本驱动不建模（原版 addAttacker 可被内层脚本控制）；查询属性仅白名单（未知属性读 null → AS 真值 = false）。replay 四基准重冻（条件触发改变命中后行为路径，见提交说明）。
+
 `FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 
 ### 3.6 角色数据与帧触发器

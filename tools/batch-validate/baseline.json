@@ -1,0 +1,881 @@
+{
+  "generatedAt": "2026-11-10T07:14:44.958Z",
+  "fighters": 58,
+  "framesPerFighter": 700,
+  "map": "Forest",
+  "compileFailures": [],
+  "smokeFailures": [],
+  "unregisteredOpAggregate": [],
+  "results": [
+    {
+      "id": "aizen",
+      "forms": 1,
+      "xflBase": "aizen",
+      "triggerOps": 42,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "e91307a5",
+        "resumeHash": "e91307a5",
+        "resumeFrames": 300,
+        "rerunHash": "e91307a5"
+      }
+    },
+    {
+      "id": "byakuya",
+      "forms": 2,
+      "xflBase": "byakuya",
+      "triggerOps": 44,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "a039b9f1",
+        "resumeHash": "a039b9f1",
+        "resumeFrames": 300,
+        "rerunHash": "a039b9f1"
+      }
+    },
+    {
+      "id": "byakuya_bankai",
+      "forms": 2,
+      "xflBase": "byakuya",
+      "triggerOps": 44,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "a039b9f1",
+        "resumeHash": "a039b9f1",
+        "resumeFrames": 300,
+        "rerunHash": "a039b9f1"
+      }
+    },
+    {
+      "id": "chad",
+      "forms": 1,
+      "xflBase": "chad",
+      "triggerOps": 39,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "9481ea52",
+        "resumeHash": "9481ea52",
+        "resumeFrames": 300,
+        "rerunHash": "9481ea52"
+      }
+    },
+    {
+      "id": "deidara",
+      "forms": 1,
+      "xflBase": "deidara",
+      "triggerOps": 37,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "a854f710",
+        "resumeHash": "a854f710",
+        "resumeFrames": 300,
+        "rerunHash": "a854f710"
+      }
+    },
+    {
+      "id": "gaara",
+      "forms": 1,
+      "xflBase": "gaara",
+      "triggerOps": 36,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ca0272b",
+        "resumeHash": "7ca0272b",
+        "resumeFrames": 300,
+        "rerunHash": "7ca0272b"
+      }
+    },
+    {
+      "id": "gin",
+      "forms": 1,
+      "xflBase": "gin",
+      "triggerOps": 34,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "c5ea1d1e",
+        "resumeHash": "c5ea1d1e",
+        "resumeFrames": 300,
+        "rerunHash": "c5ea1d1e"
+      }
+    },
+    {
+      "id": "grimmjow",
+      "forms": 1,
+      "xflBase": "grimmjow",
+      "triggerOps": 41,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "cea66992",
+        "resumeHash": "cea66992",
+        "resumeFrames": 300,
+        "rerunHash": "cea66992"
+      }
+    },
+    {
+      "id": "ichigo",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "ichigo_bankai",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "ichigo_vizored",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "ichigo_vizored_half",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "ichigo_zero",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "ikkaku",
+      "forms": 1,
+      "xflBase": "ikkaku",
+      "triggerOps": 37,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "d7978258",
+        "resumeHash": "d7978258",
+        "resumeFrames": 300,
+        "rerunHash": "d7978258"
+      }
+    },
+    {
+      "id": "itachi",
+      "forms": 1,
+      "xflBase": "itachi",
+      "triggerOps": 39,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "8736527f",
+        "resumeHash": "8736527f",
+        "resumeFrames": 300,
+        "rerunHash": "8736527f"
+      }
+    },
+    {
+      "id": "jiraiya",
+      "forms": 1,
+      "xflBase": "jiraiya",
+      "triggerOps": 39,
+      "unregisteredOps": [],
+      "rawScripts": 1,
+      "smoke": {
+        "ok": true,
+        "finalHash": "d097ed85",
+        "resumeHash": "d097ed85",
+        "resumeFrames": 300,
+        "rerunHash": "d097ed85"
+      }
+    },
+    {
+      "id": "juggo",
+      "forms": 1,
+      "xflBase": "juggo",
+      "triggerOps": 43,
+      "unregisteredOps": [],
+      "rawScripts": 3,
+      "smoke": {
+        "ok": true,
+        "finalHash": "f5d1111f",
+        "resumeHash": "f5d1111f",
+        "resumeFrames": 300,
+        "rerunHash": "f5d1111f"
+      }
+    },
+    {
+      "id": "kakashi",
+      "forms": 2,
+      "xflBase": "kakashi",
+      "triggerOps": 53,
+      "unregisteredOps": [],
+      "rawScripts": 37,
+      "smoke": {
+        "ok": true,
+        "finalHash": "96e31b2e",
+        "resumeHash": "96e31b2e",
+        "resumeFrames": 300,
+        "rerunHash": "96e31b2e"
+      }
+    },
+    {
+      "id": "kakashi_kamui",
+      "forms": 2,
+      "xflBase": "kakashi",
+      "triggerOps": 53,
+      "unregisteredOps": [],
+      "rawScripts": 37,
+      "smoke": {
+        "ok": true,
+        "finalHash": "96e31b2e",
+        "resumeHash": "96e31b2e",
+        "resumeFrames": 300,
+        "rerunHash": "96e31b2e"
+      }
+    },
+    {
+      "id": "karin",
+      "forms": 1,
+      "xflBase": "karin",
+      "triggerOps": 38,
+      "unregisteredOps": [],
+      "rawScripts": 1,
+      "smoke": {
+        "ok": true,
+        "finalHash": "529445bf",
+        "resumeHash": "529445bf",
+        "resumeFrames": 300,
+        "rerunHash": "529445bf"
+      }
+    },
+    {
+      "id": "kenpachi",
+      "forms": 1,
+      "xflBase": "kenpachi",
+      "triggerOps": 40,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "87e9b988",
+        "resumeHash": "87e9b988",
+        "resumeFrames": 300,
+        "rerunHash": "87e9b988"
+      }
+    },
+    {
+      "id": "kenshin",
+      "forms": 2,
+      "xflBase": "kenshin",
+      "triggerOps": 46,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7e5aeecb",
+        "resumeHash": "7e5aeecb",
+        "resumeFrames": 300,
+        "rerunHash": "7e5aeecb"
+      }
+    },
+    {
+      "id": "kenshin_battousai",
+      "forms": 2,
+      "xflBase": "kenshin",
+      "triggerOps": 46,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7e5aeecb",
+        "resumeHash": "7e5aeecb",
+        "resumeFrames": 300,
+        "rerunHash": "7e5aeecb"
+      }
+    },
+    {
+      "id": "killerbee",
+      "forms": 1,
+      "xflBase": "killerbee",
+      "triggerOps": 40,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "0d03a445",
+        "resumeHash": "0d03a445",
+        "resumeFrames": 300,
+        "rerunHash": "0d03a445"
+      }
+    },
+    {
+      "id": "kimimaro",
+      "forms": 1,
+      "xflBase": "kimimaro",
+      "triggerOps": 43,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "011be9e2",
+        "resumeHash": "011be9e2",
+        "resumeFrames": 300,
+        "rerunHash": "011be9e2"
+      }
+    },
+    {
+      "id": "konan",
+      "forms": 1,
+      "xflBase": "konan",
+      "triggerOps": 35,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "8f3b0c4f",
+        "resumeHash": "8f3b0c4f",
+        "resumeFrames": 300,
+        "rerunHash": "8f3b0c4f"
+      }
+    },
+    {
+      "id": "lee",
+      "forms": 2,
+      "xflBase": "lee",
+      "triggerOps": 51,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "3924aab4",
+        "resumeHash": "3924aab4",
+        "resumeFrames": 300,
+        "rerunHash": "3924aab4"
+      }
+    },
+    {
+      "id": "lee_tomon",
+      "forms": 2,
+      "xflBase": "lee",
+      "triggerOps": 51,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "3924aab4",
+        "resumeHash": "3924aab4",
+        "resumeFrames": 300,
+        "rerunHash": "3924aab4"
+      }
+    },
+    {
+      "id": "madara",
+      "forms": 1,
+      "xflBase": "madara",
+      "triggerOps": 38,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "62e4c439",
+        "resumeHash": "62e4c439",
+        "resumeFrames": 300,
+        "rerunHash": "62e4c439"
+      }
+    },
+    {
+      "id": "mayuri",
+      "forms": 1,
+      "xflBase": "mayuri",
+      "triggerOps": 38,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "a6a4f7f5",
+        "resumeHash": "a6a4f7f5",
+        "resumeFrames": 300,
+        "rerunHash": "a6a4f7f5"
+      }
+    },
+    {
+      "id": "naruto",
+      "forms": 5,
+      "xflBase": "naruto",
+      "triggerOps": 55,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "4fa0d9b5",
+        "resumeHash": "4fa0d9b5",
+        "resumeFrames": 300,
+        "rerunHash": "4fa0d9b5"
+      }
+    },
+    {
+      "id": "naruto_fourTail",
+      "forms": 5,
+      "xflBase": "naruto",
+      "triggerOps": 55,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "4fa0d9b5",
+        "resumeHash": "4fa0d9b5",
+        "resumeFrames": 300,
+        "rerunHash": "4fa0d9b5"
+      }
+    },
+    {
+      "id": "naruto_kyubi",
+      "forms": 5,
+      "xflBase": "naruto",
+      "triggerOps": 55,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "4fa0d9b5",
+        "resumeHash": "4fa0d9b5",
+        "resumeFrames": 300,
+        "rerunHash": "4fa0d9b5"
+      }
+    },
+    {
+      "id": "naruto_oneTail",
+      "forms": 5,
+      "xflBase": "naruto",
+      "triggerOps": 55,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "4fa0d9b5",
+        "resumeHash": "4fa0d9b5",
+        "resumeFrames": 300,
+        "rerunHash": "4fa0d9b5"
+      }
+    },
+    {
+      "id": "naruto_sennin",
+      "forms": 5,
+      "xflBase": "naruto",
+      "triggerOps": 55,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "4fa0d9b5",
+        "resumeHash": "4fa0d9b5",
+        "resumeFrames": 300,
+        "rerunHash": "4fa0d9b5"
+      }
+    },
+    {
+      "id": "neji",
+      "forms": 1,
+      "xflBase": "neji",
+      "triggerOps": 35,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "91aefccd",
+        "resumeHash": "91aefccd",
+        "resumeFrames": 300,
+        "rerunHash": "91aefccd"
+      }
+    },
+    {
+      "id": "obito",
+      "forms": 2,
+      "xflBase": "obito",
+      "triggerOps": 46,
+      "unregisteredOps": [],
+      "rawScripts": 1,
+      "smoke": {
+        "ok": true,
+        "finalHash": "23ea224c",
+        "resumeHash": "23ea224c",
+        "resumeFrames": 300,
+        "rerunHash": "23ea224c"
+      }
+    },
+    {
+      "id": "obito_majime",
+      "forms": 2,
+      "xflBase": "obito",
+      "triggerOps": 46,
+      "unregisteredOps": [],
+      "rawScripts": 1,
+      "smoke": {
+        "ok": true,
+        "finalHash": "23ea224c",
+        "resumeHash": "23ea224c",
+        "resumeFrames": 300,
+        "rerunHash": "23ea224c"
+      }
+    },
+    {
+      "id": "ogihci",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "ogihci_bankai",
+      "forms": 7,
+      "xflBase": "ichigo",
+      "triggerOps": 56,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "7ef56827",
+        "resumeHash": "7ef56827",
+        "resumeFrames": 300,
+        "rerunHash": "7ef56827"
+      }
+    },
+    {
+      "id": "orihime",
+      "forms": 1,
+      "xflBase": "orihime",
+      "triggerOps": 36,
+      "unregisteredOps": [],
+      "rawScripts": 31,
+      "smoke": {
+        "ok": true,
+        "finalHash": "0f19e088",
+        "resumeHash": "0f19e088",
+        "resumeFrames": 300,
+        "rerunHash": "0f19e088"
+      }
+    },
+    {
+      "id": "orochimaru",
+      "forms": 1,
+      "xflBase": "orochimaru",
+      "triggerOps": 37,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "fe61fec8",
+        "resumeHash": "fe61fec8",
+        "resumeFrames": 300,
+        "rerunHash": "fe61fec8"
+      }
+    },
+    {
+      "id": "pain",
+      "forms": 1,
+      "xflBase": "pain",
+      "triggerOps": 37,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "2b082ba9",
+        "resumeHash": "2b082ba9",
+        "resumeFrames": 300,
+        "rerunHash": "2b082ba9"
+      }
+    },
+    {
+      "id": "renji",
+      "forms": 1,
+      "xflBase": "renji",
+      "triggerOps": 41,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "f00ffcb4",
+        "resumeHash": "f00ffcb4",
+        "resumeFrames": 300,
+        "rerunHash": "f00ffcb4"
+      }
+    },
+    {
+      "id": "rukia",
+      "forms": 2,
+      "xflBase": "rukia",
+      "triggerOps": 41,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "1467483e",
+        "resumeHash": "1467483e",
+        "resumeFrames": 300,
+        "rerunHash": "1467483e"
+      }
+    },
+    {
+      "id": "rukia_shikai",
+      "forms": 2,
+      "xflBase": "rukia",
+      "triggerOps": 41,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "1467483e",
+        "resumeHash": "1467483e",
+        "resumeFrames": 300,
+        "rerunHash": "1467483e"
+      }
+    },
+    {
+      "id": "sakura",
+      "forms": 1,
+      "xflBase": "sakura",
+      "triggerOps": 40,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "27a76980",
+        "resumeHash": "27a76980",
+        "resumeFrames": 300,
+        "rerunHash": "27a76980"
+      }
+    },
+    {
+      "id": "sasuke",
+      "forms": 3,
+      "xflBase": "sasuke",
+      "triggerOps": 52,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "337f3ecc",
+        "resumeHash": "337f3ecc",
+        "resumeFrames": 300,
+        "rerunHash": "337f3ecc"
+      }
+    },
+    {
+      "id": "sasuke_juin",
+      "forms": 3,
+      "xflBase": "sasuke",
+      "triggerOps": 52,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "337f3ecc",
+        "resumeHash": "337f3ecc",
+        "resumeFrames": 300,
+        "rerunHash": "337f3ecc"
+      }
+    },
+    {
+      "id": "sasuke_susanoo",
+      "forms": 3,
+      "xflBase": "sasuke",
+      "triggerOps": 52,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "337f3ecc",
+        "resumeHash": "337f3ecc",
+        "resumeFrames": 300,
+        "rerunHash": "337f3ecc"
+      }
+    },
+    {
+      "id": "soifon",
+      "forms": 1,
+      "xflBase": "soifon",
+      "triggerOps": 42,
+      "unregisteredOps": [],
+      "rawScripts": 1,
+      "smoke": {
+        "ok": true,
+        "finalHash": "f0e11a95",
+        "resumeHash": "f0e11a95",
+        "resumeFrames": 300,
+        "rerunHash": "f0e11a95"
+      }
+    },
+    {
+      "id": "starrk",
+      "forms": 1,
+      "xflBase": "starrk",
+      "triggerOps": 42,
+      "unregisteredOps": [],
+      "rawScripts": 2,
+      "smoke": {
+        "ok": true,
+        "finalHash": "5d6d60a7",
+        "resumeHash": "5d6d60a7",
+        "resumeFrames": 300,
+        "rerunHash": "5d6d60a7"
+      }
+    },
+    {
+      "id": "temari",
+      "forms": 1,
+      "xflBase": "temari",
+      "triggerOps": 35,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "3d407247",
+        "resumeHash": "3d407247",
+        "resumeFrames": 300,
+        "rerunHash": "3d407247"
+      }
+    },
+    {
+      "id": "toushirou",
+      "forms": 2,
+      "xflBase": "toushirou",
+      "triggerOps": 45,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "d0e9ff53",
+        "resumeHash": "d0e9ff53",
+        "resumeFrames": 300,
+        "rerunHash": "d0e9ff53"
+      }
+    },
+    {
+      "id": "toushirou_bankai",
+      "forms": 2,
+      "xflBase": "toushirou",
+      "triggerOps": 45,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "d0e9ff53",
+        "resumeHash": "d0e9ff53",
+        "resumeFrames": 300,
+        "rerunHash": "d0e9ff53"
+      }
+    },
+    {
+      "id": "ulquiorra",
+      "forms": 2,
+      "xflBase": "ulquiorra",
+      "triggerOps": 44,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "2ac8cf9d",
+        "resumeHash": "2ac8cf9d",
+        "resumeFrames": 300,
+        "rerunHash": "2ac8cf9d"
+      }
+    },
+    {
+      "id": "ulquiorra_resurreccion",
+      "forms": 2,
+      "xflBase": "ulquiorra",
+      "triggerOps": 44,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "2ac8cf9d",
+        "resumeHash": "2ac8cf9d",
+        "resumeFrames": 300,
+        "rerunHash": "2ac8cf9d"
+      }
+    },
+    {
+      "id": "uryuu",
+      "forms": 1,
+      "xflBase": "uryuu",
+      "triggerOps": 38,
+      "unregisteredOps": [],
+      "rawScripts": 0,
+      "smoke": {
+        "ok": true,
+        "finalHash": "1ceabc74",
+        "resumeHash": "1ceabc74",
+        "resumeFrames": 300,
+        "rerunHash": "1ceabc74"
+      }
+    }
+  ]
+}

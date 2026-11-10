@@ -831,14 +831,6 @@
           ]
         },
         {
-          "frame": 79,
-          "target": "mc",
-          "op": "setAirMove",
-          "args": [
-            true
-          ]
-        },
-        {
           "frame": 82,
           "target": "mc",
           "op": "movePercent",
@@ -1077,12 +1069,6 @@
           "frame": 196,
           "target": "mc",
           "op": "setSkill1",
-          "args": []
-        },
-        {
-          "frame": 196,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1743,25 +1729,6 @@
           ]
         },
         {
-          "frame": 832,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "sh1"
-          ]
-        },
-        {
-          "frame": 832,
-          "target": "mc",
-          "op": "moveTarget",
-          "args": [
-            {
-              "followmc": "move_mc",
-              "speed": 50
-            }
-          ]
-        },
-        {
           "frame": 843,
           "target": "mc",
           "op": "moveTarget",
@@ -1911,66 +1878,28 @@
           "args": []
         }
       ],
-      "rawScripts": [
-        {
-          "frame": 343,
-          "raw": "parent.$mc_ctrler.addAttacker(\"kj2mc\",{applyG:false});"
-        },
-        {
-          "frame": 543,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh3mc\",{applyG:false});"
-        },
-        {
-          "frame": 721,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"sbs1\",{x:{moveToTarget:true,offset:-5},applyG:false});"
-        },
-        {
-          "frame": 773,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"xld\",{x:{moveToTarget:true,offset:-10},applyG:false});\n"
-        },
-        {
-          "frame": 99,
-          "raw": "parent.$mc_ctrler.addAttacker(\"tkmc\",{applyG:false});"
-        },
-        {
-          "frame": 341,
-          "raw": "parent.$mc_ctrler.moveTarget({followmc:\"move_mc\",speed:35});"
-        },
-        {
-          "frame": 405,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh1mc\",{applyG:false});"
-        },
-        {
-          "frame": 440,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh1\",{applyG:false});"
-        },
-        {
-          "frame": 477,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh2mc2\",{applyG:false});"
-        },
-        {
-          "frame": 543,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh3mc2\",{applyG:false});"
-        },
-        {
-          "frame": 720,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh20\",{applyG:false});"
-        },
-        {
-          "frame": 745,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"rjd\",{x:{moveToTarget:true},applyG:false});\n"
-        },
-        {
-          "frame": 791,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"xld\",{x:{moveToTarget:true,offset:-10},applyG:false});\n"
-        },
+      "condTriggers": [
         {
           "frame": 832,
-          "raw": "if(parent.$fighter_ctrler.justHit(\"sh1\")){\n\tparent.$mc_ctrler.moveTarget({followmc:\"move_mc\",speed:50});\n}"
-        },
-        {
-          "frame": 1026,
-          "raw": "parent.$mc_ctrler.moveTarget({followmc:\"move_mc\",speed:12});"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "sh1"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "moveTarget",
+              "args": [
+                {
+                  "followmc": "move_mc",
+                  "speed": 50
+                }
+              ]
+            }
+          ]
         }
       ]
     }

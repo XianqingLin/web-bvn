@@ -634,15 +634,6 @@
         },
         {
           "frame": 102,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -5
-          ]
-        },
-        {
-          "frame": 102,
           "target": "effect",
           "op": "playSoundHit2",
           "args": []
@@ -763,12 +754,6 @@
           ]
         },
         {
-          "frame": 159,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 164,
           "target": "mc",
           "op": "endAct",
@@ -798,12 +783,6 @@
           "frame": 179,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 179,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1017,12 +996,6 @@
           ]
         },
         {
-          "frame": 267,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 272,
           "target": "mc",
           "op": "endAct",
@@ -1047,12 +1020,6 @@
           "args": [
             "砍4"
           ]
-        },
-        {
-          "frame": 288,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 294,
@@ -1151,12 +1118,6 @@
           "args": [
             "跳招_QK"
           ]
-        },
-        {
-          "frame": 321,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 321,
@@ -1282,12 +1243,6 @@
           "args": []
         },
         {
-          "frame": 437,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 439,
           "target": "mc",
           "op": "setJump",
@@ -1392,24 +1347,6 @@
         },
         {
           "frame": 576,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            2,
-            0
-          ]
-        },
-        {
-          "frame": 576,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            0
-          ]
-        },
-        {
-          "frame": 576,
           "target": "effect",
           "op": "shadow",
           "args": [
@@ -1449,24 +1386,6 @@
           "target": "mc",
           "op": "endAct",
           "args": []
-        },
-        {
-          "frame": 614,
-          "target": "mc",
-          "op": "move",
-          "args": [
-            20,
-            0
-          ]
-        },
-        {
-          "frame": 614,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            2,
-            0
-          ]
         },
         {
           "frame": 614,
@@ -1717,28 +1636,12 @@
       ],
       "rawScripts": [
         {
-          "frame": 520,
-          "raw": "var bishaIng:Boolean=false;"
-        },
-        {
           "frame": 595,
           "raw": "bishaIng=true;"
         },
         {
           "frame": 614,
           "raw": "if(!bishaIng){\n\tparent.$mc_ctrler.move(20,0); //参数为X,Y\n\tparent.$mc_ctrler.damping(2,0);\n}"
-        },
-        {
-          "frame": 348,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh1atm\",{x:25,hold:60,hits:1});"
-        },
-        {
-          "frame": 428,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"kj2mc\",{x:{moveToTarget:true,offset:0}});"
-        },
-        {
-          "frame": 696,
-          "raw": "parent.$mc_ctrler.addAttacker(\"sbsmc\",{x:{moveToTarget:true,offset:0}});"
         }
       ]
     },

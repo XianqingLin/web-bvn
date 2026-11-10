@@ -544,12 +544,6 @@
           "args": []
         },
         {
-          "frame": 84,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 88,
           "target": "mc",
           "op": "idle",
@@ -650,12 +644,6 @@
           "args": []
         },
         {
-          "frame": 127,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 132,
           "target": "mc",
           "op": "endAct",
@@ -709,12 +697,6 @@
           "frame": 148,
           "target": "mc",
           "op": "setZhao2",
-          "args": []
-        },
-        {
-          "frame": 148,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -789,12 +771,6 @@
           "frame": 172,
           "target": "mc",
           "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 172,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -962,12 +938,6 @@
           ]
         },
         {
-          "frame": 263,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 270,
           "target": "mc",
           "op": "endAct",
@@ -1104,12 +1074,6 @@
           "frame": 352,
           "target": "mc",
           "op": "setZhao2",
-          "args": []
-        },
-        {
-          "frame": 352,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1648,12 +1612,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 345,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:30,add:-0.5,min:15},y:{start:0,add:0.1},hold:60,hits:1});"
         }
       ]
     },

@@ -981,12 +981,6 @@
           "args": []
         },
         {
-          "frame": 88,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 92,
           "target": "mc",
           "op": "idle",
@@ -996,15 +990,6 @@
           "frame": 107,
           "target": "mc",
           "op": "move",
-          "args": [
-            0,
-            -1
-          ]
-        },
-        {
-          "frame": 107,
-          "target": "fighter",
-          "op": "moveOnce",
           "args": [
             0,
             -1
@@ -1034,15 +1019,6 @@
           "args": [
             0.5,
             0.5
-          ]
-        },
-        {
-          "frame": 111,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            -5,
-            -5
           ]
         },
         {
@@ -1119,12 +1095,6 @@
           "frame": 147,
           "target": "mc",
           "op": "setBisha",
-          "args": []
-        },
-        {
-          "frame": 147,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1214,12 +1184,6 @@
           "args": []
         },
         {
-          "frame": 179,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 185,
           "target": "mc",
           "op": "endAct",
@@ -1264,12 +1228,6 @@
           "args": []
         },
         {
-          "frame": 216,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 223,
           "target": "mc",
           "op": "endAct",
@@ -1277,20 +1235,6 @@
         },
         {
           "frame": 228,
-          "target": "mc",
-          "op": "idle",
-          "args": []
-        },
-        {
-          "frame": 245,
-          "target": "mc",
-          "op": "getAttacker",
-          "args": [
-            "zh2mc"
-          ]
-        },
-        {
-          "frame": 245,
           "target": "mc",
           "op": "idle",
           "args": []
@@ -1621,12 +1565,6 @@
         {
           "frame": 462,
           "target": "fighter",
-          "op": "getTargetSP",
-          "args": []
-        },
-        {
-          "frame": 462,
-          "target": "fighter",
           "op": "moveToTarget",
           "args": [
             50,
@@ -1799,20 +1737,6 @@
           ]
         },
         {
-          "frame": 608,
-          "target": "mc",
-          "op": "fire",
-          "args": [
-            "bsatm",
-            {
-              "x": 10,
-              "y": 0,
-              "hold": 10,
-              "hits": 30
-            }
-          ]
-        },
-        {
           "frame": 631,
           "target": "mc",
           "op": "endAct",
@@ -1887,24 +1811,6 @@
           "target": "mc",
           "op": "idle",
           "args": []
-        },
-        {
-          "frame": 725,
-          "target": "mc",
-          "op": "movePercent",
-          "args": [
-            0.5,
-            0
-          ]
-        },
-        {
-          "frame": 725,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.1,
-            0
-          ]
         },
         {
           "frame": 741,
@@ -2062,38 +1968,6 @@
         {
           "frame": 245,
           "raw": "if(parent.$mc_ctrler.getAttacker(\"zh2mc\")){\n\tparent.$mc_ctrler.idle();\n}"
-        },
-        {
-          "frame": 462,
-          "raw": "var target:* = parent.$fighter_ctrler.getTargetSP();\nvar moveY:Number = 50;\nif(target && !target.isInAir){\n\tmoveY = 0;\n}\n\n\n//瞬间移动[参数：X,Y,是否自动转向]\nparent.$fighter_ctrler.moveToTarget(50,moveY,true);\n\nparent.$effect_ctrler.shine();"
-        },
-        {
-          "frame": 113,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tzatm\",{x:16,y:16,hold:2,hits:1});"
-        },
-        {
-          "frame": 398,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 402,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh12atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 406,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh13atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 410,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh14atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 608,
-          "raw": "\nparent.$mc_ctrler.addAttacker(\"sbsmc\",{applyG:false});\n\n//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\n//parent.$mc_ctrler.fire(\"bsatm\",{x:10,y:0,hold:10,hits:30});"
-        },
-        {
-          "frame": 808,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{followTarget:true,offset:0},y:{followTarget:true,offset:-20},applyG:false});\n\n"
         }
       ]
     },
@@ -2177,18 +2051,6 @@
         {
           "frame": 29,
           "raw": "$attacker_ctrler.endAct();"
-        },
-        {
-          "frame": 36,
-          "raw": "if($attacker_ctrler.justHit(\"cbs1\")){\n\tvar target:* = $attacker_ctrler.owner_fighter_ctrler.getTargetSP();\n\tif(target){\n\t\thitTarget = target;\n\t\ttarget.isApplyG = false;\n\t\ttarget.getDisplay().visible = false;\n\t\tisHit = true;\n\t}\n}"
-        },
-        {
-          "frame": 40,
-          "raw": "if(!isHit){\n\t$attacker_ctrler.removeSelf();\n}"
-        },
-        {
-          "frame": 54,
-          "raw": "if(hitTarget){\n\ttarget.getDisplay().visible = true;\n\ttarget.isApplyG = true;\n}\n"
         },
         {
           "frame": 59,
@@ -2486,46 +2348,6 @@
       },
       "triggers": [
         {
-          "frame": 9,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            -200,
-            -200,
-            -200
-          ]
-        },
-        {
-          "frame": 9,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            50,
-            0,
-            -200
-          ]
-        },
-        {
-          "frame": 9,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            0,
-            50,
-            200
-          ]
-        },
-        {
-          "frame": 9,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            250,
-            0,
-            0
-          ]
-        },
-        {
           "frame": 11,
           "target": "effect",
           "op": "walk",
@@ -2569,46 +2391,6 @@
           "op": "dash",
           "args": [
             2.7
-          ]
-        },
-        {
-          "frame": 34,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            -200,
-            -200,
-            -200
-          ]
-        },
-        {
-          "frame": 34,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            50,
-            0,
-            -200
-          ]
-        },
-        {
-          "frame": 34,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            0,
-            50,
-            200
-          ]
-        },
-        {
-          "frame": 34,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            250,
-            0,
-            0
           ]
         },
         {
@@ -3219,22 +3001,6 @@
           "args": []
         },
         {
-          "frame": 240,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "k5"
-          ]
-        },
-        {
-          "frame": 240,
-          "target": "mc",
-          "op": "setAttack",
-          "args": [
-            "砍6"
-          ]
-        },
-        {
           "frame": 244,
           "target": "mc",
           "op": "endAct",
@@ -3252,21 +3018,6 @@
           "op": "addQi",
           "args": [
             5
-          ]
-        },
-        {
-          "frame": 261,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 261,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
           ]
         },
         {
@@ -3293,351 +3044,6 @@
           "op": "setHurtAction",
           "args": [
             "true_body"
-          ]
-        },
-        {
-          "frame": 262,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 262,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 263,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 263,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 264,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 264,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 265,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 265,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 266,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 266,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 267,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 267,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 268,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 268,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 269,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 269,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 270,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 270,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 271,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 271,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 272,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 272,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 273,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 273,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 274,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 274,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 275,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 275,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 276,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 276,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 277,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 277,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 278,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 278,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 279,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 279,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 280,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 280,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 281,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 281,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 282,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 282,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 283,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 283,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
-          ]
-        },
-        {
-          "frame": 284,
-          "target": "fighter",
-          "op": "getTargetState",
-          "args": []
-        },
-        {
-          "frame": 284,
-          "target": "mc",
-          "op": "setHitTarget",
-          "args": [
-            "fakem",
-            "false_body"
           ]
         },
         {
@@ -3668,16 +3074,6 @@
           "op": "addQi",
           "args": [
             10
-          ]
-        },
-        {
-          "frame": 313,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            30,
-            null,
-            false
           ]
         },
         {
@@ -3841,36 +3237,6 @@
             -200,
             -200,
             -200
-          ]
-        },
-        {
-          "frame": 368,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              600
-            ]
-          ]
-        },
-        {
-          "frame": 368,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -10,
-            0,
-            false
-          ]
-        },
-        {
-          "frame": 368,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            300,
-            0
           ]
         },
         {
@@ -4478,40 +3844,6 @@
           "args": []
         },
         {
-          "frame": 917,
-          "target": "effect",
-          "op": "shadow",
-          "args": [
-            -200,
-            -200,
-            -200
-          ]
-        },
-        {
-          "frame": 917,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "上必杀_Soil"
-          ]
-        },
-        {
-          "frame": 917,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "上必杀_Water"
-          ]
-        },
-        {
-          "frame": 917,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "上必杀_Fire"
-          ]
-        },
-        {
           "frame": 919,
           "target": "effect",
           "op": "bisha",
@@ -4826,14 +4158,6 @@
           "raw": "parent.modo = 0;"
         },
         {
-          "frame": 240,
-          "raw": "parent.$mc_ctrler.setBishaUP();\nparent.$mc_ctrler.setSkill2();\nif(parent.$fighter_ctrler.justHit(\"k5\")){\n\tparent.$mc_ctrler.setAttack(\"砍6\");\n}"
-        },
-        {
-          "frame": 261,
-          "raw": "if(parent.$fighter_ctrler.getTargetState()==21){\n\tparent.$mc_ctrler.setHitTarget(\"fakem\",\"false_body\");\n}"
-        },
-        {
           "frame": 262,
           "raw": "parent.$mc_ctrler.fire(\"fake\",{x:{start:5.5,add:0,max:5},y:0,hold:0.7,hits:1});\nparent.$mc_ctrler.setHurtAction(\"true_body\");\n\nvar distance:Number;\ndistance=this.bdmn.x;\nif(parent.$fighter_ctrler.getTargetState()==21){\n\tparent.$mc_ctrler.setHitTarget(\"fakem\",\"false_body\");\n}"
         },
@@ -4930,10 +4254,6 @@
           "raw": "distance+=this.bdmn.width/2;\nparent.$fighter_ctrler.moveOnce(distance);\nparent.$fighter_ctrler.setDirectToTarget();\nparent.$mc_ctrler.endAct();"
         },
         {
-          "frame": 368,
-          "raw": "if (parent.$fighter_ctrler.targetInRange([0,600])){\n\tparent.$fighter_ctrler.moveToTarget(-10,0, false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(300,0);\n}"
-        },
-        {
           "frame": 431,
           "raw": "parent.$fighter_ctrler.moveOnce(0,-20);\nparent.$fighter_ctrler.target.visible = false;\nparent.$mc_ctrler.moveTarget({followmc:\"move_mc\"});\nparent.$mc_ctrler.setTouchFloor(\"砍6_TF\",true);"
         },
@@ -4954,52 +4274,595 @@
           "raw": "switch(parent.modo){\n\tcase 0:\n\t\tparent.$effect_ctrler.shadow(-200,-200,-200);\n\t\tbreak;\n\tcase 1:\n\t\tparent.$mc_ctrler.gotoAndPlay(\"上必杀_Soil\");\n\t\tbreak;\n\tcase 2:\n\t\tparent.$mc_ctrler.gotoAndPlay(\"上必杀_Water\");\n\t\tbreak;\n\tcase 3:\n\t\tparent.$mc_ctrler.gotoAndPlay(\"上必杀_Fire\");\n\t\tbreak;\n}"
         },
         {
-          "frame": 939,
-          "raw": "parent.$mc_ctrler.setHitTarget(\"sbs_chkm\",\"上必杀_CHK\");\nparent.$mc_ctrler.moveTarget({followmc:\"move_mc\",speed:13});"
-        },
-        {
           "frame": 9,
           "raw": "switch(parent.modo){\n\tcase 0:\n\t\tparent.$effect_ctrler.shadow(-200,-200,-200);\n\t\tbreak;\n\tcase 1:\n\t\tparent.$effect_ctrler.shadow(50,0,-200);\n\t\tbreak;\n\tcase 2:\n\t\tparent.$effect_ctrler.shadow(0,50,200);\n\t\tbreak;\n\tcase 3:\n\t\tparent.$effect_ctrler.shadow(250,0,0);\n\t\tbreak;\n}"
         },
         {
           "frame": 34,
           "raw": "switch(parent.modo){\n\tcase 0:\n\t\tparent.$effect_ctrler.shadow(-200,-200,-200);\n\t\tbreak;\n\tcase 1:\n\t\tparent.$effect_ctrler.shadow(50,0,-200);\n\t\tbreak;\n\tcase 2:\n\t\tparent.$effect_ctrler.shadow(0,50,200);\n\t\tbreak;\n\tcase 3:\n\t\tparent.$effect_ctrler.shadow(250,0,0);\n\t\tbreak;\n}\n\nparent.$effect_ctrler.dash();"
+        }
+      ],
+      "condTriggers": [
+        {
+          "frame": 240,
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "k5"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setAttack",
+              "args": [
+                "砍6"
+              ]
+            }
+          ]
         },
         {
-          "frame": 315,
-          "raw": "parent.$mc_ctrler.addAttacker(\"kj1_effect\",{applyG:false});"
+          "frame": 261,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 437,
-          "raw": "parent.$mc_ctrler.addAttacker(\"k6_effect\",{applyG:false});"
+          "frame": 262,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 102,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:5,add:1,max:15},y:{start:5,add:1,max:15},hold:60,hits:1});"
+          "frame": 263,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 104,
-          "raw": "parent.$mc_ctrler.fire(\"tz2atm\",{x:{start:5,add:1,max:15},y:{start:5,add:1,max:15},hold:60,hits:1});"
+          "frame": 264,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 473,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
+          "frame": 265,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 476,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
+          "frame": 266,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 479,
-          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:20,hold:2,hits:1});"
+          "frame": 267,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 520,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh2mc\",{x:{moveToTarget:true,offset:0,range:[0,800]},y:{moveToTarget:false,offset:-30},applyG:false});"
+          "frame": 268,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
         },
         {
-          "frame": 1495,
-          "raw": "parent.$mc_ctrler.addAttacker(\"sbsmc\",{applyG:false});"
+          "frame": 269,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 270,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 271,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 272,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 273,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 274,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 275,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 276,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 277,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 278,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 279,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 280,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 281,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 282,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 283,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 284,
+          "cond": {
+            "target": "fighter",
+            "op": "getTargetState",
+            "args": [],
+            "cmp": {
+              "op": "==",
+              "value": 21
+            }
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setHitTarget",
+              "args": [
+                "fakem",
+                "false_body"
+              ]
+            }
+          ]
+        },
+        {
+          "frame": 368,
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                600
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -10,
+                0,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                300,
+                0
+              ]
+            }
+          ]
         }
       ]
     },

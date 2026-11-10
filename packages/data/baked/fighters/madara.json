@@ -1017,36 +1017,6 @@
         },
         {
           "frame": 302,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              1000
-            ]
-          ]
-        },
-        {
-          "frame": 302,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -80,
-            null,
-            false
-          ]
-        },
-        {
-          "frame": 302,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            150,
-            0
-          ]
-        },
-        {
-          "frame": 302,
           "target": "mc",
           "op": "movePercent",
           "args": [
@@ -1789,34 +1759,40 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 302,
-          "raw": "//敌人是否在攻击范围内\n\nif(parent.$fighter_ctrler.targetInRange([0,1000])){\n\t//瞬间移动[参数：X,Y,是否自动转向]\n\tparent.$fighter_ctrler.moveToTarget(-80,null,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(150,0);\n}\n\n\nparent.$mc_ctrler.movePercent(1,0);\nparent.$mc_ctrler.dampingPercent(0.05,0);"
-        },
-        {
-          "frame": 95,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:9,add:2,max:30},y:{start:9,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 404,
-          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:{start:14,add:2,max:25},hold:60,hits:1});"
-        },
-        {
-          "frame": 408,
-          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:{start:14,add:2,max:25},hold:60,hits:1});"
-        },
-        {
-          "frame": 418,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:14,add:2,max:25},hold:60,hits:1});"
-        },
-        {
-          "frame": 466,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:20,y:-20,hold:5,hits:60,hp:200});"
-        },
-        {
-          "frame": 877,
-          "raw": "parent.$mc_ctrler.fire(\"kbsatm\",{x:30,y:25,hold:60,hits:1,hp:300});"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                1000
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -80,
+                null,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                150,
+                0
+              ]
+            }
+          ]
         }
       ]
     },

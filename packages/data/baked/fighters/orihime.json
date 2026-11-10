@@ -867,18 +867,6 @@
         {
           "frame": 359,
           "target": "mc",
-          "op": "addAttacker",
-          "args": [
-            "k1mc",
-            {
-              "x": 20,
-              "applyG": false
-            }
-          ]
-        },
-        {
-          "frame": 359,
-          "target": "mc",
           "op": "fire",
           "args": [
             "k3atm",
@@ -1509,16 +1497,6 @@
           ]
         },
         {
-          "frame": 788,
-          "target": "fighter",
-          "op": "addHp",
-          "args": [
-            {
-              "$ref": "ADD_HP"
-            }
-          ]
-        },
-        {
           "frame": 821,
           "target": "effect",
           "op": "endBisha",
@@ -1886,58 +1864,6 @@
         {
           "frame": 854,
           "raw": "addFunc();"
-        },
-        {
-          "frame": 935,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:20,hold:3,hits:1});"
-        },
-        {
-          "frame": 939,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:20,hold:3,hits:1});"
-        },
-        {
-          "frame": 943,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"cbs2atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 947,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 951,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"cbs2atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 955,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 959,
-          "raw": "parent.$mc_ctrler.fire(\"cbs3atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 286,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:15,add:1,max:20},y:{start:0,add:0.5,max:8},hold:60,hits:1});"
-        },
-        {
-          "frame": 359,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\n//parent.$mc_ctrler.addAttacker(\"k1mc\",{x:20,applyG:false});\n\nparent.$mc_ctrler.fire(\"k3atm\",{x:10,y:6,hold:2,hits:1});"
-        },
-        {
-          "frame": 390,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,add:1,max:20,hit:10},hold:60,hits:1});"
-        },
-        {
-          "frame": 469,
-          "raw": "parent.$mc_ctrler.fire(\"zh22atm\",{x:20,hold:60,hits:1,hp:200});"
-        },
-        {
-          "frame": 501,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:15,y:-7,hold:2,hits:1});"
-        },
-        {
-          "frame": 595,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"kj2atm\",{x:{start:5,hit:2},hold:10,hits:12,hp:200});"
         }
       ]
     },

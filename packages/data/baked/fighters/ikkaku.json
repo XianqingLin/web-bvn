@@ -645,21 +645,6 @@
         {
           "frame": 127,
           "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 127,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
-          "frame": 127,
-          "target": "effect",
           "op": "endShadow",
           "args": []
         },
@@ -772,12 +757,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 181,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 186,
@@ -992,12 +971,6 @@
           "args": []
         },
         {
-          "frame": 256,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 262,
           "target": "mc",
           "op": "endAct",
@@ -1060,12 +1033,6 @@
           "args": []
         },
         {
-          "frame": 281,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 286,
           "target": "mc",
           "op": "endAct",
@@ -1083,15 +1050,6 @@
           "op": "addQi",
           "args": [
             5
-          ]
-        },
-        {
-          "frame": 304,
-          "target": "mc",
-          "op": "movePercent",
-          "args": [
-            0.25,
-            0
           ]
         },
         {
@@ -1165,15 +1123,6 @@
           "target": "effect",
           "op": "playSoundHit1",
           "args": []
-        },
-        {
-          "frame": 339,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.025,
-            0
-          ]
         },
         {
           "frame": 346,

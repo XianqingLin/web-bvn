@@ -562,12 +562,6 @@
           "args": []
         },
         {
-          "frame": 84,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 88,
           "target": "mc",
           "op": "idle",
@@ -711,12 +705,6 @@
           "args": []
         },
         {
-          "frame": 144,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 150,
           "target": "mc",
           "op": "idle",
@@ -770,12 +758,6 @@
           "frame": 163,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 163,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -851,12 +833,6 @@
           "args": [
             "砍4"
           ]
-        },
-        {
-          "frame": 192,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 197,
@@ -951,15 +927,6 @@
           ]
         },
         {
-          "frame": 241,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            15,
-            0
-          ]
-        },
-        {
           "frame": 264,
           "target": "fighter",
           "op": "setCross",
@@ -986,12 +953,6 @@
           "args": [
             "砍4"
           ]
-        },
-        {
-          "frame": 268,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 274,
@@ -1100,12 +1061,6 @@
           "args": []
         },
         {
-          "frame": 309,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 315,
           "target": "mc",
           "op": "endAct",
@@ -1141,15 +1096,6 @@
           "args": [
             0.8,
             0.6
-          ]
-        },
-        {
-          "frame": 327,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -10
           ]
         },
         {
@@ -1220,12 +1166,6 @@
           "frame": 366,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 366,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1486,15 +1426,6 @@
           "op": "movePercent",
           "args": [
             1,
-            0
-          ]
-        },
-        {
-          "frame": 559,
-          "target": "mc",
-          "op": "dampingPercent",
-          "args": [
-            0.1,
             0
           ]
         },
@@ -1811,12 +1742,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 445,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh3atm\",{x:18,y:-13,hold:60,hits:1});"
         }
       ]
     },

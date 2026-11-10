@@ -252,6 +252,8 @@ export interface FighterConfig {
   /** 出生高度（缺省 = stage.groundY；地图出生点在平台上时由配置方传入） */
   y?: number;
   hp?: number;
+  /** 出生气量（缺省 0；满气起点用于测试/验收剧本驱动必杀路径） */
+  qi?: number;
   /** 角色运行时定义（缺省 = 合成骨架角色：无判定区/动作，仅物理） */
   def?: FighterDef;
   /**
@@ -305,7 +307,7 @@ export function createInitialState(config: SimConfig): SimState {
       gRamp: 2,
       facing: (i === 0 ? 1 : -1) as 1 | -1,
       hp: fc.hp ?? DEFAULT_HP,
-      qi: 0,
+      qi: fc.qi ?? 0,
       actionState: 0,
       onGround: true,
       actLabel: null,

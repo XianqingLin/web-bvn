@@ -659,12 +659,6 @@
           "args": []
         },
         {
-          "frame": 170,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 175,
           "target": "mc",
           "op": "endAct",
@@ -719,12 +713,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 195,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 200,
@@ -1037,12 +1025,6 @@
           "args": []
         },
         {
-          "frame": 367,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 374,
           "target": "mc",
           "op": "endAct",
@@ -1141,12 +1123,6 @@
           "frame": 464,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 464,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1359,26 +1335,6 @@
           "args": []
         },
         {
-          "frame": 751,
-          "target": "fighter",
-          "op": "getSelf",
-          "args": []
-        },
-        {
-          "frame": 751,
-          "target": "fighter",
-          "op": "getSelf",
-          "args": []
-        },
-        {
-          "frame": 751,
-          "target": "mc",
-          "op": "loop",
-          "args": [
-            "上必杀_L"
-          ]
-        },
-        {
           "frame": 757,
           "target": "mc",
           "op": "idle",
@@ -1496,44 +1452,8 @@
       ],
       "rawScripts": [
         {
-          "frame": 727,
-          "raw": "var loops:int = 0;"
-        },
-        {
           "frame": 751,
           "raw": "var hp:Number = parent.$fighter_ctrler.getSelf().hp;\nvar hpMax:Number = parent.$fighter_ctrler.getSelf().hpMax;\n\nif(hp < hpMax){\n\tparent.$mc_ctrler.loop(\"上必杀_L\");\n}"
-        },
-        {
-          "frame": 131,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tzatm\",{x:12,y:12,hold:2,hits:1});"
-        },
-        {
-          "frame": 403,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 406,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 409,
-          "raw": "parent.$mc_ctrler.fire(\"zh11atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 498,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh3atm\",{x:10,y:{start:-2,min:-12,add:-0.5},hold:60,hits:1});"
-        },
-        {
-          "frame": 626,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"bsmc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:true,offset:-25},applyG:false});\n"
-        },
-        {
-          "frame": 820,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc\",{x:{moveToTarget:true,offset:0},applyG:false});\n"
-        },
-        {
-          "frame": 851,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"cbsmc2\",{applyG:false});"
         }
       ]
     },

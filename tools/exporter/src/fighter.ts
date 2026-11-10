@@ -10,6 +10,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import {
   validateFighterPackage,
+  type CondTriggerDef,
   type FighterPackage,
   type FormData,
   type SoundDefines,
@@ -18,10 +19,10 @@ import {
   type ValidationResult,
 } from '@bvn/data';
 import {
-  extractCtrlerCalls,
   extractDefineActions,
   extractNamedDefine,
   extractStatAssignments,
+  parseFrameStatements,
   scriptResidue,
   type AsArg,
 } from './asargs.js';
@@ -179,7 +180,7 @@ export function extractFighter(opts: ExtractFighterOptions): ExtractFighterResul
     forms.push(form);
   }
 
-  // 符号时间轴：帧标签 + 帧触发
+  // 符号时间轴：帧标签 + 帧触发（语句级解析：简单调用 + if/else 条件触发）
   const libDir = join(opts.xflDir, 'LIBRARY');
   const symbolFiles = listXmlFiles(libDir);
   const symbols: Record<string, SymbolData> = {};
@@ -191,15 +192,42 @@ export function extractFighter(opts: ExtractFighterOptions): ExtractFighterResul
       for (const kf of layer) {
         if (kf.label) data.labels[kf.label] = { index: kf.index, duration: kf.duration };
         if (kf.script) {
-          for (const call of extractCtrlerCalls(kf.script)) {
-            data.triggers.push({
-              frame: kf.index,
-              target: call.target,
-              op: call.op,
-              args: call.args as TriggerArg[],
-            });
+          const residues: string[] = [];
+          for (const st of parseFrameStatements(kf.script)) {
+            if (st.kind === 'call') {
+              data.triggers.push({
+                frame: kf.index,
+                target: st.call.target,
+                op: st.call.op,
+                args: st.call.args as TriggerArg[],
+              });
+            } else if (st.kind === 'cond') {
+              data.condTriggers ??= [];
+              const ct: CondTriggerDef = {
+                frame: kf.index,
+                cond: st.stmt.cond as unknown as CondTriggerDef['cond'],
+              };
+              if (st.stmt.then !== undefined) {
+                ct.then = st.stmt.then.map((c) => ({
+                  target: c.target,
+                  op: c.op,
+                  args: c.args as TriggerArg[],
+                }));
+              }
+              if (st.stmt.else !== undefined) {
+                ct.else = st.stmt.else.map((c) => ({
+                  target: c.target,
+                  op: c.op,
+                  args: c.args as TriggerArg[],
+                }));
+              }
+              data.condTriggers.push(ct);
+              if (st.residue !== null) residues.push(st.residue);
+            } else {
+              residues.push(st.text);
+            }
           }
-          if (scriptResidue(kf.script) !== '') {
+          if (residues.map((r) => r.replace(/\s+/g, '')).join('').trim() !== '') {
             data.rawScripts ??= [];
             data.rawScripts.push({ frame: kf.index, raw: kf.script });
           }
@@ -207,6 +235,7 @@ export function extractFighter(opts: ExtractFighterOptions): ExtractFighterResul
       }
     }
     data.triggers.sort((a, b) => a.frame - b.frame);
+    data.condTriggers?.sort((a, b) => a.frame - b.frame);
     if (
       Object.keys(data.labels).length > 0 ||
       data.triggers.length > 0 ||

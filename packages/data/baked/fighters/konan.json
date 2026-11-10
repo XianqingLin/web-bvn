@@ -544,12 +544,6 @@
           "args": []
         },
         {
-          "frame": 101,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 107,
           "target": "mc",
           "op": "endAct",
@@ -589,15 +583,6 @@
         },
         {
           "frame": 125,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            -1,
-            -2
-          ]
-        },
-        {
-          "frame": 125,
           "target": "effect",
           "op": "shine",
           "args": []
@@ -626,12 +611,6 @@
           "frame": 168,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 168,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -665,12 +644,6 @@
           "args": [
             "砍3"
           ]
-        },
-        {
-          "frame": 198,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 206,
@@ -730,12 +703,6 @@
           "frame": 238,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 238,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -825,12 +792,6 @@
           "args": []
         },
         {
-          "frame": 276,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 281,
           "target": "mc",
           "op": "endAct",
@@ -893,22 +854,6 @@
           "target": "mc",
           "op": "setBisha",
           "args": []
-        },
-        {
-          "frame": 354,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "kj2"
-          ]
-        },
-        {
-          "frame": 354,
-          "target": "mc",
-          "op": "setZhao2",
-          "args": [
-            "招2_1"
-          ]
         },
         {
           "frame": 354,
@@ -997,22 +942,6 @@
         },
         {
           "frame": 449,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "zh2"
-          ]
-        },
-        {
-          "frame": 449,
-          "target": "mc",
-          "op": "setZhao2",
-          "args": [
-            "招2_1"
-          ]
-        },
-        {
-          "frame": 449,
           "target": "mc",
           "op": "setZhao1",
           "args": []
@@ -1027,12 +956,6 @@
           "frame": 449,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 449,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1310,15 +1233,6 @@
         },
         {
           "frame": 820,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -10
-          ]
-        },
-        {
-          "frame": 820,
           "target": "effect",
           "op": "shine",
           "args": []
@@ -1411,30 +1325,44 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 354,
-          "raw": "parent.$mc_ctrler.setBisha();\nif(parent.$fighter_ctrler.justHit(\"kj2\")) {\n\tparent.$mc_ctrler.setZhao2(\"招2_1\");\n}\nparent.$mc_ctrler.setZhao1();\nparent.$mc_ctrler.setJump();"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "kj2"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setZhao2",
+              "args": [
+                "招2_1"
+              ]
+            }
+          ]
         },
         {
           "frame": 449,
-          "raw": "parent.$mc_ctrler.setBishaUP();\nif(parent.$fighter_ctrler.justHit(\"zh2\")) {\n\tparent.$mc_ctrler.setZhao2(\"招2_1\");\n}\nparent.$mc_ctrler.setZhao1();\nparent.$mc_ctrler.setSkill2();\nparent.$mc_ctrler.setDash();\n//在结束时加上：parent.$mc_ctrler.endAct();"
-        },
-        {
-          "frame": 442,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh2mc\",{x:{moveToTarget:true,offset:0},applyG:false});\n"
-        },
-        {
-          "frame": 477,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh21mc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:true,offset:0},applyG:false});\n"
-        },
-        {
-          "frame": 513,
-          "raw": "\n\n//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh3mc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:true,offset:-20},applyG:false});"
-        },
-        {
-          "frame": 696,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[left,right](攻击范围)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量),range:Array[top,bottom](攻击范围)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"sbsmc\",{x:{followTarget:true,offset:0},y:{followTarget:true,offset:-25},applyG:false});"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "zh2"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "setZhao2",
+              "args": [
+                "招2_1"
+              ]
+            }
+          ]
         }
       ]
     },

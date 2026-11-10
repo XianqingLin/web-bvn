@@ -680,12 +680,6 @@
           "args": []
         },
         {
-          "frame": 86,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 91,
           "target": "mc",
           "op": "idle",
@@ -793,12 +787,6 @@
           "args": []
         },
         {
-          "frame": 125,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 130,
           "target": "mc",
           "op": "endAct",
@@ -873,12 +861,6 @@
           "args": []
         },
         {
-          "frame": 146,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 151,
           "target": "mc",
           "op": "endAct",
@@ -936,12 +918,6 @@
           "frame": 173,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 173,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1130,12 +1106,6 @@
           "frame": 231,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 231,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1362,30 +1332,6 @@
           ]
         },
         {
-          "frame": 390,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "zh2"
-          ]
-        },
-        {
-          "frame": 390,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "招2_HIT"
-          ]
-        },
-        {
-          "frame": 390,
-          "target": "mc",
-          "op": "getAttacker",
-          "args": [
-            "zh2mc"
-          ]
-        },
-        {
           "frame": 394,
           "target": "mc",
           "op": "endAct",
@@ -1461,24 +1407,6 @@
           "target": "effect",
           "op": "playSoundHit2",
           "args": []
-        },
-        {
-          "frame": 471,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "zh3"
-          ]
-        },
-        {
-          "frame": 471,
-          "target": "mc",
-          "op": "moveTarget",
-          "args": [
-            {
-              "followmc": "move_mc"
-            }
-          ]
         },
         {
           "frame": 477,
@@ -1930,32 +1858,6 @@
           "args": []
         },
         {
-          "frame": 872,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "cbs1"
-          ]
-        },
-        {
-          "frame": 872,
-          "target": "mc",
-          "op": "moveTarget",
-          "args": [
-            {
-              "followmc": "move_mc"
-            }
-          ]
-        },
-        {
-          "frame": 895,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "超必杀_1"
-          ]
-        },
-        {
           "frame": 900,
           "target": "mc",
           "op": "idle",
@@ -1981,21 +1883,6 @@
           ]
         },
         {
-          "frame": 928,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 928,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
           "frame": 941,
           "target": "effect",
           "op": "shine",
@@ -2013,21 +1900,6 @@
             0,
             5
           ]
-        },
-        {
-          "frame": 941,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 941,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
         },
         {
           "frame": 954,
@@ -2049,21 +1921,6 @@
           ]
         },
         {
-          "frame": 954,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 954,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
           "frame": 967,
           "target": "effect",
           "op": "shine",
@@ -2083,21 +1940,6 @@
           ]
         },
         {
-          "frame": 967,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 967,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
           "frame": 980,
           "target": "effect",
           "op": "shine",
@@ -2115,21 +1957,6 @@
             0,
             5
           ]
-        },
-        {
-          "frame": 980,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 980,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
         },
         {
           "frame": 1006,
@@ -2168,28 +1995,10 @@
         {
           "frame": 1018,
           "target": "mc",
-          "op": "movePercent",
-          "args": [
-            1,
-            -2
-          ]
-        },
-        {
-          "frame": 1018,
-          "target": "mc",
           "op": "setTouchFloor",
           "args": [
             "超必杀_TF",
             true
-          ]
-        },
-        {
-          "frame": 1018,
-          "target": "mc",
-          "op": "movePercent",
-          "args": [
-            1,
-            15
           ]
         },
         {
@@ -2230,21 +2039,6 @@
             0,
             5
           ]
-        },
-        {
-          "frame": 1025,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 1025,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
         },
         {
           "frame": 1029,
@@ -2289,14 +2083,53 @@
           "args": []
         }
       ],
+      "condTriggers": [
+        {
+          "frame": 390,
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "zh2"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "gotoAndPlay",
+              "args": [
+                "招2_HIT"
+              ]
+            }
+          ],
+          "else": []
+        },
+        {
+          "frame": 471,
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "zh3"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "moveTarget",
+              "args": [
+                {
+                  "followmc": "move_mc"
+                }
+              ]
+            }
+          ]
+        }
+      ],
       "rawScripts": [
         {
           "frame": 390,
           "raw": "if(parent.$fighter_ctrler.justHit(\"zh2\")){\n\tparent.$mc_ctrler.gotoAndPlay(\"招2_HIT\");\n}else{\n\tparent.$mc_ctrler.getAttacker(\"zh2mc\").gotoAndPlay(\"miss\");\n}"
-        },
-        {
-          "frame": 471,
-          "raw": "if (parent.$fighter_ctrler.justHit(\"zh3\")) {\n\tparent.$mc_ctrler.moveTarget({followmc:\"move_mc\"});\n}"
         },
         {
           "frame": 872,
@@ -2305,38 +2138,6 @@
         {
           "frame": 895,
           "raw": "if(justHit){\n\tparent.$mc_ctrler.gotoAndPlay(\"超必杀_1\");\n}"
-        },
-        {
-          "frame": 313,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh1atm\",{x:{start:20},hold:60,hits:1});"
-        },
-        {
-          "frame": 321,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh11atm\",{x:{start:20},hold:60,hits:1});"
-        },
-        {
-          "frame": 377,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh2mc\",{x:{moveToTarget:true,offset:0,range:[50,500]}});\n"
-        },
-        {
-          "frame": 424,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"zh22mc\",{applyG:false});"
-        },
-        {
-          "frame": 593,
-          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:30,hold:60,hits:1});"
-        },
-        {
-          "frame": 602,
-          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:30,hold:60,hits:1});"
-        },
-        {
-          "frame": 610,
-          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:30,hold:60,hits:1});"
-        },
-        {
-          "frame": 636,
-          "raw": "parent.$mc_ctrler.fire(\"bsatm\",{x:30,hold:60,hits:1,hp:300});"
         }
       ]
     }

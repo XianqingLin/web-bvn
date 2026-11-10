@@ -562,24 +562,6 @@
           ]
         },
         {
-          "frame": 79,
-          "target": "mc",
-          "op": "move",
-          "args": [
-            0,
-            -4
-          ]
-        },
-        {
-          "frame": 79,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            0,
-            0.4
-          ]
-        },
-        {
           "frame": 81,
           "target": "effect",
           "op": "playSoundHit1",
@@ -674,21 +656,6 @@
         {
           "frame": 129,
           "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 129,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
-          "frame": 129,
-          "target": "effect",
           "op": "endShadow",
           "args": []
         },
@@ -700,21 +667,6 @@
             0,
             3
           ]
-        },
-        {
-          "frame": 129,
-          "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 129,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
         },
         {
           "frame": 130,
@@ -823,12 +775,6 @@
           ]
         },
         {
-          "frame": 187,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 193,
           "target": "mc",
           "op": "endAct",
@@ -898,12 +844,6 @@
           "frame": 224,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 224,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1147,12 +1087,6 @@
         },
         {
           "frame": 379,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
-          "frame": 379,
           "target": "effect",
           "op": "endShadow",
           "args": []
@@ -1213,21 +1147,6 @@
         {
           "frame": 422,
           "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 422,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
-          "frame": 422,
-          "target": "effect",
           "op": "shine",
           "args": []
         },
@@ -1253,12 +1172,6 @@
           "frame": 428,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 428,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1650,21 +1563,6 @@
         {
           "frame": 691,
           "target": "effect",
-          "op": "startShake",
-          "args": [
-            0,
-            3
-          ]
-        },
-        {
-          "frame": 691,
-          "target": "effect",
-          "op": "endShake",
-          "args": []
-        },
-        {
-          "frame": 691,
-          "target": "effect",
           "op": "endShadow",
           "args": []
         },
@@ -1778,39 +1676,11 @@
         },
         {
           "frame": 765,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "cbs2"
-          ]
-        },
-        {
-          "frame": 765,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
-          "frame": 765,
           "target": "mc",
           "op": "setSteelBody",
           "args": [
             false
           ]
-        },
-        {
-          "frame": 776,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "cbs2"
-          ]
-        },
-        {
-          "frame": 776,
-          "target": "mc",
-          "op": "idle",
-          "args": []
         },
         {
           "frame": 778,
@@ -1873,26 +1743,42 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 765,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"cbs2\")){\n\tparent.$mc_ctrler.endAct();\n}\nparent.$mc_ctrler.setSteelBody(false);"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "cbs2"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "endAct",
+              "args": []
+            }
+          ]
         },
         {
           "frame": 776,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"cbs2\")){\n\tparent.$mc_ctrler.idle();\n}"
-        },
-        {
-          "frame": 366,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,hit:3},y:0,hold:2,hits:1,hp:30});"
-        },
-        {
-          "frame": 376,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,hit:3},y:0,hold:2,hits:3,hp:70});"
-        },
-        {
-          "frame": 474,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:20,y:-20,hold:60,hits:1});\nparent.$mc_ctrler.fire(\"zh31atm\",{x:15,y:-25,hold:60,hits:1});\nparent.$mc_ctrler.fire(\"zh32atm\",{x:25,y:-15,hold:60,hits:1});"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "cbs2"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "idle",
+              "args": []
+            }
+          ]
         }
       ]
     },

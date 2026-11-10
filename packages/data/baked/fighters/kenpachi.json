@@ -713,12 +713,6 @@
           "args": []
         },
         {
-          "frame": 135,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 140,
           "target": "mc",
           "op": "endAct",
@@ -840,12 +834,6 @@
           "frame": 179,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 179,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1060,12 +1048,6 @@
           "args": []
         },
         {
-          "frame": 262,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 264,
           "target": "effect",
           "op": "endShadow",
@@ -1141,12 +1123,6 @@
           "frame": 294,
           "target": "mc",
           "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 294,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {

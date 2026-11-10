@@ -495,15 +495,6 @@
           ]
         },
         {
-          "frame": 113,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            -7,
-            -7
-          ]
-        },
-        {
           "frame": 114,
           "target": "effect",
           "op": "shine",
@@ -579,12 +570,6 @@
           "frame": 137,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 137,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -722,12 +707,6 @@
           "args": []
         },
         {
-          "frame": 205,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 212,
           "target": "mc",
           "op": "endAct",
@@ -781,12 +760,6 @@
           "frame": 241,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 241,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1116,15 +1089,6 @@
           ]
         },
         {
-          "frame": 565,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            30,
-            0
-          ]
-        },
-        {
           "frame": 568,
           "target": "effect",
           "op": "shine",
@@ -1293,36 +1257,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 114,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:10,y:10,hold:2,hits:1});"
-        },
-        {
-          "frame": 116,
-          "raw": "parent.$mc_ctrler.fire(\"tz1atm\",{x:10,y:10,hold:2,hits:1});"
-        },
-        {
-          "frame": 344,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 347,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:20,hold:2,hits:1});"
-        },
-        {
-          "frame": 451,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:15,y:-15,hold:2,hits:1});"
-        },
-        {
-          "frame": 453,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:15,y:-15,hold:2,hits:1});"
-        },
-        {
-          "frame": 457,
-          "raw": "parent.$mc_ctrler.fire(\"zh31atm\",{x:15,y:-15,hold:2,hits:1});"
         }
       ]
     },

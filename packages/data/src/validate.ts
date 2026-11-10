@@ -93,6 +93,71 @@ function validateTrigger(symbol: string, t: TriggerDef, out: ValidationResult): 
   }
 }
 
+/** 条件查询 op 白名单（切片 11；扩充 = 契约 + core 求值器 + 本校验器同 commit）。 */
+const CONDITION_OPS = new Set(['justHit', 'targetInRange', 'getTargetState', 'getSelf', 'getTargetSP']);
+const CMP_OPS = new Set(['==', '!=', '<', '>', '<=', '>=']);
+
+function validateCall(symbol: string, where: string, c: { target: string; op: string; args: unknown[] }, out: ValidationResult): void {
+  const ctx = `symbol "${symbol}" ${where} ${c.op}`;
+  if (!['mc', 'fighter', 'effect', 'assister'].includes(c.target)) {
+    out.errors.push(`${ctx}: target 必须是 mc|fighter|effect|assister`);
+  }
+  if (!/^[a-zA-Z_$][\w$]*$/.test(c.op)) out.errors.push(`${ctx}: op 非法 "${c.op}"`);
+  if (!Array.isArray(c.args)) {
+    out.errors.push(`${ctx}: args 必须是数组`);
+  } else {
+    c.args.forEach((a, i) => validateArg(`${ctx}.args[${i}]`, a as TriggerArg, out));
+  }
+}
+
+function validateCondTrigger(symbol: string, t: { frame: unknown; cond: { target: string; op: string; args: unknown[]; negate?: unknown; path?: unknown; cmp?: unknown }; then?: unknown[]; else?: unknown[] }, out: ValidationResult): void {
+  const ctx = `symbol "${symbol}" condTrigger@frame${String(t.frame)}`;
+  if (!isInt(t.frame as number) || (t.frame as number) < 0) {
+    out.errors.push(`${ctx}: frame 必须是非负整数`);
+  }
+  const cond = t.cond;
+  if (!cond || typeof cond !== 'object') {
+    out.errors.push(`${ctx}: 缺少 cond`);
+    return;
+  }
+  validateCall(symbol, 'cond', cond, out);
+  if (!CONDITION_OPS.has(cond.op)) {
+    out.errors.push(`${ctx}: 条件查询 op 不在词表 "${cond.op}"`);
+  }
+  if (cond.negate !== undefined && typeof cond.negate !== 'boolean') {
+    out.errors.push(`${ctx}: negate 必须是布尔`);
+  }
+  if (cond.path !== undefined) {
+    if (
+      !Array.isArray(cond.path) ||
+      cond.path.length === 0 ||
+      !cond.path.every((p) => typeof p === 'string')
+    ) {
+      out.errors.push(`${ctx}: path 必须是非空字符串数组`);
+    }
+  }
+  if (cond.cmp !== undefined) {
+    const cmp = cond.cmp as { op?: unknown; value?: unknown };
+    if (!cmp.op || !CMP_OPS.has(String(cmp.op))) {
+      out.errors.push(`${ctx}: cmp.op 非法 "${String(cmp.op)}"`);
+    }
+    if (typeof cmp.value !== 'number' && typeof cmp.value !== 'boolean') {
+      out.errors.push(`${ctx}: cmp.value 必须是数值/布尔`);
+    }
+  }
+  for (const [key, list] of [['then', t.then], ['else', t.else]] as const) {
+    if (list !== undefined) {
+      if (!Array.isArray(list)) {
+        out.errors.push(`${ctx}: ${key} 必须是数组`);
+        continue;
+      }
+      list.forEach((c, i) =>
+        validateCall(symbol, `${key}[${i}]`, c as { target: string; op: string; args: unknown[] }, out),
+      );
+    }
+  }
+}
+
 function validateSymbol(name: string, s: SymbolData, out: ValidationResult): void {
   let lastEnd = -1;
   const sorted = Object.entries(s.labels).sort((a, b) => a[1].index - b[1].index);
@@ -107,6 +172,7 @@ function validateSymbol(name: string, s: SymbolData, out: ValidationResult): voi
     lastEnd = r.index + r.duration;
   }
   for (const t of s.triggers) validateTrigger(name, t, out);
+  for (const t of s.condTriggers ?? []) validateCondTrigger(name, t, out);
   // 引用完整性：loop/gotoAndPlay 的标签参数必须存在于本符号标签表
   const labelNames = new Set(Object.keys(s.labels));
   for (const t of s.triggers) {

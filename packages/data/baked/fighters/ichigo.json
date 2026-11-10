@@ -3004,32 +3004,6 @@
             4
           ]
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 109,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:{start:5,add:1,max:15},y:{start:5,add:1,max:15},hold:2,hits:1});"
-        },
-        {
-          "frame": 280,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
-        },
-        {
-          "frame": 374,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:5,add:2,max:15},y:{start:-2,add:-0.5,max:-15},hold:60,hits:1});"
-        },
-        {
-          "frame": 518,
-          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
-        },
-        {
-          "frame": 529,
-          "raw": "parent.$mc_ctrler.fire(\"bs1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
-        },
-        {
-          "frame": 550,
-          "raw": "parent.$mc_ctrler.fire(\"bsatm\",{x:{start:20,add:2,max:30},hold:60,hits:1,hp:200});"
-        }
       ]
     },
     "元件/mc_0086": {
@@ -5745,12 +5719,6 @@
           "op": "stop",
           "args": []
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 452,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:15,add:1,max:20},y:{start:-10,add:-0.66,max:-13.2},hold:60,hits:1});"
-        }
       ]
     },
     "元件/mc_0122": {
@@ -6532,36 +6500,6 @@
           ]
         },
         {
-          "frame": 298,
-          "target": "fighter",
-          "op": "targetInRange",
-          "args": [
-            [
-              0,
-              300
-            ]
-          ]
-        },
-        {
-          "frame": 298,
-          "target": "fighter",
-          "op": "moveToTarget",
-          "args": [
-            -130,
-            0,
-            false
-          ]
-        },
-        {
-          "frame": 298,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            300,
-            0
-          ]
-        },
-        {
           "frame": 299,
           "target": "mc",
           "op": "dampingPercent",
@@ -6780,22 +6718,6 @@
           "target": "effect",
           "op": "playSoundHit1",
           "args": []
-        },
-        {
-          "frame": 398,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "k3"
-          ]
-        },
-        {
-          "frame": 398,
-          "target": "mc",
-          "op": "gotoAndPlay",
-          "args": [
-            "招2_HA"
-          ]
         },
         {
           "frame": 399,
@@ -7447,63 +7369,65 @@
           "args": []
         }
       ],
-      "rawScripts": [
-        {
-          "frame": 398,
-          "raw": "if (parent.$fighter_ctrler.justHit(\"k3\")) {\n\tparent.$mc_ctrler.gotoAndPlay(\"招2_HA\");\n}"
-        },
+      "condTriggers": [
         {
           "frame": 298,
-          "raw": "if(parent.$fighter_ctrler.targetInRange([0,300])){\n\tparent.$fighter_ctrler.moveToTarget(-130,0,false);\n}else{\n\tparent.$fighter_ctrler.moveOnce(300,0);\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "targetInRange",
+            "args": [
+              [
+                0,
+                300
+              ]
+            ]
+          },
+          "then": [
+            {
+              "target": "fighter",
+              "op": "moveToTarget",
+              "args": [
+                -130,
+                0,
+                false
+              ]
+            }
+          ],
+          "else": [
+            {
+              "target": "fighter",
+              "op": "moveOnce",
+              "args": [
+                300,
+                0
+              ]
+            }
+          ]
         },
         {
-          "frame": 96,
-          "raw": "parent.$mc_ctrler.fire(\"tzatm\",{x:18,y:-18,hold:60,hits:1});"
-        },
-        {
-          "frame": 123,
-          "raw": "parent.$mc_ctrler.fire(\"tz2atm\",{x:18,y:10,hold:60,hits:1});"
-        },
-        {
-          "frame": 337,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:12,add:1,max:25},y:0,hold:60,hits:1});"
-        },
-        {
-          "frame": 360,
-          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:{start:12,add:1,max:25},y:0,hold:60,hits:1,hp:200});"
-        },
-        {
-          "frame": 635,
-          "raw": "parent.$mc_ctrler.fire(\"bsatm\",{x:{start:20,add:2,max:50},y:0,hold:5,hits:1,hp:300});"
-        },
-        {
-          "frame": 707,
-          "raw": "parent.$mc_ctrler.fire(\"kbsatm\",{x:{start:10,add:2,max:30},y:{start:10,add:2,max:30},hold:60,hits:1,hp:300});"
+          "frame": 398,
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "k3"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "gotoAndPlay",
+              "args": [
+                "招2_HA"
+              ]
+            }
+          ]
         }
       ]
     },
     "元件/mc_0157": {
       "labels": {},
-      "triggers": [
-        {
-          "frame": 0,
-          "target": "effect",
-          "op": "playSoundHit1",
-          "args": []
-        },
-        {
-          "frame": 2,
-          "target": "effect",
-          "op": "playSoundHit1",
-          "args": []
-        },
-        {
-          "frame": 4,
-          "target": "effect",
-          "op": "playSoundHit1",
-          "args": []
-        }
-      ],
+      "triggers": [],
       "rawScripts": [
         {
           "frame": 0,
@@ -7829,12 +7753,6 @@
           "args": []
         },
         {
-          "frame": 105,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 109,
           "target": "mc",
           "op": "idle",
@@ -7882,12 +7800,6 @@
           "frame": 122,
           "target": "mc",
           "op": "setZhao2",
-          "args": []
-        },
-        {
-          "frame": 122,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -8062,12 +7974,6 @@
         },
         {
           "frame": 166,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
-          "frame": 166,
           "target": "effect",
           "op": "endShadow",
           "args": []
@@ -8136,12 +8042,6 @@
           "frame": 210,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 210,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -8314,12 +8214,6 @@
           "args": []
         },
         {
-          "frame": 278,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 285,
           "target": "mc",
           "op": "endAct",
@@ -8373,12 +8267,6 @@
           "frame": 322,
           "target": "mc",
           "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 322,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -8517,51 +8405,9 @@
           ]
         },
         {
-          "frame": 439,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "bs1"
-          ]
-        },
-        {
-          "frame": 439,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
-          "frame": 445,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "bs1"
-          ]
-        },
-        {
-          "frame": 445,
-          "target": "mc",
-          "op": "idle",
-          "args": []
-        },
-        {
           "frame": 446,
           "target": "effect",
           "op": "playSoundHit2",
-          "args": []
-        },
-        {
-          "frame": 456,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "bs2"
-          ]
-        },
-        {
-          "frame": 456,
-          "target": "mc",
-          "op": "idle",
           "args": []
         },
         {
@@ -8749,30 +8595,66 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 439,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"bs1\")){\n\tparent.$mc_ctrler.endAct();\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "bs1"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "endAct",
+              "args": []
+            }
+          ]
         },
         {
           "frame": 445,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"bs1\")){\n\tparent.$mc_ctrler.idle();\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "bs1"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "idle",
+              "args": []
+            }
+          ]
         },
         {
           "frame": 456,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"bs2\")){\n\tparent.$mc_ctrler.idle();\n}"
-        },
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "bs2"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "idle",
+              "args": []
+            }
+          ]
+        }
+      ],
+      "rawScripts": [
         {
           "frame": 740,
           "raw": "parent.$effect_ctrler.startWanKai(\"Ichigo_7\");\nparent.banKai = true;"
-        },
-        {
-          "frame": 236,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:10,add:1,max:20},hold:60,hits:1});"
-        },
-        {
-          "frame": 314,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:15,y:-10,hold:60,hits:1});"
         }
       ]
     },
@@ -9295,12 +9177,6 @@
           ]
         },
         {
-          "frame": 204,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 208,
           "target": "mc",
           "op": "endAct",
@@ -9745,12 +9621,6 @@
           "args": []
         },
         {
-          "frame": 473,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 477,
           "target": "mc",
           "op": "endAct",
@@ -9812,12 +9682,6 @@
           "frame": 501,
           "target": "mc",
           "op": "setJump",
-          "args": []
-        },
-        {
-          "frame": 501,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -10371,14 +10235,6 @@
         },
         {
           "frame": 1026,
-          "target": "fighter",
-          "op": "addHpLosePercent",
-          "args": [
-            0.2
-          ]
-        },
-        {
-          "frame": 1026,
           "target": "effect",
           "op": "shine",
           "args": [
@@ -10461,58 +10317,6 @@
         {
           "frame": 1026,
           "raw": "if (parent.banKai) {\n\tparent.$fighter_ctrler.addHpLosePercent(0.2);\n}\nelse {\n\tair.visible = false;\n}"
-        },
-        {
-          "frame": 116,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"tkatm\",{x:{start:10,add:1,max:30},y:{start:10,add:1,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 406,
-          "raw": "parent.$mc_ctrler.fire(\"zh12atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 492,
-          "raw": "parent.$mc_ctrler.fire(\"zh3atm\",{x:{start:5,add:1,max:15},y:{start:-5,add:-1,max:-15},hold:60,hits:1});"
-        },
-        {
-          "frame": 768,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 775,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 782,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 789,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 796,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 803,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 810,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 817,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 824,
-          "raw": "parent.$mc_ctrler.fire(\"cbs1atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
-        },
-        {
-          "frame": 831,
-          "raw": "parent.$mc_ctrler.fire(\"cbs2atm\",{x:{start:13,add:2,max:30},hold:60,hits:1});"
         }
       ]
     },
@@ -10823,15 +10627,6 @@
           ]
         },
         {
-          "frame": 71,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            0,
-            -2
-          ]
-        },
-        {
           "frame": 75,
           "target": "effect",
           "op": "playSoundHit2",
@@ -10984,12 +10779,6 @@
           ]
         },
         {
-          "frame": 132,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 138,
           "target": "mc",
           "op": "endAct",
@@ -11109,12 +10898,6 @@
           "frame": 182,
           "target": "mc",
           "op": "setZhao3",
-          "args": []
-        },
-        {
-          "frame": 182,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -11476,12 +11259,6 @@
           "args": []
         },
         {
-          "frame": 294,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 299,
           "target": "mc",
           "op": "endAct",
@@ -11602,32 +11379,6 @@
             0,
             false
           ]
-        },
-        {
-          "frame": 376,
-          "target": "fighter",
-          "op": "getSelf",
-          "args": []
-        },
-        {
-          "frame": 376,
-          "target": "mc",
-          "op": "idle",
-          "args": []
-        },
-        {
-          "frame": 384,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "sh1"
-          ]
-        },
-        {
-          "frame": 384,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
         },
         {
           "frame": 389,
@@ -11766,15 +11517,6 @@
         },
         {
           "frame": 483,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            5,
-            0
-          ]
-        },
-        {
-          "frame": 483,
           "target": "effect",
           "op": "playSoundHit2",
           "args": []
@@ -11834,24 +11576,6 @@
           "frame": 559,
           "target": "mc",
           "op": "move",
-          "args": [
-            30,
-            0
-          ]
-        },
-        {
-          "frame": 559,
-          "target": "mc",
-          "op": "damping",
-          "args": [
-            3,
-            0
-          ]
-        },
-        {
-          "frame": 559,
-          "target": "fighter",
-          "op": "moveOnce",
           "args": [
             30,
             0
@@ -12033,15 +11757,6 @@
           ]
         },
         {
-          "frame": 695,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
-          ]
-        },
-        {
           "frame": 697,
           "target": "mc",
           "op": "move",
@@ -12057,15 +11772,6 @@
           "args": [
             0.3,
             0.3
-          ]
-        },
-        {
-          "frame": 697,
-          "target": "fighter",
-          "op": "moveOnce",
-          "args": [
-            20,
-            -30
           ]
         },
         {
@@ -12183,20 +11889,6 @@
           "frame": 797,
           "target": "effect",
           "op": "playSoundHit2",
-          "args": []
-        },
-        {
-          "frame": 804,
-          "target": "fighter",
-          "op": "justHit",
-          "args": [
-            "cbs2"
-          ]
-        },
-        {
-          "frame": 804,
-          "target": "mc",
-          "op": "idle",
           "args": []
         },
         {
@@ -12332,22 +12024,60 @@
           "args": []
         }
       ],
-      "rawScripts": [
+      "condTriggers": [
         {
           "frame": 376,
-          "raw": "if (parent.$fighter_ctrler.getSelf().isInAir) {\n\tparent.$mc_ctrler.idle();\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "getSelf",
+            "args": [],
+            "path": [
+              "isInAir"
+            ]
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "idle",
+              "args": []
+            }
+          ]
         },
         {
           "frame": 384,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"sh1\")){\n\tparent.$mc_ctrler.endAct();\n}"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "sh1"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "endAct",
+              "args": []
+            }
+          ]
         },
         {
           "frame": 804,
-          "raw": "if(!parent.$fighter_ctrler.justHit(\"cbs2\")){\n\tparent.$mc_ctrler.idle();\n}"
-        },
-        {
-          "frame": 332,
-          "raw": "//发射[参数：MC名称，param]\n/*\nparams 参数 {\n\tx:Number(速度X)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\ty:Number(速度Y)|{start:Number(开始速度),add:Number(加速度),max:Number(最大速度),hit:Number(攻击到速度)} , \n\thold:int(持续帧数) ,\n\thits:int(攻击次数)\n}\n*/\nparent.$mc_ctrler.fire(\"zh1atm\",{x:{start:15,add:1,max:30},hold:2,hits:1});"
+          "cond": {
+            "target": "fighter",
+            "op": "justHit",
+            "args": [
+              "cbs2"
+            ],
+            "negate": true
+          },
+          "then": [
+            {
+              "target": "mc",
+              "op": "idle",
+              "args": []
+            }
+          ]
         }
       ]
     },

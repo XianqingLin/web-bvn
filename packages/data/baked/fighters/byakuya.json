@@ -838,12 +838,6 @@
           "args": []
         },
         {
-          "frame": 123,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 127,
           "target": "mc",
           "op": "endAct",
@@ -900,12 +894,6 @@
           ]
         },
         {
-          "frame": 142,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 148,
           "target": "mc",
           "op": "endAct",
@@ -957,12 +945,6 @@
           "frame": 164,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 164,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1035,12 +1017,6 @@
           "frame": 186,
           "target": "mc",
           "op": "setSkill2",
-          "args": []
-        },
-        {
-          "frame": 186,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1162,12 +1138,6 @@
           "args": []
         },
         {
-          "frame": 241,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 248,
           "target": "mc",
           "op": "endAct",
@@ -1203,12 +1173,6 @@
           "frame": 289,
           "target": "mc",
           "op": "setSkill1",
-          "args": []
-        },
-        {
-          "frame": 289,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -1692,20 +1656,6 @@
           "op": "doWanKai",
           "args": []
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 76,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\n\nparent.$mc_ctrler.addAttacker(\"tkmc\",{x:{moveToTarget:true,offset:0,range:[0,100]},y:{moveToTarget:true,offset:-30},applyG:false});"
-        },
-        {
-          "frame": 96,
-          "raw": "parent.$mc_ctrler.addAttacker(\"tzmc\",{x:{moveToTarget:true,offset:0,range:[0,150]},y:{moveToTarget:true,offset:-30},applyG:false});"
-        },
-        {
-          "frame": 507,
-          "raw": "//加入攻击对象[参数：MC名称，params]\n/*\nparams 参数 {\n\tx:Number(速度X)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\ty:Number(速度Y)|{moveToTarget:Boolean(是否移动到目标),followTarget:Boolean(是否跟随目标),offset:Number(距离目标偏移量)} , \n\tapplyG:Boolean(是否受重力影响) ,\n}\n*/\nparent.$mc_ctrler.addAttacker(\"bsmc\",{x:{followTarget:true,offset:0},y:{followTarget:true,offset:0},applyG:false});\n"
-        }
       ]
     },
     "元件/mc_035": {
@@ -2133,12 +2083,6 @@
           "args": []
         },
         {
-          "frame": 166,
-          "target": "mc",
-          "op": "endAct",
-          "args": []
-        },
-        {
           "frame": 172,
           "target": "mc",
           "op": "endAct",
@@ -2204,12 +2148,6 @@
           "frame": 245,
           "target": "mc",
           "op": "setDash",
-          "args": []
-        },
-        {
-          "frame": 245,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2364,12 +2302,6 @@
           "frame": 411,
           "target": "mc",
           "op": "setZhao1",
-          "args": []
-        },
-        {
-          "frame": 411,
-          "target": "mc",
-          "op": "endAct",
           "args": []
         },
         {
@@ -2641,12 +2573,6 @@
           "target": "mc",
           "op": "stop",
           "args": []
-        }
-      ],
-      "rawScripts": [
-        {
-          "frame": 439,
-          "raw": "parent.$mc_ctrler.fire(\"zh1atm\",{x:{start:5,add:1,max:20},hold:60,hits:1});"
         }
       ]
     },

@@ -1283,16 +1283,6 @@
           "op": "stop",
           "args": []
         }
-      ],
-      "rawScripts": [
-        {
-          "frame": 332,
-          "raw": "parent.$mc_ctrler.addAttacker(\"zh2mc\",{x:{moveToTarget:true,offset:0},y:{moveToTarget:false,offset:0},applyG:false});"
-        },
-        {
-          "frame": 633,
-          "raw": "parent.$mc_ctrler.addAttacker(\"sbsmc\",{x:{followTarget:true,offset:0},y:{followTarget:true,offset:-30},applyG:false});"
-        }
       ]
     },
     "元件/mc_038": {
