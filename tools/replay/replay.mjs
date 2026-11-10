@@ -17,7 +17,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDefaultConfig, Sim } from '@bvn/core';
-import { compileFighterRuntime, compileMapStage } from '@bvn/data';
+import { compileFighterForms, compileMapStage } from '@bvn/data';
 import { loadFighterPackage, loadMapPackage, loadRuntimeFighterPackage } from '@bvn/data/node';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -70,15 +70,20 @@ function buildFighterDefs() {
   return list.map((f) => {
     const runtime = loadRuntimeFighterPackage(BAKED_DIR, f.pkg, 'fighters-runtime');
     const xfl = loadFighterPackage(BAKED_DIR, f.pkg);
-    return compileFighterRuntime(runtime, xfl);
+    // 多形态（切片 10）：编译全部含动画的形态；[0] 作为 def（与单形态兼容）
+    const forms = compileFighterForms(runtime, xfl);
+    return { def: forms[0], forms };
   });
 }
 function buildConfig(seed) {
   const defs = buildFighterDefs();
   if (!script.map) {
     const cfg = createDefaultConfig(seed);
-    defs.forEach((def, i) => {
-      if (cfg.fighters[i]) cfg.fighters[i].def = def;
+    defs.forEach((d, i) => {
+      if (cfg.fighters[i]) {
+        cfg.fighters[i].def = d.def;
+        cfg.fighters[i].forms = d.forms;
+      }
     });
     return cfg;
   }
@@ -91,8 +96,8 @@ function buildConfig(seed) {
     seed,
     stage,
     fighters: [
-      { id: 1, x: s1.x, y: s1.y, ...(defs[0] ? { def: defs[0] } : {}) },
-      { id: 2, x: s2.x, y: s2.y, ...(defs[1] ? { def: defs[1] } : {}) },
+      { id: 1, x: s1.x, y: s1.y, ...(defs[0] ? { def: defs[0].def, forms: defs[0].forms } : {}) },
+      { id: 2, x: s2.x, y: s2.y, ...(defs[1] ? { def: defs[1].def, forms: defs[1].forms } : {}) },
     ],
   };
 }

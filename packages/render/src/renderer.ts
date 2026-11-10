@@ -174,6 +174,16 @@ export class BattleRenderer {
             sp.body.tint = 0xffffff;
           }, 90);
         }
+      } else if (ev.type === 'fighter:form') {
+        // 万解形态切换：切图集 forms 下标，强制重应用贴图
+        const fighter = ev.payload['fighter'];
+        const form = ev.payload['form'];
+        if (typeof fighter !== 'number' || typeof form !== 'number') continue;
+        const sp = this.sprites.get(fighter);
+        if (sp && form !== sp.formIndex) {
+          sp.formIndex = form;
+          sp.appliedPng = -1;
+        }
       }
       // sound/effect/round:* 等事件切片 4 不实现（音效明确不做）
     }

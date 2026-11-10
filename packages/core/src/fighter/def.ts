@@ -62,6 +62,8 @@ export interface FrameTrigger {
 export interface FighterDef {
   id: string;
   formIndex: number;
+  /** 根时间轴帧号（1 起，data 层产出）——doWanKai(frame) 绝对帧跳转寻址；缺省不参与寻址 */
+  rootFrame?: number;
   /** 形态数值（原版原始值；core 使用时按 ×SPEED_PLUS 换算） */
   speed: number;
   jumpPower: number;

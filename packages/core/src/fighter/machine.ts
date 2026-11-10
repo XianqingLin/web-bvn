@@ -6,14 +6,15 @@
  * （FighterKeyCtrler：技=技能键±上/下；砍技N=攻击键±下/上；必杀=必杀键±下/上）。
  *
  * 明确偏离原版（逐条记录，DESIGN §3.5 偏离清单同步）：
- * - 无跳跃前摇（原版 JUMP_DELAY_FRAME=2）与二段跳/快速下落/空中瞬步（需 jumpTimes）；
  * - 摔技（catch1/2，sh1/sh2）已接线（切片 9：allowCatch 邻接门 + moveTarget 吸附）；
  * - 防御无刚防窗口区分（原版 _justDefenseFrame 0.1s），按住 ↓ 即防御态；
  * - 防御解除无 6 tick 延迟（原版 _defenseFrameDelay 计数），松开 ↓ 即进入 防御恢复；
- * - 万解/ghost step/移形换位/开场未接。
+ * - 移形换位（换人）/开场演出流程未接（辅助系统切片）。
+ * 切片 10 补：瞬身步家族（地面步/空中瞬跳/速降/空中瞬步）、二段跳（jumpTimes
+ * + 起跳延迟）、快速下落、万解形态切换（doWanKai → 根时间轴翻页）。
  */
 import { Btn, type InputView } from '../input.js';
-import { ENERGY_GAP_TICKS } from '../state.js';
+import { ENERGY_GAP_TICKS, JUMP_TIMES_START } from '../state.js';
 import {
   ActionState,
   DOWN_FRAMES_FALLBACK,
@@ -22,7 +23,6 @@ import {
   RISE_FRAMES_FALLBACK,
   SPEED_PLUS,
   actionIdForLabel,
-  atmName,
   currentAreas,
   currentBodyRect,
   defaultSlots,
@@ -72,6 +72,36 @@ const BREAK_DEF_HOLD_TICKS = 42;
 /** 破防击退下限/上限（原版 doBreakDefense：hitx 夹 [5,10]） */
 const BREAK_DEF_PUSH_MIN = 5;
 const BREAK_DEF_PUSH_MAX = 10;
+
+// —— 跳跃 / 瞬身步家族（原版 FighterMcCtrler doJump 系/doGhost 系，切片 10） ——
+/** 起跳延迟（原版 JUMP_DELAY_FRAME=2 地面 / JUMP_DELAY_FRAME_AIR=1 空中；帧数不折算） */
+export const JUMP_DELAY_GROUND = 2;
+export const JUMP_DELAY_AIR = 1;
+/** 空中瞬步能量消耗（原版 doDashAir：hasEnergy(30, true) 允许透支） */
+export const AIR_DASH_ENERGY_COST = 30;
+/** 瞬身步气耗（原版 startGhostStep：qi < 60 拒绝，不可透支） */
+export const GHOST_QI_COST = 60;
+/** 瞬身步能量消耗（原版 hasEnergy(80, true) 允许透支） */
+export const GHOST_ENERGY_COST = 80;
+/** 瞬身步时长（原版 30fps × 0.4s = 12 帧 → 60Hz 24 tick） */
+export const GHOST_TICKS = 24;
+/** 瞬身步类型（原版 _ghostType：0 地面步 / 1 空中瞬跳 / 2 空中速降） */
+export const GHOST_GROUND = 0;
+export const GHOST_AIR_JUMP = 1;
+export const GHOST_AIR_FALL = 2;
+/** 地面瞬身步位移（原版 move(8,0)@30fps → 4/tick @60Hz） */
+const GHOST_MOVE_X = 8;
+/** 空中瞬跳纵向速度（原版 move(0,-12) → -6/tick；damping(0,0.1) → 0.05/tick） */
+const GHOST_JUMP_Y = -12;
+const GHOST_JUMP_DAMP = 0.05;
+/** 空中速降纵向速度（原版 move(0,15) → 7.5/tick，无阻尼） */
+const GHOST_FALL_Y = 15;
+/** 快速下落（原版 doJumpDown：setVecY(5)→2.5/tick、setDamping(0,1)、jumpTimes 清零）。
+ *  偏离：阻尼取 0（匀速 2.5/tick）而非 0.5——60Hz 下衰减使 vy 首 tick 即跌破
+ *  穿平台阈值 FALL_LAND_SPEED(2.5)，快速下落会被平台吸附带拉回、无法穿落；
+ *  原版 30fps 语境 vy=5 起步衰减 1，前数帧都在阈值上方，语义等价于穿落。 */
+const FAST_FALL_VY = 5 * SPEED_PLUS;
+const FAST_FALL_DAMP = 0;
 
 /** 跳跃速度（缺省兜底 = FALLBACK_JUMP_POWER × SPEED_PLUS）。 */
 export function jumpVelocity(def: FighterDef | null): number {
@@ -128,7 +158,9 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
     f.isAllowBeHit = true;
   }
   f.slots = defaultSlots(def);
-  // 原版 _action.clearAction()：动作边界清除 per-action 标志
+  // 原版 _action.clearAction()：动作边界清除 per-action 标志；
+  // 重力恢复（原版 idle 链 setInAir/isApplyG=true——空中瞬步 applyG=false 在此复位）
+  f.applyG = true;
   f.isCross = false;
   f.airMove = false;
   f.touchFloor = null;
@@ -153,15 +185,53 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
   }
 }
 
-/** 起跳（原版 FighterMain.jump：vy=-jumpPower，damping=JUMP_DAMPING）。
- * setJump 覆盖的跳跃标签生效（缺省沿用 起跳，见 defaultSlots 注）。 */
-export function startJump(f: FighterState, def: FighterDef | null): void {
+/**
+ * 起跳预约（原版 doJump：切 JUMP_ING + 起跳标签 + JUMP_DELAY_FRAME 延迟；
+ * 延迟结束时才施加速度并消耗 jumpTimes——见 applyJumpLaunch）。
+ * 二段跳门（原版 doJump：jumpTimes<=0 拒绝）：jumpTimes 耗尽不可跳。
+ */
+export function startJump(f: FighterState, def: FighterDef | null): boolean {
+  if (f.jumpTimes <= 0) return false;
   f.actionState = ActionState.JUMP_ING;
+  f.jumpDelay = JUMP_DELAY_GROUND;
+  f.airHitTimes = 1;
+  setLabel(f, def, f.slots.jump ?? '起跳');
+  return true;
+}
+
+/** 空中跳（原版 doAirJump：延迟 1 帧后跳，消耗 jumpTimes；可取消空中攻击）。 */
+export function startAirJump(f: FighterState, def: FighterDef | null): boolean {
+  if (f.jumpTimes <= 0) return false;
+  f.actionState = ActionState.JUMP_ING;
+  f.jumpDelay = JUMP_DELAY_AIR;
+  f.attackId = null;
+  f.isCross = false;
+  f.touchFloor = null;
+  setLabel(f, def, f.slots.jump ?? '起跳');
+  return true;
+}
+
+/** 起跳延迟结束（每 tick 由 sim 调用）：施加跳跃速度 + 消耗 jumpTimes。
+ * 返回 true = 本 tick 离地。 */
+export function applyJumpLaunch(f: FighterState, def: FighterDef | null): boolean {
+  f.jumpDelay = 0;
   f.vy = jumpVelocity(def);
   f.dampY = JUMP_DAMPING;
   f.onGround = false;
-  f.airHitTimes = 1;
-  setLabel(f, def, f.slots.jump ?? '起跳');
+  f.jumpTimes -= 1;
+  return true;
+}
+
+/** 快速下落（原版 doJumpDown：↓+跳，jumpTimes 清零、穿平台下坠、触地续接 落地。
+ * 原版 jumpDown 槽缺省为 null → 标签不变）。 */
+export function startFastFall(f: FighterState, def: FighterDef | null): void {
+  f.jumpTimes = 0;
+  f.vy = FAST_FALL_VY;
+  f.dampY = FAST_FALL_DAMP;
+  f.attackId = null;
+  f.isCross = false;
+  void def;
+  f.touchFloor = def?.labels['落地'] !== undefined ? '落地' : null;
 }
 
 /** 发起攻击（原版 doAttack：切攻击态并按动作名寻帧）。标签缺失 = 动作不可用。 */
@@ -266,19 +336,113 @@ function exitDefense(f: FighterState, def: FighterDef | null): void {
 
 /**
  * 瞬步（原版 doDash：能量 20 可透支；按住方向决定瞬步朝向；
- * DASH_ING 期间不可被命中；位移来自角色帧触发 dash/movePercent 系）。
+ * DASH_ING 期间不可被命中；位移来自角色帧触发 dash/movePercent 系。
+ * 空中瞬步 = doDashAir（jumpTimes≥1 + 能量 30 可透支，消耗 jumpTimes，
+ * 免重力），原版 renderAirAction 分支）。
  */
 function doDash(f: FighterState, def: FighterDef | null): void {
-  if (!canSpendEnergy(f, DASH_ENERGY_COST, true)) return;
-  spendEnergy(f, DASH_ENERGY_COST);
   if (f.onGround) {
+    if (!canSpendEnergy(f, DASH_ENERGY_COST, true)) return;
+    spendEnergy(f, DASH_ENERGY_COST);
     f.vy = 0;
     f.actionState = ActionState.DASH_ING;
     f.isAllowBeHit = false;
     f.attackId = null;
     setLabel(f, def, '瞬步');
+    return;
   }
-  // 空中瞬步需 jumpTimes（二段跳），本切片不接——保持跳跃惯性
+  // 空中瞬步（原版 doDashAir：jumpTimes < 1 拒绝）
+  if (f.jumpTimes < 1) return;
+  if (!canSpendEnergy(f, AIR_DASH_ENERGY_COST, true)) return;
+  spendEnergy(f, AIR_DASH_ENERGY_COST);
+  const label = f.slots.dash ?? '瞬步';
+  const range = def?.labels[label];
+  if (!range) return; // 原版 doAction 缺帧静默（能量照扣，与原版一致）
+  f.actionState = ActionState.DASH_ING;
+  f.isAllowBeHit = false;
+  f.applyG = false;
+  f.jumpTimes = 0;
+  f.attackId = null;
+  f.attackHit = [];
+  f.isCross = false;
+  setLabel(f, def, label);
+}
+
+/**
+ * 瞬身步（原版 startGhostStep/doGhostStep 系）：气 60（不可透支）+ 能量 80
+ * （可透支）；面向目标；0.4s 免伤 + 穿越版边/免推挤；结束回位（endAction）
+ * 并进入连续冷却（仅地面步受冷却门，原版 _isContinuousGhostStep）。
+ * 类型：0 地面步（前向位移，走标签）/ 1 空中瞬跳（上向位移，jumpTimes-1，
+ * 结束恢复剩余速度 + airMove）/ 2 空中速降（下向位移，触地即结束）。
+ * 返回 false = 资源不足（不消费）。
+ */
+export function startGhostStep(
+  f: FighterState,
+  def: FighterDef | null,
+  type: number,
+  targetFacing: 1 | -1 | null,
+): boolean {
+  if (f.qi < GHOST_QI_COST) return false;
+  if (!canSpendEnergy(f, GHOST_ENERGY_COST, true)) return false;
+  f.qi -= GHOST_QI_COST;
+  spendEnergy(f, GHOST_ENERGY_COST);
+  if (targetFacing !== null) f.facing = targetFacing;
+  f.ghostTicks = GHOST_TICKS;
+  f.ghostType = type;
+  f.isAllowBeHit = false;
+  f.isCross = true;
+  f.attackId = null;
+  if (type === GHOST_GROUND) {
+    f.actionState = ActionState.NORMAL;
+    f.vy = 0;
+    f.vx = GHOST_MOVE_X * SPEED_PLUS * f.facing;
+    f.dampX = 0;
+    f.dampY = 0;
+    setLabel(f, def, '走');
+  } else if (type === GHOST_AIR_JUMP) {
+    f.actionState = ActionState.JUMP_ING;
+    f.vx = 0;
+    f.vy = GHOST_JUMP_Y * SPEED_PLUS;
+    f.dampY = GHOST_JUMP_DAMP;
+    f.jumpTimes -= 1;
+    setLabel(f, def, '跳中');
+  } else {
+    f.actionState = ActionState.JUMP_ING;
+    f.vx = 0;
+    f.vy = GHOST_FALL_Y * SPEED_PLUS;
+    f.dampY = 0;
+    setLabel(f, def, '落');
+  }
+  return true;
+}
+
+/**
+ * 瞬身步每 tick 推进（60Hz，sim 物理步调用；原版 renderGhostStep）。
+ * 计时结束 / 空中速降触地 → 回位（endAction：恢复可命中/槽/重力/airMove）
+ * + 结束表现事件 + 连续冷却（剩余 tick 数，仅地面步消费）。
+ * @param endCb 结束回调（sim 内发 endGhostStep 事件）
+ */
+export function stepGhost(
+  f: FighterState,
+  def: FighterDef | null,
+  endCb?: (f: FighterState) => void,
+): void {
+  if (f.ghostTicks <= 0) return;
+  f.ghostTicks -= 1;
+  const floorEnd = f.ghostType === GHOST_AIR_FALL && f.onGround;
+  if (f.ghostTicks > 0 && !floorEnd) return;
+  f.ghostCooldown = f.ghostTicks; // 原版 endGhostStep：剩余帧数即恢复延迟
+  f.ghostTicks = 0;
+  const wasAirJump = f.ghostType === GHOST_AIR_JUMP;
+  f.ghostType = 0;
+  endCb?.(f);
+  endAction(f, def);
+  if (wasAirJump) {
+    // 原版 ghostType 1 结束：endGhostStep(idle) 之后再 setDamping(0,-vy/10)
+    //（向上减速续飘）+ setAirMove(true)——顺序在回位之后，不被其清掉
+    f.dampY = Math.abs(f.vy) * 0.05;
+    f.airMove = true;
+  }
 }
 
 /** 必杀/技能入口（原版 doSkill/doBisha：SKILL_ING 无消耗；必杀扣气）。 */
@@ -334,14 +498,45 @@ export function startWanKai(f: FighterState, def: FighterDef | null, label: stri
   return true;
 }
 
-/** 万解时间轴的帧驱动（原版 FighterCtrler.doWanKai(frame)：gotoAndStop(frame)；
- * 帧参缺省 nextFrame——移植版由动画自然推进替代，此处仅处理绝对帧跳转）。 */
-export function wanKaiGotoFrame(f: FighterState, def: FighterDef | null, frame: number): void {
-  if (frame <= 0 || f.actLabel === null) return;
-  const range = def?.labels[f.actLabel];
-  if (!range) return;
-  const idx = Math.min(Math.max(frame, range.index + 1), range.index + range.duration);
-  f.animFrame = idx;
+/**
+ * 万解形态切换（切片 10，原版 FighterCtrler.doWanKai(frame) 真实语义：
+ * frame=0 → 根时间轴 nextFrame（下一形态）；frame>0 → 根时间轴绝对帧
+ * gotoAndStop(frame)。切形态后 initMc 以 _doingWankai 复位：保持
+ * WAN_KAI_ING，播新形态 开场 标签，播完经 endAction 回 NORMAL 并恢复可命中。
+ * @param frame 0/缺省 = 下一形态；>0 = 按 def.rootFrame 寻址（无匹配 = 静默）
+ * @returns 是否切换成功
+ */
+export function switchForm(
+  f: FighterState,
+  forms: readonly (FighterDef | null)[],
+  frame: number,
+): FighterDef | null {
+  let next: FighterDef | null = null;
+  if (frame <= 0) {
+    next = forms[f.formIndex + 1] ?? null;
+  } else {
+    next = forms.find((d) => d !== null && d.rootFrame === frame) ?? null;
+  }
+  if (!next) return null;
+  f.formIndex = forms.indexOf(next);
+  f.slots = defaultSlots(next);
+  f.attackId = null;
+  f.attackHit = [];
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
+  f.hurtAction = null;
+  f.hitTarget = null;
+  f.hitTargetChecker = null;
+  const opening = next.labels['开场'];
+  if (opening) {
+    f.actLabel = '开场';
+    f.animFrame = opening.index + 1;
+  } else {
+    // 无 开场 标签（合成 def/缺帧）：直接回位（原版假设全体有 开场）
+    endAction(f, next);
+  }
+  return next;
 }
 
 // —— 能量（原版 FighterMain.hasEnergy/useEnergy；回充在 sim 步骤 7） ——
@@ -394,8 +589,12 @@ export function allowCatch(
 /**
  * 意图决策（每 tick，管线第 2 步调用）。
  * 检查顺序照原版 render()：万解（先于一切）→ 地面 renderFloorAction
- * （摔技 → 必杀系 → 砍技/招 → 攻击 → 防御 → 瞬步 → 跳）→
- * 空中 renderAirAction（跳砍/跳招/空中必杀，airHitTimes 门）。
+ * （摔技 → 必杀系 → 砍技/招 → 攻击 → 防御 → 瞬身步 → 瞬步 → 跳/快速下落）→
+ * 空中 renderAirAction（跳砍/跳招/空中必杀 → 二段跳 → 瞬身步/空中瞬步）。
+ * 偏离：瞬身步在地面分支先于瞬步/跳检查（原版在末尾——我们分支提前 return，
+ * 就近插入；语义差仅在同 tick 多输入边沿的取舍）；防御当 tick 发起后不接瞬身步；
+ * 快速下落前置于防御（原版 doJumpDown 在 defense 之后但 _action.clear() 覆盖
+ * 防御态——净效果等价，见地面分支注）。
  */
 export function stepIntentsFor(
   f: FighterState,
@@ -410,10 +609,21 @@ export function stepIntentsFor(
     f.actionState === ActionState.HURT_FLYING ||
     f.actionState === ActionState.HURT_DOWN ||
     f.actionState === ActionState.HURT_ACT_ING ||
-    f.actionState === ActionState.WAN_KAI_ING
+    f.actionState === ActionState.WAN_KAI_ING ||
+    f.ghostTicks > 0 // 瞬身步期间意图封锁（原版 renderAnimate 提前返回）
   ) {
     return;
   }
+
+  /** 面向目标（原版 startGhostStep 前的 setDirectToTarget；无目标保持朝向） */
+  const faceTarget = (): 1 | -1 | null =>
+    other !== null ? (f.x > other.x ? -1 : 1) : null;
+  /** 瞬身步可用态（原版 allowGhostStep：必杀/万解除外；受击系已在上面拦掉） */
+  const ghostUsable =
+    f.actionState !== ActionState.BISHA_ING &&
+    f.actionState !== ActionState.BISHA_SUPER_ING;
+  /** 地面瞬身步额外受连续冷却门（原版 _isContinuousGhostStep 仅 doGhostStep 检查） */
+  const ghostReady = ghostUsable && f.ghostCooldown <= 0;
 
   const down = view.held(Btn.down);
   const up = view.held(Btn.up);
@@ -451,9 +661,11 @@ export function stepIntentsFor(
     } else if (view.buffered(Btn.superSkill) && f.slots.bishaSuper !== null) {
       view.consume(Btn.superSkill);
       startSkill(f, def, f.slots.bishaSuper, f.slots.bishaSuperQi, true);
-    } else if (view.buffered(Btn.dash)) {
+    } else if (view.buffered(Btn.dash) && ghostReady) {
+      // 防御中瞬身步脱离（原版防御分支不 return，末尾 ghost 检查可达）
       view.consume(Btn.dash);
-      doDash(f, def);
+      startGhostStep(f, def, GHOST_GROUND, faceTarget());
+      return;
     }
     return;
   }
@@ -519,18 +731,31 @@ export function stepIntentsFor(
         startSkill(f, def, f.slots.zhao1, 0, false);
       }
     }
+    // 快速下落（原版 doJumpDown：↓+跳。原版代码序在 defense 之后但 doJumpDown
+    // 以 _action.clear() 覆盖防御态——净效果 = 快速下落优先，故前置检查）
+    if (down && view.buffered(Btn.jump)) {
+      view.consume(Btn.up);
+      view.consume(Btn.jump);
+      startFastFall(f, def);
+      return;
+    }
     // 防御（原版 defense() = down 按住；attack 优先级更高，上面已分流）
     if (down && f.actionState !== ActionState.ATTACK_ING && f.slots.attack !== null) {
       doDefense(f, def);
       return;
+    }
+    // 瞬身步（原版 doGhostStep：dash+↓，气 60+能量 80；先于瞬步/跳）
+    if (view.buffered(Btn.dash) && down && ghostReady) {
+      view.consume(Btn.dash);
+      if (startGhostStep(f, def, GHOST_GROUND, faceTarget())) return;
     }
     // 行走标签（物理仍由 sim 每 tick 施加）
     if (f.actionState === ActionState.NORMAL && f.labelLock <= 0) {
       const moving = view.held(Btn.left) || view.held(Btn.right);
       if (def) setLabel(f, def, moving ? '走' : '站立');
     }
-    // 瞬步（原版在防御检查之后）
-    if (view.buffered(Btn.dash)) {
+    // 瞬步（原版在防御检查之后；dash() 门含 !down——↓ 按住时归瞬身步/防御）
+    if (view.buffered(Btn.dash) && !down) {
       view.consume(Btn.dash);
       doDash(f, def);
       if (f.actionState === ActionState.DASH_ING) return;
@@ -571,6 +796,27 @@ export function stepIntentsFor(
       ) {
         f.airHitTimes = 0;
       }
+    }
+    // 二段跳（原版 doAirJump：jump justDown && !attack，jumpTimes 门，可取消空中攻击）
+    if (view.buffered(Btn.jump) && !view.held(Btn.attack)) {
+      view.consume(Btn.up);
+      view.consume(Btn.jump);
+      startAirJump(f, def);
+      return;
+    }
+    // 瞬身步（空中：dash+↑ 瞬跳 / dash+↓ 速降）与空中瞬步（dash 无修饰）
+    if (view.buffered(Btn.dash)) {
+      view.consume(Btn.dash);
+      const upHeld = view.held(Btn.up);
+      const downHeld = view.held(Btn.down);
+      if (upHeld && ghostUsable && startGhostStep(f, def, GHOST_AIR_JUMP, faceTarget())) {
+        return;
+      }
+      if (downHeld && ghostUsable && startGhostStep(f, def, GHOST_AIR_FALL, faceTarget())) {
+        return;
+      }
+      doDash(f, def); // 空中瞬步（原版 doDashAir；jumpTimes/能量门在内部）
+      return;
     }
   }
 }
@@ -784,21 +1030,53 @@ export function enterDead(f: FighterState, def: FighterDef | null): void {
   setLabel(f, def, '失败');
 }
 
-/** 当前攻击动作的命中矩形（世界坐标）；非攻击状态/无动作 → 空。 */
-export function currentAttackAreas(f: FighterState, def: FighterDef | null): AreaRect[] {
-  if (!isAttackingState(f.actionState) || f.attackId === null || !def) return [];
-  const id = f.attackId;
-  return currentAreas({ animFrame: f.animFrame, def }).filter(
-    (a) => a.name === atmName(id) || a.name === id,
-  );
+/**
+ * 当前帧的命中区逐区解析（切片 10，原版 FighterMC.getCurrentHitSprite +
+ * HitModel.getHitVOByDisplayName 语义）：每帧所有可解析出 HitDef 的判定区
+ * 各自成为一个命中（区名精确匹配动作表，否则去 atm 后缀匹配）——多段动作
+ * （如 摔1 时间轴内 sh1atm 抓取段 + sh12atm 摔地段）由此各段独立结算。
+ * 非攻击状态 → 空。返回区（本地）+ 命中定义 + 解析出的动作 id。
+ */
+export interface HitZone {
+  area: AreaRect;
+  hit: HitDef;
+  hitId: string;
 }
 
-/** 攻击矩形 → 世界坐标（含朝向镜像）。 */
-export function attackAreasWorld(
+export function currentHitZones(f: FighterState, def: FighterDef | null): HitZone[] {
+  if (!isAttackingState(f.actionState) || !def) return [];
+  const zones: HitZone[] = [];
+  for (const area of currentAreas({ animFrame: f.animFrame, def })) {
+    const hit = resolveZoneHit(def, area.name);
+    if (hit) zones.push({ area, hit: hit.hit, hitId: hit.id });
+  }
+  return zones;
+}
+
+/** 原版 getHitVOByDisplayName：动作表精确名优先，否则去 atm 后缀查。 */
+function resolveZoneHit(
+  def: FighterDef,
+  name: string,
+): { hit: HitDef; id: string } | null {
+  const exact = def.actions[name];
+  if (exact) return { hit: exact, id: name };
+  if (name.includes('atm')) {
+    const id = name.replace('atm', '');
+    const hit = def.actions[id];
+    if (hit) return { hit, id };
+  }
+  return null;
+}
+
+/** 命中区 → 世界坐标（含朝向镜像）。 */
+export function hitZonesWorld(
   f: FighterState,
   def: FighterDef | null,
-): { x: number; y: number; w: number; h: number }[] {
-  return currentAttackAreas(f, def).map((r) => worldRect(f, r));
+): { rect: { x: number; y: number; w: number; h: number }; zone: HitZone }[] {
+  return currentHitZones(f, def).map((zone) => ({
+    rect: worldRect(f, zone.area),
+    zone,
+  }));
 }
 
 /** 动作槽类型再导出（sim 装配用）。 */

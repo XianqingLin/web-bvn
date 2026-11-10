@@ -18,7 +18,7 @@ import {
   makeConfigHash,
   type WsLike,
 } from '@bvn/net';
-import { compileFighterRuntime, compileMapStage } from '@bvn/data';
+import { compileFighterForms, compileFighterRuntime, compileMapStage } from '@bvn/data';
 import { BattleRenderer } from '@bvn/render';
 
 const BAKED = '/packages/data/baked';
@@ -103,6 +103,8 @@ async function boot(): Promise<void> {
   );
   const xfl = await fetchJson<import('@bvn/data').FighterPackage>(`${BAKED}/fighters/${FIGHTER_ID}.json`);
   const def = compileFighterRuntime(runtime, xfl);
+  // 多形态（切片 10 万解切换）：编译全部含动画的形态，def 即 forms[0]
+  const forms = compileFighterForms(runtime, xfl);
   const mapPkg = await fetchJson<import('@bvn/data').MapPackage>(`${BAKED}/maps/${MAP_ID}.json`);
   const { stage, p1Spawn, p2Spawn } = compileMapStage(mapPkg);
 
@@ -112,8 +114,8 @@ async function boot(): Promise<void> {
       stage,
       training,
       fighters: [
-        { id: 1, x: p1Spawn?.x ?? 300, y: p1Spawn?.y ?? stage.groundY, def },
-        { id: 2, x: p2Spawn?.x ?? 700, y: p2Spawn?.y ?? stage.groundY, def },
+        { id: 1, x: p1Spawn?.x ?? 300, y: p1Spawn?.y ?? stage.groundY, def, forms },
+        { id: 2, x: p2Spawn?.x ?? 700, y: p2Spawn?.y ?? stage.groundY, def, forms },
       ],
     });
 

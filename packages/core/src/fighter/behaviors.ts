@@ -11,7 +11,7 @@
  */
 import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef } from './def.js';
 import { ActionState, SPEED_PLUS, defaultSlots } from './def.js';
-import { enterDead, wanKaiGotoFrame, HURT_DAMP_Y } from './machine.js';
+import { enterDead, switchForm, HURT_DAMP_Y } from './machine.js';
 import type { FighterState, StageState } from '../state.js';
 
 /** fire 参数（原版 Bullet 构造 params 子集，语料实际出现的字段）。 */
@@ -87,6 +87,8 @@ export interface BehaviorContext {
   spawnBullet(spec: BulletSpawnSpec): void;
   /** addAttacker 原语：生成独立道具（引擎桥接，sim 装配） */
   spawnAttacker(spec: AttackerSpawnSpec): void;
+  /** doWanKai/switchForm 桥：多形态注册表由 sim 持有（切失败 = 静默） */
+  switchForm(f: FighterState, frame: number): void;
 }
 
 /**
@@ -535,7 +537,8 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   },
 
   // —— 万解（原版 EffectCtrler wanKai 演出 + FighterCtrler doWanKai 帧驱动） ——
-  // startWanKai(face)：万解开场演出事件（effect 控制器消费）
+  // startWanKai(face)：万解开场演出事件（effect 控制器消费；语料参数为特写
+  // face 名，如 "Naruto_3"——非形态 id，render 层消费）
   startWanKai(ctx, args) {
     ctx.emit('effect', {
       id: 'wanKai',
@@ -548,9 +551,16 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   endWanKai(ctx) {
     ctx.emit('effect', { id: 'endWanKai', x: ctx.f.x, y: ctx.f.y, params: {} });
   },
-  // doWanKai(frame)：万解内层时间轴跳帧（WAN_KAI_ING 期间帧驱动）
+  // doWanKai(frame)：万解形态切换（原版 FighterCtrler.doWanKai 真实语义：
+  // frame=0/缺省 → 根时间轴 nextFrame = 下一形态；frame>0 → 绝对帧寻址形态）。
+  // 切换后保持 WAN_KAI_ING 播新形态 开场，播完回 NORMAL（sim 桥接实现）
   doWanKai(ctx, args) {
-    wanKaiGotoFrame(ctx.f, ctx.def, num(args[0]));
+    ctx.switchForm(ctx.f, num(args[0]));
+  },
+  // switchForm(frame)：形态切换通用原语（词表 Tier-2；语义同 doWanKai）。
+  // teleport（移形换位=换人）/summon（辅助召唤）依赖辅助系统，归辅助切片
+  switchForm(ctx, args) {
+    ctx.switchForm(ctx.f, num(args[0]));
   },
 
   // —— 独立道具（原版 FighterMcCtrler.addAttacker → FighterAttacker，
@@ -681,12 +691,14 @@ function setSlot(
 
 /**
  * 行为注册表装配：defaultBehaviors + 需要引擎回调的桥接项
- * （endAct / fire 的 spawnBullet）。返回新对象，不污染默认表。
+ * （endAct / fire 的 spawnBullet / doWanKai 的 switchForm）。
+ * 返回新对象，不污染默认表。
  */
 export function createBehaviorRegistry(engine: {
   endAct(f: FighterState, def: FighterDef | null): void;
   spawnBullet(spec: BulletSpawnSpec): void;
   spawnAttacker(spec: AttackerSpawnSpec): void;
+  switchForm(f: FighterState, frame: number): void;
 }): Record<string, BehaviorHandler> {
   return {
     ...defaultBehaviors,

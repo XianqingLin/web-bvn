@@ -20,6 +20,8 @@ export const DEFAULT_HP = 1000;
 export const ENERGY_MAX = 100;
 /** 能量回充冷却 tick（原版 USE_ENERGY_CD(0.8s)×30 = 24，帧数类不折算）。 */
 export const ENERGY_GAP_TICKS = 24;
+/** 起始跳跃次数（原版 FighterMain.jumpTimes = 2：地面跳 + 空中跳各耗 1）。 */
+export const JUMP_TIMES_START = 2;
 
 /** 可站立平台段（原版 FloorVO：x ∈ [xFrom, xTo]，站面高度 y，y 向下）。 */
 export interface FloorSpan {
@@ -69,8 +71,8 @@ export interface FighterState {
   labelLock: number;
   /** 当前攻击动作 id（攻击/技能/必杀状态期间非空） */
   attackId: string | null;
-  /** 本次攻击已命中过的目标 id（一击一目标规则） */
-  attackHit: number[];
+  /** 本次攻击已命中的（区动作 id:目标 id）键（一区一目标一次；切片 10 逐区结算） */
+  attackHit: string[];
   /** 受击/倒地剩余帧（动画帧计数） */
   hurtTimer: number;
   /** 钢身（setSteelBody 触发；受击不掉血外的状态变化） */
@@ -111,6 +113,19 @@ export interface FighterState {
   hitTarget: string | null;
   /** 抓取吸附参数（moveTarget；null = 无吸附。moveTarget(null)/endAct/再受击清除） */
   moveTarget: MoveTargetParam | null;
+  /** 当前形态（SimConfig forms 数组下标；0 = 出场形态。doWanKai/switchForm 切换） */
+  formIndex: number;
+  /** 剩余跳跃次数（原版 _action.jumpTimes，FighterMain.jumpTimes=2 起始；
+   *  起跳/空中跳消耗，空中 dash 共享此池） */
+  jumpTimes: number;
+  /** 起跳延迟剩余 tick（原版 JUMP_DELAY_FRAME=2 地面 / 1 空中；0 = 无待跳） */
+  jumpDelay: number;
+  /** 瞬身步剩余 tick（0.4s×60 = 24；>0 期间免伤+穿越+意图封锁，原版 _ghostStepIng） */
+  ghostTicks: number;
+  /** 瞬身步类型（原版 _ghostType：0 地面步 / 1 空中瞬跳 / 2 空中速降） */
+  ghostType: number;
+  /** 瞬身步连续冷却剩余 tick（原版 _isContinuousGhostStep 恢复计时，仅限地面步） */
+  ghostCooldown: number;
   input: PlayerInput;
 }
 
@@ -239,6 +254,11 @@ export interface FighterConfig {
   hp?: number;
   /** 角色运行时定义（缺省 = 合成骨架角色：无判定区/动作，仅物理） */
   def?: FighterDef;
+  /**
+   * 多形态定义表（切片 10 万解形态切换；按形态顺序排列，forms[0] 应与 def 一致）。
+   * 缺省 = 单形态 [def]。切换（doWanKai/switchForm）只改 FighterState.formIndex。
+   */
+  forms?: FighterDef[];
 }
 
 export interface SimConfig {
@@ -312,6 +332,12 @@ export function createInitialState(config: SimConfig): SimState {
       hitTargetChecker: null,
       hitTarget: null,
       moveTarget: null,
+      formIndex: 0,
+      jumpTimes: JUMP_TIMES_START,
+      jumpDelay: 0,
+      ghostTicks: 0,
+      ghostType: 0,
+      ghostCooldown: 0,
       slots: defaultSlots(fc.def ?? null),
       input: createPlayerInput(),
     }));

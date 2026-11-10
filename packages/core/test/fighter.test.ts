@@ -87,11 +87,13 @@ function runTicks(sim: Sim, n: number, input = { p1: 0, p2: 0 }) {
 describe('状态机（跳跃/落地）', () => {
   it('跳跃进入 JUMP_ING，落回地面后回 NORMAL 并播放 落地', () => {
     const sim = new Sim(makeConfig());
-    const snap = sim.tick({ p1: Btn.jump, p2: 0 }); // 起跳 tick
+    const snap = sim.tick({ p1: Btn.jump, p2: 0 }); // 起跳 tick：JUMP_ING（切片 10：延迟 2 tick 后施加速度）
     const f = snap.state.fighters[0]!;
     expect(f.actionState).toBe(ActionState.JUMP_ING);
-    expect(f.onGround).toBe(false);
-    expect(f.vy).toBeLessThan(0);
+    const snap2 = runTicks(sim, 2); // JUMP_DELAY_GROUND 结束 → 离地
+    const f0 = snap2.state.fighters[0]!;
+    expect(f0.onGround).toBe(false);
+    expect(f0.vy).toBeLessThan(0);
     // 跳跃上升 30 tick（vy -7.5，damp 0.25/tick）+ 下落，120 tick 内必落地
     const end = runTicks(sim, 120);
     const f2 = end.state.fighters[0]!;

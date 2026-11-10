@@ -28,6 +28,8 @@ export interface FighterView {
   id: string;
   /** 使用的形态下标（runtime.forms 下标） */
   formIndex: number;
+  /** 根时间轴帧号（1 起）——万解 doWanKai(frame) 绝对帧跳转的形态寻址基准 */
+  rootFrame: number;
   /** 形态数值（已含原版原始值；core 导入时按 ×SPEED_PLUS 换算） */
   speed: number;
   jumpPower: number;
@@ -130,6 +132,7 @@ export function compileFighterRuntime(
   return {
     id: runtime.id,
     formIndex: idx,
+    rootFrame: form.rootFrame,
     ...stats,
     actions,
     labels: form.labels,
@@ -138,4 +141,25 @@ export function compileFighterRuntime(
     triggers,
     attackLabels,
   };
+}
+
+/**
+ * 编译 runtime 包的**全部**可动画形态为 core 角色定义（切片 10 多形态注册：
+ * 万解 doWanKai() 根时间轴翻页切换形态）。只收含动画数据的形态，
+ * 按 runtime.forms 顺序排列——下标 0 = 缺省出场形态（与 compileFighterRuntime
+ * 的单形态选择一致）。缺 XFL 时触发器为空（与单形态行为一致）。
+ */
+export function compileFighterForms(
+  runtime: RuntimeFighterPackage,
+  xfl?: FighterPackage,
+): FighterView[] {
+  const out: FighterView[] = [];
+  for (let i = 0; i < runtime.forms.length; i++) {
+    if (runtime.forms[i]!.totalFrames === 0) continue;
+    out.push(compileFighterRuntime(runtime, xfl, i));
+  }
+  if (out.length === 0) {
+    throw new Error(`${runtime.id}: 没有含动画数据的形态`);
+  }
+  return out;
 }

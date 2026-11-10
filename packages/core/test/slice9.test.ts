@@ -305,7 +305,9 @@ describe('切片 9：空中槽', () => {
   it('跳起后攻击 → 跳砍（attackAIR），airHitTimes 递减', () => {
     const res = play(new Sim(makeConfig()), [
       [1, Btn.jump, 0],
-      [2, Btn.attack, 0],
+      [2, 0, 0], // 切片 10：JUMP_DELAY_GROUND 起跳延迟
+      [1, Btn.attack, 0],
+      [2, 0, 0],
     ]);
     const p1 = res.snaps.at(-1)!.state.fighters[0]!;
     expect(p1.actLabel).toBe('跳砍');
@@ -316,7 +318,9 @@ describe('切片 9：空中槽', () => {
   it('空中攻击次数耗尽 → 落地前不再触发', () => {
     const res = play(new Sim(makeConfig()), [
       [1, Btn.jump, 0],
-      [2, Btn.attack, 0],
+      [2, 0, 0], // 切片 10：起跳延迟
+      [1, Btn.attack, 0],
+      [2, 0, 0],
       [24, 0, 0], // 跳砍播完（12 动画帧 = 24 tick）
       [1, Btn.attack, 0], // 仍在空中，airHitTimes=0
       [2, 0, 0],

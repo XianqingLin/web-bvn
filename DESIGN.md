@@ -111,6 +111,15 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **命中结算修正**：近战命中判定从仅 `ATTACK_ING` 放宽到全部攻击态（isAttackingState）——此前近战必杀/摔技命中永不结算（切片 5 起的既有 bug，本片接入 BISHA_ING 近战时暴露）。
 - **本片新偏离**（记录待收紧）：gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（跳转语义在 30Hz 采样模型下无差异，语料出现分立名仅是原 API 对齐）；万解输入取缓冲按下/按住混合而非原版按住电平判定（手感取向，见 ADR-1）；万解形态切换（`doWanKai` 后续接万解形态 def，多形态注册）归切片 10；独立道具寿命/矩形为占位（原版生命周期由道具内层时间轴驱动，未导出）；moveTarget 锚点 = 判定区中心×朝向（原版为 MC 注册点）；独立道具单次命中（语料无多次命中实例）；`setCatch1/setCatch2` 槽已登记（摔2 分流待接）。
 
+切片 10 补逐区命中/跳跃家族/瞬身步家族/万解形态切换（module-map §5.2/§5.3，原版 `FighterMC.getCurrentHitSprite` + `HitModel.getHitVOByDisplayName`、`FighterMcCtrler` doJump/doAirJump/doJumpDown/doGhostStep 系、`FighterCtrler.doWanKai`）：
+
+- **逐区命中结算**：命中判定从「动作单 atm 区」改为「当前帧每个可解析 atm 区独立成命中」——区名精确匹配 actions 优先，否则去 `atm` 后缀反查（原版 getHitVOByDisplayName）。多段动作（摔1 时间轴内 sh1atm 抓取段 + sh12atm 摔地段）由此各段独立结算；去重键从动作 id 升级为 `区动作id:目标id`（`attackHit: string[]`，同动作不同段可分别命中）。
+- **跳跃家族**：`jumpTimes = 2` 起始（地面跳/空中跳各耗 1）；起跳延迟（原版 JUMP_DELAY_FRAME 2 地面 / 1 空中，帧数不折算）——延迟结束才施加跳跃速度并消耗 jumpTimes（applyJumpLaunch）；空中跳（二段跳，可取消空中攻击）走 jump 缓冲；`↓+跳` 快速下落（doJumpDown：vy 2.5/tick、jumpTimes 清零、穿平台、触地续接 落地）。
+- **瞬身步家族**：dash+↓ 地面步 / dash+↑ 空中瞬跳 / dash+↓(空中) 速降——统一成本气 60（不透支）+ 能量 80（可透支），24 tick（0.4s）免伤 + isCross + 意图封锁；地面步位移 4/tick、标签 走，受连续冷却门（`ghostCooldown`，自然到期 0 = 即时恢复，中断按剩余 tick 恢复——原版 `_isContinuousGhostStep` 语义）；空中瞬跳 vy -6/dampY 0.05/jumpTimes-1，结束恢复 damping(-vy/10) + airMove（顺序在回位之后，不被 endAction 清掉）；速降 vy 7.5 触地即结束。必杀/万解中不可发起（allowGhostStep）；地面分支瞬身步先于瞬步/跳，防御态经缓冲下一拍接瞬身步脱离。
+- **万解形态切换**：`doWanKai`/`switchForm(frame)` 真实语义 = 根时间轴切换（frame=0 下一形态，>0 按 `def.rootFrame` 寻址）——切 `FighterState.formIndex`（`SimConfig.fighters[].forms` 多形态注册表，data 层 `compileFighterForms` 编译全部含动画形态），槽按新形态重填，播新形态 开场 演出后回 NORMAL；`fighter:form` 事件驱动 render 换图集形态。单形态（语料缺）静默不切。`startWanKai` 参数确证为必杀 FACE 名而非形态 id（语料 corpus 全体 doWanKai 无参）。
+- **词表 Tier-2 收尾**：`switchForm` 注册为通用形态切换原语（语义同 doWanKai）；`teleport`（移形换位=换人）/`summon`（辅助召唤）原版引擎与语料均无实例，归辅助系统切片实现（已核对全语料）。
+- **本片新偏离**（记录待收紧）：快速下落阻尼取 0（匀速 2.5/tick）——原版 damping 1 在 60Hz 语境首 tick 即跌破穿平台阈值 FALL_LAND_SPEED，穿平台语义不保；快速下落前置于防御检查（原版 doJumpDown 代码序在 defense 后但 `_action.clear()` 覆盖防御态，净效果等价）；防御态发起后接瞬身步延迟一拍（经输入缓冲，原版同 tick 不提前 return）；起跳延迟置于物理积分后处理（首个上升位移出现在下一 tick）；空中攻击下修 dampY 语义不变沿用切片 9。replay 四基准全部重冻（跳跃延迟 + 逐区结算均改变哈希，见提交说明）。
+
 `FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 
 ### 3.6 角色数据与帧触发器

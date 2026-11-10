@@ -26,16 +26,19 @@ import {
 } from './fighter/def.js';
 import {
   advanceAnimation,
-  attackAreasWorld,
+  applyJumpLaunch,
   endAction,
   enterDead,
   enterGuardBreak,
   enterHurt,
   defenseGapTicks,
   defenseHoldTicks,
+  hitZonesWorld,
   onLanded,
   setLabel,
+  stepGhost,
   stepIntentsFor,
+  switchForm,
   walkSpeed,
 } from './fighter/machine.js';
 import {
@@ -142,10 +145,11 @@ export interface SimSnapshot {
  */
 export class Sim {
   private state: SimState;
-  /** 角色运行时定义注册表（静态配置，不进 SimState；快照恢复时重新注入） */
-  private defs: Map<number, FighterDef>;
-  /** def.triggers 按帧号预索引（注册表构造时建立） */
-  private triggerIndex: Map<number, Map<number, FrameTrigger[]>>;
+  /** 多形态定义注册表（fighter id → 形态数组，静态配置不进 SimState；
+   *  快照恢复时重新注入。forms[formIndex] 为当前形态）。 */
+  private formsById: Map<number, FighterDef[]>;
+  /** def.triggers 按帧号预索引：fighter id → formIndex → 帧 → 触发列表 */
+  private triggerIndex: Map<number, Map<number, Map<number, FrameTrigger[]>>>;
   /** behaviors 处理器注册表（契约硬规则 7） */
   private behaviors: Record<string, BehaviorHandler>;
   /** 本 tick 的输入视图（瞬态，不进 SimState），与 fighters 同序 */
@@ -157,23 +161,29 @@ export class Sim {
   constructor(config: SimConfig) {
     this.state = createInitialState(config);
     this.training = config.training ?? false;
-    this.defs = new Map();
+    this.formsById = new Map();
     this.triggerIndex = new Map();
     for (const fc of config.fighters) {
-      if (fc.def) {
-        this.defs.set(fc.id, fc.def);
-        this.triggerIndex.set(fc.id, indexTriggers(fc.def));
+      const forms = fc.forms ?? (fc.def ? [fc.def] : []);
+      if (forms.length > 0) {
+        this.formsById.set(fc.id, forms);
+        this.triggerIndex.set(
+          fc.id,
+          new Map(forms.map((d, i) => [i, indexTriggers(d)])),
+        );
       }
     }
     this.behaviors = createBehaviorRegistry({
       endAct: endAction,
       spawnBullet: (spec) => this.spawnBullet(spec),
       spawnAttacker: (spec) => this.spawnAttacker(spec),
+      switchForm: (f, frame) => this.doSwitchForm(f, frame),
     });
   }
 
   /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入；
-   *  SimConfig 的非状态开关（training）经 opts 回传。 */
+   *  SimConfig 的非状态开关（training）经 opts 回传。defs 为 getDefEntries()
+   *  的回传（同一 id 可有多形态条目，按注册顺序归组）。 */
   static fromState(
     state: SimState,
     defs?: Iterable<[number, FighterDef]>,
@@ -184,13 +194,26 @@ export class Sim {
     sim.views = [];
     sim.events = [];
     sim.training = opts?.training ?? false;
-    sim.defs = new Map(defs ?? []);
+    sim.formsById = new Map();
     sim.triggerIndex = new Map();
-    for (const [id, def] of sim.defs) sim.triggerIndex.set(id, indexTriggers(def));
+    if (defs) {
+      for (const [id, def] of defs) {
+        const forms = sim.formsById.get(id);
+        if (forms) forms.push(def);
+        else sim.formsById.set(id, [def]);
+      }
+      for (const [id, forms] of sim.formsById) {
+        sim.triggerIndex.set(
+          id,
+          new Map(forms.map((d, i) => [i, indexTriggers(d)])),
+        );
+      }
+    }
     sim.behaviors = createBehaviorRegistry({
       endAct: endAction,
       spawnBullet: (spec) => sim.spawnBullet(spec),
       spawnAttacker: (spec) => sim.spawnAttacker(spec),
+      switchForm: (f, frame) => sim.doSwitchForm(f, frame),
     });
     return sim;
   }
@@ -203,9 +226,32 @@ export class Sim {
     return JSON.parse(json) as SimState;
   }
 
-  /** 角色定义注册表（rollback 恢复时回传 fromState 用）。 */
+  /** 角色定义注册表（rollback 恢复时回传 fromState 用）。
+   *  多形态角色每个形态一条目（同 id 多条，按形态序）。 */
   getDefEntries(): [number, FighterDef][] {
-    return [...this.defs.entries()];
+    const out: [number, FighterDef][] = [];
+    for (const [id, forms] of this.formsById) {
+      for (const d of forms) out.push([id, d]);
+    }
+    return out;
+  }
+
+  /** 当前生效形态定义（FighterState.formIndex 寻址；越界回退首形态）。 */
+  private defOf(f: FighterState): FighterDef | null {
+    const forms = this.formsById.get(f.id);
+    if (!forms || forms.length === 0) return null;
+    return forms[Math.min(f.formIndex, forms.length - 1)] ?? null;
+  }
+
+  /** doWanKai/switchForm 桥：形态切换 + 表现事件（render 换图集形态用）。
+   *  切换后保持 WAN_KAI_ING，由新形态 开场 播完经 endAction 回位。 */
+  private doSwitchForm(f: FighterState, frame: number): void {
+    const forms = this.formsById.get(f.id);
+    if (!forms) return;
+    const next = switchForm(f, forms, frame);
+    if (next) {
+      this.emit('fighter:form', { fighter: f.id, form: next.formIndex });
+    }
   }
 
   tick(inputs: InputFrame): SimSnapshot {
@@ -259,10 +305,6 @@ export class Sim {
     return true;
   }
 
-  private defOf(f: FighterState): FighterDef | null {
-    return this.defs.get(f.id) ?? null;
-  }
-
   // 1. 输入处理：位图 → 缓冲器 → 输入视图
   private stepInputs(inputs: InputFrame): void {
     const masks = [inputs.p1, inputs.p2];
@@ -305,11 +347,17 @@ export class Sim {
       const view = this.views[i]!;
       const def = this.defOf(f);
       const wasAirborne = !f.onGround;
-      // 行走：NORMAL 且在地面（原版 renderFloorAction）；airMove（飞行系）空中也可
+      // 瞬身步推进（原版 renderGhostStep；结束回位/恢复速度/发事件）
+      stepGhost(f, def, (g) => {
+        this.emit('effect', { id: 'endGhostStep', x: g.x, y: g.y, params: {} });
+      });
+      // 行走：NORMAL 且在地面（原版 renderFloorAction）；airMove（飞行系）空中也可；
+      // 瞬身步期间速度由瞬身步驱动（原版画面冻结期不受输入）
       if (
         f.actionState === ActionState.NORMAL &&
         (f.onGround || f.airMove) &&
-        f.hp > 0
+        f.hp > 0 &&
+        f.ghostTicks === 0
       ) {
         let dir = 0;
         if (view.held(Btn.left)) dir -= 1;
@@ -347,6 +395,12 @@ export class Sim {
         f.gRamp = GRAVITY_START;
         if (wasAirborne) onLanded(f, def);
         f.onGround = true;
+      }
+      // 起跳延迟（原版 renderJumpAnimate：延迟计满才施加跳跃速度并消耗
+      // jumpTimes——放在积分后，首个上升位移出现在下一 tick）
+      if (f.jumpDelay > 0) {
+        f.jumpDelay -= 1;
+        if (f.jumpDelay === 0) applyJumpLaunch(f, def);
       }
     }
     // 飞行道具推进（原版 Bullet.render：每 tick 位移/加速/钳制/寿命/出界）
@@ -651,8 +705,9 @@ export class Sim {
         advanceAnimation(f, null);
         continue;
       }
-      // 帧触发器（behaviors 注册表分派；同帧触发按注册顺序执行）
-      const byFrame = this.triggerIndex.get(f.id);
+      // 帧触发器（behaviors 注册表分派；同帧触发按注册顺序执行；
+      // 索引按当前形态寻址——形态切换后即用新形态时间轴）
+      const byFrame = this.triggerIndex.get(f.id)?.get(f.formIndex);
       advanceAnimation(f, def, (frame) => {
         const list = byFrame?.get(frame);
         if (!list) return;
@@ -664,6 +719,7 @@ export class Sim {
           emit: (type, payload) => this.emit(type, payload),
           spawnBullet: (spec) => this.spawnBullet(spec),
           spawnAttacker: (spec) => this.spawnAttacker(spec),
+          switchForm: (g, frameNum) => this.doSwitchForm(g, frameNum),
         };
         for (const t of list) {
           const handler = this.behaviors[t.op];
@@ -706,33 +762,38 @@ export class Sim {
       // 必杀/技/砍技同属攻击结算（原版 isAttacking：命中监听不区分攻击层级；
       // 此前只认 ATTACK_ING 导致近战必杀永不命中——切片 9 修复）
       if (!isAttackingState(atk.actionState) || !atkDef) continue;
-      const hit = atkDef.actions[atk.attackId!];
-      if (!hit) continue;
-      const areas = attackAreasWorld(atk, atkDef);
-      if (areas.length === 0) continue;
+      // 逐区解析（切片 10：原版 getCurrentHitSprite + getHitVOByDisplayName——
+      // 每帧每个可解析 atm 区独立成命中，多段动作如 摔1 的 sh12atm 二段生效）
+      const zones = hitZonesWorld(atk, atkDef);
+      if (zones.length === 0) continue;
       for (const tgt of fighters) {
         if (tgt.id === atk.id) continue;
         if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD) continue;
         // 原版 checkHit：isAllowBeHit=false 一侧整体排除（瞬步/防御无敌窗）
         if (!tgt.isAllowBeHit) continue;
-        if (atk.attackHit.includes(tgt.id)) continue;
         const tgtDef = this.defOf(tgt);
         const bodyLocal = tgtDef
           ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
           : null;
         if (!bodyLocal) continue;
         const body = worldRect(tgt, bodyLocal);
-        const hitArea = areas.find((r) => rectsOverlap(r, body));
-        if (!hitArea) continue;
-        atk.attackHit.push(tgt.id);
-        this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, hit, hitArea, atk.attackId, atk);
+        for (const { rect: hitArea, zone } of zones) {
+          // 一击一目标按（区动作 id, 目标）去重——同动作不同段可分别命中
+          const dedupKey = `${zone.hitId}:${tgt.id}`;
+          if (atk.attackHit.includes(dedupKey)) continue;
+          if (!rectsOverlap(hitArea, body)) continue;
+          atk.attackHit.push(dedupKey);
+          this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, zone.hit, hitArea, zone.hitId, atk);
+          break;
+        }
       }
       // 角色攻击 vs 敌方道具（原版 Bullet.beHit：hp -= power；摧毁不回气——简化偏离）
       for (const b of bullets) {
         if (!b.hitAble || b.ownerId === atk.id) continue;
         const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
-        if (!areas.some((r) => rectsOverlap(r, bRect))) continue;
-        b.hp -= hit.power;
+        const zone = zones.find((z) => rectsOverlap(z.rect, bRect));
+        if (!zone) continue;
+        b.hp -= zone.zone.hit.power;
         if (b.hp <= 0) this.despawnBullet(b.id);
       }
     }
