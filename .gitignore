@@ -16,3 +16,8 @@ tools/vendor/
 
 # batch-validate 生成报告（baseline.json 是门禁基线，入库；报告可再生）
 /tools/batch-validate/report.json
+
+# 敏感信息：云服务器 SSH 私钥与部署文档（仓库开源，严禁入库）
+/cloud-server-key.pem
+/AGENTS.md
+/docs/cloud-server.md

@@ -47,7 +47,7 @@
 
 | 项 | 内容 | 验收 |
 |---|---|---|
-| 云服务器部署 | `room-server.mjs` 上云（PORT 环境变量）+ nginx 反代 wss（https 页面禁 ws:// 明文） | `?server=ws://<云IP>` 客户端能创建/加入/对局 |
+| 云服务器部署 | `room-server.mjs` 上云（PORT 环境变量）+ nginx 反代 wss（https 页面禁 ws:// 明文）。服务器信息与部署手册见本地 `docs/cloud-server.md`（gitignore，不入库；密钥为仓库根 `cloud-server-key.pem`） | `?server=wss://<地址>` 客户端能创建/加入/对局 |
 | 真机体验验证 | 公网两端完整对局人工验收 | 对局可打完；哈希失步零发生 |
 | 延迟调优立项 | 视云上结果：输入延迟帧自适应（现为固定 INPUT_DELAY=3）、抖动缓冲 | 云上手感不可接受时才立项；rollback 升级与否据此决策（接口已预留：tick 纯函数 / SimState 可序列化 / 输入只经 InputFrame） |
 
