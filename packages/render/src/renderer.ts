@@ -25,6 +25,10 @@ export interface BattleAssetsSpec {
   assisters?: { ownerId: number; atlasId: string }[];
   mapAtlasId: string;
   mapAtlasJson?: MapAtlas;
+  /** 原版 MapMain.initlize 视觉层整体下移量（baked map JSON bottomOffset；缺省 0） */
+  mapBottomOffset?: number;
+  /** 死亡线 bottom（front 层纵向视差公式用；缺省 = 逻辑高） */
+  mapBottom?: number;
   fighterAtlasJson?: Record<string, FighterAtlas>;
 }
 
@@ -42,8 +46,12 @@ interface FighterSprite {
 
 export class BattleRenderer {
   private world: Container;
+  /** 背景层容器：随视口缩放但不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外） */
+  private bgFixed: Container;
   private mapLayer: Container;
-  /** 前景层（地图 floor 图层：绘制在角色脚前，原版 BVN 层序） */
+  /** front_fix 层：随地图固定（原版在角色层之上、无视差） */
+  private mapFrontFixLayer: Container;
+  /** front 层：前景（原版 0.1 视差，屏幕上比世界移动更快） */
   private mapFrontLayer: Container;
   private fighterLayer: Container;
   private bulletLayer: Container;
@@ -54,6 +62,16 @@ export class BattleRenderer {
   /** 辅助精灵（切片 12）：key = 召唤者 fighter id（同主同时至多一个辅助） */
   private assistSprites = new Map<number, FighterSprite>();
   private mapLoaded: LoadedMapAtlas | null = null;
+  /** 视觉层整体下移量（原版 MapMain.initlize 的 bottomOffset，切片 13-A2） */
+  private mapBottomOffset = 0;
+  /** 死亡线（原版归一后 = gameSize.y；front 层纵向视差公式用） */
+  private mapBottom = LOGICAL_H;
+  /** front 层基础位（装配后、视差前） */
+  private frontBaseX = 0;
+  private frontBaseY = 0;
+  /** bg 素材尺寸（cover 铺满可见区用，原版 bg 恰好 = GAME_SIZE 满屏） */
+  private bgSize = { w: 0, h: 0 };
+  private bgSprite: Sprite | null = null;
   private roundText: Text | null = null;
   private hintText: Text | null = null;
 
@@ -71,8 +89,10 @@ export class BattleRenderer {
   private viewH = LOGICAL_H;
 
   constructor(private app: Application) {
+    this.bgFixed = new Container();
     this.world = new Container();
     this.mapLayer = new Container();
+    this.mapFrontFixLayer = new Container();
     this.mapFrontLayer = new Container();
     this.fighterLayer = new Container();
     this.bulletLayer = new Container();
@@ -80,15 +100,18 @@ export class BattleRenderer {
     this.fxLayer = new Container();
     this.hudLayer = new Container();
     this.bulletLayer.addChild(this.bulletGfx);
-    // 层序：bg/map < 角色 < 飞行道具 < 前景 floor < 特效
+    // 层序（镜像原版 GameStage.initFight：gameLayer[map < 角色 < front_fix < front]；
+    // bg 在 gameLayer 外）：
+    //   bg(屏幕固定) < map < 角色 < 飞行道具 < front_fix < front(视差) < 特效
     this.world.addChild(
       this.mapLayer,
       this.fighterLayer,
       this.bulletLayer,
+      this.mapFrontFixLayer,
       this.mapFrontLayer,
       this.fxLayer,
     );
-    app.stage.addChild(this.world, this.hudLayer);
+    app.stage.addChild(this.bgFixed, this.world, this.hudLayer);
     this.onResize();
     app.renderer.on('resize', this.onResize, this);
   }
@@ -111,6 +134,8 @@ export class BattleRenderer {
       ((await this.fetchJson(`${spec.baseUrl}/maps/${spec.mapAtlasId}.atlas.json`)) as MapAtlas);
     // atlas JSON 内 file 为裸文件名，sheet PNG 与 atlas JSON 同目录（assets/<kind>/）
     this.mapLoaded = await loadMapAtlas(`${spec.baseUrl}/maps`, mapAtlas);
+    this.mapBottomOffset = spec.mapBottomOffset ?? 0;
+    this.mapBottom = spec.mapBottom ?? LOGICAL_H;
     this.buildMap();
 
     for (const f of spec.fighters) {
@@ -134,19 +159,37 @@ export class BattleRenderer {
   }
 
   private buildMap(): void {
+    this.bgFixed.removeChildren();
     this.mapLayer.removeChildren();
+    this.mapFrontFixLayer.removeChildren();
     this.mapFrontLayer.removeChildren();
     const loaded = this.mapLoaded;
     if (!loaded) return;
+    // 原版 MapMain.initlize：map/front/front_fix 三层视觉整体 y += bottomOffset
+    //（= gameSize.y - 原始 line_bottom.y），bg 不动；floor 容器是碰撞标记
+    //（initFloor 只读坐标，从不显示），跳过。
     loaded.atlas.layers.forEach((ly, i) => {
       const tex = loaded.textures[i];
       if (!tex) return;
       const sp = new Sprite(tex);
-      // 图层 display 原点偏移 + 内容 bounds 偏移（均相对地图 root）
-      sp.position.set(ly.x + ly.bx, ly.y + ly.by);
-      // floor 层 = 脚前前景（角色走在地面图后面，原版 BVN 层序）
-      if (ly.name === 'floor') this.mapFrontLayer.addChild(sp);
-      else this.mapLayer.addChild(sp);
+      if (ly.name === 'floor') return;
+      if (ly.name === 'bg') {
+        // bg（原版 drawDisplay 抽成 Bitmap 挂 stage）：不受相机平移。
+        // 原版 bg 恰好铺满 800×600 舞台；web 端可见逻辑区随窗口宽高比变化，
+        // 在 updateCamera 里按 cover 铺满（居中裁边）。
+        this.bgSize = { w: tex.width, h: tex.height };
+        this.bgSprite = sp;
+        this.bgFixed.addChild(sp);
+        return;
+      }
+      // 图层 display 原点偏移 + 内容 bounds 偏移 + initlize 整体下移
+      sp.position.set(ly.x + ly.bx, ly.y + ly.by + this.mapBottomOffset);
+      if (ly.name === 'front_fix') this.mapFrontFixLayer.addChild(sp);
+      else if (ly.name === 'front') {
+        this.frontBaseX = sp.x;
+        this.frontBaseY = sp.y;
+        this.mapFrontLayer.addChild(sp);
+      } else this.mapLayer.addChild(sp);
     });
   }
 
@@ -332,6 +375,29 @@ export class BattleRenderer {
     const cy = Math.min(Math.max(this.camY, st.groundY - 260), st.groundY);
     this.world.scale.set(this.zoom);
     this.world.position.set(this.viewW / 2 - cx * this.zoom, this.viewH / 2 - cy * this.zoom);
+    // bg：随视口缩放、不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外）；
+    // cover 铺满可见逻辑区并居中（可见区 = viewW/zoom × viewH/zoom）
+    this.bgFixed.scale.set(this.zoom);
+    if (this.bgSprite && this.bgSize.w > 0) {
+      const visW = this.viewW / this.zoom;
+      const visH = this.viewH / this.zoom;
+      const k = Math.max(visW / this.bgSize.w, visH / this.bgSize.h);
+      this.bgSprite.scale.set(k);
+      this.bgSprite.position.set(
+        (visW - this.bgSize.w * k) / 2,
+        (visH - this.bgSize.h * k) / 2,
+      );
+    }
+    // front 层视差（镜像原版 MapMain.render，scrollRect 语义换算为本相机）：
+    //   front.x = defaultX - 0.1·camLeft（camLeft = 视口左缘世界 x）
+    //   front.y = defaultY + max(0, (bottom - camTop)·0.1)
+    // front 在屏幕上比世界移动更快（近景语义）；front_fix 无视差、随地图固定。
+    const camLeft = cx - halfW;
+    const camTop = cy - halfH;
+    this.mapFrontLayer.position.set(
+      this.frontBaseX - camLeft * 0.1,
+      this.frontBaseY + Math.max(0, (this.mapBottom - camTop) * 0.1),
+    );
   }
 
   private hudGfx: Graphics | null = null;

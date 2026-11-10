@@ -1,6 +1,7 @@
 {
   "bgm": "assets/bgm/stg_village.mp3",
   "bottom": 600,
+  "bottomOffset": 0,
   "fileUrl": "assets/map/KirinoMura.swf",
   "floors": [
     {

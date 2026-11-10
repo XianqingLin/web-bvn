@@ -1,6 +1,7 @@
 {
   "bgm": "assets/bgm/stg_wind.mp3",
   "bottom": 600,
+  "bottomOffset": 0,
   "fileUrl": "assets/map/ZangetsuHaka.swf",
   "floors": [],
   "gameSize": {

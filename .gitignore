@@ -21,3 +21,4 @@ tools/vendor/
 /cloud-server-key.pem
 /AGENTS.md
 /docs/cloud-server.md
+.scratch/

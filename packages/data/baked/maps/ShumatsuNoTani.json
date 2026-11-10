@@ -1,6 +1,7 @@
 {
   "bgm": "assets/bgm/stg_waterfall.mp3",
   "bottom": 600,
+  "bottomOffset": 205,
   "fileUrl": "assets/map/ShumatsuNoTani.swf",
   "floors": [
     {

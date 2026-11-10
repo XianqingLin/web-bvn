@@ -302,6 +302,8 @@ export interface MapPackage {
   bottom: number;
   /** 玩家可站底线（低于 bottom 的死亡线语义见 module-map） */
   playerBottom: number;
+  /** 视觉层整体下移量（原版 initlize：gameSize.y - 原始 line_bottom.y；渲染装配用） */
+  bottomOffset: number;
   /** 出生点（缺省 = 地图未标注，引擎回退默认摆位） */
   p1pos: { x: number; y: number } | null;
   p2pos: { x: number; y: number } | null;

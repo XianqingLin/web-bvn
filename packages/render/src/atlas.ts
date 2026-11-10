@@ -16,11 +16,10 @@ export async function loadFighterAtlas(
   baseUrl: string,
   atlas: FighterAtlas,
 ): Promise<LoadedFighterAtlas> {
-  const sources: Texture['source'][] = [];
-  for (const s of atlas.sheets) {
-    const tex = await Assets.load<Texture>(`${baseUrl}/${s.file}`);
-    sources.push(tex.source);
-  }
+  // 并行加载：sheet 数量多（主力角色 20+ 张），串行 fetch+解码拖慢进入对局
+  const sources: Texture['source'][] = await Promise.all(
+    atlas.sheets.map((s) => Assets.load<Texture>(`${baseUrl}/${s.file}`).then((t) => t.source)),
+  );
   return { atlas, textures: new Map(), sources };
 }
 
@@ -47,10 +46,8 @@ export interface LoadedMapAtlas {
 
 /** 加载地图图集（每子图层一张 PNG）。 */
 export async function loadMapAtlas(baseUrl: string, atlas: MapAtlas): Promise<LoadedMapAtlas> {
-  const textures: Texture[] = [];
-  for (const ly of atlas.layers) {
-    const tex = await Assets.load<Texture>(`${baseUrl}/${ly.file}`);
-    textures.push(tex);
-  }
+  const textures: Texture[] = await Promise.all(
+    atlas.layers.map((ly) => Assets.load<Texture>(`${baseUrl}/${ly.file}`)),
+  );
   return { atlas, textures };
 }

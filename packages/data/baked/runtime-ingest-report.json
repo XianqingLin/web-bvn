@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-11-09T02:27:37.047Z",
-  "dumpDir": "C:\\Users\\29437\\Documents\\bvn-dump",
+  "generatedAt": "2026-11-10T14:44:00.924Z",
+  "dumpDir": "C:\\Users\\29437\\Desktop\\Projects\\web-bvn\\OpenBleachVsNaruto\\_release\\work\\dump-json",
   "counts": {
     "fighters": 58,
     "assistants": 37,
@@ -1324,9 +1324,6 @@
     }
   },
   "extraActionKeys": {
-    "assister:byakuya:atm1": [
-      "isApplyG"
-    ],
     "assister:kenpachi:atm1": [
       "isReal"
     ],

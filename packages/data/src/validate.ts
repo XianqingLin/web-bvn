@@ -405,7 +405,7 @@ export function validateMapPackage(pkg: MapPackage): ValidationResult {
   if (!pkg.source || pkg.source.kind !== 'runtime-dump' || !pkg.source.hash) {
     out.errors.push('缺 source 版本戳（kind/path/hash）');
   }
-  for (const f of ['left', 'right', 'bottom', 'playerBottom'] as const) {
+  for (const f of ['left', 'right', 'bottom', 'playerBottom', 'bottomOffset'] as const) {
     if (!isFiniteNumber(pkg[f])) out.errors.push(`${f} 必须是有限数值`);
   }
   if (isFiniteNumber(pkg.left) && isFiniteNumber(pkg.right) && pkg.right <= pkg.left) {

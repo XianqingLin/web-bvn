@@ -1,6 +1,7 @@
 {
   "bgm": "assets/bgm/stg_wind.mp3",
   "bottom": 600,
+  "bottomOffset": 158.85000000000002,
   "fileUrl": "assets/map/Forest.swf",
   "floors": [
     {

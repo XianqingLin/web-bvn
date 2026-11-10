@@ -1,6 +1,7 @@
 {
   "bgm": "assets/bgm/stg_village.mp3",
   "bottom": 600,
+  "bottomOffset": 205,
   "fileUrl": "assets/map/Rukongai.swf",
   "floors": [
     {

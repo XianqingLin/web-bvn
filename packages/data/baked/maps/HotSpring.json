@@ -1,6 +1,7 @@
 {
   "bgm": "assets/bgm/stg_water.mp3",
   "bottom": 600,
+  "bottomOffset": 204.85000000000002,
   "fileUrl": "assets/map/HotSpring.swf",
   "floors": [
     {

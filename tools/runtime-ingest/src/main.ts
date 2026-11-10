@@ -266,6 +266,9 @@ function convertMap(dump: DumpMap, file: string): MapPackage {
     right: dump.right,
     bottom: dump.bottom,
     playerBottom: dump.playerBottom,
+    // 原版 MapMain.initlize 的视觉层整体下移量（= gameSize.y - 原始 line_bottom.y），
+    // 渲染端装配地图视觉层用（切片 13-A2 补录）
+    bottomOffset: dump.bottomOffset,
     p1pos: dump.p1pos ? { x: r2(dump.p1pos.x), y: r2(dump.p1pos.y) } : null,
     p2pos: dump.p2pos ? { x: r2(dump.p2pos.x), y: r2(dump.p2pos.y) } : null,
     floors: (dump.floors ?? []).map((f) => ({

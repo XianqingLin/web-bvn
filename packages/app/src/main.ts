@@ -149,6 +149,8 @@ async function boot(): Promise<void> {
       ? { assisters: [{ ownerId: 1, atlasId: ASSIST_ID }, { ownerId: 2, atlasId: ASSIST_ID }] }
       : {}),
     mapAtlasId: MAP_ID,
+    mapBottomOffset: mapPkg.bottomOffset,
+    mapBottom: mapPkg.bottom,
   });
 
   const TICK_MS = 1000 / 60;
