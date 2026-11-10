@@ -23,7 +23,8 @@
           "hity": 5,
           "hurtTime": 600,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "tz": {
           "power": 70,
@@ -32,7 +33,8 @@
           "hity": 10,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k1": {
           "power": 20,
@@ -41,7 +43,8 @@
           "hity": 0,
           "hurtTime": 400,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k2": {
           "power": 20,
@@ -50,7 +53,8 @@
           "hity": 0,
           "hurtTime": 400,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k3": {
           "power": 30,
@@ -59,7 +63,8 @@
           "hity": 0,
           "hurtTime": 600,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k4": {
           "power": 50,
@@ -68,7 +73,8 @@
           "hity": -7,
           "hurtTime": 600,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj1": {
           "power": 50,
@@ -77,7 +83,8 @@
           "hity": 0,
           "hurtTime": 400,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj11": {
           "power": 50,
@@ -86,7 +93,8 @@
           "hity": 0,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj2": {
           "power": 80,
@@ -95,7 +103,8 @@
           "hity": -8,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh1": {
           "power": 70,
@@ -104,7 +113,8 @@
           "hity": -8,
           "hurtTime": 800,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh11": {
           "power": 80,
@@ -113,7 +123,8 @@
           "hity": 0,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh2": {
           "power": 100,
@@ -122,7 +133,8 @@
           "hity": 10,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh21": {
           "power": 20,
@@ -131,7 +143,8 @@
           "hity": 3,
           "hurtTime": 800,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh3": {
           "power": 80,
@@ -140,7 +153,8 @@
           "hity": -7,
           "hurtTime": 800,
           "hurtType": 0,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "bs": {
           "power": 80,
@@ -149,7 +163,8 @@
           "hity": -20,
           "hurtTime": 3000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "bs1": {
           "power": 300,
@@ -158,7 +173,8 @@
           "hity": -5,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "kbs1": {
           "power": 20,
@@ -167,7 +183,8 @@
           "hity": 20,
           "hurtTime": 500,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kbs": {
           "power": 200,
@@ -176,7 +193,8 @@
           "hity": -5,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs": {
           "power": 150,
@@ -185,7 +203,8 @@
           "hity": 10,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "cbs1": {
           "power": 40,
@@ -194,7 +213,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs2": {
           "power": 40,
@@ -203,7 +223,8 @@
           "hity": -10,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs3": {
           "power": 40,
@@ -212,7 +233,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs4": {
           "power": 40,
@@ -221,7 +243,8 @@
           "hity": -10,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "sh1": {
           "power": 0,
@@ -230,7 +253,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "sh12": {
           "power": 50,
@@ -239,7 +263,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "sh2": {
           "power": 0,
@@ -248,7 +273,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "sh22": {
           "power": 150,
@@ -257,7 +283,8 @@
           "hity": 0,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         }
       },
       "sounds": {
@@ -288,7 +315,8 @@
           "hity": 8,
           "hurtTime": 300,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "tz": {
           "power": 80,
@@ -297,7 +325,8 @@
           "hity": 10,
           "hurtTime": 400,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k1": {
           "power": 20,
@@ -306,7 +335,8 @@
           "hity": 0,
           "hurtTime": 300,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k2": {
           "power": 20,
@@ -315,7 +345,8 @@
           "hity": 0,
           "hurtTime": 200,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k3": {
           "power": 30,
@@ -324,7 +355,8 @@
           "hity": 0,
           "hurtTime": 300,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k4": {
           "power": 20,
@@ -333,7 +365,8 @@
           "hity": 0,
           "hurtTime": 300,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k5": {
           "power": 40,
@@ -342,7 +375,8 @@
           "hity": 0,
           "hurtTime": 400,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "k6": {
           "power": 50,
@@ -351,7 +385,8 @@
           "hity": 0,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj1": {
           "power": 40,
@@ -360,7 +395,8 @@
           "hity": 0,
           "hurtTime": 500,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj12": {
           "power": 40,
@@ -369,7 +405,8 @@
           "hity": 0,
           "hurtTime": 500,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj13": {
           "power": 40,
@@ -378,7 +415,8 @@
           "hity": -7,
           "hurtTime": 600,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj2": {
           "power": 30,
@@ -387,7 +425,8 @@
           "hity": -10,
           "hurtTime": 500,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kj21": {
           "power": 80,
@@ -396,7 +435,8 @@
           "hity": -7,
           "hurtTime": 500,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh1": {
           "power": 80,
@@ -405,7 +445,8 @@
           "hity": 0,
           "hurtTime": 500,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "zh2": {
           "power": 140,
@@ -414,7 +455,8 @@
           "hity": 0,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "zh3": {
           "power": 110,
@@ -423,7 +465,8 @@
           "hity": -10,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "bs1": {
           "power": 50,
@@ -432,7 +475,8 @@
           "hity": -10,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "bs2": {
           "power": 10,
@@ -441,7 +485,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "bs3": {
           "power": 0,
@@ -450,7 +495,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "bs4": {
           "power": 0,
@@ -459,7 +505,8 @@
           "hity": -8,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "bs": {
           "power": 140,
@@ -468,7 +515,8 @@
           "hity": 20,
           "hurtTime": 1000,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "sbs1": {
           "power": 100,
@@ -477,7 +525,8 @@
           "hity": -10,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "sbs": {
           "power": 150,
@@ -486,7 +535,8 @@
           "hity": -8,
           "hurtTime": 1000,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kbs1": {
           "power": 10,
@@ -495,7 +545,8 @@
           "hity": 2,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kbs2": {
           "power": 10,
@@ -504,7 +555,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "kbs": {
           "power": 150,
@@ -513,7 +565,8 @@
           "hity": -8,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs1": {
           "power": 50,
@@ -522,7 +575,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs2": {
           "power": 20,
@@ -531,7 +585,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs3": {
           "power": 20,
@@ -540,7 +595,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "cbs": {
           "power": 50,
@@ -549,7 +605,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 1,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "sh1": {
           "power": 0,
@@ -558,7 +615,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "sh12": {
           "power": 50,
@@ -567,7 +625,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         },
         "sh2": {
           "power": 0,
@@ -576,7 +635,8 @@
           "hity": 0,
           "hurtTime": 1000,
           "hurtType": 0,
-          "isBreakDef": true
+          "isBreakDef": true,
+          "isApplyG": true
         },
         "sh22": {
           "power": 150,
@@ -585,7 +645,8 @@
           "hity": -5,
           "hurtTime": 0,
           "hurtType": 1,
-          "isBreakDef": false
+          "isBreakDef": false,
+          "isApplyG": true
         }
       },
       "sounds": {

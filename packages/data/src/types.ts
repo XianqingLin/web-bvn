@@ -17,6 +17,8 @@ export interface ActionDef {
   hurtTime: number;
   hurtType: number;
   isBreakDef: boolean;
+  /** 命中后受击方是否施加重力（原版 HitVO.isApplyG，抓取吸附系为 false；缺省 true） */
+  isApplyG: boolean;
 }
 
 /**

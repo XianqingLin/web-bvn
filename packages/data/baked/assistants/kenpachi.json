@@ -14,7 +14,8 @@
       "hity": 0,
       "hurtTime": 0,
       "hurtType": 1,
-      "isBreakDef": false
+      "isBreakDef": false,
+      "isApplyG": true
     }
   },
   "timeline": {

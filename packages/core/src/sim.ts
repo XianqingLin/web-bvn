@@ -6,6 +6,7 @@ import {
   ENERGY_GAP_TICKS,
   ENERGY_MAX,
   PLAYFIELD_HALF_WIDTH,
+  type AttackerState,
   type BulletState,
   type FighterState,
   type SimConfig,
@@ -33,11 +34,13 @@ import {
   defenseGapTicks,
   defenseHoldTicks,
   onLanded,
+  setLabel,
   stepIntentsFor,
   walkSpeed,
 } from './fighter/machine.js';
 import {
   createBehaviorRegistry,
+  type AttackerSpawnSpec,
   type BehaviorContext,
   type BehaviorHandler,
   type BulletSpawnSpec,
@@ -69,6 +72,20 @@ const DEFENSE_DAMP_X = 0.5;
 /** 训练模式血量回复（POC 取义） */
 const TRAINING_REGEN = 2;
 
+// —— 气回充（原版 FighterMain doQiAdd 系；qi 是资源量，速率不折算） ——
+/** 近战命中回气：非必杀 power×0.16，封顶 15（原版 QI_ADD_HIT_MAX） */
+const HIT_QI_RATE = 0.16;
+const QI_ADD_HIT_MAX = 15;
+/** 受击回气：power×0.085，封顶 20（原版 QI_ADD_HURT_MAX） */
+const HURT_QI_RATE = 0.085;
+const QI_ADD_HURT_MAX = 20;
+/** 飞行道具命中回气：发射者 power×0.1 */
+const BULLET_QI_RATE = 0.1;
+/** 独立道具命中回气：所有者 power×0.15 */
+const ATTACKER_QI_RATE = 0.15;
+/** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
+const ATTACKER_LIFE_TICKS = 120;
+
 /**
  * 速度线性衰减（原版 KyoUtils.num_wake：正负双向逼近 0）。
  */
@@ -80,6 +97,13 @@ function wake(v: number, k: number): number {
   }
   v += k;
   return v > 0 ? 0 : v;
+}
+
+/** 向目标点步进一步（吸附速度换算后值；speed≤0 直接吸附）。 */
+function stepToward(v: number, target: number, speed: number): number {
+  if (speed <= 0 || v === target) return target;
+  const d = target - v;
+  return d > 0 ? v + Math.min(d, speed) : v + Math.max(d, -speed);
 }
 
 /**
@@ -141,7 +165,11 @@ export class Sim {
         this.triggerIndex.set(fc.id, indexTriggers(fc.def));
       }
     }
-    this.behaviors = createBehaviorRegistry({ endAct: endAction, spawnBullet: (spec) => this.spawnBullet(spec) });
+    this.behaviors = createBehaviorRegistry({
+      endAct: endAction,
+      spawnBullet: (spec) => this.spawnBullet(spec),
+      spawnAttacker: (spec) => this.spawnAttacker(spec),
+    });
   }
 
   /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入；
@@ -159,7 +187,11 @@ export class Sim {
     sim.defs = new Map(defs ?? []);
     sim.triggerIndex = new Map();
     for (const [id, def] of sim.defs) sim.triggerIndex.set(id, indexTriggers(def));
-    sim.behaviors = createBehaviorRegistry({ endAct: endAction, spawnBullet: (spec) => sim.spawnBullet(spec) });
+    sim.behaviors = createBehaviorRegistry({
+      endAct: endAction,
+      spawnBullet: (spec) => sim.spawnBullet(spec),
+      spawnAttacker: (spec) => sim.spawnAttacker(spec),
+    });
     return sim;
   }
 
@@ -259,7 +291,9 @@ export class Sim {
         if (view.held(Btn.left)) f.facing = -1;
         else if (view.held(Btn.right)) f.facing = 1;
       }
-      stepIntentsFor(f, def, view);
+      // 摔技目标判定需要对手状态（allowCatch）；双人模型取另一角色
+      const other = fighters[i === 0 ? 1 : 0] ?? null;
+      stepIntentsFor(f, def, view, other, other !== null ? this.defOf(other) : null);
     }
   }
 
@@ -317,6 +351,10 @@ export class Sim {
     }
     // 飞行道具推进（原版 Bullet.render：每 tick 位移/加速/钳制/寿命/出界）
     this.stepBullets();
+    // 独立道具推进（原版 FighterAttacker.render：follow 重定位/重力/寿命占位）
+    this.stepAttackers();
+    // 抓取吸附施加（原版 FighterMC.moveTarget：把目标吸向自身锚点）
+    this.stepMoveTargets();
     // 牵引边界（ADR-4）：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
     // 相机不进模拟（契约硬规则 5）。
     this.clampPlayfield();
@@ -411,6 +449,131 @@ export class Sim {
     });
   }
 
+  /**
+   * 生成独立道具（behaviors.addAttacker 引擎桥；原版 FighterAttacker.init）。
+   * 位置：x 轴沿朝向镜像；moveToTarget 轴改以 target 为基准。
+   * 偏离：命中矩形/寿命占位见 state.ts AttackerState 注；range 轴语料未出现，不支持（确定性静默）。
+   */
+  private spawnAttacker(spec: AttackerSpawnSpec): void {
+    const { owner, name, local, hit, hitId, params } = spec;
+    const t = this.state.fighters.find((f) => f.id !== owner.id) ?? null;
+    const centerX = local.x + local.w / 2;
+    const centerY = local.y + local.h / 2;
+    const axisX = typeof params.x === 'object' && params.x !== null ? params.x : null;
+    const axisY = typeof params.y === 'object' && params.y !== null ? params.y : null;
+    const startX = typeof params.x === 'number' ? params.x + centerX : axisX?.offset ?? centerX;
+    const startY = typeof params.y === 'number' ? params.y + centerY : axisY?.offset ?? centerY;
+    let cx = owner.x + startX * owner.facing;
+    let cy = owner.y + startY;
+    if (axisX?.moveToTarget === true && t !== null) cx = t.x + startX * owner.facing;
+    if (axisY?.moveToTarget === true && t !== null) cy = t.y + startY;
+    const attacker: AttackerState = {
+      id: this.state.nextEntityId,
+      ownerId: owner.id,
+      facing: owner.facing,
+      name,
+      x: cx - local.w / 2,
+      y: cy - local.h / 2,
+      w: local.w,
+      h: local.h,
+      offsetX: startX,
+      offsetY: startY,
+      followX: axisX?.followTarget === true,
+      followY: axisY?.followTarget === true,
+      applyG: params.applyG === true,
+      gRamp: 0,
+      holdTicks: ATTACKER_LIFE_TICKS,
+      hit: hit !== null ? { ...hit } : null,
+      hitId,
+      hitAble: true,
+    };
+    this.state.nextEntityId += 1;
+    this.state.attackers.push(attacker);
+    this.state.attackers.sort((a, b) => a.id - b.id);
+    this.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: owner.id });
+  }
+
+  /** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 寿命（原版 FighterAttacker.render）。 */
+  private stepAttackers(): void {
+    const { stage, fighters, attackers } = this.state;
+    const removed: number[] = [];
+    for (const a of attackers) {
+      const t = fighters.find((f) => f.id !== a.ownerId) ?? null;
+      // followTarget：中心重定位到 target + 局部偏移（x 沿道具朝向镜像）；
+      // 非 follow 轴生成后固定（原版 attacker 是绝对定位实体）
+      if (a.followX && t !== null) a.x = t.x + a.offsetX * a.facing - a.w / 2;
+      if (a.followY && t !== null) a.y = t.y + a.offsetY - a.h / 2;
+      if (a.applyG) {
+        const bottom = a.y + a.h;
+        if (bottom >= stage.groundY) {
+          a.y = stage.groundY - a.h;
+          a.gRamp = GRAVITY_START;
+        } else {
+          a.gRamp = Math.min(a.gRamp + GRAVITY_STEP, GRAVITY_CAP);
+          a.y += a.gRamp;
+        }
+      }
+      if (--a.holdTicks <= 0) removed.push(a.id);
+    }
+    if (removed.length > 0) this.removeAttackers(removed);
+  }
+
+  private removeAttackers(ids: number[]): void {
+    const set = new Set(ids);
+    this.state.attackers = this.state.attackers.filter((a) => {
+      if (set.has(a.id)) {
+        this.emit('entity:despawn', { kind: 'attacker', id: a.id });
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * 抓取吸附每 tick 施加（原版 FighterMC.moveTarget）：把目标吸向自身锚点
+   * （followmc 判定区中心，偏离：原版取子对象注册点，不可得）。
+   * speed 为 0 直接吸附。吸附仅在攻击状态期间有效——攻击结束（endAct/受击/
+   * 回位）即释放并恢复目标重力（原版 clearAction 清 moveTarget；machine 不清，
+   * 由本巡检统一释放，见 machine.endAction 注）。
+   */
+  private stepMoveTargets(): void {
+    const { fighters } = this.state;
+    for (const g of fighters) {
+      const p = g.moveTarget;
+      if (p === null) continue;
+      if (!isAttackingState(g.actionState)) {
+        this.releaseGrab(g);
+        continue;
+      }
+      const t = fighters.find((o) => o.id !== g.id) ?? null;
+      if (t === null) continue;
+      let ax = g.x;
+      let ay = g.y;
+      if (p.followmc !== null) {
+        const def = this.defOf(g);
+        const area = def
+          ? (def.areas[g.animFrame] ?? []).find((r) => r.name === p.followmc)
+          : null;
+        if (area) {
+          ax = g.x + (area.x + area.w / 2) * g.facing;
+          ay = g.y + area.y + area.h / 2;
+        }
+      }
+      t.x = stepToward(t.x, ax, p.speedX);
+      t.y = stepToward(t.y, ay, p.speedY);
+    }
+  }
+
+  /** 释放抓取（原版 moveTarget 清除分支：恢复目标重力，击飞中 y 回拉）。 */
+  private releaseGrab(g: FighterState): void {
+    g.moveTarget = null;
+    const t = this.state.fighters.find((o) => o.id !== g.id) ?? null;
+    if (t !== null) {
+      t.applyG = true;
+      if (t.actionState === ActionState.HURT_FLYING) t.y -= 5;
+    }
+  }
+
   private clampPlayfield(): void {
     const { stage, fighters } = this.state;
     if (fighters.length === 2) {
@@ -500,12 +663,36 @@ export class Sim {
           stage,
           emit: (type, payload) => this.emit(type, payload),
           spawnBullet: (spec) => this.spawnBullet(spec),
+          spawnAttacker: (spec) => this.spawnAttacker(spec),
         };
         for (const t of list) {
           const handler = this.behaviors[t.op];
           if (handler) handler(ctx, t.args, t.target);
         }
       });
+      // 命中续接检查（原版 FighterMcCtrler：checker 判定区与目标身体相交
+      // → 切续接标签并清除；每动画帧检查，触发器之后）
+      if (f.hitTargetChecker !== null && f.hitTarget !== null) {
+        const t = fighters.find((o) => o.id !== f.id) ?? null;
+        const tDef = t !== null ? this.defOf(t) : null;
+        const area = (def.areas[f.animFrame] ?? []).find(
+          (a) => a.name === f.hitTargetChecker,
+        );
+        const bodyLocal =
+          t !== null && tDef !== null
+            ? currentBodyRect({ animFrame: t.animFrame, def: tDef })
+            : null;
+        if (
+          area !== undefined &&
+          t !== null &&
+          bodyLocal !== null &&
+          rectsOverlap(worldRect(f, area), worldRect(t, bodyLocal))
+        ) {
+          setLabel(f, def, f.hitTarget);
+          f.hitTargetChecker = null;
+          f.hitTarget = null;
+        }
+      }
     }
   }
 
@@ -516,7 +703,9 @@ export class Sim {
     const { fighters, bullets } = this.state;
     for (const atk of fighters) {
       const atkDef = this.defOf(atk);
-      if (atk.actionState !== ActionState.ATTACK_ING || !atkDef) continue;
+      // 必杀/技/砍技同属攻击结算（原版 isAttacking：命中监听不区分攻击层级；
+      // 此前只认 ATTACK_ING 导致近战必杀永不命中——切片 9 修复）
+      if (!isAttackingState(atk.actionState) || !atkDef) continue;
       const hit = atkDef.actions[atk.attackId!];
       if (!hit) continue;
       const areas = attackAreasWorld(atk, atkDef);
@@ -536,7 +725,7 @@ export class Sim {
         const hitArea = areas.find((r) => rectsOverlap(r, body));
         if (!hitArea) continue;
         atk.attackHit.push(tgt.id);
-        this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, hit, hitArea);
+        this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, hit, hitArea, atk.attackId, atk);
       }
       // 角色攻击 vs 敌方道具（原版 Bullet.beHit：hp -= power；摧毁不回气——简化偏离）
       for (const b of bullets) {
@@ -564,9 +753,21 @@ export class Sim {
         if (!rectsOverlap(bRect, worldRect(tgt, bodyLocal))) continue;
         // 原版 Bullet.hit：非必杀命中 → 发射者回气 power×0.1（qi 上限 300）
         if (owner && !isBishaAction(b.name.replace('atm', ''))) {
-          owner.qi = Math.min(300, owner.qi + b.hit.power * 0.1);
+          owner.qi = Math.min(300, owner.qi + b.hit.power * BULLET_QI_RATE);
         }
-        this.applyHit(b.ownerId, b.facing, b.x + b.w / 2, tgt, tgtDef, b.hit, bRect);
+        this.applyHit(
+          b.ownerId,
+          b.facing,
+          b.x + b.w / 2,
+          tgt,
+          tgtDef,
+          b.hit,
+          bRect,
+          b.name.replace('atm', ''),
+          // 弹体命中非近战：不结算近战回气（调用侧已按 BULLET_QI_RATE），
+          // 也不消费发射者 hurtAction（那是投技/近战动作的携带语义）
+          null,
+        );
         // 原版 hitTimes：每次命中递减，耗尽 → doHit（停止命中并消散）
         if (b.hitTimes > 0 && --b.hitTimes <= 0) {
           this.despawnBullet(b.id);
@@ -588,6 +789,40 @@ export class Sim {
         if (!this.state.bullets.includes(b)) break;
       }
     }
+    // 独立道具 → 角色（原版 FighterAttacker 命中：非必杀所有者回气 power×0.15；
+    // 单次命中即失效——attacker 无多次命中语料）
+    for (const a of this.state.attackers) {
+      if (!a.hitAble || a.hit === null) continue;
+      const rect = { x: a.x, y: a.y, w: a.w, h: a.h };
+      const owner = this.state.fighters.find((f) => f.id === a.ownerId) ?? null;
+      for (const tgt of fighters) {
+        if (tgt.id === a.ownerId) continue;
+        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
+        const tgtDef = this.defOf(tgt);
+        const bodyLocal = tgtDef
+          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+          : null;
+        if (!bodyLocal) continue;
+        if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
+        if (owner !== null && !isBishaAction(a.hitId ?? '')) {
+          owner.qi = Math.min(300, owner.qi + a.hit.power * ATTACKER_QI_RATE);
+        }
+        this.applyHit(
+          a.ownerId,
+          a.facing,
+          a.x + a.w / 2,
+          tgt,
+          tgtDef,
+          a.hit,
+          rect,
+          a.hitId,
+          owner,
+          true, // viaEntity：回气已在调用侧按 ATTACKER_QI_RATE 结算，跳过近战分支
+        );
+        a.hitAble = false;
+        break;
+      }
+    }
   }
 
   /** 道具命中消散（原版 doHit：_hitAble=false → 播 hit 段 → remove；此处置即时消散，偏离已记录）。 */
@@ -602,6 +837,9 @@ export class Sim {
    * @param attackerId 攻击来源 id（角色或道具）
    * @param attackerFacing 击退方向基准（角色=当前朝向；道具=发射时朝向）
    * @param attackerX 攻击来源位置（背刺判定；道具=道具矩形中心）
+   * @param hitId 攻击动作 id（justHitToPlay 查询/必杀判定；道具/attacker = 元件名反查）
+   * @param attacker 攻击方 fighter（近战回气 + hurtAction 携带；弹体命中传 null）
+   * @param viaEntity 是否独立道具命中（回气调用侧已结算，跳过近战分支）
    */
   private applyHit(
     attackerId: number,
@@ -611,11 +849,24 @@ export class Sim {
     targetDef: FighterDef | null,
     hit: HitDef,
     hitArea: { x: number; y: number; w: number; h: number },
+    hitId: string | null = null,
+    attacker: FighterState | null = null,
+    viaEntity = false,
   ): void {
     const blocking =
       target.actionState === ActionState.DEFENCE_ING &&
       !(hit.hitType === 11 && hit.isBreakDef) &&
       !this.checkDefDirect(target, attackerX, attackerFacing);
+    // 攻击方近战回气（原版 FighterMain.doQiAdd：非必杀 power×0.16 封顶 15；
+    // 被防御的命中同样结算——偏离记录：原版结算点在命中监听层）。
+    // 仅角色本人的动作命中结算（viaEntity 排除独立道具/弹体——各自调用侧
+    // 已按专属费率结算，attacker 仅用于投技 hurtAction 携带）
+    if (attacker !== null && hitId !== null && !viaEntity && !isBishaAction(hitId)) {
+      attacker.qi = Math.min(
+        300,
+        attacker.qi + Math.min(hit.power * HIT_QI_RATE, QI_ADD_HIT_MAX),
+      );
+    }
     const chip = blocking ? hit.power * DEFENSE_LOSE_HP_RATE : hit.power;
     const nextHp = Math.max(0, target.hp - chip);
     // 训练模式：假人不 KO（血最低保留 1）
@@ -635,6 +886,8 @@ export class Sim {
       return;
     }
     if (blocking) {
+      // 被防御：justHitToPlay(includeDefense) 查询基准（原版 lastDefHitId 语义）
+      target.lastDefHitId = hitId;
       // 防御损耗能量：破防技 = 90% 上限，否则 min(50, power/5)（原版 doDefenseHit）
       const drain = hit.isBreakDef
         ? Math.round(ENERGY_MAX * 0.9)
@@ -666,6 +919,21 @@ export class Sim {
       return;
     }
     if (target.steelBody) return; // 钢身：掉血但无受击状态变化（原版 doSteelHurt 子集）
+    // 自定义受击动作（原版 doHurt → playHurtAct）：攻击方动作携带（setHurtAction
+    // 触发在攻击方时间轴，投技携带受击方专用受击动画）优先，受击方自设兜底；
+    // 标签按受击方 def 校验存在性，缺失 = 通用受击态
+    const hurtLabel = attacker?.hurtAction ?? target.hurtAction;
+    if (hurtLabel !== null && targetDef?.labels[hurtLabel] !== undefined) {
+      target.hurtAction = null;
+      target.lastHurtHitId = hitId;
+      target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
+      target.actionState = ActionState.HURT_ACT_ING;
+      setLabel(target, targetDef, hurtLabel);
+      return;
+    }
+    target.lastHurtHitId = hitId;
+    // 受击回气（原版 FighterMain.doQiAdd：power×0.085 封顶 20）
+    target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
     enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
   }
 

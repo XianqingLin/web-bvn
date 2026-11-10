@@ -153,6 +153,8 @@ export function extractFighter(opts: ExtractFighterOptions): ExtractFighterResul
         hurtTime: Number(da.data['hurtTime'] ?? 0),
         hurtType: Number(da.data['hurtType'] ?? 0),
         isBreakDef: da.data['isBreakDef'] === true,
+        // 抓取吸附系 defineAction 显式 isApplyG=false；缺省 true（原版 HitVO）
+        isApplyG: da.data['isApplyG'] !== false,
       };
     }
 

@@ -95,7 +95,32 @@ export interface FighterState {
   airMove: boolean;
   /** 空中动作触地续接标签（原版 setTouchFloor；触地或新动作清除） */
   touchFloor: string | null;
+  /** 血量上限（hp 系 op / 训练回复的 clamp 基准；原版 hpMax） */
+  hpMax: number;
+  /** 剩余空中攻击次数（原版 _action.airHitTimes，跳起/触地时重置为 1） */
+  airHitTimes: number;
+  /** 自定义受击动作（setHurtAction；再受击时播此标签并保持 HURT_ACT_ING） */
+  hurtAction: string | null;
+  /** 最近命中本角色的攻击动作 id（justHit 系查询；idle/受击恢复清空） */
+  lastHurtHitId: string | null;
+  /** 最近被防御的攻击动作 id（justHit includeDefense 查询；同上清空） */
+  lastDefHitId: string | null;
+  /** 命中续接检查区名（setHitTarget；命中续接触发或新动作清除） */
+  hitTargetChecker: string | null;
+  /** 命中续接目标标签（setHitTarget 配对字段） */
+  hitTarget: string | null;
+  /** 抓取吸附参数（moveTarget；null = 无吸附。moveTarget(null)/endAct/再受击清除） */
+  moveTarget: MoveTargetParam | null;
   input: PlayerInput;
+}
+
+/** 抓取吸附参数（原版 MoveTargetParamVO 子集，语料字段 followmc/speed）。 */
+export interface MoveTargetParam {
+  /** 命名子对象（吸附锚点 = 该判定区中心相对自身位置） */
+  followmc: string | null;
+  /** 吸附速度（px/tick，已 ×SPEED_PLUS；两轴为 0 时直接吸附） */
+  speedX: number;
+  speedY: number;
 }
 
 /**
@@ -141,6 +166,45 @@ export interface BulletState {
   hitAble: boolean;
 }
 
+/**
+ * 独立道具（原版 FighterAttacker 子集，module-map §5.7）。
+ * 与 Bullet 的差异：位置由「相对 owner/target 的偏移」驱动（followTarget /
+ * moveToTarget 模式），命中矩形随实体中心平移。
+ * 偏离（素材缺口，切片 10 收紧）：attacker 内层时间轴未导出——命中矩形取
+ * 发射帧命名子对象判定区并全程固定，寿命取 ATTACKER_LIFE_TICKS 占位。
+ */
+export interface AttackerState {
+  id: number;
+  /** 发射者 fighter id（命中结算归属/气回充） */
+  ownerId: number;
+  /** 朝向（偏移镜像基准；命中击退方向也取它） */
+  facing: 1 | -1;
+  /** 元件名（如 zh3mc；渲染/调试表现用） */
+  name: string;
+  /** 命中矩形（世界坐标，中心随实体移动） */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** 中心相对自身锚点的局部偏移（x 沿 facing 镜像） */
+  offsetX: number;
+  offsetY: number;
+  /** followTarget 模式：每 tick 重定位到 target + offset（原版 followTargetX/Y） */
+  followX: boolean;
+  followY: boolean;
+  /** 是否施加重力（原版 params.applyG；语料全显式 false = 悬停） */
+  applyG: boolean;
+  gRamp: number;
+  /** 剩余存在 tick（寿命占位，见偏离注） */
+  holdTicks: number;
+  /** 命中定义（发射动作 HitDef 拷贝；无动作表 = 纯表现实体） */
+  hit: HitDef | null;
+  /** 命中动作 id（气回充/必杀判定用；纯表现实体为 null） */
+  hitId: string | null;
+  /** 仍可命中（命中一次后 false——attacker 无多次命中语料） */
+  hitAble: boolean;
+}
+
 export interface MatchState {
   round: number;
   roundFrame: number;
@@ -160,6 +224,8 @@ export interface SimState {
   fighters: FighterState[];
   /** 飞行道具（含独立道具后续形态），按 id 升序 */
   bullets: BulletState[];
+  /** 独立道具（原版 FighterAttacker，addAttacker 原语），按 id 升序 */
+  attackers: AttackerState[];
   /** 实体 id 分配计数器（bullets/后续 attacker/assister 共用） */
   nextEntityId: number;
   match: MatchState;
@@ -238,6 +304,14 @@ export function createInitialState(config: SimConfig): SimState {
       applyG: true,
       airMove: false,
       touchFloor: null,
+      hpMax: fc.hp ?? DEFAULT_HP,
+      airHitTimes: 1,
+      hurtAction: null,
+      lastHurtHitId: null,
+      lastDefHitId: null,
+      hitTargetChecker: null,
+      hitTarget: null,
+      moveTarget: null,
       slots: defaultSlots(fc.def ?? null),
       input: createPlayerInput(),
     }));
@@ -247,6 +321,7 @@ export function createInitialState(config: SimConfig): SimState {
     stage: { ...config.stage },
     fighters,
     bullets: [],
+    attackers: [],
     nextEntityId: 1,
     match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
   };

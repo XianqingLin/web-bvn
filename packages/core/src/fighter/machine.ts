@@ -7,7 +7,7 @@
  *
  * 明确偏离原版（逐条记录，DESIGN §3.5 偏离清单同步）：
  * - 无跳跃前摇（原版 JUMP_DELAY_FRAME=2）与二段跳/快速下落/空中瞬步（需 jumpTimes）；
- * - 摔技（catch1/2，sh1/sh2）未接线——需要投技目标逻辑（moveTarget），后续切片；
+ * - 摔技（catch1/2，sh1/sh2）已接线（切片 9：allowCatch 邻接门 + moveTarget 吸附）；
  * - 防御无刚防窗口区分（原版 _justDefenseFrame 0.1s），按住 ↓ 即防御态；
  * - 防御解除无 6 tick 延迟（原版 _defenseFrameDelay 计数），松开 ↓ 即进入 防御恢复；
  * - 万解/ghost step/移形换位/开场未接。
@@ -24,6 +24,7 @@ import {
   actionIdForLabel,
   atmName,
   currentAreas,
+  currentBodyRect,
   defaultSlots,
   isAttackingState,
   worldRect,
@@ -53,8 +54,12 @@ const HURT_HOLD_OFFSET = 3;
 const HURT_HOLD_MIN = 4;
 /** 瞬步能量消耗（原版 doDash：hasEnergy(20, true) 允许透支） */
 export const DASH_ENERGY_COST = 20;
-/** 空中必杀消耗（原版 bishaAIRQi=100；doBisha 不允许透支） */
-const BISHA_AIR_QI = 100;
+/** 万解气耗（原版 doWanKaiAction：useQi(300) 不允许透支） */
+export const WAN_KAI_QI = 300;
+/** 受击无敌窗（原版 HURT_GAP_FRAME=4；命中结算后短暂不可再命中） */
+export const HURT_GAP_TICKS = 4;
+/** 万解槽缺失时的兜底标签（原版 checkDoWankai attackingAct 参数） */
+const WAN_KAI_FALLBACK = { plain: '万解', up: '万解W', down: '万解S' } as const;
 /** 防御命中无敌窗（原版 DEFENSE_GAP_FRAME=4 tick；击飞类 8） */
 const DEFENSE_GAP_TICKS = 4;
 const DEFENSE_GAP_DOWN_TICKS = 8;
@@ -104,6 +109,8 @@ export function recoverToNormal(f: FighterState, def: FighterDef | null): void {
   f.attackId = null;
   f.isAllowBeHit = true;
   f.beHitGap = 0;
+  f.lastHurtHitId = null;
+  f.lastDefHitId = null;
   if (f.onGround) idleLabel(f, def);
   else setLabel(f, def, '跳中');
 }
@@ -125,6 +132,11 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
   f.isCross = false;
   f.airMove = false;
   f.touchFloor = null;
+  f.hurtAction = null;
+  f.hitTarget = null;
+  f.hitTargetChecker = null;
+  // 抓取吸附不在此清除：moveTarget 的释放需恢复目标重力/击飞回拉（目标侧
+  // 状态），由 sim.stepMoveTargets 的吸附活性巡检统一处理（攻击态结束即释放）
   if (f.onGround) {
     if (f.actionState !== ActionState.HURT_ING && f.actionState !== ActionState.HURT_DOWN) {
       f.actionState = ActionState.NORMAL;
@@ -141,13 +153,15 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
   }
 }
 
-/** 起跳（原版 FighterMain.jump：vy=-jumpPower，damping=JUMP_DAMPING）。 */
+/** 起跳（原版 FighterMain.jump：vy=-jumpPower，damping=JUMP_DAMPING）。
+ * setJump 覆盖的跳跃标签生效（缺省沿用 起跳，见 defaultSlots 注）。 */
 export function startJump(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.JUMP_ING;
   f.vy = jumpVelocity(def);
   f.dampY = JUMP_DAMPING;
   f.onGround = false;
-  setLabel(f, def, '起跳');
+  f.airHitTimes = 1;
+  setLabel(f, def, f.slots.jump ?? '起跳');
 }
 
 /** 发起攻击（原版 doAttack：切攻击态并按动作名寻帧）。标签缺失 = 动作不可用。 */
@@ -169,6 +183,9 @@ export function startAttack(
   f.isCross = false;
   f.airMove = false;
   f.touchFloor = null;
+  f.hurtAction = null;
+  f.hitTarget = null;
+  f.hitTargetChecker = null;
   return true;
 }
 
@@ -188,9 +205,29 @@ function groundAttackId(def: FighterDef | null): string | null {
   return def && def.attackLabels['k1'] !== undefined ? 'k1' : null;
 }
 
-/** 空中攻击键 → 跳砍（tk；原版 attackAIR 默认帧名）。 */
-function airAttackId(def: FighterDef | null): string | null {
-  return def && def.attackLabels['tk'] !== undefined ? 'tk' : null;
+/** 万解兜底判定（原版 checkDoWankai：槽缺失时允许 防御中 / 砍1 前 2 帧取消）。 */
+function wanKaiFallbackLabel(
+  f: FighterState,
+  def: FighterDef | null,
+  attackingAct: string,
+): string | null {
+  if (f.actLabel === '防御') return attackingAct;
+  if (f.attackId === 'k1') {
+    const range = def?.labels['砍1'];
+    if (range && f.animFrame < range.index + 2) return attackingAct;
+  }
+  return null;
+}
+
+/** 万解候选标签（原版 checkDoWankai(action, attackingAct)）。 */
+function checkWanKai(
+  f: FighterState,
+  def: FighterDef | null,
+  slot: string | null,
+  attackingAct: string,
+): string | null {
+  if (slot) return slot;
+  return wanKaiFallbackLabel(f, def, attackingAct);
 }
 
 // —— 防御 / 瞬步 / 技 / 必杀 ——
@@ -268,7 +305,43 @@ function startSkill(
   f.isCross = false;
   f.airMove = false;
   f.touchFloor = null;
+  f.hurtAction = null;
+  f.hitTarget = null;
+  f.hitTargetChecker = null;
   return true;
+}
+
+/** 万解进入（原版 doWanKaiAction：useQi(300) + WAN_KAI_ING + 不可命中）。 */
+export function startWanKai(f: FighterState, def: FighterDef | null, label: string | null): boolean {
+  const range = label !== null ? def?.labels[label] : undefined;
+  if (!def || label === null || !range) return false;
+  if (f.qi < WAN_KAI_QI) return false;
+  f.qi -= WAN_KAI_QI;
+  f.actionState = ActionState.WAN_KAI_ING;
+  f.attackId = null;
+  f.attackHit = [];
+  f.actLabel = label;
+  f.animFrame = range.index + 1;
+  f.labelLock = 0;
+  f.isAllowBeHit = false;
+  // 原版 doAction + doWanKaiAction 的状态清理
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
+  f.hurtAction = null;
+  f.hitTarget = null;
+  f.hitTargetChecker = null;
+  return true;
+}
+
+/** 万解时间轴的帧驱动（原版 FighterCtrler.doWanKai(frame)：gotoAndStop(frame)；
+ * 帧参缺省 nextFrame——移植版由动画自然推进替代，此处仅处理绝对帧跳转）。 */
+export function wanKaiGotoFrame(f: FighterState, def: FighterDef | null, frame: number): void {
+  if (frame <= 0 || f.actLabel === null) return;
+  const range = def?.labels[f.actLabel];
+  if (!range) return;
+  const idx = Math.min(Math.max(frame, range.index + 1), range.index + range.duration);
+  f.animFrame = idx;
 }
 
 // —— 能量（原版 FighterMain.hasEnergy/useEnergy；回充在 sim 步骤 7） ——
@@ -288,27 +361,80 @@ function spendEnergy(f: FighterState, v: number): void {
 }
 
 /**
+ * 抓取判定（原版 allowCatch 子集）：目标活着且非受击硬直、双方 body 贴身
+ * （间距 < 2px、|dy| < 1px）、自身面向目标。原版的下一帧位置预判依赖渲染
+ * 顺序（isCheckedRender），移植版省略（2px 容差内影响极小，偏离记录）。
+ */
+export function allowCatch(
+  f: FighterState,
+  other: FighterState | null,
+  def: FighterDef | null,
+  otherDef: FighterDef | null,
+): boolean {
+  if (!other || other.hp <= 0 || other.actionState === ActionState.HURT_ING) {
+    return false;
+  }
+  const selfBody = def ? currentBodyRect({ animFrame: f.animFrame, def }) : null;
+  const tgtBody = otherDef ? currentBodyRect({ animFrame: other.animFrame, def: otherDef }) : null;
+  if (!selfBody || !tgtBody) return false;
+  const sb = worldRect(f, selfBody);
+  const tb = worldRect(other, tgtBody);
+  let disX: number;
+  if (sb.x < tb.x) {
+    if (f.facing < 0) return false;
+    disX = tb.x - (sb.x + sb.w);
+  } else {
+    if (f.facing > 0) return false;
+    disX = sb.x - (tb.x + tb.w);
+  }
+  const disY = Math.abs(f.y - other.y);
+  return disX < 2 && disY < 1;
+}
+
+/**
  * 意图决策（每 tick，管线第 2 步调用）。
- * 地面动作检查顺序照抄原版 renderFloorAction（后触发覆盖先触发，实际由
- * 修饰键互斥保证单触发）：必杀系 → 砍技/招 → 攻击 → 防御 → 瞬步 → 跳。
- * 空中照 renderAirAction：跳砍/跳招/空中必杀。
+ * 检查顺序照原版 render()：万解（先于一切）→ 地面 renderFloorAction
+ * （摔技 → 必杀系 → 砍技/招 → 攻击 → 防御 → 瞬步 → 跳）→
+ * 空中 renderAirAction（跳砍/跳招/空中必杀，airHitTimes 门）。
  */
 export function stepIntentsFor(
   f: FighterState,
   def: FighterDef | null,
   view: InputView,
+  other: FighterState | null = null,
+  otherDef: FighterDef | null = null,
 ): void {
   if (
     f.actionState === ActionState.DEAD ||
     f.actionState === ActionState.HURT_ING ||
     f.actionState === ActionState.HURT_FLYING ||
-    f.actionState === ActionState.HURT_DOWN
+    f.actionState === ActionState.HURT_DOWN ||
+    f.actionState === ActionState.HURT_ACT_ING ||
+    f.actionState === ActionState.WAN_KAI_ING
   ) {
     return;
   }
 
   const down = view.held(Btn.down);
   const up = view.held(Btn.up);
+
+  // —— 万解（原版 renderWanKaiCtrl：W→S→无修饰；attack+jump 同时按住；
+  //     原版按住级检测，移植版过攻击/跳缓冲器（ADR-3 触发型统一） ——
+  const wankaiPress =
+    (view.buffered(Btn.attack) && view.held(Btn.jump)) ||
+    (view.buffered(Btn.jump) && view.held(Btn.attack));
+  if (wankaiPress) {
+    const want = up
+      ? checkWanKai(f, def, f.slots.wanKaiW, WAN_KAI_FALLBACK.up)
+      : down
+        ? checkWanKai(f, def, f.slots.wanKaiS, WAN_KAI_FALLBACK.down)
+        : checkWanKai(f, def, f.slots.wanKai, WAN_KAI_FALLBACK.plain);
+    if (want !== null && startWanKai(f, def, want)) {
+      view.consume(Btn.attack);
+      view.consume(Btn.jump);
+      return;
+    }
+  }
 
   // —— 防御态：原版 setDefenseAction 清槽后仅留 砍技1/招2/超必杀；松 ↓ 退出 ——
   if (f.actionState === ActionState.DEFENCE_ING) {
@@ -333,6 +459,22 @@ export function stepIntentsFor(
   }
 
   if (f.onGround) {
+    // 摔技（原版 renderFloorAction 首位：朝目标方向移动 + 攻击/技能键，
+    // allowCatch 贴身判定；catch1=攻击键 catch2=技能键 → SKILL_ING）
+    const movingTowardTarget =
+      (f.facing === 1 && view.held(Btn.right)) || (f.facing === -1 && view.held(Btn.left));
+    if (movingTowardTarget && allowCatch(f, other, def, otherDef)) {
+      if (view.buffered(Btn.attack) && f.slots.catch1 !== null) {
+        view.consume(Btn.attack);
+        startSkill(f, def, f.slots.catch1, 0, false); // 原版 doCatch：SKILL_ING
+        return;
+      }
+      if (view.buffered(Btn.skill) && f.slots.catch2 !== null) {
+        view.consume(Btn.skill);
+        startSkill(f, def, f.slots.catch2, 0, false);
+        return;
+      }
+    }
     // 必杀系（superSkill ± 上/下；原版 bishaSUPER/bishaUP/bisha 顺序）
     if (view.buffered(Btn.superSkill)) {
       if (down && f.slots.bishaSuper !== null) {
@@ -401,21 +543,34 @@ export function stepIntentsFor(
       return;
     }
   } else {
-    // 空中（原版 renderAirAction）：跳砍/跳招/空中必杀
+    // 空中（原版 renderAirAction：attackAIR/skillAIR/bishaAIR 槽，airHitTimes 门；
+    // 门语义 = 有动作在身或剩余次数>0；动作消耗次数，跳起/触地重置）
+    const canAirAct = f.airHitTimes > 0 || isAttackingState(f.actionState);
     if (view.buffered(Btn.attack)) {
-      const id = airAttackId(def);
       view.consume(Btn.attack);
-      if (id !== null) startAttack(f, def, id);
+      if (canAirAct && f.slots.attackAIR !== null) {
+        f.airHitTimes -= 1;
+        f.dampY += 1.5; // 原版 doAirAttack：addDamping(0,3)@30fps → 1.5/tick
+        startAttackByLabel(f, def, f.slots.attackAIR);
+      }
     }
     if (view.buffered(Btn.skill)) {
       view.consume(Btn.skill);
-      const s = f.slots;
-      const label = up ? s.zhao3 : down ? s.zhao2 : s.zhao1;
-      if (label) startSkill(f, def, label, 0, false);
+      if (canAirAct && f.slots.skillAIR !== null) {
+        const ok = startSkill(f, def, f.slots.skillAIR, 0, false);
+        if (ok) f.airHitTimes = 0; // 原版 doAirSkill：动作成立即耗尽
+      }
     }
     if (view.buffered(Btn.superSkill)) {
       view.consume(Btn.superSkill);
-      if (f.qi >= BISHA_AIR_QI) startSkill(f, def, '必杀', BISHA_AIR_QI, false);
+      if (
+        canAirAct &&
+        f.slots.bishaAIR !== null &&
+        f.qi >= f.slots.bishaAIRQi &&
+        startSkill(f, def, f.slots.bishaAIR, f.slots.bishaAIRQi, false)
+      ) {
+        f.airHitTimes = 0;
+      }
     }
   }
 }
@@ -520,12 +675,14 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
       f.animFrame = tf.index + 1;
       f.labelLock = 0;
       f.touchFloor = null;
+      f.airHitTimes = 1; // 原版 touchFloor：空中攻击次数重置
       return;
     }
   }
   if (f.actionState === ActionState.JUMP_ING) {
     f.actionState = ActionState.NORMAL;
     f.dampY = 0;
+    f.airHitTimes = 1;
     const land = def?.labels['落地'];
     if (land) {
       f.actLabel = '落地';
@@ -561,6 +718,11 @@ export function enterHurt(
   f.vx = hitx * SPEED_PLUS;
   f.vy = hity * SPEED_PLUS;
   f.dampY = HURT_DAMP_Y;
+
+  // 原版 doHurt：受击无敌窗（HURT_GAP_FRAME）+ 命中定义的重力开关（抓取吸附系 false）
+  f.beHitGap = HURT_GAP_TICKS;
+  f.isAllowBeHit = false;
+  f.applyG = hit.isApplyG !== false; // 容错缺省（手写 def 兼容）
 
   if (hit.hurtType !== 0) {
     // 击飞（原版 playHurtFly：按击退方向翻转朝向；水平不衰减）

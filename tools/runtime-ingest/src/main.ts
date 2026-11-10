@@ -95,7 +95,7 @@ interface DumpMap {
   mapSize?: { w: number; h: number };
 }
 
-const ACTION_FIELDS = ['power', 'hitType', 'hitx', 'hity', 'hurtTime', 'hurtType', 'isBreakDef'] as const;
+const ACTION_FIELDS = ['power', 'hitType', 'hitx', 'hity', 'hurtTime', 'hurtType', 'isBreakDef', 'isApplyG'] as const;
 
 const r2 = (v: number): number => Math.round(v * 100) / 100;
 
@@ -172,6 +172,7 @@ function normalizeAction(raw: Record<string, unknown>): { def: ActionDef; extraK
     hurtTime: Number(raw.hurtTime ?? 0),
     hurtType: Number(raw.hurtType ?? 0),
     isBreakDef: Boolean(raw.isBreakDef),
+    isApplyG: raw.isApplyG !== false,
   };
   const extraKeys = Object.keys(raw).filter((k) => !ACTION_FIELDS.includes(k as never));
   return { def, extraKeys };

@@ -48,7 +48,7 @@ function makeDef(overrides: Partial<FighterDef> = {}): FighterDef {
     jumpPower: 15,
     heavy: 3,
     actions: {
-      k1: { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false },
+      k1: { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true },
     },
     labels,
     areas,
@@ -182,7 +182,7 @@ describe('命中判定与结算', () => {
   it('击杀：hp 归零进 DEAD 并发 fighter:ko', () => {
     const def = makeDef({
       actions: {
-        k1: { power: 2000, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false },
+        k1: { power: 2000, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true },
       },
     });
     const sim = new Sim(makeConfig({ p2x: 130, def1: def }));

@@ -20,6 +20,8 @@ export interface HitDef {
   hurtTime: number;
   hurtType: number;
   isBreakDef: boolean;
+  /** 命中后受击方是否施加重力（原版 HitVO.isApplyG，抓取吸附系为 false） */
+  isApplyG: boolean;
 }
 
 /** 帧标签 → 时间轴区间（30Hz 动画帧，index 0 起）。 */
@@ -77,7 +79,8 @@ export interface FighterDef {
 /**
  * 动作状态码（原版 FighterActionState，module-map §5.2）。
  * 切片 5 子集：+技能(11)/必杀(12/13)/瞬步(15)/防御(20)。
- * 万解(50)/FREEZE(40)/换人系后续接入。
+ * 切片 9：+受击动作(16 setHurtAction)/万解(50)；FREEZE(40)/换人系未接
+ * （endAct 语义取 NORMAL 回位，偏离已记录）。
  */
 export const ActionState = {
   /** 普通（站立/行走/落地恢复） */
@@ -88,11 +91,15 @@ export const ActionState = {
   BISHA_SUPER_ING: 13,
   JUMP_ING: 14,
   DASH_ING: 15,
+  /** 受击动作中（setHurtAction；再受击播 hurtAction 而非受击态） */
+  HURT_ACT_ING: 16,
   DEFENCE_ING: 20,
   HURT_ING: 21,
   HURT_FLYING: 22,
   HURT_DOWN: 23,
   DEAD: 30,
+  /** 万解中（开场演出 + doWanKai 帧驱动；形态切换后续切片） */
+  WAN_KAI_ING: 50,
 } as const;
 
 /** 循环播放的动作标签（其余标签播完即结束动作）。防御循环按住 ↓ 期间保持。 */
@@ -121,6 +128,9 @@ export interface FighterSlots {
   zhao1: string | null;
   zhao2: string | null;
   zhao3: string | null;
+  /** 摔技槽（catch1=攻击键+朝目标移动；catch2=技能键+朝目标移动） */
+  catch1: string | null;
+  catch2: string | null;
   bisha: string | null;
   bishaQi: number;
   bishaUp: string | null;
@@ -128,6 +138,17 @@ export interface FighterSlots {
   bishaSuper: string | null;
   bishaSuperQi: number;
   dash: string | null;
+  /** 空中槽（原版 setAirAllAct：跳起时填充） */
+  attackAIR: string | null;
+  skillAIR: string | null;
+  bishaAIR: string | null;
+  bishaAIRQi: number;
+  /** 跳跃标签覆盖（原版 setJump；null = 默认 起跳） */
+  jump: string | null;
+  /** 万解槽（原版 setWankai：标签存在才填） */
+  wanKai: string | null;
+  wanKaiW: string | null;
+  wanKaiS: string | null;
 }
 
 /** 动作槽默认值（原版 FighterAction 字段缺省 + setAllAct 默认帧名）。 */
@@ -140,6 +161,8 @@ export function defaultSlots(def: FighterDef | null): FighterSlots {
     zhao1: has('招1') ? '招1' : null,
     zhao2: has('招2') ? '招2' : null,
     zhao3: has('招3') ? '招3' : null,
+    catch1: has('摔1') ? '摔1' : null,
+    catch2: has('摔2') ? '摔2' : null,
     bisha: has('必杀') ? '必杀' : null,
     bishaQi: 100,
     bishaUp: has('上必杀') ? '上必杀' : null,
@@ -147,6 +170,16 @@ export function defaultSlots(def: FighterDef | null): FighterSlots {
     bishaSuper: has('超必杀') ? '超必杀' : null,
     bishaSuperQi: 300,
     dash: has('瞬步') ? '瞬步' : null,
+    attackAIR: has('跳砍') ? '跳砍' : null,
+    skillAIR: has('跳招') ? '跳招' : null,
+    bishaAIR: has('空中必杀') ? '空中必杀' : null,
+    bishaAIRQi: 100,
+    // 原版 setAllAct 默认 jump='跳'（全体有此标签）；移植版跳跃动画沿用
+    // 切片 3 的 起跳/跳中/落 映射，仅 setJump 显式覆盖时改用自定义标签（偏离记录）
+    jump: null,
+    wanKai: has('万解') ? '万解' : null,
+    wanKaiW: has('万解W') ? '万解W' : null,
+    wanKaiS: has('万解S') ? '万解S' : null,
   };
 }
 

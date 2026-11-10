@@ -17,7 +17,7 @@ import {
  * 招1 181-210（zh1atm 185-186）、必杀 211-260。
  */
 
-const HIT_K1 = { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false };
+const HIT_K1 = { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true };
 
 function makeDef(): FighterDef {
   const labels: FighterDef['labels'] = {
@@ -57,7 +57,7 @@ function makeDef(): FighterDef {
       k1: { ...HIT_K1 },
       k2: { ...HIT_K1 },
       zh1: { ...HIT_K1 },
-      bs: { power: 100, hitType: 5, hitx: 10, hity: 0, hurtTime: 0, hurtType: 1, isBreakDef: false },
+      bs: { power: 100, hitType: 5, hitx: 10, hity: 0, hurtTime: 0, hurtType: 1, isBreakDef: false, isApplyG: true },
     },
     labels,
     areas,

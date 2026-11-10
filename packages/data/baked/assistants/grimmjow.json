@@ -14,7 +14,8 @@
       "hity": 0,
       "hurtTime": 500,
       "hurtType": 0,
-      "isBreakDef": false
+      "isBreakDef": false,
+      "isApplyG": true
     },
     "atm2": {
       "power": 5,
@@ -23,7 +24,8 @@
       "hity": 0,
       "hurtTime": 500,
       "hurtType": 0,
-      "isBreakDef": false
+      "isBreakDef": false,
+      "isApplyG": true
     },
     "atm3": {
       "power": 50,
@@ -32,7 +34,8 @@
       "hity": 0,
       "hurtTime": 0,
       "hurtType": 1,
-      "isBreakDef": false
+      "isBreakDef": false,
+      "isApplyG": true
     }
   },
   "timeline": {

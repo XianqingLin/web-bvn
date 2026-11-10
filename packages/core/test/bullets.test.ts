@@ -16,7 +16,7 @@ import {
  * 必杀 211-260；fire 触发挂在招1 第 185 帧。
  */
 
-const HIT_ZH1 = { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false };
+const HIT_ZH1 = { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true };
 
 function makeDef(): FighterDef {
   const labels: FighterDef['labels'] = {
@@ -55,7 +55,7 @@ function makeDef(): FighterDef {
     actions: {
       k1: { ...HIT_ZH1 },
       zh1: { ...HIT_ZH1 },
-      bs: { power: 100, hitType: 5, hitx: 10, hity: 0, hurtTime: 0, hurtType: 1, isBreakDef: false },
+      bs: { power: 100, hitType: 5, hitx: 10, hity: 0, hurtTime: 0, hurtType: 1, isBreakDef: false, isApplyG: true },
     },
     labels,
     areas,
@@ -162,7 +162,8 @@ describe('切片 8：fire 飞行道具', () => {
     expect(p2.hp).toBe(970);
     // 消散
     expect(snap.state.bullets).toHaveLength(0);
-    // 发射者回气：P1 qi = 3（必杀动作 bs 前缀才免回气；zh1 非 bs）
+    // 发射者回气：P1 qi = 3（道具 power×0.1；弹体命中只走 BULLET_QI_RATE，
+    // 不叠近战 0.16——此前 7.8 是 applyHit 近战分支误对弹体命中计费的产物）
     const p1 = snap.state.fighters[0]!;
     expect(p1.qi).toBeCloseTo(3);
     const despawnEv = snap.events.find((e) => e.type === 'entity:despawn');
@@ -180,7 +181,7 @@ describe('切片 8：fire 飞行道具', () => {
 
   it('必杀弹（bs 前缀）命中不回气', () => {
     const def = makeFireDef(ZERO);
-    def.actions['zh1'] = { power: 30, hitType: 5, hitx: 10, hity: 0, hurtTime: 0, hurtType: 1, isBreakDef: false };
+    def.actions['zh1'] = { power: 30, hitType: 5, hitx: 10, hity: 0, hurtTime: 0, hurtType: 1, isBreakDef: false, isApplyG: true };
     // bsatm → 动作 bs；命中区/触发放 必杀 段（211-260）
     def.triggers = [{ frame: 215, target: 'mc', op: 'fire', args: ['bsatm', { x: { start: 5, add: 1, max: 20 }, hold: 60, hits: 1 }] }];
     def.areas[215] = [

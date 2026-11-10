@@ -10,7 +10,8 @@
  * 词表扩充 = 契约 §帧触发表 + 本注册表 + data 校验器三处同 commit。
  */
 import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef } from './def.js';
-import { SPEED_PLUS, defaultSlots } from './def.js';
+import { ActionState, SPEED_PLUS, defaultSlots } from './def.js';
+import { enterDead, wanKaiGotoFrame, HURT_DAMP_Y } from './machine.js';
 import type { FighterState, StageState } from '../state.js';
 
 /** fire 参数（原版 Bullet 构造 params 子集，语料实际出现的字段）。 */
@@ -44,6 +45,34 @@ export interface BulletSpawnSpec {
   params: FireParams;
 }
 
+/** addAttacker 参数（原版 FighterAttacker 构造 params 语料字段）。 */
+export interface AttackerAxisParams {
+  moveToTarget?: boolean;
+  followTarget?: boolean;
+  offset?: number;
+  range?: [number, number];
+}
+
+export interface AttackerParams {
+  x?: number | AttackerAxisParams;
+  y?: number | AttackerAxisParams;
+  applyG?: boolean;
+}
+
+/** addAttacker 原语交给引擎的生成规格（引擎换算世界坐标并入 SimState）。 */
+export interface AttackerSpawnSpec {
+  owner: FighterState;
+  /** 命名子对象（原版 addAttacker(mcName)） */
+  name: string;
+  /** 生成帧判定区（root 本地坐标，direct=1；位置/尺寸来源） */
+  local: AreaRect;
+  /** 命中定义（发射动作 HitDef；无动作表 = null 纯表现实体） */
+  hit: HitDef | null;
+  /** 命中动作 id（气回充/必杀判定用） */
+  hitId: string | null;
+  params: AttackerParams;
+}
+
 /** 行为处理器上下文（瞬态，不进 SimState）。 */
 export interface BehaviorContext {
   f: FighterState;
@@ -56,6 +85,8 @@ export interface BehaviorContext {
   emit(type: string, payload: Record<string, unknown>): void;
   /** fire 原语：发射飞行道具（引擎桥接，sim 装配） */
   spawnBullet(spec: BulletSpawnSpec): void;
+  /** addAttacker 原语：生成独立道具（引擎桥接，sim 装配） */
+  spawnAttacker(spec: AttackerSpawnSpec): void;
 }
 
 /**
@@ -322,11 +353,268 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
       params: parseFireParams(args[1]),
     });
   },
+
+  // —— 标签跳转（原版 FighterMC gotoAndPlay/gotoAndStop/loop：纯时间轴跳转，
+  // 不清状态不清速度；gotoAndStop 与 loop 语料语义等价，取同语义（偏离记录）） ——
+  gotoAndPlay(ctx, args) {
+    const label = typeof args[0] === 'string' ? args[0] : null;
+    if (label !== null) setLabelTo(ctx, label);
+  },
+  gotoAndStop(ctx, args) {
+    const label = typeof args[0] === 'string' ? args[0] : null;
+    if (label !== null) setLabelTo(ctx, label);
+  },
+  loop(ctx, args) {
+    const label = typeof args[0] === 'string' ? args[0] : null;
+    if (label !== null) setLabelTo(ctx, label);
+  },
+
+  // —— 动作槽补充（原版 FighterAction setJump/setAirAllAct/setWankai 系） ——
+  setJump(ctx, args) {
+    setSlot(ctx, 'jump', args[0]);
+  },
+  setAttackAIR(ctx, args) {
+    setSlot(ctx, 'attackAIR', args[0]);
+  },
+  setSkillAIR(ctx, args) {
+    setSlot(ctx, 'skillAIR', args[0]);
+  },
+  setBishaAIR(ctx, args) {
+    setSlot(ctx, 'bishaAIR', args[0]);
+    if (typeof args[1] === 'number') ctx.f.slots.bishaAIRQi = args[1];
+  },
+  setCatch1(ctx, args) {
+    setSlot(ctx, 'catch1', args[0]);
+  },
+  setCatch2(ctx, args) {
+    setSlot(ctx, 'catch2', args[0]);
+  },
+  setWankai(ctx, args) {
+    setSlot(ctx, 'wanKai', args[0]);
+  },
+  setWankaiW(ctx, args) {
+    setSlot(ctx, 'wanKaiW', args[0]);
+  },
+  setWankaiS(ctx, args) {
+    setSlot(ctx, 'wanKaiS', args[0]);
+  },
+  // setAllAct()：槽全重填（原版 FighterAction.setAllAct）
+  setAllAct(ctx) {
+    if (ctx.def) ctx.f.slots = defaultSlots(ctx.def);
+  },
+
+  // —— 目标系（原版 FighterMcCtrler moveTarget/moveToTarget/justHit 系；
+  // target = 另一角色（双人模型）） ——
+  // setHurtAction(label)：自定义受击动作（原版 FighterMC._hurtAction）。
+  // 触发位置在攻击方动作时间轴（投技/连段携带受击方专用受击动画），语义 =
+  // 「本次动作期间的命中：受击方播该标签而非进通用受击态」。标签属于受击方
+  // def，存在性在 applyHit 消费时按受击方校验；动作结束（endAct）清除。
+  setHurtAction(ctx, args) {
+    const label = typeof args[0] === 'string' ? args[0] : null;
+    // 只存标签：HURT_ACT_ING 是受击方在 applyHit 消费时才进的态，
+    // 携带者自身不改动作状态（此前误设导致携带者卡在受击态无法行动）
+    if (label !== null) {
+      ctx.f.hurtAction = label;
+    }
+  },
+  // setHitTarget(checker, action)：命中续接（每动画帧检查 checker 判定区
+  // 与目标身体相交 → 切 action 标签并清除；sim.stepAnimation 消费）
+  setHitTarget(ctx, args) {
+    const checker = typeof args[0] === 'string' ? args[0] : null;
+    const action = typeof args[1] === 'string' ? args[1] : null;
+    if (checker !== null && action !== null) {
+      ctx.f.hitTargetChecker = checker;
+      ctx.f.hitTarget = action;
+    }
+  },
+  // moveToTarget(x, y, setDirect=true)：瞬移到目标旁（原版 moveToTarget：
+  // 目标贴左/右版边时反向镜像防穿帮；setDirect=false 不转身）
+  moveToTarget(ctx, args) {
+    const t = targetOf(ctx);
+    if (t === null) return;
+    const x = num(args[0]);
+    const y = num(args[1]);
+    if (args[0] !== null) {
+      let fx = t.x + x * ctx.f.facing;
+      if (x > 0) {
+        if (t.x < x) fx = t.x + x;
+        else if (t.x > ctx.stage.rightBound - x) fx = t.x - x;
+      }
+      ctx.f.x = fx;
+    }
+    if (args[1] !== null) ctx.f.y = t.y + y;
+    if (args[2] !== false) ctx.f.facing = ctx.f.x < t.x ? 1 : -1;
+  },
+  // moveTarget({followmc, speed}) / moveTarget(null)：抓取吸附/释放。
+  // speed 缺省 = 0（直接吸附）；释放时恢复目标重力，击飞中目标 y 回拉
+  // （原版 moveTarget 释放分支）
+  moveTarget(ctx, args) {
+    const v = args[0];
+    if (typeof v !== 'object' || v === null || Array.isArray(v)) {
+      releaseMoveTarget(ctx);
+      return;
+    }
+    const p = v as { followmc?: BehaviorArg; speed?: BehaviorArg };
+    let sx = 0;
+    let sy = 0;
+    if (typeof p.speed === 'number') {
+      sx = p.speed * SPEED_PLUS;
+      sy = p.speed * SPEED_PLUS;
+    } else if (typeof p.speed === 'object' && p.speed !== null && !Array.isArray(p.speed)) {
+      const sp = p.speed as { x?: BehaviorArg; y?: BehaviorArg };
+      sx = num(sp.x) * SPEED_PLUS;
+      sy = num(sp.y) * SPEED_PLUS;
+    }
+    ctx.f.moveTarget = {
+      followmc: typeof p.followmc === 'string' ? p.followmc : null,
+      speedX: sx,
+      speedY: sy,
+    };
+  },
+  // justHitToPlay(hitid, frame, noIdle=false, includeDefense=false)：目标最近
+  // 被动作 hitid 命中（includeDefense 时含被防御）→ 跳 frame 续接；
+  // 否则 noIdle 静默，回站立（原版 justHitToPlay 分支）
+  justHitToPlay(ctx, args) {
+    const hitid = typeof args[0] === 'string' ? args[0] : null;
+    const frame = typeof args[1] === 'string' ? args[1] : null;
+    if (hitid === null || frame === null) return;
+    const t = targetOf(ctx);
+    const matched =
+      t !== null &&
+      (t.lastHurtHitId === hitid || (args[3] === true && t.lastDefHitId === hitid));
+    if (matched) {
+      setLabelTo(ctx, frame);
+    } else if (args[2] !== true) {
+      defaultBehaviors.idle?.(ctx, ['站立'], 'mc');
+    }
+  },
+  // setDirectToTarget()：转向目标；setDirectReverse()：转身
+  setDirectToTarget(ctx) {
+    const t = targetOf(ctx);
+    if (t !== null) ctx.f.facing = ctx.f.x > t.x ? -1 : 1;
+  },
+  setDirectReverse(ctx) {
+    ctx.f.facing = ctx.f.facing === 1 ? -1 : 1;
+  },
+  // setTargetVelocity(x,y)：目标置位移速度（沿自身朝向；×SPEED_PLUS）
+  setTargetVelocity(ctx, args) {
+    const t = targetOf(ctx);
+    if (t === null) return;
+    t.vx = num(args[0]) * SPEED_PLUS * ctx.f.facing;
+    t.vy = num(args[1]) * SPEED_PLUS;
+  },
+  // hurtFly(x,y)：主动击飞（原版 playHurtFly(x*direct,y)：进入受击飞行态，
+  // 位移沿自身朝向，x<0 = 后撤；标签缺失静默）
+  hurtFly(ctx, args) {
+    ctx.f.actionState = ActionState.HURT_FLYING;
+    ctx.f.hurtTimer = 0;
+    ctx.f.vx = num(args[0]) * SPEED_PLUS * ctx.f.facing;
+    ctx.f.vy = num(args[1]) * SPEED_PLUS;
+    ctx.f.dampX = 0;
+    ctx.f.dampY = HURT_DAMP_Y;
+    setLabelTo(ctx, '击飞');
+  },
+
+  // —— 血量系（原版 BaseGameSprite addHp/loseHp；hp≤0 死亡结算） ——
+  addHp(ctx, args) {
+    addHpRaw(ctx, num(args[0]));
+  },
+  addHpPercent(ctx, args) {
+    addHpRaw(ctx, ctx.f.hpMax * num(args[0]));
+  },
+  addHpLosePercent(ctx, args) {
+    addHpRaw(ctx, (ctx.f.hpMax - ctx.f.hp) * num(args[0]));
+  },
+  loseHp(ctx, args) {
+    if (ctx.f.hp <= 0) return;
+    ctx.f.hp = Math.max(0, ctx.f.hp - num(args[0]));
+    if (ctx.f.hp <= 0) {
+      enterDead(ctx.f, ctx.def);
+      ctx.emit('fighter:ko', { fighter: ctx.f.id });
+    }
+  },
+
+  // —— 万解（原版 EffectCtrler wanKai 演出 + FighterCtrler doWanKai 帧驱动） ——
+  // startWanKai(face)：万解开场演出事件（effect 控制器消费）
+  startWanKai(ctx, args) {
+    ctx.emit('effect', {
+      id: 'wanKai',
+      x: ctx.f.x,
+      y: ctx.f.y,
+      params: { face: typeof args[0] === 'string' ? args[0] : null },
+    });
+  },
+  // endWanKai()：万解演出结束
+  endWanKai(ctx) {
+    ctx.emit('effect', { id: 'endWanKai', x: ctx.f.x, y: ctx.f.y, params: {} });
+  },
+  // doWanKai(frame)：万解内层时间轴跳帧（WAN_KAI_ING 期间帧驱动）
+  doWanKai(ctx, args) {
+    wanKaiGotoFrame(ctx.f, ctx.def, num(args[0]));
+  },
+
+  // —— 独立道具（原版 FighterMcCtrler.addAttacker → FighterAttacker，
+  // module-map §5.7；命名反查同 fire：去 atm 后缀查动作表；
+  // 无动作表 = 纯表现实体。偏离：attacker 内层时间轴未导出，
+  // 命中矩形/寿命为占位，切片 10 收紧） ——
+  addAttacker(ctx, args) {
+    const name = typeof args[0] === 'string' ? args[0] : null;
+    if (name === null || !ctx.def) return;
+    const local = (ctx.def.areas[ctx.f.animFrame] ?? []).find((a) => a.name === name);
+    if (!local) return;
+    // 原版命中判定来自道具自身内层时间轴（未导出）；用 owner actions 表兜底：
+    // 依名字形态猜 actionId（'zh3mc'→'zh3'、'k1atm'→'k1'），都查不到 = 纯视觉道具
+    const actionId = name.replace('atm', '').replace(/mc$/, '');
+    const hit =
+      ctx.def.actions[actionId] ??
+      ctx.def.actions[name] ??
+      ctx.def.actions[name.replace('atm', '')] ??
+      ctx.def.actions[name.replace(/mc$/, '')] ??
+      null;
+    ctx.spawnAttacker({
+      owner: ctx.f,
+      name,
+      local,
+      hit,
+      hitId: hit !== null ? actionId : null,
+      params: parseAttackerParams(args[1]),
+    });
+  },
 };
 
 /** fire 参数解析（语料字段：x/y 的 number|{start,add,max,min}、hold、hits、hp）。 */
 function parseFireParams(v: BehaviorArg | undefined): FireParams {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as FireParams) : {};
+}
+
+/** addAttacker 参数解析（语料字段：x/y 的 number|轴对象、applyG）。 */
+function parseAttackerParams(v: BehaviorArg | undefined): AttackerParams {
+  return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as AttackerParams) : {};
+}
+
+/** 目标：另一角色（双人模型； fighters 按 id 升序）。 */
+function targetOf(ctx: BehaviorContext): FighterState | null {
+  for (const o of ctx.fighters) {
+    if (o.id !== ctx.f.id) return o;
+  }
+  return null;
+}
+
+/** 回血（hp≤0 不回复；clamp 到 hpMax，原版 BaseGameSprite.addHp）。 */
+function addHpRaw(ctx: BehaviorContext, v: number): void {
+  if (ctx.f.hp <= 0) return;
+  ctx.f.hp = Math.min(ctx.f.hpMax, ctx.f.hp + v);
+}
+
+/** 释放抓取吸附（原版 moveTarget(null)：恢复目标重力，击飞中 y 回拉）。 */
+function releaseMoveTarget(ctx: BehaviorContext): void {
+  if (ctx.f.moveTarget === null) return;
+  const t = targetOf(ctx);
+  if (t !== null) {
+    t.applyG = true;
+    if (t.actionState === ActionState.HURT_FLYING) t.y -= 5;
+  }
+  ctx.f.moveTarget = null;
 }
 
 /** 带缺省静默的标签切换（与 machine.setLabel 同语义，此处避免循环依赖内联）。 */
@@ -348,6 +636,8 @@ function emptySlots(s: FighterSlots): FighterSlots {
     zhao1: null,
     zhao2: null,
     zhao3: null,
+    catch1: null,
+    catch2: null,
     bisha: null,
     bishaQi: s.bishaQi,
     bishaUp: null,
@@ -355,6 +645,14 @@ function emptySlots(s: FighterSlots): FighterSlots {
     bishaSuper: null,
     bishaSuperQi: s.bishaSuperQi,
     dash: null,
+    attackAIR: null,
+    skillAIR: null,
+    bishaAIR: null,
+    bishaAIRQi: s.bishaAIRQi,
+    jump: null,
+    wanKai: null,
+    wanKaiW: null,
+    wanKaiS: null,
   };
 }
 
@@ -388,6 +686,7 @@ function setSlot(
 export function createBehaviorRegistry(engine: {
   endAct(f: FighterState, def: FighterDef | null): void;
   spawnBullet(spec: BulletSpawnSpec): void;
+  spawnAttacker(spec: AttackerSpawnSpec): void;
 }): Record<string, BehaviorHandler> {
   return {
     ...defaultBehaviors,

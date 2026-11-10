@@ -98,6 +98,7 @@ export function extractAssistant(opts: ExtractAssistantOptions): ExtractAssistan
           hurtTime: Number(da.data['hurtTime'] ?? 0),
           hurtType: Number(da.data['hurtType'] ?? 0),
           isBreakDef: da.data['isBreakDef'] === true,
+          isApplyG: da.data['isApplyG'] !== false,
         };
       }
     }
