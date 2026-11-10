@@ -7,6 +7,7 @@
 | 文档 | 作用 |
 |---|---|
 | [ARCHITECTURE.md](ARCHITECTURE.md) | **引擎契约，写代码前必读**（硬规则、接口、事件表、门禁） |
+| [PROGRESS.md](PROGRESS.md) | **进度台账**：开发顺序、各切片状态、遗留池与下一步 |
 | [DESIGN.md](DESIGN.md) | 设计文档：分层、core 详细设计、决策记录（ADR） |
 | [BVN-module-map.md](BVN-module-map.md) | 原版 AS3 源码逆向结论（转译的参考规格书） |
 | [BVN-online-port-plan.md](BVN-online-port-plan.md) | 立项书：路线、风险、阶段划分 |
