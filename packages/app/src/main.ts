@@ -25,7 +25,7 @@ const BAKED = '/packages/data/baked';
 const ASSETS = '/packages/data/assets';
 
 const FIGHTER_ID = 'ichigo';
-const ASSIST_ID = 'orihime'; // 切片 12 demo：召唤辅助（O 键；orihime = loop 触发+buff 语义最全）
+const ASSIST_ID = 'minato'; // 切片 12 demo：召唤辅助（O 键；minato = 图集帧覆盖最全 72/133）
 const MAP_ID = 'KonohaMura';
 const NET_SEED = 1;
 

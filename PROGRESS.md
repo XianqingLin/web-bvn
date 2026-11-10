@@ -56,8 +56,10 @@
 
 **切片 13（候选）——演出/数据审计收紧**：
 
-- bullet 精灵图集接入 render（替换道具占位色块；命中残留演出随 `entity:despawn` 收紧）；辅助图集 sheet PNG 补齐（37 包中仅 11 包有 sheet，缺图包 demo 端静默不可见）；
-- 独立道具寿命/矩形占位收紧（原版由道具内层时间轴驱动，未导出）；
+- bullet 精灵图集接入 render（替换道具占位色块；命中残留演出随 `entity:despawn` 收紧）；
+- **辅助图集 capture 补齐（实机验收确认，2026-11-10）**：37 辅助包 26 个帧索引全空（png 全 -1，无 sheet）、11 个仅 30~54% 帧被栅格化（且缺口集中在出场段）——capture 桥对辅助 MC 的镜像推进不完整，辅助召唤后长时间隐身；app demo 暂用 minato（61-132 帧段可见）；
+- **地图层装配错位（实机验收确认）**：视觉层渲染位置与碰撞地板不吻合（KonohaMura：碰撞 388~480 / 主地面 570，视觉层浮在 ~174-297 一带），主地面下方大片露底色；原版 MapMain 为 4 层视差滚动（bg/map/front/front_fix），renderer 现为静态摆放且未导出视差参数——需核对 capture 桥 `x/y` 与 `bx/by` 的坐标系语义后重排，并补视差/平铺；
+- 独立道具寿命/矩形占位收紧（原版由道具内层时间轴驱动，未导出）；独立道具（attackers）渲染端未接线（快照有数据、画面不可见）；
 - rawScript 抑制段逐条审计（角色 224 处已审 4 处 gaara `getAttacker`，行为无差；辅助残留 11 处：byakuya×6/itachi hitModel/suigetsu isAttacking/temari 弹速×3）；
 - 辅助未注册 op（切片 12 遗留，全在 attacker 系）：getTargetSP/setHitTarget/addAttacker/justHit/setTouchSide/removeCustomFunc/addCustomFunc(temari)，均确定性静默；
 - 联机模式辅助注入（app net 分支需两端配置指纹同步）；

@@ -252,7 +252,9 @@ export class BattleRenderer {
         sp.root.scale.x = a.facing;
         sp.appliedFacing = a.facing;
       }
-      this.applyFrame(sp, a.actLabel !== null ? a.animFrame : 0);
+      // 辅助是 free-running 根时间轴：直接按 animFrame 取帧（actLabel 仅是
+      // 标签跳转记忆，出生时为 null 不代表无画面）
+      this.applyFrame(sp, a.animFrame);
     }
   }
 
