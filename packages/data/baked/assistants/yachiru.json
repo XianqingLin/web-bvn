@@ -31,9 +31,17 @@
     },
     "triggers": [
       {
-        "frame": 0,
-        "target": "assister",
-        "op": "getSelf",
+        "frame": 19,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 35,
+        "target": "effect",
+        "op": "endBisha",
         "args": []
       },
       {
@@ -55,12 +63,40 @@
         ]
       },
       {
+        "frame": 36,
+        "target": "effect",
+        "op": "walk",
+        "args": []
+      },
+      {
+        "frame": 36,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          200,
+          -50,
+          100
+        ]
+      },
+      {
         "frame": 38,
         "target": "assister",
         "op": "setTouchSide",
         "args": [
           "TS"
         ]
+      },
+      {
+        "frame": 44,
+        "target": "effect",
+        "op": "walk",
+        "args": []
+      },
+      {
+        "frame": 50,
+        "target": "effect",
+        "op": "walk",
+        "args": []
       },
       {
         "frame": 51,
@@ -78,16 +114,35 @@
         ]
       },
       {
-        "frame": 58,
-        "target": "assister",
-        "op": "getOwner",
+        "frame": 51,
+        "target": "effect",
+        "op": "endShadow",
         "args": []
+      },
+      {
+        "frame": 58,
+        "target": "fighter",
+        "op": "buffDefenseUp",
+        "args": [
+          0.3,
+          5
+        ]
       },
       {
         "frame": 58,
         "target": "assister",
         "op": "stopMove",
         "args": []
+      },
+      {
+        "frame": 58,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xCC6600"
+          }
+        ]
       },
       {
         "frame": 59,
@@ -129,68 +184,56 @@
         ]
       },
       {
+        "frame": 63,
+        "target": "effect",
+        "op": "playSoundHit2",
+        "args": []
+      },
+      {
+        "frame": 65,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF00FF"
+          }
+        ]
+      },
+      {
         "frame": 68,
         "target": "assister",
         "op": "endAct",
         "args": []
       },
       {
-        "frame": 80,
-        "target": "assister",
-        "op": "getOwner",
-        "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n\tdefineBuffEffects();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:50,hitType:3,hitx:6,hity:-6,hurtTime:800,hurtType:0,isBreakDef:true});\n}\n\nfunction defineBuffEffects():void {\n\tvar buffEffects:Object = {\n\t\tphyLifesteal: 0.35\n\t};\n\t\n\t$assisterCtrler.getSelf().buffEffects = buffEffects;\n}"
-      },
-      {
-        "frame": 19,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 35,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 36,
-        "raw": "$assisterCtrler.effect.walk();\n$assisterCtrler.effect.shadow(200,-50,100);"
-      },
-      {
-        "frame": 44,
-        "raw": "$assisterCtrler.effect.walk();"
-      },
-      {
-        "frame": 50,
-        "raw": "$assisterCtrler.effect.walk();"
-      },
-      {
-        "frame": 51,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 58,
-        "raw": "$assisterCtrler.effect.shine(0xCC6600);"
-      },
-      {
-        "frame": 65,
-        "raw": "$assisterCtrler.effect.shine(0xFF00FF);"
-      },
-      {
         "frame": 69,
-        "raw": "$assisterCtrler.effect.endShadow();"
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       },
       {
         "frame": 80,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+        "target": "fighter",
+        "op": "buffAttackUp",
+        "args": [
+          0.3,
+          5
+        ]
       },
       {
-        "frame": 63,
-        "raw": "$assisterCtrler.effect.playSoundHit2();"
+        "frame": 80,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
       }
     ]
   },
-  "symbols": {}
+  "symbols": {},
+  "buffEffects": {
+    "phyLifesteal": 0.35
+  }
 }

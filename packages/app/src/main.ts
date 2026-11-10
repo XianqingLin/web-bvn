@@ -18,13 +18,14 @@ import {
   makeConfigHash,
   type WsLike,
 } from '@bvn/net';
-import { compileFighterForms, compileFighterRuntime, compileMapStage } from '@bvn/data';
+import { compileAssistant, compileFighterForms, compileFighterRuntime, compileMapStage } from '@bvn/data';
 import { BattleRenderer } from '@bvn/render';
 
 const BAKED = '/packages/data/baked';
 const ASSETS = '/packages/data/assets';
 
 const FIGHTER_ID = 'ichigo';
+const ASSIST_ID = 'orihime'; // 切片 12 demo：召唤辅助（O 键；orihime = loop 触发+buff 语义最全）
 const MAP_ID = 'KonohaMura';
 const NET_SEED = 1;
 
@@ -46,6 +47,7 @@ const KEYMAP_P1: Record<string, number> = {
   KeyL: Btn.dash,
   KeyU: Btn.skill,
   KeyI: Btn.superSkill,
+  KeyO: Btn.assist,
 };
 const KEYMAP_P2: Record<string, number> = {
   ArrowUp: Btn.up,
@@ -108,15 +110,31 @@ async function boot(): Promise<void> {
   const mapPkg = await fetchJson<import('@bvn/data').MapPackage>(`${BAKED}/maps/${MAP_ID}.json`);
   const { stage, p1Spawn, p2Spawn } = compileMapStage(mapPkg);
 
+  // 辅助定义（切片 12）：solo 模式注入；net 模式两端配置指纹需一致，暂不注入
+  const assistXfl = await fetchJson<import('@bvn/data').AssistantPackage>(
+    `${BAKED}/assistants/${ASSIST_ID}.json`,
+  );
+  const assistRuntime = await fetchJson<import('@bvn/data').RuntimeFighterPackage>(
+    `${BAKED}/assistants-runtime/${ASSIST_ID}.json`,
+  );
+  const assistDef = compileAssistant(assistXfl, assistRuntime);
+
   const makeSim = (training: boolean): Sim =>
     new Sim({
       seed: NET_SEED,
       stage,
       training,
       fighters: [
-        { id: 1, x: p1Spawn?.x ?? 300, y: p1Spawn?.y ?? stage.groundY, def, forms },
-        { id: 2, x: p2Spawn?.x ?? 700, y: p2Spawn?.y ?? stage.groundY, def, forms },
+        {
+          id: 1, x: p1Spawn?.x ?? 300, y: p1Spawn?.y ?? stage.groundY, def, forms,
+          ...(training ? { assistId: ASSIST_ID } : {}),
+        },
+        {
+          id: 2, x: p2Spawn?.x ?? 700, y: p2Spawn?.y ?? stage.groundY, def, forms,
+          ...(training ? { assistId: ASSIST_ID } : {}),
+        },
       ],
+      ...(training ? { assistants: { [ASSIST_ID]: assistDef } } : {}),
     });
 
   // 渲染装配
@@ -127,6 +145,9 @@ async function boot(): Promise<void> {
       { slot: 1, atlasId: FIGHTER_ID, formIndex: def.formIndex },
       { slot: 2, atlasId: FIGHTER_ID, formIndex: def.formIndex },
     ],
+    ...(netRole === null
+      ? { assisters: [{ ownerId: 1, atlasId: ASSIST_ID }, { ownerId: 2, atlasId: ASSIST_ID }] }
+      : {}),
     mapAtlasId: MAP_ID,
   });
 
@@ -140,7 +161,7 @@ async function boot(): Promise<void> {
     // —— solo：训练模式，键盘源，R 重置 ——
     sim = makeSim(true);
     inputSource = new KeyboardSource(keymap);
-    renderer.setHint('A/D 移动  W跳  S防御  J攻击  L瞬步  U技  I必杀  R重置');
+    renderer.setHint('A/D 移动  W跳  S防御  J攻击  L瞬步  U技  I必杀  O召唤辅助  R重置');
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyR') sim = makeSim(true);
     });

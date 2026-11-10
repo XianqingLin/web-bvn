@@ -22,6 +22,30 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 14,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 23,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 31,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          200,
+          200,
+          0
+        ]
+      },
+      {
         "frame": 34,
         "target": "assister",
         "op": "moveToTarget",
@@ -65,6 +89,22 @@
         ]
       },
       {
+        "frame": 41,
+        "target": "effect",
+        "op": "dash",
+        "args": []
+      },
+      {
+        "frame": 41,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0x00CCFF"
+          }
+        ]
+      },
+      {
         "frame": 46,
         "target": "assister",
         "op": "endAct",
@@ -78,32 +118,12 @@
           1.5,
           0
         ]
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:5,hitx:10,hity:0,hurtTime:500,hurtType:1,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 14,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 23,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 31,
-        "raw": "$assisterCtrler.effect.shadow(200,200,0);"
-      },
-      {
-        "frame": 41,
-        "raw": "$assisterCtrler.effect.dash();\n$assisterCtrler.effect.shine(0x00CCFF);"
       },
       {
         "frame": 52,
-        "raw": "$assisterCtrler.effect.endShadow();"
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       }
     ]
   },

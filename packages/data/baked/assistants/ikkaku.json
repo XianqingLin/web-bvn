@@ -57,6 +57,68 @@
     },
     "triggers": [
       {
+        "frame": 11,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 25,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 27,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
+        "frame": 27,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          255,
+          0,
+          0
+        ]
+      },
+      {
+        "frame": 27,
+        "target": "effect",
+        "op": "playSoundHit2",
+        "args": []
+      },
+      {
+        "frame": 34,
+        "target": "effect",
+        "op": "playSoundHit2",
+        "args": []
+      },
+      {
+        "frame": 35,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
+        "frame": 39,
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
+      },
+      {
         "frame": 42,
         "target": "assister",
         "op": "justHit",
@@ -79,52 +141,30 @@
         "args": []
       },
       {
+        "frame": 66,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
+        "frame": 92,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
         "frame": 97,
         "target": "assister",
         "op": "endAct",
         "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:50,hitType:6,hitx:4,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:50,hitType:6,hitx:-10,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm3\",{power:10,hitType:1,hitx:0,hity:-0.1,hurtTime:500,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm4\",{power:50,hitType:7,hitx:6,hity:-3,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 11,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 25,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 27,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);\n$assisterCtrler.effect.shadow(255,0,0);"
-      },
-      {
-        "frame": 35,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
-        "frame": 39,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 66,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
-        "frame": 92,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
-        "frame": 27,
-        "raw": "$assisterCtrler.effect.playSoundHit2();"
-      },
-      {
-        "frame": 34,
-        "raw": "$assisterCtrler.effect.playSoundHit2();"
       }
     ]
   },

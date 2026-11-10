@@ -22,6 +22,30 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 15,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 44,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 48,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
         "frame": 48,
         "target": "assister",
         "op": "fire",
@@ -36,28 +60,6 @@
             "hp": 200
           }
         ]
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "import flash.events.Event;\n\nstop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:130,hitType:7,hitx:15,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false, isReal:true});\n}"
-      },
-      {
-        "frame": 15,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 44,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 48,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
-        "frame": 48,
-        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:30},hold:60,hits:1,hp:200});"
       }
     ]
   },

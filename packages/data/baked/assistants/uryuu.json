@@ -22,6 +22,22 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 12,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          0,
+          100,
+          255
+        ]
+      },
+      {
+        "frame": 14,
+        "target": "effect",
+        "op": "dash",
+        "args": []
+      },
+      {
         "frame": 16,
         "target": "assister",
         "op": "setApplyG",
@@ -37,6 +53,26 @@
           -0.01,
           -150
         ]
+      },
+      {
+        "frame": 19,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 19,
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
+      },
+      {
+        "frame": 38,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
       },
       {
         "frame": 40,
@@ -65,44 +101,26 @@
         ]
       },
       {
+        "frame": 40,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0x00CCFF"
+          }
+        ]
+      },
+      {
         "frame": 44,
         "target": "assister",
         "op": "endAct",
         "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:80,hitType:5,hitx:4,hity:10,hurtTime:800,hurtType:0,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 19,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 38,
-        "raw": "$assisterCtrler.effect.endBisha();"
       },
       {
         "frame": 46,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 12,
-        "raw": "$assisterCtrler.effect.shadow(0,100,255);"
-      },
-      {
-        "frame": 14,
-        "raw": "$assisterCtrler.effect.dash();"
-      },
-      {
-        "frame": 19,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 40,
-        "raw": "$assisterCtrler.effect.shine(0x00CCFF);"
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       }
     ]
   },

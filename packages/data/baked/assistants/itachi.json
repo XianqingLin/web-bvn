@@ -33,8 +33,22 @@
     "triggers": [
       {
         "frame": 1,
-        "target": "assister",
-        "op": "getOwner",
+        "target": "fighter",
+        "op": "getTargetSP",
+        "args": []
+      },
+      {
+        "frame": 7,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 27,
+        "target": "effect",
+        "op": "endBisha",
         "args": []
       },
       {
@@ -65,24 +79,8 @@
     ],
     "rawScripts": [
       {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:0,hitType:4,hitx:0,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:50,hitType:7,hitx:4,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
-      },
-      {
         "frame": 1,
         "raw": "const RATE:Number = 0.008;\nvar atmHitVO:* = $assisterCtrler.hitModel.getHitVO(\"atm1\");\nvar targetHpMax:Number = $assisterCtrler.getOwner().getCtrler().getTargetSP().hpMax;\n\natmHitVO.power = targetHpMax * RATE;"
-      },
-      {
-        "frame": 7,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 27,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 33,
-        "raw": "$assisterCtrler.addAttacker(\"atmmc\",{x:{moveToTarget:true,offset:0,range:[0,600]},applyG:false});"
       }
     ]
   },
@@ -91,10 +89,6 @@
       "labels": {},
       "triggers": [],
       "rawScripts": [
-        {
-          "frame": 0,
-          "raw": "var $attacker_ctrler:*;\n\nfunction setAttackerCtrler(attackerCtrler:*):void{\n\t$attacker_ctrler = attackerCtrler;\n}"
-        },
         {
           "frame": 2,
           "raw": "$attacker_ctrler.effect.shine(0x000000);"

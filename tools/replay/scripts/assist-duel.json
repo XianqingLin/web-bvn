@@ -1,0 +1,21 @@
+{
+  "name": "assist-duel",
+  "seed": 1,
+  "map": "Forest",
+  "_comment": "切片 12 辅助门禁剧本：双方开局召唤（fzqi 初始即满，assist=512），p1=orihime（loop 触发 + buffEffects），p2=kon；贴身互砍覆盖 checkHitOwner 循环触发与辅助命中回气（owner qi+15%）。位定义见 packages/core/src/input.ts。",
+  "fighters": [
+    { "pkg": "ichigo", "assist": "orihime" },
+    { "pkg": "ichigo", "assist": "kon" }
+  ],
+  "program": [
+    { "frames": 2, "p1": 512, "p2": 512 },
+    { "frames": 10, "p1": 0, "p2": 0 },
+    { "frames": 30, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 30, "p1": 8, "p2": 1024 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 40, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 0, "p2": 16 },
+    { "frames": 285, "p1": 0, "p2": 0 }
+  ]
+}

@@ -110,7 +110,7 @@ export function parseObjectLiteral(t: string): Record<string, AsArg> {
 }
 
 export interface CtrlerCall {
-  target: 'mc' | 'fighter' | 'effect' | 'assister';
+  target: 'mc' | 'fighter' | 'effect' | 'assister' | 'fighterTarget';
   op: string;
   args: AsArg[];
 }
@@ -163,10 +163,28 @@ export function extractStatAssignments(script: string): Record<string, number> {
  * 计算脚本的"未识别残余"：剥掉注释、简单 ctrler 调用、defineXxx、
  * 数值赋值、空转语句后剩下的内容。非空 ⇒ 该帧脚本需保留原文（raw）。
  * 宁可误留（保留原文是安全方向），不可误丢。
+ *
+ * opts.assist：辅助脚本加剥已知样板（setAssistCtrler/setAttackerCtrler/
+ * defineActions/defineBuffEffects 函数体——内容已被专用提取器消费；
+ * ctrler 变量声明；链式调用/赋值）。角色路径不传，字节不变。
  */
-export function scriptResidue(script: string): string {
+export function scriptResidue(script: string, opts?: { assist?: boolean }): string {
   let s = script;
   s = s.replace(/\/\/[^\n]*/g, '').replace(/\/\*[\s\S]*?\*\//g, '');
+  if (opts?.assist) {
+    // 已知样板函数体（括号平衡剥离）
+    s = stripFunctionDefs(s, /^(setAssistCtrler|setAttackerCtrler|defineActions|defineBuffEffects)$/);
+    s = s.replace(/var\s+\$assisterCtrler:\*;?/g, '').replace(/var\s+\$attacker_ctrler:\*;?/g, '');
+    s = s.replace(/var\s+defineAction:Function;?/g, '');
+    // 链式调用/赋值/基础调用：与 extractAssistTimelineCalls 同一套括号平衡区间
+    // （旧正则 [^;{}]* 剥不掉带对象字面量参数的调用，如 fire 的选项对象）
+    s = stripRanges(s, extractAssistTimelineCalls(s).chainRanges);
+    s = s.replace(/\$assisterCtrler\.getSelf\(\)\.buffEffects\s*=\s*\w+\s*;?/g, '');
+    // const 声明（值已被 extractConsts 消费，折叠进 {$ref} 参数；孤立声明无行为）
+    s = s.replace(/const\s+\w+\s*:\s*(?:Number|Array|int|uint|String|\*)\s*=\s*[^;\n]+;?/g, '');
+    // import 语句（纯声明；只作用于辅助路径，角色路径字节不变）
+    s = s.replace(/^import\s+[^\n]*;\s*$/gm, '');
+  }
   s = s.replace(
     /(?:parent\.)?\$(?:mc_ctrler|fighter_ctrler|effect_ctrler|assisterCtrler)\.\w+\s*\([^;{}]*\)\s*;?/g,
     '',
@@ -175,7 +193,28 @@ export function scriptResidue(script: string): string {
   s = s.replace(/\$\w+\.\w+\s*=\s*-?[\d.]+\s*;?/g, '');
   s = s.replace(/if\s*\(\s*!\s*\$\w+\s*\)\s*return\s*;?/g, '');
   s = s.replace(/\bstop\(\s*\)\s*;?/g, '').replace(/\breturn\s*;?/g, '');
+  if (opts?.assist) s = s.replace(/;/g, ''); // 区间剥离留下孤立分号（标签字符串无分号用例）
   return s.replace(/\s+/g, ' ').trim();
+}
+
+/** 剥掉指定名的 function NAME(...):void{...} 定义（括号平衡；返回类型标注可选）。 */
+export function stripFunctionDefs(s: string, names: RegExp): string {
+  const re = /function\s+(\w+)\s*\([^)]*\)\s*(?::\s*[\w*]+\s*)?\{/g;
+  let m: RegExpExecArray | null;
+  let out = s;
+  const ranges: Array<[number, number]> = [];
+  while ((m = re.exec(s)) !== null) {
+    if (!names.test(m[1]!)) continue;
+    try {
+      const close = matchBracket(s, re.lastIndex - 1);
+      ranges.push([m.index, close + 1]);
+    } catch {
+      /* 留给残余 */
+    }
+  }
+  const sorted = [...ranges].sort((a, b) => b[0] - a[0]);
+  for (const [st, e] of sorted) out = out.slice(0, st) + out.slice(e);
+  return out;
 }
 
 /** 提取 defineBishaFace / defineHurtSound / defineHurtFlySound / defineDieSound。 */
@@ -192,6 +231,307 @@ export function extractNamedDefine(script: string): { op: string; args: AsArg[] 
       args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg),
     });
     re.lastIndex = closeIdx + 1;
+  }
+  return out;
+}
+
+// —— 辅助脚本链式调用/赋值提取（切片 12） ——
+
+/** 辅助时间轴提取结果：合并后的调用列表 + 链式区间（用于残余剥离）。 */
+export interface AssistTimelineCalls {
+  calls: CtrlerCall[];
+  /** 链式调用覆盖的 [start, end) 区间（scriptResidue 剥离用） */
+  chainRanges: Array<[number, number]>;
+}
+
+/** buff 控制器 op → 注册表 op 名前缀（attackUp → buffAttackUp）。 */
+const BUFF_OPS = new Set(['speedUp', 'attackUp', 'defenseUp']);
+
+/**
+ * 辅助时间轴调用提取：基础调用 + 链式调用合并。
+ *  - `$assisterCtrler.effect.op(...)` → {target:'effect'}（原版 AssisterCtrler.effect 转发）
+ *  - `$assisterCtrler.getOwner()[.getBuffCtrl()].op(...)` → {target:'fighter'}
+ *    （owner 链；getBuffCtrl 链的 op 改名 buffXxx）
+ *  - `$assisterCtrler.getTarget().qi -= N` → {target:'fighterTarget', op:'addQi', [-N]}
+ * 裸 getOwner/getSelf/getTarget 调用（链头伪触发，原版纯读无副作用）一律丢弃。
+ */
+export function extractAssistTimelineCalls(scriptRaw: string): AssistTimelineCalls {
+  // 先剥掉全部函数定义：函数体内的调用属于循环触发内部逻辑
+  // （addCustomFunc 数据化），不是时间轴帧触发——否则同帧双重提取
+  // （suigetsu 案例：gotoAndPlay("attack") 既进 loopTrigger.then 又成帧触发）
+  const script = stripFunctionDefs(scriptRaw, /.*/);
+  const chainRanges: Array<[number, number]> = [];
+  const calls: CtrlerCall[] = [];
+
+  const parseArgsAt = (openIdx: number): AsArg[] => {
+    const closeIdx = matchBracket(script, openIdx);
+    const argsRaw = script.slice(openIdx + 1, closeIdx).trim();
+    return argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg);
+  };
+
+  // 1. effect 链：$assisterCtrler.effect.op(...)
+  const effectRe = /\$assisterCtrler\.effect\.(\w+)\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = effectRe.exec(script)) !== null) {
+    const openIdx = effectRe.lastIndex - 1;
+    try {
+      const end = matchBracket(script, openIdx);
+      calls.push({ target: 'effect', op: m[1]!, args: parseArgsAt(openIdx) });
+      chainRanges.push([m.index, end + 1]);
+    } catch {
+      /* 括号不闭合 → 留给残余 */
+    }
+  }
+
+  // 2. owner/self/target 链（中段允许 getBuffCtrl/getCtrler 零参访问器）。
+  //    getOwner/getSelf → target 'fighter'（辅助语境 = owner）；getTarget →
+  //    'fighterTarget'（owner 的当前目标，与 kon qi 扣减同语义）。
+  const ownerRe =
+    /\$assisterCtrler\.(getOwner|getSelf|getTarget)\(\)(?:\.(?:getBuffCtrl|getCtrler)\(\))*\.(\w+)\s*\(/g;
+  while ((m = ownerRe.exec(script)) !== null) {
+    const openIdx = ownerRe.lastIndex - 1;
+    const isBuff = m[0]!.includes('getBuffCtrl');
+    let op = m[2]!;
+    if (isBuff && BUFF_OPS.has(op)) op = `buff${op[0]!.toUpperCase()}${op.slice(1)}`;
+    const target = m[1] === 'getTarget' ? 'fighterTarget' : 'fighter';
+    try {
+      const end = matchBracket(script, openIdx);
+      calls.push({ target, op, args: parseArgsAt(openIdx) });
+      chainRanges.push([m.index, end + 1]);
+    } catch {
+      /* 留给残余 */
+    }
+  }
+
+  // 3. 目标气扣减赋值：$assisterCtrler.getTarget().qi -= N（kon）
+  const targetQiRe = /\$assisterCtrler\.getTarget\(\)\.qi\s*-=\s*(-?[\d.]+)/g;
+  while ((m = targetQiRe.exec(script)) !== null) {
+    calls.push({ target: 'fighterTarget', op: 'addQi', args: [-Number(m[1])] });
+    chainRanges.push([m.index, m.index + m[0].length]);
+  }
+
+  // 4. 基础调用（剔除链头伪触发：裸 getOwner/getSelf/getTarget + 已被链覆盖者）
+  const inChain = (idx: number): boolean =>
+    chainRanges.some(([s, e]) => idx >= s && idx < e);
+  const baseRe = /(?:parent\.)?\$(mc_ctrler|fighter_ctrler|effect_ctrler|assisterCtrler)\.(\w+)\s*\(/g;
+  while ((m = baseRe.exec(script)) !== null) {
+    const openIdx = m.index + m[0].length - 1;
+    if (inChain(m.index)) continue;
+    if (
+      m[1] === 'assisterCtrler' &&
+      (m[2] === 'getOwner' || m[2] === 'getSelf' || m[2] === 'getTarget')
+    ) {
+      chainRanges.push([m.index, openIdx + 1]);
+      continue;
+    }
+    try {
+      const end = matchBracket(script, openIdx);
+      calls.push({
+        target: CTRLER_TARGET[m[1]!]!,
+        op: m[2]!,
+        args: parseArgsAt(openIdx),
+      });
+      chainRanges.push([m.index, end + 1]);
+    } catch {
+      /* 留给残余 */
+    }
+  }
+
+  return { calls, chainRanges };
+}
+
+/** 辅助增益 buff（原版 getSelf().buffEffects = {...}；白名单字段）。 */
+export interface AssistBuffEffects {
+  attrResistance?: number;
+  phyLifesteal?: number;
+}
+
+/**
+ * 提取 buffEffects 赋值（orihime attrResistance / yachiru phyLifesteal）。
+ * 识别 `$assisterCtrler.getSelf().buffEffects = ...` + 同脚本
+ * `var buffEffects:Object = {...}` 字面量；只收白名单数值字段。
+ */
+export function extractBuffEffects(script: string): AssistBuffEffects | null {
+  if (!/\$assisterCtrler\.getSelf\(\)\.buffEffects\s*=/.test(script)) return null;
+  const m = /buffEffects:Object\s*=\s*\{/.exec(script);
+  if (!m) return null;
+  try {
+    const closeIdx = matchBracket(script, m.index + m[0].length - 1);
+    const obj = parseObjectLiteral(script.slice(m.index + m[0].length - 1, closeIdx + 1));
+    const out: AssistBuffEffects = {};
+    for (const key of ['attrResistance', 'phyLifesteal'] as const) {
+      const v = obj[key];
+      if (typeof v === 'number') out[key] = v;
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+// —— 循环触发器（addCustomFunc 数据化，切片 12） ——
+
+/** 支持的循环触发条件（有界支持，切片 12；negate = 取反）。 */
+export type LoopCond =
+  | { kind: 'checkHitOwner'; name: string; negate?: boolean }
+  | { kind: 'actionStateIn'; values: number[]; negate?: boolean };
+
+/** 自定义函数体解析结果。 */
+export interface LoopTriggerBody {
+  cond: LoopCond | null;
+  then: CtrlerCall[];
+}
+
+/** 收集脚本内 const 常量（数值/数值数组）。 */
+export function extractConsts(script: string): Record<string, number | number[]> {
+  const out: Record<string, number | number[]> = {};
+  const numRe = /(?:const|var)\s+(\w+):Number\s*=\s*(-?[\d.]+)\s*;/g;
+  let m: RegExpExecArray | null;
+  while ((m = numRe.exec(script)) !== null) out[m[1]!] = Number(m[2]);
+  const arrRe = /(?:const|var)\s+(\w+):Array\s*=\s*\[([^\]]*)\]\s*;/g;
+  while ((m = arrRe.exec(script)) !== null) {
+    const parts = m[2]!.split(',').map((s) => s.trim());
+    if (parts.every((p) => /^-?[\d.]+$/.test(p))) out[m[1]!] = parts.map(Number);
+  }
+  return out;
+}
+
+/** 提取脚本内 function NAME(...):void{...} 函数体（括号平衡）。 */
+export function extractFunctionBodies(script: string): Map<string, string> {
+  const out = new Map<string, string>();
+  const re = /function\s+(\w+)\s*\([^)]*\)\s*:\s*void\s*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(script)) !== null) {
+    try {
+      const close = matchBracket(script, re.lastIndex - 1);
+      out.set(m[1]!, script.slice(re.lastIndex, close));
+    } catch {
+      /* 留给残余 */
+    }
+  }
+  return out;
+}
+
+/**
+ * 解析自定义函数体为循环触发（有界支持，切片 12）：
+ *  - 前导局部绑定 `var x:int = $assisterCtrler.getOwner().actionState;`
+ *  - 卫语句 `if(!COND){return;}`（COND = checkHitOwner / actionState∈数组）
+ *  - 其余为 assister/fighter 调用（经 extractAssistTimelineCalls）
+ *  - 数值参数经 const 折叠（{$ref:X} → 常量值）
+ * 解析不了返回 null（调用侧保留 rawScript + 抑制发射）。
+ */
+export function parseLoopTriggerBody(
+  bodyRaw: string,
+  consts: Record<string, number | number[]>,
+): LoopTriggerBody | null {
+  let rest = stripComments(bodyRaw).trim();
+  let cond: LoopCond | null = null;
+
+  // 前导局部绑定：owner 状态读取 / owner 控制器（tsunate 形态）
+  const bindings = new Map<string, 'ownerActionState' | 'ownerCtrler'>();
+  for (;;) {
+    const bindState = /^var\s+(\w+):int\s*=\s*\$assisterCtrler\.getOwner\(\)\.actionState\s*;\s*/.exec(rest);
+    if (bindState) {
+      bindings.set(bindState[1]!, 'ownerActionState');
+      rest = rest.slice(bindState[0].length).trim();
+      continue;
+    }
+    const bindCtrl = /^var\s+(\w+):\*\s*=\s*\$assisterCtrler\.getOwner\(\)\.getCtrler\(\)\s*;\s*/.exec(rest);
+    if (bindCtrl) {
+      bindings.set(bindCtrl[1]!, 'ownerCtrler');
+      rest = rest.slice(bindCtrl[0].length).trim();
+      continue;
+    }
+    break;
+  }
+
+  // 卫语句：if(COND){return;}——`!` 前缀可选；循环 cond = 卫语句条件的否定
+  // （卫语句成立即退出 → 继续执行/每帧重评的条件是卫语句条件不成立）
+  const guard = /^if\s*\(\s*(!?)\s*(.+?)\s*\)\s*\{\s*return\s*;\s*\}/.exec(rest);
+  if (guard) {
+    const not = guard[1] === '!';
+    const c = guard[2]!.trim();
+    const hit = /^\$assisterCtrler\.checkHitOwner\(\s*(["'])([^"']*)\1\s*\)$/.exec(c);
+    if (hit) {
+      // !X 卫语句 → cond = X；裸 X 卫语句 → cond = !X
+      cond = { kind: 'checkHitOwner', name: hit[2]!, ...(not ? {} : { negate: true }) };
+    } else {
+      // actionState∈数组：X.indexOf(arg) == -1（arg = 绑定名或内联链）
+      const inArr = /^(\w+)\.indexOf\((\w+)\)\s*==\s*-1$/.exec(c);
+      const inlineArr = /^(\w+)\.indexOf\(\$assisterCtrler\.getOwner\(\)\.actionState\)\s*==\s*-1$/.exec(c);
+      const arrName = inArr
+        ? bindings.get(inArr[2]!) === 'ownerActionState'
+          ? inArr[1]!
+          : null
+        : inlineArr
+          ? inlineArr[1]!
+          : null;
+      if (arrName === null) return null;
+      const arr = consts[arrName];
+      if (!Array.isArray(arr)) return null;
+      // !(...==-1) 卫语句 → cond = 不在数组
+      cond = { kind: 'actionStateIn', values: arr, ...(not ? { negate: true } : {}) };
+    }
+    rest = rest.slice(guard[0].length).trim();
+  } else if (/^if\s*\(/.test(rest)) {
+    // 其余 if 形态不支持
+    return null;
+  }
+
+  // 剩余语句全部须为可提取调用
+  const { calls, chainRanges } = extractAssistTimelineCalls(rest);
+  // owner 控制器绑定的调用：name.op(args); → owner 链语义（tsunate 形态）
+  const boundCalls: CtrlerCall[] = [];
+  const boundRanges: Array<[number, number]> = [];
+  for (const [name, kind] of bindings) {
+    if (kind !== 'ownerCtrler') continue;
+    const re = new RegExp(`${name}\\.(\\w+)\\s*\\(`, 'g');
+    let bm: RegExpExecArray | null;
+    while ((bm = re.exec(rest)) !== null) {
+      const openIdx = bm.index + bm[0].length - 1;
+      try {
+        const end = matchBracket(rest, openIdx);
+        const argsRaw = rest.slice(openIdx + 1, end).trim();
+        boundCalls.push({
+          target: 'fighter',
+          op: bm[1]!,
+          args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg),
+        });
+        boundRanges.push([bm.index, end + 1]);
+      } catch {
+        return null;
+      }
+    }
+  }
+  let residue = rest;
+  // 剥掉已提取区间 + 空转语句后应无剩余
+  residue = stripRanges(residue, [...chainRanges, ...boundRanges]);
+  residue = residue
+    .replace(/(?:const|var)\s+\w+:(?:Number|Array)\s*=\s*[^;]+;\s*/g, '')
+    .replace(/var\s+\w+:\w+\s*=\s*\$assisterCtrler\.getOwner\(\)\.[\w()]+\s*;\s*/g, '')
+    .replace(/[\s;]+/g, '');
+  if (residue !== '') return null;
+
+  // const 折叠：{$ref:X} → 数值/数组常量
+  const fold = (v: AsArg): AsArg => {
+    if (v && typeof v === 'object' && '$ref' in v) {
+      const c = consts[(v as { $ref: string }).$ref];
+      if (typeof c === 'number' || Array.isArray(c)) return c;
+    }
+    return v;
+  };
+  return {
+    cond,
+    then: [...calls, ...boundCalls].map((c) => ({ ...c, args: c.args.map(fold) })),
+  };
+}
+
+/** 按区间剥离文本（按起点降序从后往前删，前置位置不受影响）。 */
+function stripRanges(s: string, ranges: Array<[number, number]>): string {
+  let out = s;
+  const sorted = [...ranges].sort((a, b) => b[0] - a[0]);
+  for (const [st, e] of sorted) {
+    out = out.slice(0, st) + out.slice(e);
   }
   return out;
 }

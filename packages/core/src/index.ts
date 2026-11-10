@@ -7,3 +7,4 @@ export * from './sim.js';
 export * from './fighter/def.js';
 export * from './fighter/machine.js';
 export * from './fighter/behaviors.js';
+export * from './fighter/assister.js';

@@ -107,6 +107,38 @@ export interface FighterDef {
 }
 
 /**
+ * 循环触发条件（切片 12，addCustomFunc 数据化；negate = 取反）。
+ * checkHitOwner：assister 命名判定区与 owner 身体相交；
+ * actionStateIn：owner.actionState ∈ 值集。
+ */
+export type LoopTriggerCond =
+  | { kind: 'checkHitOwner'; name: string; negate?: boolean }
+  | { kind: 'actionStateIn'; values: number[]; negate?: boolean };
+
+/** 循环触发（注册帧起每动画帧评估 cond → then，至 untilFrame 独占或时间轴末）。 */
+export interface LoopTriggerDef {
+  frame: number;
+  untilFrame: number | null;
+  cond: LoopTriggerCond | null;
+  then: TriggerBranchCall[];
+}
+
+/** 辅助运行时定义（data 层 compileAssistant 产出；单时间轴无形态）。 */
+export interface AssisterDef {
+  id: string;
+  /** 动作表（assister 版动作 id 即命中区名，如 atm1） */
+  actions: Record<string, HitDef>;
+  labels: Record<string, LabelRange>;
+  /** 动画帧（1 起，30Hz）→ 判定区 */
+  areas: Record<number, AreaRect[]>;
+  totalFrames: number;
+  triggers: FrameTrigger[];
+  loopTriggers: LoopTriggerDef[];
+  /** 增益 buff（生效期 = 辅助在场期间；orihime 受击减免 / yachiru 物吸血） */
+  buffEffects?: { attrResistance?: number; phyLifesteal?: number };
+}
+
+/**
  * 动作状态码（原版 FighterActionState，module-map §5.2）。
  * 切片 5 子集：+技能(11)/必杀(12/13)/瞬步(15)/防御(20)。
  * 切片 9：+受击动作(16 setHurtAction)/万解(50)；FREEZE(40)/换人系未接

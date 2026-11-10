@@ -21,6 +21,8 @@ export interface BattleAssetsSpec {
   /** 战斗出场角色：slot = SimState.fighters 里的 fighter id；
    *  formIndex = FighterDef.formIndex（对应图集 forms 数组下标） */
   fighters: { slot: number; atlasId: string; kind?: 'fighter' | 'assister'; formIndex?: number }[];
+  /** 辅助（切片 12）：ownerId = 召唤者 fighter id；atlasId = 辅助包 id */
+  assisters?: { ownerId: number; atlasId: string }[];
   mapAtlasId: string;
   mapAtlasJson?: MapAtlas;
   fighterAtlasJson?: Record<string, FighterAtlas>;
@@ -49,6 +51,8 @@ export class BattleRenderer {
   private fxLayer: Container;
   private hudLayer: Container;
   private sprites = new Map<number, FighterSprite>();
+  /** 辅助精灵（切片 12）：key = 召唤者 fighter id（同主同时至多一个辅助） */
+  private assistSprites = new Map<number, FighterSprite>();
   private mapLoaded: LoadedMapAtlas | null = null;
   private roundText: Text | null = null;
   private hintText: Text | null = null;
@@ -114,6 +118,12 @@ export class BattleRenderer {
       const atlas = await atlasFor(f.atlasId, kind);
       const loaded = await loadFighterAtlas(`${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}`, atlas);
       this.sprites.set(f.slot, this.makeSprite(f.atlasId, loaded, f.formIndex ?? 0));
+    }
+
+    for (const a of spec.assisters ?? []) {
+      const atlas = await atlasFor(a.atlasId, 'assister');
+      const loaded = await loadFighterAtlas(`${spec.baseUrl}/assistants`, atlas);
+      this.assistSprites.set(a.ownerId, this.makeSprite(a.atlasId, loaded, 0));
     }
   }
 
@@ -215,8 +225,35 @@ export class BattleRenderer {
     }
 
     this.updateBullets(prev, next, alpha);
+    this.updateAssisters(prev, next, alpha);
     this.updateCamera(next);
     this.updateHud(next);
+  }
+
+  /** 辅助实体（切片 12）：位置插值 + 时间轴帧，退场隐藏。 */
+  private updateAssisters(
+    prev: SimSnapshot,
+    next: SimSnapshot,
+    alpha: number,
+  ): void {
+    for (const [ownerId, sp] of this.assistSprites) {
+      const a = next.state.assisters.find((x) => x.ownerId === ownerId);
+      if (!a) {
+        sp.root.visible = false;
+        sp.appliedPng = -1;
+        continue;
+      }
+      sp.root.visible = true;
+      const p = prev.state.assisters.find((x) => x.ownerId === ownerId) ?? a;
+      const ix = p.x + (a.x - p.x) * alpha;
+      const iy = p.y + (a.y - p.y) * alpha;
+      sp.root.position.set(ix, iy);
+      if (sp.appliedFacing !== a.facing) {
+        sp.root.scale.x = a.facing;
+        sp.appliedFacing = a.facing;
+      }
+      this.applyFrame(sp, a.actLabel !== null ? a.animFrame : 0);
+    }
   }
 
   /**

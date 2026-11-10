@@ -22,26 +22,26 @@
     "labels": {},
     "triggers": [
       {
-        "frame": 34,
-        "target": "assister",
-        "op": "checkHitOwner",
+        "frame": 15,
+        "target": "effect",
+        "op": "bisha",
         "args": [
-          "atm1"
+          false
         ]
       },
       {
-        "frame": 34,
-        "target": "assister",
-        "op": "getOwner",
+        "frame": 28,
+        "target": "effect",
+        "op": "endBisha",
         "args": []
       },
       {
-        "frame": 34,
-        "target": "assister",
-        "op": "addCustomFunc",
+        "frame": 32,
+        "target": "effect",
+        "op": "shine",
         "args": [
           {
-            "$ref": "checkFunc"
+            "$expr": "0xFF0000"
           }
         ]
       },
@@ -58,26 +58,23 @@
         "args": []
       }
     ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:7,hitx:5,hity:-10,hurtTime:0,hurtType:1,isBreakDef:true});\n}"
-      },
+    "loopTriggers": [
       {
         "frame": 34,
-        "raw": "const LOSE_HP:Number = 10;\n\nfunction checkFunc():void{\n\tif(!$assisterCtrler.checkHitOwner(\"atm1\")){\n\t\treturn;\n\t}\n\t\n\t$assisterCtrler.getOwner().loseHp(LOSE_HP);\n}\n\n$assisterCtrler.addCustomFunc(checkFunc);"
-      },
-      {
-        "frame": 15,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 28,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 32,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+        "untilFrame": 39,
+        "cond": {
+          "kind": "checkHitOwner",
+          "name": "atm1"
+        },
+        "then": [
+          {
+            "target": "fighter",
+            "op": "loseHp",
+            "args": [
+              10
+            ]
+          }
+        ]
       }
     ]
   },

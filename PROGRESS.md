@@ -16,7 +16,7 @@
 | 3 | 批量化：全角色机制 + 验收门禁 | ✅ 主线（切片 8~11）；尾巴见遗留池 |
 | 4 | 体验完善：rollback/观战/录像/菜单流等 | ⬜ 未开始 |
 
-门禁速记（每次收尾全过才算完成）：`pnpm build` + 确定性单测 + `tools/replay` 四剧本哈希 + `pnpm batch:validate`（58 角色，基线 `tools/batch-validate/baseline.json`）。行为有意变更 → 重冻全部基线并在提交说明写明。
+门禁速记（每次收尾全过才算完成）：`pnpm build` + 确定性单测 + `tools/replay` 五剧本哈希（含 assist-duel）+ `pnpm batch:validate`（58 角色 + 37 辅助，基线 `tools/batch-validate/baseline.json`）。行为有意变更 → 重冻全部基线并在提交说明写明。
 
 ---
 
@@ -36,6 +36,7 @@
 | 9 | 目标系/摔技/独立道具/万解/AIR 槽/近战回气资源 | ✅ | DESIGN §3.5 |
 | 10 | 逐区命中/跳跃家族/瞬身步家族/万解形态切换（词表 Tier-2 收尾） | ✅ | DESIGN §3.5 |
 | 11 | 全角色批量化验收（`tools/batch-validate`）+ 条件触发器（cond/then/else 重大语义修复） | ✅ | DESIGN §3.5 |
+| 12 | 辅助系统：fzqi/召唤流程 + Assister 实体（时间轴/物理/op 词表/loop 触发器）+ buff 结算（speedUp/attackUp/defenseUp/buffEffects）+ 验收门禁扩展 | ✅ | DESIGN §3.5；`teleport` 不移植（ADR 记录） |
 
 ---
 
@@ -53,18 +54,13 @@
 
 ### 3.2 阶段 3 尾巴（纯增量特性，不阻塞阶段 4 立项）
 
-**切片 12（候选）——辅助系统**：
-
-- 辅助召唤资源 fzqi（module-map §5.1：上限 100 每帧回复，尚未接线，随本切片核对）+ `assist` 输入位（ButtonMask 位切片 5 已加，消费流程未接）；
-- Assister 实体接入 sim（出场/攻击/增益 buff 三类行为，module-map §5.7；37 个辅助 runtime 包切片 2 已导出）；
-- `teleport`（移形换位=换人）/`summon`（召唤辅助）op 实现——全语料无实例，规格从原版引擎类核对（module-map §5.2 特殊类）；
-- 验收：`batch:validate` 扩展 assistants 冒烟 + 新增含辅助的 replay 剧本。
-
 **切片 13（候选）——演出/数据审计收紧**：
 
-- bullet 精灵图集接入 render（替换道具占位色块；命中残留演出随 `entity:despawn` 收紧）；
+- bullet 精灵图集接入 render（替换道具占位色块；命中残留演出随 `entity:despawn` 收紧）；辅助图集 sheet PNG 补齐（37 包中仅 11 包有 sheet，缺图包 demo 端静默不可见）；
 - 独立道具寿命/矩形占位收紧（原版由道具内层时间轴驱动，未导出）；
-- rawScript 抑制段逐条审计（224 处，已审 4 处 gaara `getAttacker`，行为无差）；
+- rawScript 抑制段逐条审计（角色 224 处已审 4 处 gaara `getAttacker`，行为无差；辅助残留 11 处：byakuya×6/itachi hitModel/suigetsu isAttacking/temari 弹速×3）；
+- 辅助未注册 op（切片 12 遗留，全在 attacker 系）：getTargetSP/setHitTarget/addAttacker/justHit/setTouchSide/removeCustomFunc/addCustomFunc(temari)，均确定性静默；
+- 联机模式辅助注入（app net 分支需两端配置指纹同步）；
 - 验收：门禁全过；行为变更则重冻全部基线。
 
 ### 3.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）
@@ -85,5 +81,5 @@
 ## 四、下一步（按优先级）
 
 1. **云服务器部署 + 真机验证**（§3.1）——当前最高优先级，阶段 2 的收尾条件；
-2. **切片 12 辅助系统**（§3.2）——或按用户指示切换其他块；
+2. **切片 13 演出/审计收紧**（§3.2）——或按用户指示切换其他块；
 3. 阶段 4 各块按上表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

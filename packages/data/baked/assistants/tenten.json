@@ -32,6 +32,30 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 15,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 37,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 37,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          0,
+          200,
+          0
+        ]
+      },
+      {
         "frame": 39,
         "target": "assister",
         "op": "fire",
@@ -115,6 +139,18 @@
             "hits": 1
           }
         ]
+      },
+      {
+        "frame": 76,
+        "target": "effect",
+        "op": "playSoundHit2",
+        "args": []
+      },
+      {
+        "frame": 77,
+        "target": "effect",
+        "op": "shine",
+        "args": []
       },
       {
         "frame": 77,
@@ -132,56 +168,12 @@
             "hits": 1
           }
         ]
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:10,hitType:1,hitx:2,hity:0,hurtTime:800,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:50,hitType:6,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 15,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 37,
-        "raw": "$assisterCtrler.effect.endBisha();\n$assisterCtrler.effect.shadow(0,200,0);"
-      },
-      {
-        "frame": 77,
-        "raw": "$assisterCtrler.effect.shine();"
       },
       {
         "frame": 89,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 39,
-        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
-      },
-      {
-        "frame": 45,
-        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
-      },
-      {
-        "frame": 51,
-        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
-      },
-      {
-        "frame": 57,
-        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
-      },
-      {
-        "frame": 63,
-        "raw": "$assisterCtrler.fire(\"atm1\",{x:{start:20,hit:1},y:0,hold:1,hits:1});"
-      },
-      {
-        "frame": 77,
-        "raw": "$assisterCtrler.fire(\"atm2\",{x:{start:30,hit:1},y:0,hold:60,hits:1});"
-      },
-      {
-        "frame": 76,
-        "raw": "$assisterCtrler.effect.playSoundHit2();"
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       }
     ]
   },

@@ -51,6 +51,20 @@
     },
     "triggers": [
       {
+        "frame": 11,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 30,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
         "frame": 31,
         "target": "assister",
         "op": "setHitTarget",
@@ -69,12 +83,34 @@
         ]
       },
       {
+        "frame": 31,
+        "target": "effect",
+        "op": "dash",
+        "args": []
+      },
+      {
+        "frame": 31,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          0,
+          0,
+          200
+        ]
+      },
+      {
         "frame": 33,
         "target": "assister",
         "op": "setTouchSide",
         "args": [
           "TS"
         ]
+      },
+      {
+        "frame": 50,
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       },
       {
         "frame": 52,
@@ -93,9 +129,22 @@
       },
       {
         "frame": 58,
-        "target": "assister",
-        "op": "getOwner",
-        "args": []
+        "target": "fighter",
+        "op": "buffAttackUp",
+        "args": [
+          0.15,
+          5
+        ]
+      },
+      {
+        "frame": 58,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
       },
       {
         "frame": 59,
@@ -116,48 +165,36 @@
         "args": []
       },
       {
+        "frame": 60,
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
+      },
+      {
+        "frame": 76,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
+        "frame": 81,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
         "frame": 86,
         "target": "assister",
         "op": "endAct",
         "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:500,hurtType:0,isBreakDef:true});\n\tdefineAction(\"atm2\",{power:50,hitType:1,hitx:0,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm3\",{power:200,hitType:7,hitx:10,hity:-8,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 11,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 30,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 31,
-        "raw": "$assisterCtrler.effect.dash();\n$assisterCtrler.effect.shadow(0,0,200);"
-      },
-      {
-        "frame": 50,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 58,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
-        "frame": 60,
-        "raw": "$assisterCtrler.effect.endShadow();"
-      },
-      {
-        "frame": 76,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
-        "frame": 81,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
       }
     ]
   },

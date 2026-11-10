@@ -22,6 +22,20 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 12,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 27,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
         "frame": 35,
         "target": "assister",
         "op": "moveToTarget",
@@ -38,6 +52,14 @@
         "args": [
           -1,
           -1
+        ]
+      },
+      {
+        "frame": 36,
+        "target": "effect",
+        "op": "slowDown",
+        "args": [
+          0.5
         ]
       },
       {
@@ -59,32 +81,20 @@
         ]
       },
       {
+        "frame": 41,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
         "frame": 45,
         "target": "assister",
         "op": "endAct",
         "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:100,hitType:7,hitx:5,hity:5,hurtTime:700,hurtType:0,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 12,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 27,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 36,
-        "raw": "$assisterCtrler.effect.slowDown(0.5);"
-      },
-      {
-        "frame": 41,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
       }
     ]
   },

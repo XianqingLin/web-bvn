@@ -2,6 +2,7 @@ import type {
   ActionDef,
   AssistantPackage,
   FighterPackage,
+  LoopTriggerDef,
   MapPackage,
   RuntimeFighterPackage,
   RuntimeFrameAreas,
@@ -79,11 +80,14 @@ function validateArg(ctx: string, arg: TriggerArg, out: ValidationResult): void 
   out.errors.push(`${ctx}: 非法参数类型 ${typeof arg}`);
 }
 
+/** 触发目标白名单（切片 12 + fighterTarget：辅助语境 owner 的当前目标）。 */
+const TRIGGER_TARGETS = ['mc', 'fighter', 'effect', 'assister', 'fighterTarget'];
+
 function validateTrigger(symbol: string, t: TriggerDef, out: ValidationResult): void {
   const ctx = `symbol "${symbol}" trigger@frame${t.frame} ${t.op}`;
   if (!isInt(t.frame) || t.frame < 0) out.errors.push(`${ctx}: frame 必须是非负整数`);
-  if (!['mc', 'fighter', 'effect', 'assister'].includes(t.target)) {
-    out.errors.push(`${ctx}: target 必须是 mc|fighter|effect|assister`);
+  if (!TRIGGER_TARGETS.includes(t.target)) {
+    out.errors.push(`${ctx}: target 必须是 ${TRIGGER_TARGETS.join('|')}`);
   }
   if (!/^[a-zA-Z_$][\w$]*$/.test(t.op)) out.errors.push(`${ctx}: op 非法 "${t.op}"`);
   if (!Array.isArray(t.args)) {
@@ -99,8 +103,8 @@ const CMP_OPS = new Set(['==', '!=', '<', '>', '<=', '>=']);
 
 function validateCall(symbol: string, where: string, c: { target: string; op: string; args: unknown[] }, out: ValidationResult): void {
   const ctx = `symbol "${symbol}" ${where} ${c.op}`;
-  if (!['mc', 'fighter', 'effect', 'assister'].includes(c.target)) {
-    out.errors.push(`${ctx}: target 必须是 mc|fighter|effect|assister`);
+  if (!TRIGGER_TARGETS.includes(c.target)) {
+    out.errors.push(`${ctx}: target 必须是 ${TRIGGER_TARGETS.join('|')}`);
   }
   if (!/^[a-zA-Z_$][\w$]*$/.test(c.op)) out.errors.push(`${ctx}: op 非法 "${c.op}"`);
   if (!Array.isArray(c.args)) {
@@ -173,6 +177,7 @@ function validateSymbol(name: string, s: SymbolData, out: ValidationResult): voi
   }
   for (const t of s.triggers) validateTrigger(name, t, out);
   for (const t of s.condTriggers ?? []) validateCondTrigger(name, t, out);
+  for (const t of s.loopTriggers ?? []) validateLoopTrigger(name, t, out);
   // 引用完整性：loop/gotoAndPlay 的标签参数必须存在于本符号标签表
   const labelNames = new Set(Object.keys(s.labels));
   for (const t of s.triggers) {
@@ -255,8 +260,47 @@ export function validateAssistantPackage(pkg: AssistantPackage): ValidationResul
   for (const [name, sym] of Object.entries(pkg.symbols ?? {})) {
     validateSymbol(name, sym, out);
   }
+  if (pkg.buffEffects !== undefined) {
+    const be = pkg.buffEffects;
+    for (const key of ['attrResistance', 'phyLifesteal'] as const) {
+      const v = be[key];
+      if (v !== undefined && (!isFiniteNumber(v) || v < 0 || v > 1)) {
+        out.errors.push(`buffEffects.${key} 必须是 [0,1] 数值`);
+      }
+    }
+  }
 
   return out;
+}
+
+/** 校验循环触发（切片 12）。 */
+function validateLoopTrigger(name: string, t: LoopTriggerDef, out: ValidationResult): void {
+  const ctx = `symbol "${name}" loopTrigger@frame${t.frame}`;
+  if (!isInt(t.frame) || t.frame < 0) out.errors.push(`${ctx}: frame 必须是非负整数`);
+  if (t.untilFrame !== null && (!isInt(t.untilFrame) || t.untilFrame <= t.frame)) {
+    out.errors.push(`${ctx}: untilFrame 必须为 null 或大于 frame`);
+  }
+  if (t.cond !== null) {
+    if (t.cond.kind === 'checkHitOwner') {
+      if (typeof t.cond.name !== 'string' || t.cond.name === '') {
+        out.errors.push(`${ctx}: checkHitOwner.name 非法`);
+      }
+      if (t.cond.negate !== undefined && typeof t.cond.negate !== 'boolean') {
+        out.errors.push(`${ctx}: negate 必须是布尔`);
+      }
+    } else if (t.cond.kind === 'actionStateIn') {
+      if (!Array.isArray(t.cond.values) || t.cond.values.length === 0 ||
+          !t.cond.values.every((v) => isInt(v))) {
+        out.errors.push(`${ctx}: actionStateIn.values 必须是非空整数数组`);
+      }
+      if (t.cond.negate !== undefined && typeof t.cond.negate !== 'boolean') {
+        out.errors.push(`${ctx}: negate 必须是布尔`);
+      }
+    } else {
+      out.errors.push(`${ctx}: cond.kind 非法`);
+    }
+  }
+  t.then.forEach((c, i) => validateCall(name, `loopTrigger@frame${t.frame}.then[${i}]`, c, out));
 }
 
 /* ---------------------------------------------------------------------

@@ -1,0 +1,34 @@
+{
+  "name": "assist-duel",
+  "seed": 1,
+  "map": "Forest",
+  "ticks": 400,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "05f77631"
+    },
+    {
+      "tick": 119,
+      "hash": "78a2fba7"
+    },
+    {
+      "tick": 179,
+      "hash": "c78635b6"
+    },
+    {
+      "tick": 239,
+      "hash": "e465b1d5"
+    },
+    {
+      "tick": 299,
+      "hash": "d5a417b4"
+    },
+    {
+      "tick": 359,
+      "hash": "257a1d92"
+    }
+  ],
+  "finalHash": "bf70e9f6"
+}

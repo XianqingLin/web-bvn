@@ -28,22 +28,29 @@
         "args": []
       },
       {
-        "frame": 1,
-        "target": "assister",
-        "op": "getTarget",
+        "frame": 15,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 30,
+        "target": "effect",
+        "op": "endBisha",
         "args": []
       },
       {
-        "frame": 1,
-        "target": "assister",
-        "op": "getTarget",
-        "args": []
-      },
-      {
-        "frame": 1,
-        "target": "assister",
-        "op": "getSelf",
-        "args": []
+        "frame": 33,
+        "target": "fighter",
+        "op": "buffSpeedUp",
+        "args": [
+          {
+            "$expr": "ownerSpeed * 0.25"
+          },
+          6
+        ]
       },
       {
         "frame": 33,
@@ -57,37 +64,13 @@
       },
       {
         "frame": 33,
-        "target": "assister",
-        "op": "getGameSprites",
-        "args": []
-      },
-      {
-        "frame": 33,
-        "target": "assister",
-        "op": "isBullet",
+        "target": "effect",
+        "op": "shine",
         "args": [
           {
-            "$ref": "sp"
+            "$expr": "0x0000FF"
           }
         ]
-      },
-      {
-        "frame": 33,
-        "target": "assister",
-        "op": "getSelf",
-        "args": []
-      },
-      {
-        "frame": 33,
-        "target": "assister",
-        "op": "getOwner",
-        "args": []
-      },
-      {
-        "frame": 33,
-        "target": "assister",
-        "op": "getOwner",
-        "args": []
       },
       {
         "frame": 144,
@@ -97,10 +80,6 @@
       }
     ],
     "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\n//var defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\t//defineAction = $assisterCtrler.defineAction;\n\t\n\t//defineActions();\n}\n/*\nfunction defineActions():void{\n\tdefineAction(\"atm1\" , {power:50 , hitType:5 , hitx:0 , hity:0 , hurtTime:2000 , hurtType:0 , isBreakDef:false});\n}*/"
-      },
       {
         "frame": 1,
         "raw": "$assisterCtrler.endAct();\n\nvar targetHeavy:Number = $assisterCtrler.getTarget().heavy;\nvar targetSpeed:Number = $assisterCtrler.getTarget().speed;\n\t\nconst LEVEL:Array = [0.8, 0.65, 0.5, 0.35, 0.2];\nvar index:int = int(targetHeavy>5 ? 5:targetHeavy) - 1;\nvar level:Number = LEVEL[index];\n\nvar finalSpeed:Number = targetSpeed * level;\nvar selfDirect:int = $assisterCtrler.getSelf().direct;"
@@ -112,18 +91,6 @@
       {
         "frame": 144,
         "raw": "$assisterCtrler.removeCustomFunc();\nsetTargetBulletSpeedLevel();\ntargetSP = null;"
-      },
-      {
-        "frame": 15,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 30,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 33,
-        "raw": "$assisterCtrler.effect.shine(0x0000FF);"
       }
     ]
   },

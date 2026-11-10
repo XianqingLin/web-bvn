@@ -558,7 +558,6 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.switchForm(ctx.f, num(args[0]));
   },
   // switchForm(frame)：形态切换通用原语（词表 Tier-2；语义同 doWanKai）。
-  // teleport（移形换位=换人）/summon（辅助召唤）依赖辅助系统，归辅助切片
   switchForm(ctx, args) {
     ctx.switchForm(ctx.f, num(args[0]));
   },

@@ -1,5 +1,11 @@
 import { createPlayerInput, type PlayerInput } from './input.js';
-import { defaultSlots, type FighterDef, type FighterSlots, type HitDef } from './fighter/def.js';
+import {
+  defaultSlots,
+  type AssisterDef,
+  type FighterDef,
+  type FighterSlots,
+  type HitDef,
+} from './fighter/def.js';
 
 /** 逻辑坐标系 1000×600，y 向下（DESIGN §5，与原版一致）。 */
 export const STAGE_WIDTH = 1000;
@@ -18,6 +24,12 @@ export const DEFAULT_HP = 1000;
 
 /** 能量上限（原版 FighterMain.energyMax=100）。 */
 export const ENERGY_MAX = 100;
+/** 辅助气上限（原版 fzqiMax=100；满气才可召唤，召唤即清零）。 */
+export const FZQI_MAX = 100;
+/** 辅助气回充（原版 FUZHU_QU_ADD_PERFRAME=0.2，资源量不折算）。 */
+export const FZQI_ADD_PERFRAME = 0.2;
+/** buff 持续时长换算（原版 hold 秒 × FPS_GAME=60 tick）。 */
+export const BUFF_HOLD_TICKS = 60;
 /** 能量回充冷却 tick（原版 USE_ENERGY_CD(0.8s)×30 = 24，帧数类不折算）。 */
 export const ENERGY_GAP_TICKS = 24;
 /** 起始跳跃次数（原版 FighterMain.jumpTimes = 2：地面跳 + 空中跳各耗 1）。 */
@@ -126,7 +138,26 @@ export interface FighterState {
   ghostType: number;
   /** 瞬身步连续冷却剩余 tick（原版 _isContinuousGhostStep 恢复计时，仅限地面步） */
   ghostCooldown: number;
+  /** 辅助气（原版 fzqi；满 100 可召唤辅助，召唤清零，+0.2/tick 回充） */
+  fzqi: number;
+  /** 辅助 id（SimConfig.assistants 注册表寻址；null = 无辅助。随状态快照走） */
+  assistId: string | null;
+  /** 增益 buff（原版 FighterBuffCtrler speedUp/attackUp/defenseUp；null = 未激活。
+   *  holdTicks 计满移除；speedUp 为平加值，attackUp/defenseUp 为伤害乘区加值） */
+  buffs: {
+    speedUp: BuffState | null;
+    attackUp: BuffState | null;
+    defenseUp: BuffState | null;
+  };
   input: PlayerInput;
+}
+
+/** 增益 buff 实例（原版 FighterBuffVO 子集）。 */
+export interface BuffState {
+  /** 加值（speed 平加；attack/defense 伤害乘区加值） */
+  value: number;
+  /** 剩余 tick（原版 hold 秒 × 60；重复施加刷新本值） */
+  holdTicks: number;
 }
 
 /** 抓取吸附参数（原版 MoveTargetParamVO 子集，语料字段 followmc/speed）。 */
@@ -179,6 +210,8 @@ export interface BulletState {
   hit: HitDef;
   /** 仍可命中（hits 耗尽/被摧毁后 false） */
   hitAble: boolean;
+  /** 辅助发射（切片 12）：命中不回气（原版 Bullet `owner is FighterMain` 守卫不成立） */
+  viaAssist: boolean;
 }
 
 /**
@@ -228,6 +261,45 @@ export interface MatchState {
 }
 
 /**
+ * 辅助实体（原版 Assister 子集，切片 12）。
+ * 单时间轴自由播放：出场帧（gotoAndPlay(2)）起每动画帧跑触发器/循环触发，
+ * 播至时间轴末（原版 currentFrame == totalFrames-1 判定）或 owner 死亡即退场；
+ * 无独立血量（受击不损）。物理与角色同族：位移 = 速度 × SPEED_PLUS、线性阻尼、
+ * 重力斜坡（applyG 可关）。
+ */
+export interface AssisterState {
+  id: number;
+  /** 召唤者 fighter id */
+  ownerId: number;
+  /** 辅助定义 id（SimConfig.assistants 注册表寻址） */
+  assistId: string;
+  facing: 1 | -1;
+  x: number;
+  y: number;
+  /** 显式速度（60Hz：位移 = v × SPEED_PLUS） */
+  vx: number;
+  vy: number;
+  /** 速度线性衰减（原版 setDamping；每 tick 向 0 wake） */
+  dampX: number;
+  dampY: number;
+  /** 重力斜坡（与角色同族：GRAVITY_START 起步递增封顶） */
+  gRamp: number;
+  /** 是否施加重力（setApplyG 开关） */
+  applyG: boolean;
+  onGround: boolean;
+  /** 当前动画标签（渲染用；null = 未进入标签段） */
+  actLabel: string | null;
+  /** 当前动画帧（1 起，30Hz；出场帧 = 2，对应原版 gotoAndPlay(2)） */
+  animFrame: number;
+  /** 触地续接标签（setTouchFloor；落地消费一次） */
+  touchFloor: string | null;
+  /** 本次在场已命中目标键（区名:目标 id；一区一目标一次） */
+  attackHit: string[];
+  /** 增益 buff 效果（def.buffEffects 拷贝；生效期 = 在场期间） */
+  buffEffects: { attrResistance?: number; phyLifesteal?: number };
+}
+
+/**
  * 全部模拟状态收进单个 SimState（契约硬规则 1），
  * 可整体快照/恢复，为 rollback 预留（DESIGN §3.8）。
  */
@@ -241,6 +313,8 @@ export interface SimState {
   bullets: BulletState[];
   /** 独立道具（原版 FighterAttacker，addAttacker 原语），按 id 升序 */
   attackers: AttackerState[];
+  /** 辅助实体（原版 Assister；每 fighter 至多一个在场，按 id 升序） */
+  assisters: AssisterState[];
   /** 实体 id 分配计数器（bullets/后续 attacker/assister 共用） */
   nextEntityId: number;
   match: MatchState;
@@ -261,12 +335,17 @@ export interface FighterConfig {
    * 缺省 = 单形态 [def]。切换（doWanKai/switchForm）只改 FighterState.formIndex。
    */
   forms?: FighterDef[];
+  /** 辅助 id（SimConfig.assistants 注册表寻址；缺省 = 无辅助） */
+  assistId?: string;
 }
 
 export interface SimConfig {
   seed: number;
   stage: StageState;
   fighters: FighterConfig[];
+  /** 辅助定义注册表（静态数据不进 SimState，fromState 恢复时重注入；
+   *  键 = AssisterDef.id，经 FighterConfig.assistId 寻址） */
+  assistants?: Record<string, AssisterDef>;
   /**
    * 训练模式：命中方与受击方血量恒定回复（不 KO）、计时冻结。
    * 冻结/回复在 stepMatchFlow 内确定性执行，进哈希，两端一致。
@@ -340,6 +419,9 @@ export function createInitialState(config: SimConfig): SimState {
       ghostTicks: 0,
       ghostType: 0,
       ghostCooldown: 0,
+      fzqi: FZQI_MAX,
+      assistId: fc.assistId ?? null,
+      buffs: { speedUp: null, attackUp: null, defenseUp: null },
       slots: defaultSlots(fc.def ?? null),
       input: createPlayerInput(),
     }));
@@ -350,6 +432,7 @@ export function createInitialState(config: SimConfig): SimState {
     fighters,
     bullets: [],
     attackers: [],
+    assisters: [],
     nextEntityId: 1,
     match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
   };

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T07:14:44.958Z",
+  "generatedAt": "2026-11-10T12:15:47.462Z",
   "fighters": 58,
   "framesPerFighter": 700,
   "map": "Forest",
@@ -16,10 +16,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "e91307a5",
-        "resumeHash": "e91307a5",
+        "finalHash": "35512498",
+        "resumeHash": "35512498",
         "resumeFrames": 300,
-        "rerunHash": "e91307a5"
+        "rerunHash": "35512498"
       }
     },
     {
@@ -31,10 +31,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "a039b9f1",
-        "resumeHash": "a039b9f1",
+        "finalHash": "ec577fd0",
+        "resumeHash": "ec577fd0",
         "resumeFrames": 300,
-        "rerunHash": "a039b9f1"
+        "rerunHash": "ec577fd0"
       }
     },
     {
@@ -46,10 +46,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "a039b9f1",
-        "resumeHash": "a039b9f1",
+        "finalHash": "ec577fd0",
+        "resumeHash": "ec577fd0",
         "resumeFrames": 300,
-        "rerunHash": "a039b9f1"
+        "rerunHash": "ec577fd0"
       }
     },
     {
@@ -61,10 +61,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "9481ea52",
-        "resumeHash": "9481ea52",
+        "finalHash": "b440e10f",
+        "resumeHash": "b440e10f",
         "resumeFrames": 300,
-        "rerunHash": "9481ea52"
+        "rerunHash": "b440e10f"
       }
     },
     {
@@ -76,10 +76,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "a854f710",
-        "resumeHash": "a854f710",
+        "finalHash": "f26b99c1",
+        "resumeHash": "f26b99c1",
         "resumeFrames": 300,
-        "rerunHash": "a854f710"
+        "rerunHash": "f26b99c1"
       }
     },
     {
@@ -91,10 +91,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ca0272b",
-        "resumeHash": "7ca0272b",
+        "finalHash": "9a871fcc",
+        "resumeHash": "9a871fcc",
         "resumeFrames": 300,
-        "rerunHash": "7ca0272b"
+        "rerunHash": "9a871fcc"
       }
     },
     {
@@ -106,10 +106,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c5ea1d1e",
-        "resumeHash": "c5ea1d1e",
+        "finalHash": "76fdeaa1",
+        "resumeHash": "76fdeaa1",
         "resumeFrames": 300,
-        "rerunHash": "c5ea1d1e"
+        "rerunHash": "76fdeaa1"
       }
     },
     {
@@ -121,10 +121,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "cea66992",
-        "resumeHash": "cea66992",
+        "finalHash": "0968376f",
+        "resumeHash": "0968376f",
         "resumeFrames": 300,
-        "rerunHash": "cea66992"
+        "rerunHash": "0968376f"
       }
     },
     {
@@ -136,10 +136,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -151,10 +151,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -166,10 +166,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -181,10 +181,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -196,10 +196,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -211,10 +211,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d7978258",
-        "resumeHash": "d7978258",
+        "finalHash": "379d6f0d",
+        "resumeHash": "379d6f0d",
         "resumeFrames": 300,
-        "rerunHash": "d7978258"
+        "rerunHash": "379d6f0d"
       }
     },
     {
@@ -226,10 +226,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "8736527f",
-        "resumeHash": "8736527f",
+        "finalHash": "be6aa0f6",
+        "resumeHash": "be6aa0f6",
         "resumeFrames": 300,
-        "rerunHash": "8736527f"
+        "rerunHash": "be6aa0f6"
       }
     },
     {
@@ -241,10 +241,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "d097ed85",
-        "resumeHash": "d097ed85",
+        "finalHash": "9514abaa",
+        "resumeHash": "9514abaa",
         "resumeFrames": 300,
-        "rerunHash": "d097ed85"
+        "rerunHash": "9514abaa"
       }
     },
     {
@@ -256,10 +256,10 @@
       "rawScripts": 3,
       "smoke": {
         "ok": true,
-        "finalHash": "f5d1111f",
-        "resumeHash": "f5d1111f",
+        "finalHash": "2c761264",
+        "resumeHash": "2c761264",
         "resumeFrames": 300,
-        "rerunHash": "f5d1111f"
+        "rerunHash": "2c761264"
       }
     },
     {
@@ -271,10 +271,10 @@
       "rawScripts": 37,
       "smoke": {
         "ok": true,
-        "finalHash": "96e31b2e",
-        "resumeHash": "96e31b2e",
+        "finalHash": "24646bdb",
+        "resumeHash": "24646bdb",
         "resumeFrames": 300,
-        "rerunHash": "96e31b2e"
+        "rerunHash": "24646bdb"
       }
     },
     {
@@ -286,10 +286,10 @@
       "rawScripts": 37,
       "smoke": {
         "ok": true,
-        "finalHash": "96e31b2e",
-        "resumeHash": "96e31b2e",
+        "finalHash": "24646bdb",
+        "resumeHash": "24646bdb",
         "resumeFrames": 300,
-        "rerunHash": "96e31b2e"
+        "rerunHash": "24646bdb"
       }
     },
     {
@@ -301,10 +301,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "529445bf",
-        "resumeHash": "529445bf",
+        "finalHash": "b4c71d6e",
+        "resumeHash": "b4c71d6e",
         "resumeFrames": 300,
-        "rerunHash": "529445bf"
+        "rerunHash": "b4c71d6e"
       }
     },
     {
@@ -316,10 +316,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "87e9b988",
-        "resumeHash": "87e9b988",
+        "finalHash": "9749e3ef",
+        "resumeHash": "9749e3ef",
         "resumeFrames": 300,
-        "rerunHash": "87e9b988"
+        "rerunHash": "9749e3ef"
       }
     },
     {
@@ -331,10 +331,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "7e5aeecb",
-        "resumeHash": "7e5aeecb",
+        "finalHash": "d0401034",
+        "resumeHash": "d0401034",
         "resumeFrames": 300,
-        "rerunHash": "7e5aeecb"
+        "rerunHash": "d0401034"
       }
     },
     {
@@ -346,10 +346,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "7e5aeecb",
-        "resumeHash": "7e5aeecb",
+        "finalHash": "d0401034",
+        "resumeHash": "d0401034",
         "resumeFrames": 300,
-        "rerunHash": "7e5aeecb"
+        "rerunHash": "d0401034"
       }
     },
     {
@@ -361,10 +361,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "0d03a445",
-        "resumeHash": "0d03a445",
+        "finalHash": "6f0c4234",
+        "resumeHash": "6f0c4234",
         "resumeFrames": 300,
-        "rerunHash": "0d03a445"
+        "rerunHash": "6f0c4234"
       }
     },
     {
@@ -376,10 +376,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "011be9e2",
-        "resumeHash": "011be9e2",
+        "finalHash": "7a76084f",
+        "resumeHash": "7a76084f",
         "resumeFrames": 300,
-        "rerunHash": "011be9e2"
+        "rerunHash": "7a76084f"
       }
     },
     {
@@ -391,10 +391,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "8f3b0c4f",
-        "resumeHash": "8f3b0c4f",
+        "finalHash": "b751a284",
+        "resumeHash": "b751a284",
         "resumeFrames": 300,
-        "rerunHash": "8f3b0c4f"
+        "rerunHash": "b751a284"
       }
     },
     {
@@ -406,10 +406,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "3924aab4",
-        "resumeHash": "3924aab4",
+        "finalHash": "5421e717",
+        "resumeHash": "5421e717",
         "resumeFrames": 300,
-        "rerunHash": "3924aab4"
+        "rerunHash": "5421e717"
       }
     },
     {
@@ -421,10 +421,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "3924aab4",
-        "resumeHash": "3924aab4",
+        "finalHash": "5421e717",
+        "resumeHash": "5421e717",
         "resumeFrames": 300,
-        "rerunHash": "3924aab4"
+        "rerunHash": "5421e717"
       }
     },
     {
@@ -436,10 +436,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "62e4c439",
-        "resumeHash": "62e4c439",
+        "finalHash": "eb98cb12",
+        "resumeHash": "eb98cb12",
         "resumeFrames": 300,
-        "rerunHash": "62e4c439"
+        "rerunHash": "eb98cb12"
       }
     },
     {
@@ -451,10 +451,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "a6a4f7f5",
-        "resumeHash": "a6a4f7f5",
+        "finalHash": "3ebb6486",
+        "resumeHash": "3ebb6486",
         "resumeFrames": 300,
-        "rerunHash": "a6a4f7f5"
+        "rerunHash": "3ebb6486"
       }
     },
     {
@@ -466,10 +466,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "4fa0d9b5",
-        "resumeHash": "4fa0d9b5",
+        "finalHash": "c4c63696",
+        "resumeHash": "c4c63696",
         "resumeFrames": 300,
-        "rerunHash": "4fa0d9b5"
+        "rerunHash": "c4c63696"
       }
     },
     {
@@ -481,10 +481,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "4fa0d9b5",
-        "resumeHash": "4fa0d9b5",
+        "finalHash": "c4c63696",
+        "resumeHash": "c4c63696",
         "resumeFrames": 300,
-        "rerunHash": "4fa0d9b5"
+        "rerunHash": "c4c63696"
       }
     },
     {
@@ -496,10 +496,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "4fa0d9b5",
-        "resumeHash": "4fa0d9b5",
+        "finalHash": "c4c63696",
+        "resumeHash": "c4c63696",
         "resumeFrames": 300,
-        "rerunHash": "4fa0d9b5"
+        "rerunHash": "c4c63696"
       }
     },
     {
@@ -511,10 +511,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "4fa0d9b5",
-        "resumeHash": "4fa0d9b5",
+        "finalHash": "c4c63696",
+        "resumeHash": "c4c63696",
         "resumeFrames": 300,
-        "rerunHash": "4fa0d9b5"
+        "rerunHash": "c4c63696"
       }
     },
     {
@@ -526,10 +526,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "4fa0d9b5",
-        "resumeHash": "4fa0d9b5",
+        "finalHash": "c4c63696",
+        "resumeHash": "c4c63696",
         "resumeFrames": 300,
-        "rerunHash": "4fa0d9b5"
+        "rerunHash": "c4c63696"
       }
     },
     {
@@ -541,10 +541,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "91aefccd",
-        "resumeHash": "91aefccd",
+        "finalHash": "74add1d2",
+        "resumeHash": "74add1d2",
         "resumeFrames": 300,
-        "rerunHash": "91aefccd"
+        "rerunHash": "74add1d2"
       }
     },
     {
@@ -556,10 +556,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "23ea224c",
-        "resumeHash": "23ea224c",
+        "finalHash": "eedda871",
+        "resumeHash": "eedda871",
         "resumeFrames": 300,
-        "rerunHash": "23ea224c"
+        "rerunHash": "eedda871"
       }
     },
     {
@@ -571,10 +571,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "23ea224c",
-        "resumeHash": "23ea224c",
+        "finalHash": "eedda871",
+        "resumeHash": "eedda871",
         "resumeFrames": 300,
-        "rerunHash": "23ea224c"
+        "rerunHash": "eedda871"
       }
     },
     {
@@ -586,10 +586,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -601,10 +601,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "7ef56827",
-        "resumeHash": "7ef56827",
+        "finalHash": "4984a188",
+        "resumeHash": "4984a188",
         "resumeFrames": 300,
-        "rerunHash": "7ef56827"
+        "rerunHash": "4984a188"
       }
     },
     {
@@ -616,10 +616,10 @@
       "rawScripts": 31,
       "smoke": {
         "ok": true,
-        "finalHash": "0f19e088",
-        "resumeHash": "0f19e088",
+        "finalHash": "eef2c84b",
+        "resumeHash": "eef2c84b",
         "resumeFrames": 300,
-        "rerunHash": "0f19e088"
+        "rerunHash": "eef2c84b"
       }
     },
     {
@@ -631,10 +631,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "fe61fec8",
-        "resumeHash": "fe61fec8",
+        "finalHash": "8bc0bf8b",
+        "resumeHash": "8bc0bf8b",
         "resumeFrames": 300,
-        "rerunHash": "fe61fec8"
+        "rerunHash": "8bc0bf8b"
       }
     },
     {
@@ -646,10 +646,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "2b082ba9",
-        "resumeHash": "2b082ba9",
+        "finalHash": "600c6558",
+        "resumeHash": "600c6558",
         "resumeFrames": 300,
-        "rerunHash": "2b082ba9"
+        "rerunHash": "600c6558"
       }
     },
     {
@@ -661,10 +661,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "f00ffcb4",
-        "resumeHash": "f00ffcb4",
+        "finalHash": "8d948a55",
+        "resumeHash": "8d948a55",
         "resumeFrames": 300,
-        "rerunHash": "f00ffcb4"
+        "rerunHash": "8d948a55"
       }
     },
     {
@@ -676,10 +676,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "1467483e",
-        "resumeHash": "1467483e",
+        "finalHash": "34bd1061",
+        "resumeHash": "34bd1061",
         "resumeFrames": 300,
-        "rerunHash": "1467483e"
+        "rerunHash": "34bd1061"
       }
     },
     {
@@ -691,10 +691,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "1467483e",
-        "resumeHash": "1467483e",
+        "finalHash": "34bd1061",
+        "resumeHash": "34bd1061",
         "resumeFrames": 300,
-        "rerunHash": "1467483e"
+        "rerunHash": "34bd1061"
       }
     },
     {
@@ -706,10 +706,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "27a76980",
-        "resumeHash": "27a76980",
+        "finalHash": "dbe649a1",
+        "resumeHash": "dbe649a1",
         "resumeFrames": 300,
-        "rerunHash": "27a76980"
+        "rerunHash": "dbe649a1"
       }
     },
     {
@@ -721,10 +721,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "337f3ecc",
-        "resumeHash": "337f3ecc",
+        "finalHash": "d8a1034f",
+        "resumeHash": "d8a1034f",
         "resumeFrames": 300,
-        "rerunHash": "337f3ecc"
+        "rerunHash": "d8a1034f"
       }
     },
     {
@@ -736,10 +736,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "337f3ecc",
-        "resumeHash": "337f3ecc",
+        "finalHash": "d8a1034f",
+        "resumeHash": "d8a1034f",
         "resumeFrames": 300,
-        "rerunHash": "337f3ecc"
+        "rerunHash": "d8a1034f"
       }
     },
     {
@@ -751,10 +751,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "337f3ecc",
-        "resumeHash": "337f3ecc",
+        "finalHash": "d8a1034f",
+        "resumeHash": "d8a1034f",
         "resumeFrames": 300,
-        "rerunHash": "337f3ecc"
+        "rerunHash": "d8a1034f"
       }
     },
     {
@@ -766,10 +766,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "f0e11a95",
-        "resumeHash": "f0e11a95",
+        "finalHash": "1a5a787e",
+        "resumeHash": "1a5a787e",
         "resumeFrames": 300,
-        "rerunHash": "f0e11a95"
+        "rerunHash": "1a5a787e"
       }
     },
     {
@@ -781,10 +781,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "5d6d60a7",
-        "resumeHash": "5d6d60a7",
+        "finalHash": "6212022a",
+        "resumeHash": "6212022a",
         "resumeFrames": 300,
-        "rerunHash": "5d6d60a7"
+        "rerunHash": "6212022a"
       }
     },
     {
@@ -796,10 +796,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "3d407247",
-        "resumeHash": "3d407247",
+        "finalHash": "a07c6fae",
+        "resumeHash": "a07c6fae",
         "resumeFrames": 300,
-        "rerunHash": "3d407247"
+        "rerunHash": "a07c6fae"
       }
     },
     {
@@ -811,10 +811,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d0e9ff53",
-        "resumeHash": "d0e9ff53",
+        "finalHash": "44688b8c",
+        "resumeHash": "44688b8c",
         "resumeFrames": 300,
-        "rerunHash": "d0e9ff53"
+        "rerunHash": "44688b8c"
       }
     },
     {
@@ -826,10 +826,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d0e9ff53",
-        "resumeHash": "d0e9ff53",
+        "finalHash": "44688b8c",
+        "resumeHash": "44688b8c",
         "resumeFrames": 300,
-        "rerunHash": "d0e9ff53"
+        "rerunHash": "44688b8c"
       }
     },
     {
@@ -841,10 +841,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "2ac8cf9d",
-        "resumeHash": "2ac8cf9d",
+        "finalHash": "b9b99c2e",
+        "resumeHash": "b9b99c2e",
         "resumeFrames": 300,
-        "rerunHash": "2ac8cf9d"
+        "rerunHash": "b9b99c2e"
       }
     },
     {
@@ -856,10 +856,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "2ac8cf9d",
-        "resumeHash": "2ac8cf9d",
+        "finalHash": "b9b99c2e",
+        "resumeHash": "b9b99c2e",
         "resumeFrames": 300,
-        "rerunHash": "2ac8cf9d"
+        "rerunHash": "b9b99c2e"
       }
     },
     {
@@ -871,10 +871,825 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "1ceabc74",
-        "resumeHash": "1ceabc74",
+        "finalHash": "e54533d1",
+        "resumeHash": "e54533d1",
         "resumeFrames": 300,
-        "rerunHash": "1ceabc74"
+        "rerunHash": "e54533d1"
+      }
+    }
+  ],
+  "assistants": 37,
+  "assistantCompileFailures": [],
+  "assistantSmokeFailures": [],
+  "assistantUnregisteredOpAggregate": [
+    {
+      "op": "setHitTarget",
+      "target": "assister",
+      "instances": 7,
+      "assistants": [
+        "byakuya",
+        "kimimaro",
+        "nemu",
+        "sakura",
+        "shikamaru",
+        "shishio",
+        "yachiru"
+      ]
+    },
+    {
+      "op": "addAttacker",
+      "target": "assister",
+      "instances": 7,
+      "assistants": [
+        "byakuya",
+        "gaara",
+        "itachi",
+        "madara",
+        "rangiku",
+        "sai",
+        "shikamaru"
+      ]
+    },
+    {
+      "op": "removeCustomFunc",
+      "target": "assister",
+      "instances": 6,
+      "assistants": [
+        "byakuya",
+        "orihime",
+        "suigetsu",
+        "temari",
+        "tsunate",
+        "yamamoto"
+      ]
+    },
+    {
+      "op": "addCustomFunc",
+      "target": "assister",
+      "instances": 3,
+      "assistants": [
+        "byakuya",
+        "temari"
+      ]
+    },
+    {
+      "op": "setTouchSide",
+      "target": "assister",
+      "instances": 3,
+      "assistants": [
+        "sakura",
+        "shishio",
+        "yachiru"
+      ]
+    },
+    {
+      "op": "justHit",
+      "target": "assister",
+      "instances": 2,
+      "assistants": [
+        "ikkaku",
+        "minato"
+      ]
+    },
+    {
+      "op": "getMcCtrl",
+      "target": "fighterTarget",
+      "instances": 1,
+      "assistants": [
+        "byakuya"
+      ]
+    },
+    {
+      "op": "getTargetSP",
+      "target": "fighter",
+      "instances": 1,
+      "assistants": [
+        "itachi"
+      ]
+    }
+  ],
+  "assistantResults": [
+    {
+      "id": "byakuya",
+      "triggers": 13,
+      "loopTriggers": 0,
+      "rawScripts": 6,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "addCustomFunc",
+          "target": "assister",
+          "count": 2
+        },
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "getMcCtrl",
+          "target": "fighterTarget",
+          "count": 1
+        },
+        {
+          "op": "removeCustomFunc",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "81f4a352",
+        "resumeHash": "81f4a352",
+        "resumeFrames": 300,
+        "rerunHash": "81f4a352"
+      }
+    },
+    {
+      "id": "gaara",
+      "triggers": 4,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "3d668aba",
+        "resumeHash": "3d668aba",
+        "resumeFrames": 300,
+        "rerunHash": "3d668aba"
+      }
+    },
+    {
+      "id": "gin",
+      "triggers": 4,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "32dbed12",
+        "resumeHash": "32dbed12",
+        "resumeFrames": 300,
+        "rerunHash": "32dbed12"
+      }
+    },
+    {
+      "id": "grimmjow",
+      "triggers": 17,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "66f169c6",
+        "resumeHash": "66f169c6",
+        "resumeFrames": 300,
+        "rerunHash": "66f169c6"
+      }
+    },
+    {
+      "id": "halibel",
+      "triggers": 13,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "b74534d5",
+        "resumeHash": "b74534d5",
+        "resumeFrames": 300,
+        "rerunHash": "b74534d5"
+      }
+    },
+    {
+      "id": "hinata",
+      "triggers": 8,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "5301ab48",
+        "resumeHash": "5301ab48",
+        "resumeFrames": 300,
+        "rerunHash": "5301ab48"
+      }
+    },
+    {
+      "id": "hiruko",
+      "triggers": 4,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "f8c478ca",
+        "resumeHash": "f8c478ca",
+        "resumeFrames": 300,
+        "rerunHash": "f8c478ca"
+      }
+    },
+    {
+      "id": "ichigo_dangai",
+      "triggers": 4,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "1ff05a02",
+        "resumeHash": "1ff05a02",
+        "resumeFrames": 300,
+        "rerunHash": "1ff05a02"
+      }
+    },
+    {
+      "id": "ikkaku",
+      "triggers": 14,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "justHit",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "2e32c602",
+        "resumeHash": "2e32c602",
+        "resumeFrames": 300,
+        "rerunHash": "2e32c602"
+      }
+    },
+    {
+      "id": "ino",
+      "triggers": 5,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "cd2e9828",
+        "resumeHash": "cd2e9828",
+        "resumeFrames": 300,
+        "rerunHash": "cd2e9828"
+      }
+    },
+    {
+      "id": "itachi",
+      "triggers": 5,
+      "loopTriggers": 0,
+      "rawScripts": 1,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "getTargetSP",
+          "target": "fighter",
+          "count": 1
+        },
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "923f565a",
+        "resumeHash": "923f565a",
+        "resumeFrames": 300,
+        "rerunHash": "923f565a"
+      }
+    },
+    {
+      "id": "jiraiya",
+      "triggers": 12,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "16070280",
+        "resumeHash": "16070280",
+        "resumeFrames": 300,
+        "rerunHash": "16070280"
+      }
+    },
+    {
+      "id": "kenpachi",
+      "triggers": 8,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "df4737bc",
+        "resumeHash": "df4737bc",
+        "resumeFrames": 300,
+        "rerunHash": "df4737bc"
+      }
+    },
+    {
+      "id": "kimimaro",
+      "triggers": 14,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "77269598",
+        "resumeHash": "77269598",
+        "resumeFrames": 300,
+        "rerunHash": "77269598"
+      }
+    },
+    {
+      "id": "kon",
+      "triggers": 10,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "b9024236",
+        "resumeHash": "b9024236",
+        "resumeFrames": 300,
+        "rerunHash": "b9024236"
+      }
+    },
+    {
+      "id": "madara",
+      "triggers": 6,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "d336b78a",
+        "resumeHash": "d336b78a",
+        "resumeFrames": 300,
+        "rerunHash": "d336b78a"
+      }
+    },
+    {
+      "id": "minato",
+      "triggers": 22,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "justHit",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "f6c2d1b9",
+        "resumeHash": "f6c2d1b9",
+        "resumeFrames": 300,
+        "rerunHash": "f6c2d1b9"
+      }
+    },
+    {
+      "id": "nemu",
+      "triggers": 20,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "2cee9c29",
+        "resumeHash": "2cee9c29",
+        "resumeFrames": 300,
+        "rerunHash": "2cee9c29"
+      }
+    },
+    {
+      "id": "obito_majime",
+      "triggers": 9,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "4420bfdd",
+        "resumeHash": "4420bfdd",
+        "resumeFrames": 300,
+        "rerunHash": "4420bfdd"
+      }
+    },
+    {
+      "id": "ogihci_vasteLord",
+      "triggers": 18,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "c82ca24d",
+        "resumeHash": "c82ca24d",
+        "resumeFrames": 300,
+        "rerunHash": "c82ca24d"
+      }
+    },
+    {
+      "id": "orihime",
+      "triggers": 10,
+      "loopTriggers": 1,
+      "rawScripts": 0,
+      "buffEffects": [
+        "attrResistance"
+      ],
+      "unregisteredOps": [
+        {
+          "op": "removeCustomFunc",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "de36e04e",
+        "resumeHash": "de36e04e",
+        "resumeFrames": 300,
+        "rerunHash": "de36e04e"
+      }
+    },
+    {
+      "id": "rangiku",
+      "triggers": 4,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "7b183eda",
+        "resumeHash": "7b183eda",
+        "resumeFrames": 300,
+        "rerunHash": "7b183eda"
+      }
+    },
+    {
+      "id": "sai",
+      "triggers": 6,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "f4bfba5a",
+        "resumeHash": "f4bfba5a",
+        "resumeFrames": 300,
+        "rerunHash": "f4bfba5a"
+      }
+    },
+    {
+      "id": "sakura",
+      "triggers": 17,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "setTouchSide",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "531ff5e0",
+        "resumeHash": "531ff5e0",
+        "resumeFrames": 300,
+        "rerunHash": "531ff5e0"
+      }
+    },
+    {
+      "id": "shikamaru",
+      "triggers": 7,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "addAttacker",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "f66d2852",
+        "resumeHash": "f66d2852",
+        "resumeFrames": 300,
+        "rerunHash": "f66d2852"
+      }
+    },
+    {
+      "id": "shishio",
+      "triggers": 19,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "setTouchSide",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "0edf9886",
+        "resumeHash": "0edf9886",
+        "resumeFrames": 300,
+        "rerunHash": "0edf9886"
+      }
+    },
+    {
+      "id": "soifon",
+      "triggers": 4,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "10ed1a5c",
+        "resumeHash": "10ed1a5c",
+        "resumeFrames": 300,
+        "rerunHash": "10ed1a5c"
+      }
+    },
+    {
+      "id": "starrk",
+      "triggers": 17,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "125f98bd",
+        "resumeHash": "125f98bd",
+        "resumeFrames": 300,
+        "rerunHash": "125f98bd"
+      }
+    },
+    {
+      "id": "suigetsu",
+      "triggers": 19,
+      "loopTriggers": 1,
+      "rawScripts": 1,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "removeCustomFunc",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "f5132adc",
+        "resumeHash": "f5132adc",
+        "resumeFrames": 300,
+        "rerunHash": "f5132adc"
+      }
+    },
+    {
+      "id": "temari",
+      "triggers": 7,
+      "loopTriggers": 0,
+      "rawScripts": 3,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "addCustomFunc",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "removeCustomFunc",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "4444d8c2",
+        "resumeHash": "4444d8c2",
+        "resumeFrames": 300,
+        "rerunHash": "4444d8c2"
+      }
+    },
+    {
+      "id": "tenten",
+      "triggers": 12,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "92b0d63b",
+        "resumeHash": "92b0d63b",
+        "resumeFrames": 300,
+        "rerunHash": "92b0d63b"
+      }
+    },
+    {
+      "id": "tsuchikage",
+      "triggers": 10,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "3bc17d8a",
+        "resumeHash": "3bc17d8a",
+        "resumeFrames": 300,
+        "rerunHash": "3bc17d8a"
+      }
+    },
+    {
+      "id": "tsunate",
+      "triggers": 8,
+      "loopTriggers": 1,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "removeCustomFunc",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "62e248d6",
+        "resumeHash": "62e248d6",
+        "resumeFrames": 300,
+        "rerunHash": "62e248d6"
+      }
+    },
+    {
+      "id": "uryuu",
+      "triggers": 13,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "71f4a297",
+        "resumeHash": "71f4a297",
+        "resumeFrames": 300,
+        "rerunHash": "71f4a297"
+      }
+    },
+    {
+      "id": "yachiru",
+      "triggers": 26,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [
+        "phyLifesteal"
+      ],
+      "unregisteredOps": [
+        {
+          "op": "setHitTarget",
+          "target": "assister",
+          "count": 1
+        },
+        {
+          "op": "setTouchSide",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "a859caee",
+        "resumeHash": "a859caee",
+        "resumeFrames": 300,
+        "rerunHash": "a859caee"
+      }
+    },
+    {
+      "id": "yamamoto",
+      "triggers": 5,
+      "loopTriggers": 1,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [
+        {
+          "op": "removeCustomFunc",
+          "target": "assister",
+          "count": 1
+        }
+      ],
+      "smoke": {
+        "ok": true,
+        "finalHash": "11163de2",
+        "resumeHash": "11163de2",
+        "resumeFrames": 300,
+        "rerunHash": "11163de2"
+      }
+    },
+    {
+      "id": "yoruichi",
+      "triggers": 5,
+      "loopTriggers": 0,
+      "rawScripts": 0,
+      "buffEffects": [],
+      "unregisteredOps": [],
+      "smoke": {
+        "ok": true,
+        "finalHash": "1e04daba",
+        "resumeHash": "1e04daba",
+        "resumeFrames": 300,
+        "rerunHash": "1e04daba"
       }
     }
   ]

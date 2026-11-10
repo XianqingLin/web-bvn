@@ -42,6 +42,26 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 14,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 30,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 35,
+        "target": "effect",
+        "op": "shine",
+        "args": []
+      },
+      {
         "frame": 35,
         "target": "assister",
         "op": "addAttacker",
@@ -68,28 +88,6 @@
         "op": "finish",
         "args": []
       }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:0,hitType:11,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:true});\n\tdefineAction(\"atm2\",{power:10,hitType:4,hitx:0,hity:0,hurtTime:1000,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm3\",{power:80,hitType:7,hitx:10,hity:0,hurtTime:0,hurtType:1,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 14,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 30,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 35,
-        "raw": "$assisterCtrler.effect.shine();"
-      },
-      {
-        "frame": 35,
-        "raw": "$assisterCtrler.addAttacker(\"atmmc\",{x:{followTarget:true,offset:-20},applyG:false});"
-      }
     ]
   },
   "symbols": {
@@ -102,10 +100,6 @@
       },
       "triggers": [],
       "rawScripts": [
-        {
-          "frame": 0,
-          "raw": "var $attacker_ctrler:*;\nfunction setAttackerCtrler(attackerCtrler:*):void{\n\t$attacker_ctrler = attackerCtrler;\n}"
-        },
         {
           "frame": 6,
           "raw": "$attacker_ctrler.stopFollowTarget();\n$attacker_ctrler.effect.shine();"

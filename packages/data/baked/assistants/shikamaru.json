@@ -27,12 +27,36 @@
     },
     "triggers": [
       {
+        "frame": 15,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 37,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
         "frame": 39,
         "target": "assister",
         "op": "setHitTarget",
         "args": [
           "chkm",
           "CHK"
+        ]
+      },
+      {
+        "frame": 39,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0x000000"
+          }
         ]
       },
       {
@@ -66,28 +90,6 @@
           }
         ]
       }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:25,hitType:11,hitx:0,hity:0,hurtTime:2000,hurtType:0,isBreakDef:true});\n}"
-      },
-      {
-        "frame": 15,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 37,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 39,
-        "raw": "$assisterCtrler.effect.shine(0x000000);"
-      },
-      {
-        "frame": 76,
-        "raw": "$assisterCtrler.addAttacker(\"atmmc\",{x:{moveToTarget:true,offset:0,range:[0,275]},applyG:false});"
-      }
     ]
   },
   "symbols": {
@@ -95,10 +97,6 @@
       "labels": {},
       "triggers": [],
       "rawScripts": [
-        {
-          "frame": 0,
-          "raw": "var $attacker_ctrler:*;\nfunction setAttackerCtrler(attackerCtrler:*):void{\n\t$attacker_ctrler = attackerCtrler;\n}"
-        },
         {
           "frame": 3,
           "raw": "$attacker_ctrler.effect.shine(0x000000);"

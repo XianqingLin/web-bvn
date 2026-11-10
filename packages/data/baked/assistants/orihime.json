@@ -22,12 +22,6 @@
     "labels": {},
     "triggers": [
       {
-        "frame": 0,
-        "target": "assister",
-        "op": "getSelf",
-        "args": []
-      },
-      {
         "frame": 1,
         "target": "assister",
         "op": "endAct",
@@ -42,38 +36,50 @@
         ]
       },
       {
+        "frame": 12,
+        "target": "effect",
+        "op": "walk",
+        "args": []
+      },
+      {
+        "frame": 19,
+        "target": "effect",
+        "op": "walk",
+        "args": []
+      },
+      {
         "frame": 20,
         "target": "assister",
         "op": "stopMove",
         "args": []
       },
       {
-        "frame": 49,
-        "target": "assister",
-        "op": "checkHitOwner",
+        "frame": 24,
+        "target": "effect",
+        "op": "bisha",
         "args": [
-          "chkm"
+          false
         ]
       },
       {
-        "frame": 49,
-        "target": "assister",
-        "op": "getOwner",
+        "frame": 38,
+        "target": "effect",
+        "op": "playSoundHit2",
+        "args": []
+      },
+      {
+        "frame": 47,
+        "target": "effect",
+        "op": "endBisha",
         "args": []
       },
       {
         "frame": 49,
-        "target": "assister",
-        "op": "getOwner",
-        "args": []
-      },
-      {
-        "frame": 49,
-        "target": "assister",
-        "op": "addCustomFunc",
+        "target": "effect",
+        "op": "shine",
         "args": [
           {
-            "$ref": "checkFunc"
+            "$expr": "0x00FF00"
           }
         ]
       },
@@ -84,40 +90,35 @@
         "args": []
       }
     ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\n//var defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\t//defineAction = $assisterCtrler.defineAction;\n\t\n\t//defineActions();\n\tdefineBuffEffects();\n}\n/*\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:0,hitType:0,hitx:0,hity:0,hurtTime:0,hurtType:0,isBreakDef:false});\n}*/\n\nfunction defineBuffEffects():void {\n\tvar buffEffects:Object = {\n\t\tattrResistance: 0.2\n\t};\n\t\n\t$assisterCtrler.getSelf().buffEffects = buffEffects;\n}"
-      },
+    "loopTriggers": [
       {
         "frame": 49,
-        "raw": "const ADD_HP:Number = 7.5;\nconst ADD_QI:Number = 1;\n\nfunction checkFunc():void{\n\tif(!$assisterCtrler.checkHitOwner(\"chkm\")) {\n\t\treturn;\n\t}\n\t\n\t$assisterCtrler.getOwner().addHp(ADD_HP);\n\t$assisterCtrler.getOwner().addQi(ADD_QI);\n}\n$assisterCtrler.addCustomFunc(checkFunc);"
-      },
-      {
-        "frame": 12,
-        "raw": "$assisterCtrler.effect.walk();"
-      },
-      {
-        "frame": 19,
-        "raw": "$assisterCtrler.effect.walk();"
-      },
-      {
-        "frame": 24,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 47,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 49,
-        "raw": "$assisterCtrler.effect.shine(0x00FF00);"
-      },
-      {
-        "frame": 38,
-        "raw": "$assisterCtrler.effect.playSoundHit2();"
+        "untilFrame": 69,
+        "cond": {
+          "kind": "checkHitOwner",
+          "name": "chkm"
+        },
+        "then": [
+          {
+            "target": "fighter",
+            "op": "addHp",
+            "args": [
+              7.5
+            ]
+          },
+          {
+            "target": "fighter",
+            "op": "addQi",
+            "args": [
+              1
+            ]
+          }
+        ]
       }
     ]
   },
-  "symbols": {}
+  "symbols": {},
+  "buffEffects": {
+    "attrResistance": 0.2
+  }
 }

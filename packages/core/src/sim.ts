@@ -5,7 +5,10 @@ import {
   DEFAULT_HP,
   ENERGY_GAP_TICKS,
   ENERGY_MAX,
+  FZQI_ADD_PERFRAME,
+  FZQI_MAX,
   PLAYFIELD_HALF_WIDTH,
+  type AssisterState,
   type AttackerState,
   type BulletState,
   type FighterState,
@@ -20,10 +23,23 @@ import {
   rectsOverlap,
   SPEED_PLUS,
   worldRect,
+  type AssisterDef,
   type FighterDef,
   type FrameTrigger,
   type HitDef,
 } from './fighter/def.js';
+import {
+  attackRateOf,
+  defaultAssisterBehaviors,
+  defenseDamageScale,
+  evaluateLoopCond,
+  isAttributeHit,
+  isPhysicalHit,
+  tickBuffs,
+  type AssisterContext,
+  type AssisterHandler,
+  type AssistBulletSpawnSpec,
+} from './fighter/assister.js';
 import {
   advanceAnimation,
   applyJumpLaunch,
@@ -87,6 +103,8 @@ const QI_ADD_HURT_MAX = 20;
 const BULLET_QI_RATE = 0.1;
 /** 独立道具命中回气：所有者 power×0.15 */
 const ATTACKER_QI_RATE = 0.15;
+/** 辅助命中回气：召唤者 power×0.15（原版 Assister.hit） */
+const ASSISTER_QI_RATE = 0.15;
 /** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
 const ATTACKER_LIFE_TICKS = 120;
 
@@ -151,8 +169,14 @@ export class Sim {
   private formsById: Map<number, FighterDef[]>;
   /** def.triggers 按帧号预索引：fighter id → formIndex → 帧 → 触发列表 */
   private triggerIndex: Map<number, Map<number, Map<number, FrameTrigger[]>>>;
+  /** 辅助定义注册表（assistId → def，静态配置不进 SimState） */
+  private assisterDefs: Map<string, AssisterDef>;
+  /** 辅助 def.triggers 按帧号预索引：assistId → 帧 → 触发列表 */
+  private assisterTriggerIndex: Map<string, Map<number, FrameTrigger[]>>;
   /** behaviors 处理器注册表（契约硬规则 7） */
   private behaviors: Record<string, BehaviorHandler>;
+  /** 辅助 behaviors 处理器注册表（切片 12） */
+  private assisterBehaviors: Record<string, AssisterHandler>;
   /** 本 tick 的输入视图（瞬态，不进 SimState），与 fighters 同序 */
   private views: InputView[] = [];
   private events: SimEvent[] = [];
@@ -174,21 +198,26 @@ export class Sim {
         );
       }
     }
+    this.assisterDefs = new Map(Object.entries(config.assistants ?? {}));
+    this.assisterTriggerIndex = new Map(
+      [...this.assisterDefs].map(([id, d]) => [id, indexTriggers(d)]),
+    );
     this.behaviors = createBehaviorRegistry({
       endAct: endAction,
       spawnBullet: (spec) => this.spawnBullet(spec),
       spawnAttacker: (spec) => this.spawnAttacker(spec),
       switchForm: (f, frame) => this.doSwitchForm(f, frame),
     });
+    this.assisterBehaviors = defaultAssisterBehaviors;
   }
 
   /** 从序列化状态恢复（rollback 预留接口，DESIGN §6）。角色定义须重新注入；
-   *  SimConfig 的非状态开关（training）经 opts 回传。defs 为 getDefEntries()
-   *  的回传（同一 id 可有多形态条目，按注册顺序归组）。 */
+   *  SimConfig 的非状态开关（training）与辅助定义注册表经 opts 回传。
+   *  defs 为 getDefEntries() 的回传（同一 id 可有多形态条目，按注册顺序归组）。 */
   static fromState(
     state: SimState,
     defs?: Iterable<[number, FighterDef]>,
-    opts?: { training?: boolean },
+    opts?: { training?: boolean; assistants?: Record<string, AssisterDef> },
   ): Sim {
     const sim = Object.create(Sim.prototype) as Sim;
     sim.state = structuredClone(state);
@@ -197,6 +226,10 @@ export class Sim {
     sim.training = opts?.training ?? false;
     sim.formsById = new Map();
     sim.triggerIndex = new Map();
+    sim.assisterDefs = new Map(Object.entries(opts?.assistants ?? {}));
+    sim.assisterTriggerIndex = new Map(
+      [...sim.assisterDefs].map(([id, d]) => [id, indexTriggers(d)]),
+    );
     if (defs) {
       for (const [id, def] of defs) {
         const forms = sim.formsById.get(id);
@@ -216,6 +249,7 @@ export class Sim {
       spawnAttacker: (spec) => sim.spawnAttacker(spec),
       switchForm: (f, frame) => sim.doSwitchForm(f, frame),
     });
+    sim.assisterBehaviors = defaultAssisterBehaviors;
     return sim;
   }
 
@@ -235,6 +269,11 @@ export class Sim {
       for (const d of forms) out.push([id, d]);
     }
     return out;
+  }
+
+  /** 辅助定义注册表（rollback 恢复时回传 fromState 用）。 */
+  getAssisterDefs(): Record<string, AssisterDef> {
+    return Object.fromEntries(this.assisterDefs);
   }
 
   /** 当前生效形态定义（FighterState.formIndex 寻址；越界回退首形态）。 */
@@ -337,6 +376,20 @@ export class Sim {
       // 摔技目标判定需要对手状态（allowCatch）；双人模型取另一角色
       const other = fighters[i === 0 ? 1 : 0] ?? null;
       stepIntentsFor(f, def, view, other, other !== null ? this.defOf(other) : null);
+      // 辅助召唤（原版 FighterMcCtrler.renderAssist）：NORMAL/DEFENCE +
+      // 辅助键 + fzqi 满 → fzqi 清零并召唤。偏离记录：被动辅助冷却
+      // （isUsedPassiveCdIng）依赖未建模的被动辅助语料，不实现。
+      if (
+        view.justDown(Btn.assist) &&
+        (f.actionState === ActionState.NORMAL ||
+          f.actionState === ActionState.DEFENCE_ING) &&
+        f.hp > 0 &&
+        f.fzqi >= FZQI_MAX &&
+        !this.state.assisters.some((a) => a.ownerId === f.id)
+      ) {
+        view.consume(Btn.assist);
+        this.spawnAssister(f);
+      }
     }
   }
 
@@ -363,7 +416,8 @@ export class Sim {
         let dir = 0;
         if (view.held(Btn.left)) dir -= 1;
         if (view.held(Btn.right)) dir += 1;
-        f.vx = dir * walkSpeed(def);
+        // speedUp buff（切片 12）：平加值随移速（原版 speed 属性 + buff 值）
+        f.vx = dir * (walkSpeed(def) + (f.buffs.speedUp?.value ?? 0) * SPEED_PLUS);
       } else if (
         f.onGround &&
         (f.actionState === ActionState.HURT_ING ||
@@ -408,6 +462,8 @@ export class Sim {
     this.stepBullets();
     // 独立道具推进（原版 FighterAttacker.render：follow 重定位/重力/寿命占位）
     this.stepAttackers();
+    // 辅助实体推进（原版 BaseGameSprite 物理 × SPEED_PLUS + 重力斜坡；切片 12）
+    this.stepAssisterPhysics();
     // 抓取吸附施加（原版 FighterMC.moveTarget：把目标吸向自身锚点）
     this.stepMoveTargets();
     // 牵引边界（ADR-4）：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
@@ -487,6 +543,7 @@ export class Sim {
       hpMax: params.hp ?? 100,
       hit: { ...hit },
       hitAble: true,
+      viaAssist: false,
     };    this.state.nextEntityId += 1;
     this.state.bullets.push(bullet);
     this.state.bullets.sort((a, b) => a.id - b.id);
@@ -582,6 +639,215 @@ export class Sim {
       }
       return true;
     });
+  }
+
+  // —— 辅助实体（切片 12，原版 Assister） ——
+
+  /** 召唤（原版 FighterMcCtrler.renderAssist → FighterEventCtrler.addAssister）：
+   *  出生点 = owner.x − 30×direct（身后），y 同 owner；fzqi 已由调用方清零。 */
+  private spawnAssister(owner: FighterState): void {
+    const assistId = this.assistIdOf(owner);
+    const def = assistId !== null ? this.assisterDefs.get(assistId) : undefined;
+    if (assistId === null || !def) return;
+    owner.fzqi = 0;
+    const assister: AssisterState = {
+      id: this.state.nextEntityId,
+      ownerId: owner.id,
+      assistId,
+      facing: owner.facing,
+      x: owner.x - 30 * owner.facing,
+      y: owner.y,
+      vx: 0,
+      vy: 0,
+      dampX: 0,
+      dampY: 0,
+      gRamp: GRAVITY_START,
+      applyG: true,
+      onGround: true,
+      actLabel: null,
+      // 出场帧 = 原版 goFight gotoAndPlay(2)（1 起；0 帧脚本是 stop() 样板）
+      animFrame: 2,
+      touchFloor: null,
+      attackHit: [],
+      buffEffects: def.buffEffects !== undefined ? { ...def.buffEffects } : {},
+    };
+    this.state.nextEntityId += 1;
+    this.state.assisters.push(assister);
+    this.state.assisters.sort((a, b) => a.id - b.id);
+    this.emit('entity:spawn', {
+      kind: 'assister',
+      id: assister.id,
+      name: assistId,
+      owner: owner.id,
+    });
+  }
+
+  private assistIdOf(f: FighterState): string | null {
+    return f.assistId;
+  }
+
+  /** 辅助每 tick 物理（原版 renderVelocity/applayG；位移 = 速度，速度已是 60Hz 值）。 */
+  private stepAssisterPhysics(): void {
+    const { stage, assisters } = this.state;
+    for (const s of assisters) {
+      s.vx = wake(s.vx, s.dampX);
+      s.vy = wake(s.vy, s.dampY);
+      s.x += s.vx;
+      s.y += s.vy;
+      if (s.y >= stage.groundY) {
+        s.y = stage.groundY;
+        s.vy = 0;
+        s.gRamp = GRAVITY_START;
+        if (!s.onGround && s.touchFloor !== null) {
+          // 触地续接（原版 setTouchFloor 消费）
+          const def = this.assisterDefs.get(s.assistId);
+          const range = def?.labels[s.touchFloor];
+          if (def && range) {
+            s.actLabel = s.touchFloor;
+            s.animFrame = range.index + 1;
+          }
+          s.touchFloor = null;
+        }
+        s.onGround = true;
+      } else {
+        if (s.applyG) {
+          if (s.vy < 0) {
+            s.gRamp = 0;
+          } else {
+            s.gRamp = Math.min(s.gRamp + GRAVITY_STEP, GRAVITY_CAP);
+            s.y += s.gRamp;
+          }
+        }
+        s.onGround = false;
+      }
+    }
+  }
+
+  /** 辅助 30Hz 推进：帧触发器 + 循环触发 + 动画推进 + 退场判定。 */
+  private stepAssisterAnimation(): void {
+    const { fighters, stage, assisters } = this.state;
+    const removed: number[] = [];
+    for (const s of assisters) {
+      if (removed.includes(s.id)) continue;
+      const def = this.assisterDefs.get(s.assistId);
+      if (!def) continue;
+      const owner = fighters.find((f) => f.id === s.ownerId) ?? null;
+      // owner 死亡 → 辅助退场（原版 renderAnimate finish 分支）
+      if (owner === null || owner.hp <= 0) {
+        removed.push(s.id);
+        continue;
+      }
+      const ctx: AssisterContext = {
+        self: s,
+        def,
+        owner,
+        ownerDef: this.defOf(owner),
+        fighters,
+        stage,
+        emit: (type, payload) => this.emit(type, payload),
+        spawnAssistBullet: (spec) => this.spawnAssistBullet(spec),
+        remove: () => {
+          if (!removed.includes(s.id)) removed.push(s.id);
+        },
+      };
+      // 帧触发器（同帧按注册顺序；触发器后同帧可能被 gotoAndPlay 改写帧号）
+      const byFrame = this.assisterTriggerIndex.get(s.assistId);
+      const list = byFrame?.get(s.animFrame);
+      if (list) {
+        for (const t of list) {
+          const h = this.assisterBehaviors[t.op];
+          if (h) h(ctx, t.args, t.target);
+        }
+      }
+      // 循环触发（注册帧起每动画帧，至 untilFrame 独占；条件不成立静默）
+      for (const lt of def.loopTriggers) {
+        if (s.animFrame < lt.frame) continue;
+        if (lt.untilFrame !== null && s.animFrame >= lt.untilFrame) continue;
+        if (!evaluateLoopCond(lt.cond, ctx)) continue;
+        for (const c of lt.then) {
+          const h = this.assisterBehaviors[c.op];
+          if (h) h(ctx, c.args, c.target);
+        }
+      }
+      if (removed.includes(s.id)) continue; // finish/gotoAndStop 触发退场
+      // 时间轴末退场（原版 renderAnimate：currentFrame == totalFrames-1 → finish）
+      if (s.animFrame >= def.totalFrames - 1) {
+        removed.push(s.id);
+        continue;
+      }
+      s.animFrame += 1;
+      // actLabel 同步（标签数少，线性扫描；渲染寻帧用）
+      for (const [label, r] of Object.entries(def.labels)) {
+        if (s.animFrame > r.index && s.animFrame <= r.index + r.duration) {
+          s.actLabel = label;
+          break;
+        }
+      }
+    }
+    if (removed.length > 0) this.removeAssisters(removed);
+  }
+
+  private removeAssisters(ids: number[]): void {
+    const set = new Set(ids);
+    this.state.assisters = this.state.assisters.filter((a) => {
+      if (set.has(a.id)) {
+        this.emit('entity:despawn', { kind: 'assister', id: a.id });
+        return false;
+      }
+      return true;
+    });
+  }
+
+  /** 辅助 fire 桥（原版 Bullet 构造，owner is FighterMain 不成立 → 命中不回气）。 */
+  private spawnAssistBullet(spec: AssistBulletSpawnSpec): void {
+    const { self, ownerId, name, local, hit, params } = spec;
+    const world = worldRect(self, local);
+    const axis = (v: number | { start?: number; add?: number; max?: number; min?: number } | undefined) => {
+      if (typeof v === 'number') return { start: v, add: 0, max: 999, min: -999 };
+      return {
+        start: v?.start ?? 0,
+        add: v?.add ?? 0,
+        max: v?.max ?? 999,
+        min: v?.min ?? -999,
+      };
+    };
+    const ax = axis(params.x);
+    const ay = axis(params.y);
+    const hold = params.hold === undefined ? -1 : params.hold === -1 ? -1 : Math.round(params.hold * 60);
+    const bullet: BulletState = {
+      id: this.state.nextEntityId,
+      ownerId,
+      facing: self.facing,
+      name,
+      x: world.x,
+      y: world.y,
+      w: world.w,
+      h: world.h,
+      sx: ax.start,
+      sy: ay.start,
+      addX: ax.add,
+      addY: ay.add,
+      minX: ax.min,
+      maxX: ax.max,
+      minY: ay.min,
+      maxY: ay.max,
+      holdTicks: hold,
+      hitTimes: params.hits ?? -1,
+      hp: params.hp ?? 100,
+      hpMax: params.hp ?? 100,
+      hit: { ...hit },
+      hitAble: true,
+      viaAssist: true,
+    };
+    this.state.nextEntityId += 1;
+    this.state.bullets.push(bullet);
+    this.state.bullets.sort((a, b) => a.id - b.id);
+    this.emit('entity:spawn', { kind: 'bullet', id: bullet.id, name: bullet.name, owner: ownerId });
+  }
+
+  /** 某 fighter 当前在场的辅助（buff 结算查询；最多一个）。 */
+  private assisterOf(fighterId: number): AssisterState | null {
+    return this.state.assisters.find((a) => a.ownerId === fighterId) ?? null;
   }
 
   /**
@@ -760,11 +1026,14 @@ export class Sim {
         }
       }
     }
+    // 辅助实体推进（30Hz：帧触发器/循环触发/退场判定；切片 12）
+    this.stepAssisterAnimation();
   }
 
   // 6. [动画帧] 命中判定与结算。
   // 固定顺序（本引擎 canonical，替代原版 children 插入序；两端一致即确定）：
   //   角色→角色（P1→P2）→ 角色攻击→道具 → 道具→角色 → 道具→道具（均按 id 升序）
+  //   → 辅助→角色（切片 12 追加尾部）
   private stepHitResolution(): void {
     const { fighters, bullets } = this.state;
     for (const atk of fighters) {
@@ -822,8 +1091,9 @@ export class Sim {
           : null;
         if (!bodyLocal) continue;
         if (!rectsOverlap(bRect, worldRect(tgt, bodyLocal))) continue;
-        // 原版 Bullet.hit：非必杀命中 → 发射者回气 power×0.1（qi 上限 300）
-        if (owner && !isBishaAction(b.name.replace('atm', ''))) {
+        // 原版 Bullet.hit：非必杀命中 → 发射者回气 power×0.1（qi 上限 300）；
+        // 辅助发射的弹不回气（viaAssist，原版 `owner is FighterMain` 守卫）
+        if (owner && !b.viaAssist && !isBishaAction(b.name.replace('atm', ''))) {
           owner.qi = Math.min(300, owner.qi + b.hit.power * BULLET_QI_RATE);
         }
         this.applyHit(
@@ -894,6 +1164,46 @@ export class Sim {
         break;
       }
     }
+    // 辅助 → 角色（切片 12，原版 Assister.hit：命中 → owner 回气 power×0.15 +
+    // 目标受击结算；一区一目标一次去重）
+    for (const s of this.state.assisters) {
+      const def = this.assisterDefs.get(s.assistId);
+      const owner = this.state.fighters.find((f) => f.id === s.ownerId) ?? null;
+      if (!def || owner === null) continue;
+      for (const area of def.areas[s.animFrame] ?? []) {
+        const hit = def.actions[area.name] ?? null;
+        if (hit === null) continue; // 无动作表的区 = 纯表现
+        const rect = worldRect(s, area);
+        for (const tgt of fighters) {
+          if (tgt.id === s.ownerId) continue;
+          if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
+          const dedupKey = `${area.name}:${tgt.id}`;
+          if (s.attackHit.includes(dedupKey)) continue;
+          const tgtDef = this.defOf(tgt);
+          const bodyLocal = tgtDef
+            ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+            : null;
+          if (!bodyLocal) continue;
+          if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
+          s.attackHit.push(dedupKey);
+          // 辅助命中回气（原版 Assister.hit：addQi(power×0.15)，无必杀排除）
+          owner.qi = Math.min(300, owner.qi + hit.power * ASSISTER_QI_RATE);
+          this.applyHit(
+            s.ownerId,
+            s.facing,
+            s.x,
+            tgt,
+            tgtDef,
+            hit,
+            rect,
+            area.name,
+            null,
+            true, // viaEntity：回气已按 ASSISTER_QI_RATE 在调用侧结算
+          );
+          break;
+        }
+      }
+    }
   }
 
   /** 道具命中消散（原版 doHit：_hitAble=false → 播 hit 段 → remove；此处置即时消散，偏离已记录）。 */
@@ -938,7 +1248,39 @@ export class Sim {
         attacker.qi + Math.min(hit.power * HIT_QI_RATE, QI_ADD_HIT_MAX),
       );
     }
-    const chip = blocking ? hit.power * DEFENSE_LOSE_HP_RATE : hit.power;
+    // 伤害乘区（切片 12，原版 FighterBuffCtrler/FighterBuffVO）：
+    //   攻方 attackRate = 1 + attackUp 加值（hitModel.setPowerRate）；
+    //   守方辅助 buffEffects.attrResistance（属性命中，结算前）；
+    //   守方 dr = clamp(2 − defenseRate, 0.1, 1)（loseHp 语义）。
+    // 气/吸血等资源结算仍用原始 power（原版语义：powerRate 只进伤害）。
+    const atkFighter = this.state.fighters.find((f) => f.id === attackerId) ?? null;
+    let dmg = hit.power * (atkFighter !== null ? attackRateOf(atkFighter) : 1);
+    const tgtAssister = this.assisterOf(target.id);
+    if (
+      tgtAssister !== null &&
+      isAttributeHit(hit.hitType) &&
+      tgtAssister.buffEffects.attrResistance !== undefined
+    ) {
+      dmg *= 1 - tgtAssister.buffEffects.attrResistance;
+    }
+    dmg *= defenseDamageScale(target);
+    const chip = blocking ? dmg * DEFENSE_LOSE_HP_RATE : dmg;
+    // 攻方辅助物吸血（原版 phyLifesteal，结算后按实伤回复；物理非必杀命中）
+    if (
+      atkFighter !== null &&
+      !blocking &&
+      isPhysicalHit(hit.hitType) &&
+      hitId !== null &&
+      !isBishaAction(hitId)
+    ) {
+      const atkAssister = this.assisterOf(attackerId);
+      if (atkAssister !== null && atkAssister.buffEffects.phyLifesteal !== undefined) {
+        atkFighter.hp = Math.min(
+          atkFighter.hpMax,
+          atkFighter.hp + chip * atkAssister.buffEffects.phyLifesteal,
+        );
+      }
+    }
     const nextHp = Math.max(0, target.hp - chip);
     // 训练模式：假人不 KO（血最低保留 1）
     target.hp = this.training && nextHp <= 0 ? 1 : nextHp;
@@ -1054,6 +1396,12 @@ export class Sim {
       if (this.training && f.hp > 0 && f.hp < DEFAULT_HP) {
         f.hp = Math.min(DEFAULT_HP, f.hp + TRAINING_REGEN);
       }
+      // 辅助气回充（原版 FUZHU_QU_ADD_PERFRAME，无条件；满值封顶）
+      if (f.fzqi < FZQI_MAX) {
+        f.fzqi = Math.min(FZQI_MAX, f.fzqi + FZQI_ADD_PERFRAME);
+      }
+      // 增益 buff 计时（原版 FighterBuffVO render 递减；计满移除恢复基础值）
+      tickBuffs(f);
     }
     this.state.match.roundFrame += 1;
   }
@@ -1072,8 +1420,8 @@ export class Sim {
   }
 }
 
-/** def.triggers → 帧 → 触发列表（保持注册顺序）。 */
-function indexTriggers(def: FighterDef): Map<number, FrameTrigger[]> {
+/** def.triggers → 帧 → 触发列表（保持注册顺序；角色/辅助定义通用）。 */
+function indexTriggers(def: { triggers: FrameTrigger[] }): Map<number, FrameTrigger[]> {
   const map = new Map<number, FrameTrigger[]>();
   for (const t of def.triggers) {
     const list = map.get(t.frame);

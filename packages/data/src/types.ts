@@ -42,8 +42,11 @@ export type TriggerArg =
 export interface TriggerDef {
   /** 符号时间轴内的帧号（0 起，30Hz 动画帧计数） */
   frame: number;
-  /** 调用目标：mc=自身动作控制 / fighter=战斗逻辑 / effect=表现 / assister=辅助逻辑 */
-  target: 'mc' | 'fighter' | 'effect' | 'assister';
+  /**
+   * 调用目标：mc=自身动作控制 / fighter=战斗逻辑（辅助语境=owner）/
+   * effect=表现 / assister=辅助逻辑 / fighterTarget=owner 的当前目标
+   */
+  target: 'mc' | 'fighter' | 'effect' | 'assister' | 'fighterTarget';
   op: string;
   args: TriggerArg[];
 }
@@ -106,8 +109,28 @@ export interface SymbolData {
    * （修复旧提取「两分支无条件都发」的语义 bug）。
    */
   condTriggers?: CondTriggerDef[];
+  /**
+   * 循环触发（切片 12：addCustomFunc 数据化）。注册帧起每动画帧评估
+   * cond → then，至 untilFrame（removeCustomFunc 帧，独占）或时间轴末。
+   * 函数体解析不了的保留 addCustomFunc 触发（core 未注册 = 确定性静默）。
+   */
+  loopTriggers?: LoopTriggerDef[];
   /** 含未识别语句的帧脚本原文（按 frame 升序） */
   rawScripts?: RawFrameScript[];
+}
+
+/** 循环触发条件（有界支持：orihime 治疗检测 / suigetsu owner 受击反应）；negate = 取反。 */
+export type LoopTriggerCond =
+  | { kind: 'checkHitOwner'; name: string; negate?: boolean }
+  | { kind: 'actionStateIn'; values: number[]; negate?: boolean };
+
+/** 循环触发定义（frame/untilFrame 为符号时间轴 0 起帧号）。 */
+export interface LoopTriggerDef {
+  frame: number;
+  /** 失效帧（removeCustomFunc 注册帧；null = 至时间轴末） */
+  untilFrame: number | null;
+  cond: LoopTriggerCond | null;
+  then: TriggerCall[];
 }
 
 /** 每形态基础数值（$fighter_ctrler.speed / jumpPower / heavy 等赋值）。 */
@@ -172,9 +195,11 @@ export interface AssistantPackage {
   };
   /** defineAction 表（汇总监助根时间轴全部帧脚本） */
   actions: Record<string, ActionDef>;
-  /** 根时间轴（标签 + 触发 + rawScripts） */
+  /** 根时间轴（标签 + 触发 + 循环触发 + rawScripts） */
   timeline: SymbolData;
   symbols: Record<string, SymbolData>;
+  /** 增益 buff（切片 12：getSelf().buffEffects 赋值提取；仅 orihime/yachiru） */
+  buffEffects?: { attrResistance?: number; phyLifesteal?: number };
 }
 
 /* =====================================================================

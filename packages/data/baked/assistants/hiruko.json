@@ -42,28 +42,34 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 12,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 29,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 30,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
         "frame": 68,
         "target": "assister",
         "op": "endAct",
         "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:20,hitType:7,hitx:1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm2\",{power:10,hitType:4,hitx:1,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\n\tdefineAction(\"atm3\",{power:10,hitType:4,hitx:1,hity:0,hurtTime:600,hurtType:0,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 12,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 29,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 30,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
       }
     ]
   },

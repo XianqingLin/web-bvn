@@ -22,56 +22,83 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 14,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 29,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
+        "frame": 29,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          255,
+          0,
+          0
+        ]
+      },
+      {
+        "frame": 36,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
+      },
+      {
+        "frame": 36,
+        "target": "effect",
+        "op": "playSoundHit2",
+        "args": []
+      },
+      {
         "frame": 64,
         "target": "assister",
         "op": "endAct",
         "args": []
       },
       {
-        "frame": 68,
-        "target": "assister",
-        "op": "getOwner",
-        "args": []
-      },
-      {
-        "frame": 68,
-        "target": "assister",
-        "op": "getTarget",
-        "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:10,hitType:2,hitx:1,hity:0,hurtTime:500,hurtType:0,isBreakDef:false});\n}"
-      },
-      {
-        "frame": 68,
-        "raw": "$assisterCtrler.getOwner().getBuffCtrl().attackUp(0.3,6);\n$assisterCtrler.getTarget().qi-=30;"
-      },
-      {
-        "frame": 14,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 29,
-        "raw": "$assisterCtrler.effect.endBisha();\n$assisterCtrler.effect.shadow(255,0,0);"
-      },
-      {
-        "frame": 36,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
-      },
-      {
         "frame": 64,
-        "raw": "$assisterCtrler.effect.endShadow();"
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       },
       {
         "frame": 68,
-        "raw": "$assisterCtrler.effect.shine(0xFF0000);"
+        "target": "fighter",
+        "op": "buffAttackUp",
+        "args": [
+          0.3,
+          6
+        ]
       },
       {
-        "frame": 36,
-        "raw": "$assisterCtrler.effect.playSoundHit2();"
+        "frame": 68,
+        "target": "fighterTarget",
+        "op": "addQi",
+        "args": [
+          -30
+        ]
+      },
+      {
+        "frame": 68,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFF0000"
+          }
+        ]
       }
     ]
   },

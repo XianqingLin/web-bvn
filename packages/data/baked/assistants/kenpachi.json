@@ -22,6 +22,20 @@
     "labels": {},
     "triggers": [
       {
+        "frame": 10,
+        "target": "effect",
+        "op": "bisha",
+        "args": [
+          false
+        ]
+      },
+      {
+        "frame": 56,
+        "target": "effect",
+        "op": "endBisha",
+        "args": []
+      },
+      {
         "frame": 59,
         "target": "assister",
         "op": "move",
@@ -40,36 +54,36 @@
         ]
       },
       {
+        "frame": 59,
+        "target": "effect",
+        "op": "shadow",
+        "args": [
+          255,
+          255,
+          0
+        ]
+      },
+      {
+        "frame": 63,
+        "target": "effect",
+        "op": "shine",
+        "args": [
+          {
+            "$expr": "0xFFFF00"
+          }
+        ]
+      },
+      {
         "frame": 72,
         "target": "assister",
         "op": "endAct",
         "args": []
-      }
-    ],
-    "rawScripts": [
-      {
-        "frame": 0,
-        "raw": "stop();\n\nvar $assisterCtrler:*;\nvar defineAction:Function;\nfunction setAssistCtrler(ctrler:*):void{\n\t$assisterCtrler = ctrler;\n\tdefineAction = $assisterCtrler.defineAction;\n\t\n\tdefineActions();\n}\n\nfunction defineActions():void{\n\tdefineAction(\"atm1\",{power:150,hitType:5,hitx:15,hity:0,hurtTime:0,hurtType:1,isReal:true});\n}"
-      },
-      {
-        "frame": 10,
-        "raw": "$assisterCtrler.effect.bisha(false);"
-      },
-      {
-        "frame": 56,
-        "raw": "$assisterCtrler.effect.endBisha();"
-      },
-      {
-        "frame": 59,
-        "raw": "$assisterCtrler.effect.shadow(255,255,0);"
-      },
-      {
-        "frame": 63,
-        "raw": "$assisterCtrler.effect.shine(0xFFFF00);"
       },
       {
         "frame": 76,
-        "raw": "$assisterCtrler.effect.endShadow();"
+        "target": "effect",
+        "op": "endShadow",
+        "args": []
       }
     ]
   },
