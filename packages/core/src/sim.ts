@@ -418,6 +418,11 @@ export class Sim {
         if (view.held(Btn.right)) dir += 1;
         // speedUp buff（切片 12）：平加值随移速（原版 speed 属性 + buff 值）
         f.vx = dir * (walkSpeed(def) + (f.buffs.speedUp?.value ?? 0) * SPEED_PLUS);
+        // 走路拥有水平速度所有权（切片 13 修复）：原版走路不经 _velocity
+        //（renderFloorAction 直改 _x），dashStop 残留的 damping 只衰减冲刺残速、
+        // 不会饿死走路；移植版统一进 vx 后必须在此清 dampX，否则瞬步收势
+        // 的 dampX=|vx|×p 永不复位 → 落地后行走速度每帧被 wake 清零（角色冻结）。
+        f.dampX = 0;
       } else if (
         f.onGround &&
         (f.actionState === ActionState.HURT_ING ||

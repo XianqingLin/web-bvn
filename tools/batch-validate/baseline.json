@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-10T12:15:47.462Z",
+  "generatedAt": "2026-11-10T15:11:15.524Z",
   "fighters": 58,
   "framesPerFighter": 700,
   "map": "Forest",
@@ -16,10 +16,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "35512498",
-        "resumeHash": "35512498",
+        "finalHash": "4841c488",
+        "resumeHash": "4841c488",
         "resumeFrames": 300,
-        "rerunHash": "35512498"
+        "rerunHash": "4841c488"
       }
     },
     {
@@ -31,10 +31,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "ec577fd0",
-        "resumeHash": "ec577fd0",
+        "finalHash": "4f55d7ea",
+        "resumeHash": "4f55d7ea",
         "resumeFrames": 300,
-        "rerunHash": "ec577fd0"
+        "rerunHash": "4f55d7ea"
       }
     },
     {
@@ -46,10 +46,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "ec577fd0",
-        "resumeHash": "ec577fd0",
+        "finalHash": "4f55d7ea",
+        "resumeHash": "4f55d7ea",
         "resumeFrames": 300,
-        "rerunHash": "ec577fd0"
+        "rerunHash": "4f55d7ea"
       }
     },
     {
@@ -61,10 +61,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "b440e10f",
-        "resumeHash": "b440e10f",
+        "finalHash": "53848f0c",
+        "resumeHash": "53848f0c",
         "resumeFrames": 300,
-        "rerunHash": "b440e10f"
+        "rerunHash": "53848f0c"
       }
     },
     {
@@ -91,10 +91,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "9a871fcc",
-        "resumeHash": "9a871fcc",
+        "finalHash": "22439e35",
+        "resumeHash": "22439e35",
         "resumeFrames": 300,
-        "rerunHash": "9a871fcc"
+        "rerunHash": "22439e35"
       }
     },
     {
@@ -106,10 +106,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "76fdeaa1",
-        "resumeHash": "76fdeaa1",
+        "finalHash": "0727995a",
+        "resumeHash": "0727995a",
         "resumeFrames": 300,
-        "rerunHash": "76fdeaa1"
+        "rerunHash": "0727995a"
       }
     },
     {
@@ -121,10 +121,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "0968376f",
-        "resumeHash": "0968376f",
+        "finalHash": "fa65ca22",
+        "resumeHash": "fa65ca22",
         "resumeFrames": 300,
-        "rerunHash": "0968376f"
+        "rerunHash": "fa65ca22"
       }
     },
     {
@@ -136,10 +136,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -151,10 +151,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -166,10 +166,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -181,10 +181,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -196,10 +196,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -211,10 +211,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "379d6f0d",
-        "resumeHash": "379d6f0d",
+        "finalHash": "7b69444a",
+        "resumeHash": "7b69444a",
         "resumeFrames": 300,
-        "rerunHash": "379d6f0d"
+        "rerunHash": "7b69444a"
       }
     },
     {
@@ -226,10 +226,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "be6aa0f6",
-        "resumeHash": "be6aa0f6",
+        "finalHash": "f8d7b0eb",
+        "resumeHash": "f8d7b0eb",
         "resumeFrames": 300,
-        "rerunHash": "be6aa0f6"
+        "rerunHash": "f8d7b0eb"
       }
     },
     {
@@ -241,10 +241,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "9514abaa",
-        "resumeHash": "9514abaa",
+        "finalHash": "590e7e84",
+        "resumeHash": "590e7e84",
         "resumeFrames": 300,
-        "rerunHash": "9514abaa"
+        "rerunHash": "590e7e84"
       }
     },
     {
@@ -256,10 +256,10 @@
       "rawScripts": 3,
       "smoke": {
         "ok": true,
-        "finalHash": "2c761264",
-        "resumeHash": "2c761264",
+        "finalHash": "7b8d2bc7",
+        "resumeHash": "7b8d2bc7",
         "resumeFrames": 300,
-        "rerunHash": "2c761264"
+        "rerunHash": "7b8d2bc7"
       }
     },
     {
@@ -271,10 +271,10 @@
       "rawScripts": 37,
       "smoke": {
         "ok": true,
-        "finalHash": "24646bdb",
-        "resumeHash": "24646bdb",
+        "finalHash": "197daab2",
+        "resumeHash": "197daab2",
         "resumeFrames": 300,
-        "rerunHash": "24646bdb"
+        "rerunHash": "197daab2"
       }
     },
     {
@@ -286,10 +286,10 @@
       "rawScripts": 37,
       "smoke": {
         "ok": true,
-        "finalHash": "24646bdb",
-        "resumeHash": "24646bdb",
+        "finalHash": "197daab2",
+        "resumeHash": "197daab2",
         "resumeFrames": 300,
-        "rerunHash": "24646bdb"
+        "rerunHash": "197daab2"
       }
     },
     {
@@ -301,10 +301,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "b4c71d6e",
-        "resumeHash": "b4c71d6e",
+        "finalHash": "86c8bfe1",
+        "resumeHash": "86c8bfe1",
         "resumeFrames": 300,
-        "rerunHash": "b4c71d6e"
+        "rerunHash": "86c8bfe1"
       }
     },
     {
@@ -316,10 +316,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "9749e3ef",
-        "resumeHash": "9749e3ef",
+        "finalHash": "30997fcc",
+        "resumeHash": "30997fcc",
         "resumeFrames": 300,
-        "rerunHash": "9749e3ef"
+        "rerunHash": "30997fcc"
       }
     },
     {
@@ -331,10 +331,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d0401034",
-        "resumeHash": "d0401034",
+        "finalHash": "fa5a8511",
+        "resumeHash": "fa5a8511",
         "resumeFrames": 300,
-        "rerunHash": "d0401034"
+        "rerunHash": "fa5a8511"
       }
     },
     {
@@ -346,10 +346,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d0401034",
-        "resumeHash": "d0401034",
+        "finalHash": "fa5a8511",
+        "resumeHash": "fa5a8511",
         "resumeFrames": 300,
-        "rerunHash": "d0401034"
+        "rerunHash": "fa5a8511"
       }
     },
     {
@@ -361,10 +361,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "6f0c4234",
-        "resumeHash": "6f0c4234",
+        "finalHash": "e39e9cf8",
+        "resumeHash": "e39e9cf8",
         "resumeFrames": 300,
-        "rerunHash": "6f0c4234"
+        "rerunHash": "e39e9cf8"
       }
     },
     {
@@ -376,10 +376,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "7a76084f",
-        "resumeHash": "7a76084f",
+        "finalHash": "6f37d23d",
+        "resumeHash": "6f37d23d",
         "resumeFrames": 300,
-        "rerunHash": "7a76084f"
+        "rerunHash": "6f37d23d"
       }
     },
     {
@@ -391,10 +391,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "b751a284",
-        "resumeHash": "b751a284",
+        "finalHash": "e0ccc15d",
+        "resumeHash": "e0ccc15d",
         "resumeFrames": 300,
-        "rerunHash": "b751a284"
+        "rerunHash": "e0ccc15d"
       }
     },
     {
@@ -406,10 +406,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "5421e717",
-        "resumeHash": "5421e717",
+        "finalHash": "2fefedbf",
+        "resumeHash": "2fefedbf",
         "resumeFrames": 300,
-        "rerunHash": "5421e717"
+        "rerunHash": "2fefedbf"
       }
     },
     {
@@ -421,10 +421,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "5421e717",
-        "resumeHash": "5421e717",
+        "finalHash": "2fefedbf",
+        "resumeHash": "2fefedbf",
         "resumeFrames": 300,
-        "rerunHash": "5421e717"
+        "rerunHash": "2fefedbf"
       }
     },
     {
@@ -436,10 +436,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "eb98cb12",
-        "resumeHash": "eb98cb12",
+        "finalHash": "fd358de5",
+        "resumeHash": "fd358de5",
         "resumeFrames": 300,
-        "rerunHash": "eb98cb12"
+        "rerunHash": "fd358de5"
       }
     },
     {
@@ -451,10 +451,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "3ebb6486",
-        "resumeHash": "3ebb6486",
+        "finalHash": "217678fa",
+        "resumeHash": "217678fa",
         "resumeFrames": 300,
-        "rerunHash": "3ebb6486"
+        "rerunHash": "217678fa"
       }
     },
     {
@@ -466,10 +466,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c4c63696",
-        "resumeHash": "c4c63696",
+        "finalHash": "09c0c2ad",
+        "resumeHash": "09c0c2ad",
         "resumeFrames": 300,
-        "rerunHash": "c4c63696"
+        "rerunHash": "09c0c2ad"
       }
     },
     {
@@ -481,10 +481,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c4c63696",
-        "resumeHash": "c4c63696",
+        "finalHash": "09c0c2ad",
+        "resumeHash": "09c0c2ad",
         "resumeFrames": 300,
-        "rerunHash": "c4c63696"
+        "rerunHash": "09c0c2ad"
       }
     },
     {
@@ -496,10 +496,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c4c63696",
-        "resumeHash": "c4c63696",
+        "finalHash": "09c0c2ad",
+        "resumeHash": "09c0c2ad",
         "resumeFrames": 300,
-        "rerunHash": "c4c63696"
+        "rerunHash": "09c0c2ad"
       }
     },
     {
@@ -511,10 +511,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c4c63696",
-        "resumeHash": "c4c63696",
+        "finalHash": "09c0c2ad",
+        "resumeHash": "09c0c2ad",
         "resumeFrames": 300,
-        "rerunHash": "c4c63696"
+        "rerunHash": "09c0c2ad"
       }
     },
     {
@@ -526,10 +526,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c4c63696",
-        "resumeHash": "c4c63696",
+        "finalHash": "09c0c2ad",
+        "resumeHash": "09c0c2ad",
         "resumeFrames": 300,
-        "rerunHash": "c4c63696"
+        "rerunHash": "09c0c2ad"
       }
     },
     {
@@ -541,10 +541,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "74add1d2",
-        "resumeHash": "74add1d2",
+        "finalHash": "c5abe70d",
+        "resumeHash": "c5abe70d",
         "resumeFrames": 300,
-        "rerunHash": "74add1d2"
+        "rerunHash": "c5abe70d"
       }
     },
     {
@@ -556,10 +556,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "eedda871",
-        "resumeHash": "eedda871",
+        "finalHash": "e69e7de6",
+        "resumeHash": "e69e7de6",
         "resumeFrames": 300,
-        "rerunHash": "eedda871"
+        "rerunHash": "e69e7de6"
       }
     },
     {
@@ -571,10 +571,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "eedda871",
-        "resumeHash": "eedda871",
+        "finalHash": "e69e7de6",
+        "resumeHash": "e69e7de6",
         "resumeFrames": 300,
-        "rerunHash": "eedda871"
+        "rerunHash": "e69e7de6"
       }
     },
     {
@@ -586,10 +586,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -601,10 +601,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "4984a188",
-        "resumeHash": "4984a188",
+        "finalHash": "c5284418",
+        "resumeHash": "c5284418",
         "resumeFrames": 300,
-        "rerunHash": "4984a188"
+        "rerunHash": "c5284418"
       }
     },
     {
@@ -616,10 +616,10 @@
       "rawScripts": 31,
       "smoke": {
         "ok": true,
-        "finalHash": "eef2c84b",
-        "resumeHash": "eef2c84b",
+        "finalHash": "1d4942c6",
+        "resumeHash": "1d4942c6",
         "resumeFrames": 300,
-        "rerunHash": "eef2c84b"
+        "rerunHash": "1d4942c6"
       }
     },
     {
@@ -631,10 +631,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "8bc0bf8b",
-        "resumeHash": "8bc0bf8b",
+        "finalHash": "1d2d5d8a",
+        "resumeHash": "1d2d5d8a",
         "resumeFrames": 300,
-        "rerunHash": "8bc0bf8b"
+        "rerunHash": "1d2d5d8a"
       }
     },
     {
@@ -646,10 +646,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "600c6558",
-        "resumeHash": "600c6558",
+        "finalHash": "2faba320",
+        "resumeHash": "2faba320",
         "resumeFrames": 300,
-        "rerunHash": "600c6558"
+        "rerunHash": "2faba320"
       }
     },
     {
@@ -661,10 +661,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "8d948a55",
-        "resumeHash": "8d948a55",
+        "finalHash": "8a58d65b",
+        "resumeHash": "8a58d65b",
         "resumeFrames": 300,
-        "rerunHash": "8d948a55"
+        "rerunHash": "8a58d65b"
       }
     },
     {
@@ -676,10 +676,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "34bd1061",
-        "resumeHash": "34bd1061",
+        "finalHash": "bdc8282e",
+        "resumeHash": "bdc8282e",
         "resumeFrames": 300,
-        "rerunHash": "34bd1061"
+        "rerunHash": "bdc8282e"
       }
     },
     {
@@ -691,10 +691,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "34bd1061",
-        "resumeHash": "34bd1061",
+        "finalHash": "bdc8282e",
+        "resumeHash": "bdc8282e",
         "resumeFrames": 300,
-        "rerunHash": "34bd1061"
+        "rerunHash": "bdc8282e"
       }
     },
     {
@@ -706,10 +706,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "dbe649a1",
-        "resumeHash": "dbe649a1",
+        "finalHash": "99a0c0f6",
+        "resumeHash": "99a0c0f6",
         "resumeFrames": 300,
-        "rerunHash": "dbe649a1"
+        "rerunHash": "99a0c0f6"
       }
     },
     {
@@ -721,10 +721,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d8a1034f",
-        "resumeHash": "d8a1034f",
+        "finalHash": "2da676e8",
+        "resumeHash": "2da676e8",
         "resumeFrames": 300,
-        "rerunHash": "d8a1034f"
+        "rerunHash": "2da676e8"
       }
     },
     {
@@ -736,10 +736,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d8a1034f",
-        "resumeHash": "d8a1034f",
+        "finalHash": "2da676e8",
+        "resumeHash": "2da676e8",
         "resumeFrames": 300,
-        "rerunHash": "d8a1034f"
+        "rerunHash": "2da676e8"
       }
     },
     {
@@ -751,10 +751,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "d8a1034f",
-        "resumeHash": "d8a1034f",
+        "finalHash": "2da676e8",
+        "resumeHash": "2da676e8",
         "resumeFrames": 300,
-        "rerunHash": "d8a1034f"
+        "rerunHash": "2da676e8"
       }
     },
     {
@@ -766,10 +766,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "1a5a787e",
-        "resumeHash": "1a5a787e",
+        "finalHash": "3a5ca462",
+        "resumeHash": "3a5ca462",
         "resumeFrames": 300,
-        "rerunHash": "1a5a787e"
+        "rerunHash": "3a5ca462"
       }
     },
     {
@@ -781,10 +781,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "6212022a",
-        "resumeHash": "6212022a",
+        "finalHash": "4c7e2b42",
+        "resumeHash": "4c7e2b42",
         "resumeFrames": 300,
-        "rerunHash": "6212022a"
+        "rerunHash": "4c7e2b42"
       }
     },
     {
@@ -811,10 +811,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "44688b8c",
-        "resumeHash": "44688b8c",
+        "finalHash": "b6829205",
+        "resumeHash": "b6829205",
         "resumeFrames": 300,
-        "rerunHash": "44688b8c"
+        "rerunHash": "b6829205"
       }
     },
     {
@@ -826,10 +826,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "44688b8c",
-        "resumeHash": "44688b8c",
+        "finalHash": "b6829205",
+        "resumeHash": "b6829205",
         "resumeFrames": 300,
-        "rerunHash": "44688b8c"
+        "rerunHash": "b6829205"
       }
     },
     {
@@ -841,10 +841,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "b9b99c2e",
-        "resumeHash": "b9b99c2e",
+        "finalHash": "98f42708",
+        "resumeHash": "98f42708",
         "resumeFrames": 300,
-        "rerunHash": "b9b99c2e"
+        "rerunHash": "98f42708"
       }
     },
     {
@@ -856,10 +856,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "b9b99c2e",
-        "resumeHash": "b9b99c2e",
+        "finalHash": "98f42708",
+        "resumeHash": "98f42708",
         "resumeFrames": 300,
-        "rerunHash": "b9b99c2e"
+        "rerunHash": "98f42708"
       }
     },
     {
@@ -871,10 +871,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "e54533d1",
-        "resumeHash": "e54533d1",
+        "finalHash": "651524f5",
+        "resumeHash": "651524f5",
         "resumeFrames": 300,
-        "rerunHash": "e54533d1"
+        "rerunHash": "651524f5"
       }
     }
   ],
@@ -1151,10 +1151,10 @@
       "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "cd2e9828",
-        "resumeHash": "cd2e9828",
+        "finalHash": "ee4384c4",
+        "resumeHash": "ee4384c4",
         "resumeFrames": 300,
-        "rerunHash": "cd2e9828"
+        "rerunHash": "ee4384c4"
       }
     },
     {
@@ -1306,10 +1306,10 @@
       ],
       "smoke": {
         "ok": true,
-        "finalHash": "2cee9c29",
-        "resumeHash": "2cee9c29",
+        "finalHash": "da7bf10b",
+        "resumeHash": "da7bf10b",
         "resumeFrames": 300,
-        "rerunHash": "2cee9c29"
+        "rerunHash": "da7bf10b"
       }
     },
     {
@@ -1321,10 +1321,10 @@
       "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "4420bfdd",
-        "resumeHash": "4420bfdd",
+        "finalHash": "b14babe9",
+        "resumeHash": "b14babe9",
         "resumeFrames": 300,
-        "rerunHash": "4420bfdd"
+        "rerunHash": "b14babe9"
       }
     },
     {
@@ -1336,10 +1336,10 @@
       "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "c82ca24d",
-        "resumeHash": "c82ca24d",
+        "finalHash": "5eb4cc7f",
+        "resumeHash": "5eb4cc7f",
         "resumeFrames": 300,
-        "rerunHash": "c82ca24d"
+        "rerunHash": "5eb4cc7f"
       }
     },
     {
@@ -1530,10 +1530,10 @@
       ],
       "smoke": {
         "ok": true,
-        "finalHash": "f5132adc",
-        "resumeHash": "f5132adc",
+        "finalHash": "479cd066",
+        "resumeHash": "479cd066",
         "resumeFrames": 300,
-        "rerunHash": "f5132adc"
+        "rerunHash": "479cd066"
       }
     },
     {
@@ -1622,10 +1622,10 @@
       "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "71f4a297",
-        "resumeHash": "71f4a297",
+        "finalHash": "9247915d",
+        "resumeHash": "9247915d",
         "resumeFrames": 300,
-        "rerunHash": "71f4a297"
+        "rerunHash": "9247915d"
       }
     },
     {
