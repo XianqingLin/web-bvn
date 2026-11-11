@@ -34,6 +34,7 @@ export interface BattleAssetsSpec {
    * fire 元件图集（切片 13-A3 引入，切片 14 多角色化）：键为**出场者 atlasId**
    * （fighter 侧 = 角色 atlasId；assister 侧 = 辅助 atlasId），值为 fire 图集 id。
    * bullet 按 owner 归属（ownerId → 对应精灵的 atlasId）选择；缺条目回退色块。
+   * attacker（切片 13-A4）同为 fighter 侧 owner（addAttacker 仅角色侧注册）。
    */
   fireAtlases?: { fighter?: Record<string, string>; assister?: Record<string, string> };
   fireAtlasJson?: Record<string, FireAtlas>;
@@ -51,7 +52,7 @@ interface FighterSprite {
   appliedFacing: number;
 }
 
-/** bullet 精灵（切片 13-A3）：容器 = 元件原点锚，子 Sprite = 当前帧内容 */
+/** 道具精灵（bullet 切片 13-A3 / attacker 切片 13-A4）：容器 = 元件原点锚，子 Sprite = 当前帧内容 */
 interface BulletSprite {
   root: Container;
   body: Sprite;
@@ -71,6 +72,8 @@ export class BattleRenderer {
   private fighterLayer: Container;
   private bulletLayer: Container;
   private bulletGfx: Graphics;
+  /** attacker 色块回退（独立道具缺图集条目时） */
+  private attackerGfx: Graphics;
   private fxLayer: Container;
   private hudLayer: Container;
   private sprites = new Map<number, FighterSprite>();
@@ -81,6 +84,8 @@ export class BattleRenderer {
   private fireLoadedAssister = new Map<string, LoadedFireAtlas>();
   /** bullet 精灵：key = bullet id；快照缺席即移除（despawn 收尾） */
   private bulletSprites = new Map<number, BulletSprite>();
+  /** attacker 精灵（切片 13-A4）：key = attacker id；同 bullet 模式 */
+  private attackerSprites = new Map<number, BulletSprite>();
   private mapLoaded: LoadedMapAtlas | null = null;
   /** 视觉层整体下移量（原版 MapMain.initlize 的 bottomOffset，切片 13-A2） */
   private mapBottomOffset = 0;
@@ -117,12 +122,13 @@ export class BattleRenderer {
     this.fighterLayer = new Container();
     this.bulletLayer = new Container();
     this.bulletGfx = new Graphics();
+    this.attackerGfx = new Graphics();
     this.fxLayer = new Container();
     this.hudLayer = new Container();
-    this.bulletLayer.addChild(this.bulletGfx);
+    this.bulletLayer.addChild(this.attackerGfx, this.bulletGfx);
     // 层序（镜像原版 GameStage.initFight：gameLayer[map < 角色 < front_fix < front]；
     // bg 在 gameLayer 外）：
-    //   bg(屏幕固定) < map < 角色 < 飞行道具 < front_fix < front(视差) < 特效
+    //   bg(屏幕固定) < map < 角色 < 独立道具/飞行道具 < front_fix < front(视差) < 特效
     this.world.addChild(
       this.mapLayer,
       this.fighterLayer,
@@ -303,6 +309,7 @@ export class BattleRenderer {
       this.applyFrame(sp, f.actLabel !== null ? f.animFrame : 0);
     }
 
+    this.updateAttackers(prev, next, alpha);
     this.updateBullets(prev, next, alpha);
     this.updateAssisters(prev, next, alpha);
     this.updateCamera(next);
@@ -338,6 +345,57 @@ export class BattleRenderer {
   }
 
   /**
+   * 独立道具（切片 13-A4）：fire 元件精灵静态首帧渲染。
+   *
+   * attacker 无自身时间轴推进（core 偏离：内层时间轴未导出，寿命/矩形占位
+   * 见 AttackerState 注），故只画 frames[0]。锚点/翻转/图集选择同 bullet
+   * （命中矩形同 worldRect 镜像约定；el.main 逆运算；owner 恒为 fighter）；
+   * 缺图集条目或首帧缺纹理回退命中矩形色块（纯表现实体 hit=null 用青绿色区分）。
+   */
+  private updateAttackers(
+    prev: SimSnapshot,
+    next: SimSnapshot,
+    alpha: number,
+  ): void {
+    const g = this.attackerGfx;
+    g.clear();
+    for (const a of next.state.attackers) {
+      const p = prev.state.attackers.find((x) => x.id === a.id) ?? a;
+      const ix = p.x + (a.x - p.x) * alpha;
+      const iy = p.y + (a.y - p.y) * alpha;
+      const loaded = this.fireLoadedFighter.get(this.sprites.get(a.ownerId)?.atlasId ?? '');
+      const el = loaded?.atlas.fires[a.name];
+      const firstFrame = el?.frames[0];
+      if (!loaded || !el || !firstFrame || firstFrame.png < 0) {
+        this.drawPropBlock(g, a.facing, a.w, a.h, a.hit?.hitType ?? null, ix, iy);
+        continue;
+      }
+      let sp = this.attackerSprites.get(a.id);
+      if (!sp) {
+        const root = new Container();
+        const body = new Sprite(Texture.WHITE);
+        body.visible = false;
+        root.addChild(body);
+        this.bulletLayer.addChild(root);
+        sp = { root, body, appliedFrame: -1 };
+        this.attackerSprites.set(a.id, sp);
+      }
+      const rel = el.main;
+      sp.root.position.set(a.facing === 1 ? ix - rel.x : ix + rel.x + rel.w, iy - rel.y);
+      sp.root.scale.x = a.facing;
+      this.applyFireFrame(sp, loaded, a.name, 1);
+    }
+    // despawn 收尾：快照缺席即移除（寿命到期/命中失效统一走这里）
+    for (const [id, sp] of this.attackerSprites) {
+      if (!next.state.attackers.some((x) => x.id === id)) {
+        this.bulletLayer.removeChild(sp.root);
+        sp.root.destroy({ children: true });
+        this.attackerSprites.delete(id);
+      }
+    }
+  }
+
+  /**
    * 飞行道具（切片 13-A3）：fire 元件精灵按自身时间轴帧渲染；无图集条目
    * （animTotal=0 / 元件缺采 / 该侧图集未装）回退命中矩形色块。
    *
@@ -362,7 +420,7 @@ export class BattleRenderer {
         : this.fireLoadedFighter.get(this.sprites.get(b.ownerId)?.atlasId ?? '');
       const el = loaded?.atlas.fires[b.name];
       if (!loaded || !el || b.animTotal <= 0) {
-        this.drawBulletBlock(g, b, ix, iy);
+        this.drawPropBlock(g, b.facing, b.w, b.h, b.hit.hitType, ix, iy);
         continue;
       }
       let sp = this.bulletSprites.get(b.id);
@@ -378,7 +436,7 @@ export class BattleRenderer {
       const rel = el.main;
       sp.root.position.set(b.facing === 1 ? ix - rel.x : ix + rel.x + rel.w, iy - rel.y);
       sp.root.scale.x = b.facing;
-      this.applyBulletFrame(sp, loaded, b.name, b.animFrame);
+      this.applyFireFrame(sp, loaded, b.name, b.animFrame);
     }
     // despawn 收尾：快照缺席即移除（残留段播尽/寿命到期/出界统一走这里）
     for (const [id, sp] of this.bulletSprites) {
@@ -390,25 +448,36 @@ export class BattleRenderer {
     }
   }
 
-  /** 色块回退（切片 8 占位表现）：命中矩形 + 朝向尖端。 */
-  private drawBulletBlock(
+  /** 色块回退（bullet 切片 8 / attacker 切片 13-A4 占位表现）：命中矩形 + 朝向尖端。 */
+  private drawPropBlock(
     g: Graphics,
-    b: { facing: 1 | -1; w: number; h: number; hit: { hitType: number } },
+    facing: 1 | -1,
+    w: number,
+    h: number,
+    hitType: number | null,
     ix: number,
     iy: number,
   ): void {
-    // 颜色按 hitType 粗分（1-3 近战系红 / 4-6 魔法系紫 / 7-10 属性系橙 / 摔白）
-    const hitType = b.hit.hitType;
+    // 颜色按 hitType 粗分（1-3 近战系红 / 4-6 魔法系紫 / 7-10 属性系橙 / 摔白；
+    // null = 纯表现实体，青绿色）
     const color =
-      hitType <= 3 ? 0xff5544 : hitType <= 6 ? 0xcc66ff : hitType <= 10 ? 0xffaa33 : 0xffffff;
-    g.rect(ix, iy, b.w, b.h).fill({ color, alpha: 0.85 });
+      hitType === null
+        ? 0x44ddaa
+        : hitType <= 3
+          ? 0xff5544
+          : hitType <= 6
+            ? 0xcc66ff
+            : hitType <= 10
+              ? 0xffaa33
+              : 0xffffff;
+    g.rect(ix, iy, w, h).fill({ color, alpha: 0.85 });
     // 尖端：朝 facing 方向的小三角指示
-    const tipX = b.facing === 1 ? ix + b.w : ix;
-    g.moveTo(tipX, iy + b.h / 2 - 5).lineTo(tipX + b.facing * 8, iy + b.h / 2).lineTo(tipX, iy + b.h / 2 + 5).fill({ color, alpha: 0.85 });
+    const tipX = facing === 1 ? ix + w : ix;
+    g.moveTo(tipX, iy + h / 2 - 5).lineTo(tipX + facing * 8, iy + h / 2).lineTo(tipX, iy + h / 2 + 5).fill({ color, alpha: 0.85 });
   }
 
   /** 应用 fire 元件帧：查图集 fires[name].frames[animFrame-1]。 */
-  private applyBulletFrame(
+  private applyFireFrame(
     sp: BulletSprite,
     loaded: LoadedFireAtlas,
     name: string,
@@ -563,6 +632,8 @@ export class BattleRenderer {
     this.app.renderer.off('resize', this.onResize, this);
     for (const sp of this.bulletSprites.values()) sp.root.destroy({ children: true });
     this.bulletSprites.clear();
+    for (const sp of this.attackerSprites.values()) sp.root.destroy({ children: true });
+    this.attackerSprites.clear();
     this.app.stage.removeChild(this.bgFixed, this.world, this.hudLayer);
     this.bgFixed.destroy({ children: true });
     this.world.destroy({ children: true });
