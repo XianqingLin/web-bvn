@@ -363,10 +363,14 @@ export class BattleRenderer {
       const p = prev.state.attackers.find((x) => x.id === a.id) ?? a;
       const ix = p.x + (a.x - p.x) * alpha;
       const iy = p.y + (a.y - p.y) * alpha;
-      const loaded = this.fireLoadedFighter.get(this.sprites.get(a.ownerId)?.atlasId ?? '');
+      // viaAssist：owner 是辅助——图集走辅助侧 fire 包（同 bullet 分支）
+      const loaded = a.viaAssist
+        ? this.fireLoadedAssister.get(this.assistSprites.get(a.ownerId)?.atlasId ?? '')
+        : this.fireLoadedFighter.get(this.sprites.get(a.ownerId)?.atlasId ?? '');
       const el = loaded?.atlas.fires[a.name];
-      const firstFrame = el?.frames[0];
-      if (!loaded || !el || !firstFrame || firstFrame.png < 0) {
+      // 只要求图集条目存在（首帧可为空：atmc 等元件第 1 帧留空淡入，
+      // png=-1 帧由 applyFireFrame 逐帧隐藏——按首帧判空会误回退色块）
+      if (!loaded || !el || el.frames.length === 0) {
         this.drawPropBlock(g, a.facing, a.w, a.h, a.hit?.hitType ?? null, ix, iy);
         continue;
       }

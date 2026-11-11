@@ -266,6 +266,9 @@ export interface AttackerState {
   hitId: string | null;
   /** 仍可命中（命中一次后 false——attacker 无多次命中语料） */
   hitAble: boolean;
+  /** owner 为辅助（切片 13-A6）：命中回气仍归召唤者（原版 getOwnerFighter
+   *  回溯），渲染图集走辅助侧 fire 包 */
+  viaAssist: boolean;
 }
 
 export interface MatchState {
@@ -310,6 +313,11 @@ export interface AssisterState {
   touchFloor: string | null;
   /** 本次在场已命中目标键（区名:目标 id；一区一目标一次） */
   attackHit: string[];
+  /** 命中续接检查注册（setHitTarget，原版 renderCheckTargetHit；null = 未注册。
+   *  checker 区与目标身体相交 → gotoAndPlay(action)；不清除——窗口由判定区
+   *  可见帧自然限定，如 byakuya chkm@50 一帧窗口） */
+  hitTargetChecker: string | null;
+  hitTargetAction: string | null;
   /** 增益 buff 效果（def.buffEffects 拷贝；生效期 = 在场期间） */
   buffEffects: { attrResistance?: number; phyLifesteal?: number };
 }

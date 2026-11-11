@@ -38,7 +38,7 @@
 | 10 | 逐区命中/跳跃家族/瞬身步家族/万解形态切换（词表 Tier-2 收尾） | ✅ | DESIGN §3.5 |
 | 11 | 全角色批量化验收（`tools/batch-validate`）+ 条件触发器（cond/then/else 重大语义修复） | ✅ | DESIGN §3.5 |
 | 12 | 辅助系统：fzqi/召唤流程 + Assister 实体（时间轴/物理/op 词表/loop 触发器）+ buff 结算（speedUp/attackUp/defenseUp/buffEffects）+ 验收门禁扩展 | ✅ | DESIGN §3.5；`teleport` 不移植（ADR 记录） |
-| 13 | 演出/数据审计收紧：A1 辅助图集 capture 补齐 / A2 地图层装配对齐原版 / A3 bullet 精灵图集接入 + 命中残留收紧 / A4 attacker 渲染接线 / A5 attacker 寿命·动画收紧（轻层） | 🔶 A1~A5 ✅ | §三·切片 13；余项见 §4.2 |
+| 13 | 演出/数据审计收紧：A1 辅助图集 capture 补齐 / A2 地图层装配对齐原版 / A3 bullet 精灵图集接入 + 命中残留收紧 / A4 attacker 渲染接线 / A5 attacker 寿命·动画收紧（轻层） / A6 辅助 addAttacker + 命中续接 + rawScript 审计 | ✅ A1~A6 | §三·切片 13；余项见 §4.2 |
 | 14 | 场景流转骨架：AppHost 子系统宿主 + SceneHost + 菜单/选人/战斗/结算场景 + 联机 pick 选人交换 + `tools/select-pack`（select.json 53 角色/40 辅助/15 地图） | ✅ | §三·切片 14；顺带关闭"联机辅助注入" |
 | 15 | 选人页原版化：`tools/ui-pack`（FFDec 按元件导出 face 266 张 + select 壳 9 元件 + 地图缩略图 16 张 → assets/ui/ + baked/ui.json）+ SetupScene 原版布局换肤 | ✅ | §三·切片 15 |
 | 16 | 菜单主页原版化：ui-pack 扩展（stg_title 90 帧 WebP 流帧 + mc_wzbtn 按钮件）+ MenuScene 原版化重写（开场动画/跳过 + wzbtn 阶梯按钮组 + 键盘导航） | ✅ | §三·切片 16 |
@@ -59,6 +59,15 @@
 - **偏离记录**：bullet 命中矩形沿用 spawn 帧 atm 判定区（原版用元件帧1视觉 bounds；61% 元件两者一致，46 项大偏差为 atm 手调平衡数据如万解斩月 267×265，切换需改平衡+重冻基线，暂不切）；
 - **13-A4 attacker 渲染接线**（2026-11-11）：render `updateAttackers` 按 bullet 同款精灵模式渲染独立道具——容器锚 = `el.main` 逆运算 + `scale.x = facing` 镜像、位置插值、缺图集条目回退色块（纯表现实体 hit=null 用青绿色区分）；图集复用 13-A3 fire 采集（`baked/fires/fighter/` 已含全部 attacker 元件，core/数据零改动）。验收：门禁全过且基线零漂移（纯渲染接线）+ Playwright 目检（setup 选 byakuya → 跳砍 → `tkmc` 黄斩击特效套中目标身位，与命中矩形/moveToTarget 语义一致）。
 - **13-A5 attacker 寿命·动画收紧（轻层）**（2026-11-11）：对齐原版 `FighterAttacker.renderAnimate`——core 新增 `stepAttackerAnim`（30Hz 块，bullet 同节奏：生成 tick `animFrame` 已为 2），`AttackerState` 增 `animTotal/animFrame`；`addAttacker` 桥接 `def.fires` 元数据（与 fire 同款透传）。**寿命 = 播尽移除**（`animFrame === animTotal-1`，原版 off-by-one 原样保留；`FighterAttacker` 类无标签分派，纯推进不查标签——语料 32 个 attacker 元件全部多帧且无 loop，播尽移除全覆盖）；无时间轴（animTotal=0）回退 `holdTicks=120` 占位。render 按 `a.animFrame` 播帧（13-A4 静态首帧偏离关闭）。**验收**：核心单测 +2（30Hz 推进节奏/播尽移除、无 anim 回退 120 tick）、门禁全过且 replay 五基线 + batch-validate 零漂移（剧本不触发 attacker）；Playwright 目检 tkmc 动画中段扩散、~0.33s 播尽消失（旧版滞留 2s）。**剩余偏离**：逐帧命中矩形仍未导出（§4.2）。
+
+- **13-A6 辅助 addAttacker + 命中续接（setHitTarget）+ rawScript 审计**（2026-11-11）：对齐原版 AssisterCtrler.addAttacker/setHitTarget——
+  - **addAttacker 注册**：辅助生成独立道具 `AssisterState.viaAssist=true`（回气经原版 getOwnerFighter 回溯归召唤者、不走 viaAssist 抑制，与辅助弹不同；渲染图集走辅助侧 fire 包）；锚点=辅助实体，followTarget/axis 偏移与角色版同语义；hitVO 解析镜像 getHitVOByDisplayName（FighterHitModel.as:45 原名→去 atm 后缀；'atmmc' 原版也查空 → hit=null 纯表现占位，抓取伤害在内层逐帧 hitVO=重型层）；
+  - **命中续接检查**：`AssisterState.hitTargetChecker/hitTargetAction`（setHitTarget 触发器注册）+ stepAssisterAnimation 每动画帧检查（原版 renderCheckTargetHit 语义：帧脚本后、播放头推进前；checker 区与目标身体相交 → gotoAndPlay(action)；不清除，窗口由判定区可见帧自然限定）；
+  - **跳转落点修复（行为修正，基线重冻）**：stepAssisterAnimation 检测步内跳转（gotoAndPlay/gotoAndStop/loop/命中续接改写 animFrame）后不再 +1 推进——原版 AS3 gotoAndPlay 播放头落位、次 tick 才前进；修复前跳转后仍 +1，系统性吞掉标签首帧（byakuya CHK 落点 52 被推进成 53 滑进 CHK_False 段，addAttacker 永不触发）；落点帧触发器下一步照常执行；
+  - **render**：updateAttackers 图集按 viaAssist 分流（assistSprites/fireLoadedAssister）；首帧空元件守卫修复（atmc 第 1 帧留空淡入 png=-1，按首帧判空误回退色块——改由 applyFireFrame 逐帧隐藏）；
+  - **rawScript 审计（辅助残留 11 处全分类）**：byakuya [0] 动作样板（已提取）/ [49][51] 触发器已提取（残留 var judge/atmc 挂载）/ **[51][59] checkFunc 链未建模**（owner 死亡清道具、getTargetState==21 脱抓提前收道具——低影响偏离）/ [71] finish 残留；itachi [1] 动态伤害 `power = targetHpMax×0.008`；suigetsu [196] `isAttacking=true`（低影响）；temari [1]/[33]/[144] 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯未建模；owner speedUp 已提取）；
+  - 辅助未注册 op 收敛：~~setHitTarget/addAttacker~~ 已注册；残余静默 = justHit（纯读）/ setTouchSide（语料无实例）+ byakuya 专用 API addCustomFunc/removeCustomFunc/getMcCtrl（checkFunc 链载体，随其未建模静默）；
+  - **验收**：核心单测 +3（`assist-attacker.test.ts`：CHK 续接跳转落点首帧触发/followTarget 吸附与播尽退场/未中走 CHK_False 无道具）；replay assist-duel 重冻（跳转落点修正，五剧本仅此一漂）+ batch-validate 重冻（11 辅助 finalHash 漂移 + nemu/shikamaru/shishio/yachiru 未注册 op 覆盖变化，均本切片预期行为变更，双跑确定性确认）；Playwright 目检：byakuya+byakuya solo → KeyO 召唤 → CHK 抓取 → atmc 黄色放射特效挂目标头上 ~0.5s 播尽移除（浏览器内 sim 状态轮询与 headless 探针逐项一致）。
 
 ### 切片 14——场景流转骨架（✅ 2026-11-11）
 
@@ -127,10 +136,10 @@
 
 ### 4.2 阶段 3 尾巴（切片 13 余项，纯增量特性，不阻塞阶段 4 推进）
 
-- 独立道具逐帧命中矩形（原版由道具内层时间轴逐帧驱动，未导出——现取发射帧命名子对象判定区全程固定；轻层动画收紧后仅剩此项，需 capture/dump 桥新导出管线，待语料审计后决策）；
-- rawScript 抑制段逐条审计（角色 224 处已审 4 处 gaara `getAttacker`，行为无差；辅助残留 11 处：byakuya×6/itachi hitModel/suigetsu isAttacking/temari 弹速×3）；
-- 辅助未注册 op（切片 12 遗留，全在 attacker 系）：getTargetSP/setHitTarget/addAttacker/justHit/setTouchSide/removeCustomFunc/addCustomFunc(temari)，均确定性静默；
-- 验收：门禁全过；行为变更则重冻全部基线。
+- 独立道具逐帧命中矩形（原版由道具内层时间轴逐帧驱动，未导出——现取发射帧命名子对象判定区/零矩形占位，atmc 抓取伤害的内层 hitVO（atm1，power=50）同源待导；需 capture/dump 桥新导出管线，待语料审计后决策）；
+- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：byakuya checkFunc 链（owner 死亡清道具 / 目标 getTargetState==21 脱抓提前收道具）；itachi 动态伤害 `power = targetHpMax×0.008`；suigetsu `isAttacking=true`；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
+- 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
+- 验收：门禁全过；行为变更则重冻对应基线。
 
 ### 4.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）
 
@@ -151,5 +160,5 @@
 ## 五、下一步（按优先级）
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
-2. **切片 13 余项**（§4.2）——或按用户指示切换其他块；
+2. **阶段 3 尾巴**（§4.2，低影响偏离池：逐帧命中矩形 / checkFunc 链 / itachi 动态伤害 / temari 风场）——或按用户指示切换其他块；
 3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

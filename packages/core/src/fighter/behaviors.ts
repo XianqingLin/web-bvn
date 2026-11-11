@@ -626,7 +626,7 @@ function parseFireParams(v: BehaviorArg | undefined): FireParams {
 }
 
 /** addAttacker 参数解析（语料字段：x/y 的 number|轴对象、applyG）。 */
-function parseAttackerParams(v: BehaviorArg | undefined): AttackerParams {
+export function parseAttackerParams(v: BehaviorArg | undefined): AttackerParams {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as AttackerParams) : {};
 }
 

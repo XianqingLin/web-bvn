@@ -24,6 +24,7 @@ import {
   SPEED_PLUS,
   worldRect,
   type AssisterDef,
+  type AreaRect,
   type FighterDef,
   type FrameTrigger,
   type HitDef,
@@ -39,6 +40,7 @@ import {
   type AssisterContext,
   type AssisterHandler,
   type AssistBulletSpawnSpec,
+  type AssistAttackerSpawnSpec,
 } from './fighter/assister.js';
 import {
   advanceAnimation,
@@ -61,6 +63,7 @@ import {
 import {
   createBehaviorRegistry,
   evaluateTriggerCondition,
+  type AttackerParams,
   type AttackerSpawnSpec,
   type BehaviorContext,
   type BehaviorHandler,
@@ -690,21 +693,69 @@ export class Sim {
    */
   private spawnAttacker(spec: AttackerSpawnSpec): void {
     const { owner, name, local, hit, hitId, params } = spec;
-    const t = this.state.fighters.find((f) => f.id !== owner.id) ?? null;
+    this.spawnAttackerEntity({
+      anchor: owner,
+      ownerId: owner.id,
+      targetOf: this.state.fighters.find((f) => f.id !== owner.id) ?? null,
+      name,
+      local,
+      hit,
+      hitId,
+      anim: spec.anim,
+      params,
+      viaAssist: false,
+    });
+  }
+
+  /**
+   * 辅助生成独立道具（assister.addAttacker 引擎桥；原版同 FighterAttacker，
+   * owner = 辅助实体）：位置锚/朝向取辅助实体，命中回气归召唤者
+   * （原版 getOwnerFighter 回溯），渲染图集走辅助侧（viaAssist）。
+   */
+  private spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void {
+    const owner = this.state.fighters.find((f) => f.id === spec.ownerId) ?? null;
+    this.spawnAttackerEntity({
+      anchor: spec.self,
+      ownerId: spec.ownerId,
+      targetOf:
+        owner !== null ? this.state.fighters.find((f) => f.id !== owner.id) ?? null : null,
+      name: spec.name,
+      local: spec.local,
+      hit: spec.hit,
+      hitId: spec.hitId,
+      anim: spec.anim,
+      params: spec.params,
+      viaAssist: true,
+    });
+  }
+
+  private spawnAttackerEntity(args: {
+    anchor: { x: number; y: number; facing: 1 | -1 };
+    ownerId: number;
+    targetOf: FighterState | null;
+    name: string;
+    local: AreaRect;
+    hit: HitDef | null;
+    hitId: string | null;
+    anim?: { totalFrames: number; labels: Record<string, number> } | undefined;
+    params: AttackerParams;
+    viaAssist: boolean;
+  }): void {
+    const { anchor, ownerId, targetOf: t, name, local, hit, hitId, anim, params, viaAssist } = args;
     const centerX = local.x + local.w / 2;
     const centerY = local.y + local.h / 2;
     const axisX = typeof params.x === 'object' && params.x !== null ? params.x : null;
     const axisY = typeof params.y === 'object' && params.y !== null ? params.y : null;
     const startX = typeof params.x === 'number' ? params.x + centerX : axisX?.offset ?? centerX;
     const startY = typeof params.y === 'number' ? params.y + centerY : axisY?.offset ?? centerY;
-    let cx = owner.x + startX * owner.facing;
-    let cy = owner.y + startY;
-    if (axisX?.moveToTarget === true && t !== null) cx = t.x + startX * owner.facing;
+    let cx = anchor.x + startX * anchor.facing;
+    let cy = anchor.y + startY;
+    if (axisX?.moveToTarget === true && t !== null) cx = t.x + startX * anchor.facing;
     if (axisY?.moveToTarget === true && t !== null) cy = t.y + startY;
     const attacker: AttackerState = {
       id: this.state.nextEntityId,
-      ownerId: owner.id,
-      facing: owner.facing,
+      ownerId,
+      facing: anchor.facing,
       name,
       x: cx - local.w / 2,
       y: cy - local.h / 2,
@@ -717,16 +768,17 @@ export class Sim {
       applyG: params.applyG === true,
       gRamp: 0,
       holdTicks: ATTACKER_LIFE_TICKS,
-      animTotal: spec.anim?.totalFrames ?? 0,
+      animTotal: anim?.totalFrames ?? 0,
       animFrame: 1,
       hit: hit !== null ? { ...hit } : null,
       hitId,
       hitAble: true,
+      viaAssist,
     };
     this.state.nextEntityId += 1;
     this.state.attackers.push(attacker);
     this.state.attackers.sort((a, b) => a.id - b.id);
-    this.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: owner.id });
+    this.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: ownerId });
   }
 
   /** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。 */
@@ -794,6 +846,8 @@ export class Sim {
       animFrame: 2,
       touchFloor: null,
       attackHit: [],
+      hitTargetChecker: null,
+      hitTargetAction: null,
       buffEffects: def.buffEffects !== undefined ? { ...def.buffEffects } : {},
     };
     this.state.nextEntityId += 1;
@@ -871,11 +925,17 @@ export class Sim {
         stage,
         emit: (type, payload) => this.emit(type, payload),
         spawnAssistBullet: (spec) => this.spawnAssistBullet(spec),
+        spawnAssistAttacker: (spec) => this.spawnAssistAttacker(spec),
         remove: () => {
           if (!removed.includes(s.id)) removed.push(s.id);
         },
       };
       // 帧触发器（同帧按注册顺序；触发器后同帧可能被 gotoAndPlay 改写帧号）
+      // 跳转检测：gotoAndPlay/命中续接改写 animFrame 后本步不再推进
+      //（原版 AS3 gotoAndPlay 播放头落在目标帧、次 tick 才前进——落点帧
+      // 的触发器下一步照常执行；此前实现跳转后仍 +1，系统性吞掉标签
+      // 首帧（byakuya CHK 落点 52 被推进成 53 滑进 CHK_False 段））
+      const frameBefore = s.animFrame;
       const byFrame = this.assisterTriggerIndex.get(s.assistId);
       const list = byFrame?.get(s.animFrame);
       if (list) {
@@ -895,11 +955,36 @@ export class Sim {
         }
       }
       if (removed.includes(s.id)) continue; // finish/gotoAndStop 触发退场
+      // 命中续接检查（原版 AssisterCtrler.renderCheckTargetHit：帧脚本后、
+      // 播放头推进前；checker 区与目标身体相交 → gotoAndPlay(action)）。
+      // checker 不清除——窗口由判定区可见帧自然限定（byakuya chkm@50 一帧
+      // 窗口，命中跳 CHK 段即挂载 atmmc 道具；未中则 51 帧默认分支
+      // gotoAndPlay(CHK_False)）。
+      if (s.hitTargetChecker !== null) {
+        const area = (def.areas[s.animFrame] ?? []).find(
+          (a) => a.name === s.hitTargetChecker,
+        );
+        const tgt = owner !== null ? fighters.find((f) => f.id !== owner.id) ?? null : null;
+        const tgtDef = tgt !== null ? this.defOf(tgt) : null;
+        const body =
+          tgt !== null && tgtDef !== null
+            ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+            : null;
+        if (area && tgt && body && rectsOverlap(worldRect(s, area), worldRect(tgt, body))) {
+          const range =
+            s.hitTargetAction !== null ? def.labels[s.hitTargetAction] : undefined;
+          if (range && s.hitTargetAction !== null && s.actLabel !== s.hitTargetAction) {
+            s.actLabel = s.hitTargetAction;
+            s.animFrame = range.index + 1;
+          }
+        }
+      }
       // 时间轴末退场（原版 renderAnimate：currentFrame == totalFrames-1 → finish）
       if (s.animFrame >= def.totalFrames - 1) {
         removed.push(s.id);
         continue;
       }
+      if (s.animFrame !== frameBefore) continue; // 本步发生过跳转：不推进
       s.animFrame += 1;
       // actLabel 同步（标签数少，线性扫描；渲染寻帧用）
       for (const [label, r] of Object.entries(def.labels)) {

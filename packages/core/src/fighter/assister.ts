@@ -7,8 +7,9 @@
  * 双人模型 = 对方角色）。
  *
  * 有界支持（偏离记录）：endAct 在辅助语境为 no-op（辅助无动作槽，时间轴
- * 自由播放）；justHit/setHitTarget/addAttacker/setTouchSide 静默
- * （corpus 实例全部位于 attacker 系 rawScript，切片 13 范围）。
+ * 自由播放）；justHit（纯读）/setTouchSide（版边吸附，语料无实例）静默。
+ * setHitTarget（切片 13-A6）：命中续接检查在 stepAssisterAnimation 每动画
+ * 帧执行（原版 renderCheckTargetHit 语义）。
  */
 import {
   rectsOverlap,
@@ -23,7 +24,7 @@ import {
 } from './def.js';
 import { enterDead } from './machine.js';
 import { BUFF_HOLD_TICKS, type AssisterState, type FighterState, type StageState } from '../state.js';
-import type { FireParams } from './behaviors.js';
+import { parseAttackerParams, type AttackerParams, type FireParams } from './behaviors.js';
 
 /** 辅助行为上下文（瞬态，不进 SimState）。 */
 export interface AssisterContext {
@@ -38,6 +39,8 @@ export interface AssisterContext {
   emit(type: string, payload: Record<string, unknown>): void;
   /** fire 原语：辅助发射飞行道具（引擎桥；viaAssist = 命中不回气） */
   spawnAssistBullet(spec: AssistBulletSpawnSpec): void;
+  /** addAttacker 原语：辅助生成独立道具（引擎桥；owner=辅助实体，回气归召唤者） */
+  spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void;
   /** finish 原语：辅助退场 */
   remove(): void;
 }
@@ -53,6 +56,20 @@ export interface AssistBulletSpawnSpec {
   params: FireParams;
   /** 元件时间轴元数据（baked fires 包；缺失 = 无动画生命周期） */
   anim?: { totalFrames: number; labels: Record<string, number> };
+}
+
+/** 辅助 addAttacker 规格（位置锚 = 辅助实体；回气归属 ownerId=召唤者）。 */
+export interface AssistAttackerSpawnSpec {
+  self: AssisterState;
+  ownerId: number;
+  name: string;
+  /** 判定区（辅助 root 本地坐标，direct=1；位置/尺寸来源） */
+  local: AreaRect;
+  hit: HitDef | null;
+  hitId: string | null;
+  /** 元件时间轴元数据（baked fires 包；缺失 = holdTicks 占位寿命） */
+  anim?: { totalFrames: number; labels: Record<string, number> };
+  params: AttackerParams;
 }
 
 export type AssisterHandler = (ctx: AssisterContext, args: BehaviorArg[], target: string) => void;
@@ -171,6 +188,42 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
     });
   },
 
+  // —— addAttacker（原版 AssisterCtrler.addAttacker → FighterAttacker，
+  //     owner = 辅助实体：位置锚/朝向取辅助；命中回气经 getOwnerFighter
+  //     回溯归召唤者 power×0.15——非 viaAssist 守卫，与辅助弹不同）。
+  //     判定区：原版经 getChildByName（含运行时挂载的元件，如 byakuya
+  //     atmc），authoring 判定区缺失时回退零矩形（params.offset 定位，
+  //     命中矩形待逐帧矩形导出——见 state.ts 偏离注） ——
+  addAttacker(ctx, args, target) {
+    if (target !== 'assister' || ctx.owner === null) return;
+    const name = typeof args[0] === 'string' ? args[0] : null;
+    if (name === null) return;
+    const local =
+      (ctx.def.areas[ctx.self.animFrame] ?? []).find((a) => a.name === name) ?? {
+        name,
+        x: 0,
+        y: 0,
+        w: 0,
+        h: 0,
+      };
+    // hitVO 解析镜像原版 getHitVOByDisplayName（FighterHitModel.as:45）：
+    // 先查原名，含 'atm' 再查去 atm 后缀；'atmmc' 两者皆 miss → 原版同样
+    // 得 null，抓取伤害实际来自 attacker 内层逐帧 hitVO（atm1，power=50，
+    // FighterAttacker.as:417）——归逐帧矩形导出（重型层），当前占位=纯表现
+    const actionId = ctx.def.actions[name] !== undefined ? name : name.replace('atm', '');
+    const hit = ctx.def.actions[actionId] ?? null;
+    ctx.spawnAssistAttacker({
+      self: ctx.self,
+      ownerId: ctx.owner.id,
+      name,
+      local,
+      hit,
+      hitId: hit !== null ? actionId : null,
+      ...(ctx.def.fires?.[name] ? { anim: ctx.def.fires[name] } : {}),
+      params: parseAttackerParams(args[1]),
+    });
+  },
+
   // —— owner 系（target='fighter'；血量/气/buff） ——
   addHp(ctx, args, target) {
     const f = entityOf(ctx, target);
@@ -212,9 +265,19 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
   //     原版 AssisterCtrler.endAct 的动作收招语义在辅助语境无可观测效果） ——
   endAct() {},
 
-  // —— 有界静默（corpus 实例全在 attacker 系 rawScript，切片 13 范围） ——
-  // justHit（纯读）/ setHitTarget（byakuya attacker 续接）/ addAttacker /
-  // setTouchSide（版边吸附，corpus 无实例）
+  // —— setHitTarget（原版 AssisterCtrler.setHitTarget：注册续接检查，
+  //     检查本体在 stepAssisterAnimation 每动画帧执行） ——
+  setHitTarget(ctx, args) {
+    const checker = typeof args[0] === 'string' ? args[0] : null;
+    const action = typeof args[1] === 'string' ? args[1] : null;
+    if (checker !== null && action !== null) {
+      ctx.self.hitTargetChecker = checker;
+      ctx.self.hitTargetAction = action;
+    }
+  },
+
+  // —— 有界静默（corpus 实例全在 attacker 系 rawScript，切片 13 审计范围） ——
+  // justHit（纯读）/ setTouchSide（版边吸附，corpus 无实例）
 
   // —— 表现系（原版 AssisterCtrler.effect 转发 EffectCtrler；core 只发事件，
   //     事件 id 与角色 behaviors 同表，坐标取辅助实体位置） ——

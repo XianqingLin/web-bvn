@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-11T11:52:37.579Z",
+  "generatedAt": "2026-11-11T14:47:50.069Z",
   "fighters": 58,
   "framesPerFighter": 700,
   "map": "Forest",
@@ -883,34 +883,6 @@
   "assistantSmokeFailures": [],
   "assistantUnregisteredOpAggregate": [
     {
-      "op": "setHitTarget",
-      "target": "assister",
-      "instances": 7,
-      "assistants": [
-        "byakuya",
-        "kimimaro",
-        "nemu",
-        "sakura",
-        "shikamaru",
-        "shishio",
-        "yachiru"
-      ]
-    },
-    {
-      "op": "addAttacker",
-      "target": "assister",
-      "instances": 7,
-      "assistants": [
-        "byakuya",
-        "gaara",
-        "itachi",
-        "madara",
-        "rangiku",
-        "sai",
-        "shikamaru"
-      ]
-    },
-    {
       "op": "removeCustomFunc",
       "target": "assister",
       "instances": 6,
@@ -982,16 +954,6 @@
           "count": 2
         },
         {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        },
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
-        },
-        {
           "op": "getMcCtrl",
           "target": "fighterTarget",
           "count": 1
@@ -1004,10 +966,10 @@
       ],
       "smoke": {
         "ok": true,
-        "finalHash": "be953e6e",
-        "resumeHash": "be953e6e",
+        "finalHash": "87cb9d40",
+        "resumeHash": "87cb9d40",
         "resumeFrames": 300,
-        "rerunHash": "be953e6e"
+        "rerunHash": "87cb9d40"
       }
     },
     {
@@ -1016,19 +978,13 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "c7b64c06",
-        "resumeHash": "c7b64c06",
+        "finalHash": "a3117bb8",
+        "resumeHash": "a3117bb8",
         "resumeFrames": 300,
-        "rerunHash": "c7b64c06"
+        "rerunHash": "a3117bb8"
       }
     },
     {
@@ -1168,19 +1124,14 @@
           "op": "getTargetSP",
           "target": "fighter",
           "count": 1
-        },
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
         }
       ],
       "smoke": {
         "ok": true,
-        "finalHash": "ac544820",
-        "resumeHash": "ac544820",
+        "finalHash": "6bbe414e",
+        "resumeHash": "6bbe414e",
         "resumeFrames": 300,
-        "rerunHash": "ac544820"
+        "rerunHash": "6bbe414e"
       }
     },
     {
@@ -1219,19 +1170,13 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "47879386",
-        "resumeHash": "47879386",
+        "finalHash": "34dfffec",
+        "resumeHash": "34dfffec",
         "resumeFrames": 300,
-        "rerunHash": "47879386"
+        "rerunHash": "34dfffec"
       }
     },
     {
@@ -1255,19 +1200,13 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "61225ebc",
-        "resumeHash": "61225ebc",
+        "finalHash": "82640582",
+        "resumeHash": "82640582",
         "resumeFrames": 300,
-        "rerunHash": "61225ebc"
+        "rerunHash": "82640582"
       }
     },
     {
@@ -1285,10 +1224,10 @@
       ],
       "smoke": {
         "ok": true,
-        "finalHash": "f6c2d1b9",
-        "resumeHash": "f6c2d1b9",
+        "finalHash": "479e0743",
+        "resumeHash": "479e0743",
         "resumeFrames": 300,
-        "rerunHash": "f6c2d1b9"
+        "rerunHash": "479e0743"
       }
     },
     {
@@ -1297,13 +1236,7 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "da7bf10b",
@@ -1371,19 +1304,13 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "4e51166a",
-        "resumeHash": "4e51166a",
+        "finalHash": "343abaa4",
+        "resumeHash": "343abaa4",
         "resumeFrames": 300,
-        "rerunHash": "4e51166a"
+        "rerunHash": "343abaa4"
       }
     },
     {
@@ -1392,19 +1319,13 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "e400984a",
-        "resumeHash": "e400984a",
+        "finalHash": "82c93b84",
+        "resumeHash": "82c93b84",
         "resumeFrames": 300,
-        "rerunHash": "e400984a"
+        "rerunHash": "82c93b84"
       }
     },
     {
@@ -1415,11 +1336,6 @@
       "buffEffects": [],
       "unregisteredOps": [
         {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        },
-        {
           "op": "setTouchSide",
           "target": "assister",
           "count": 1
@@ -1427,10 +1343,10 @@
       ],
       "smoke": {
         "ok": true,
-        "finalHash": "9f8357c2",
-        "resumeHash": "9f8357c2",
+        "finalHash": "2557e2d5",
+        "resumeHash": "2557e2d5",
         "resumeFrames": 300,
-        "rerunHash": "9f8357c2"
+        "rerunHash": "2557e2d5"
       }
     },
     {
@@ -1439,18 +1355,7 @@
       "loopTriggers": 0,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        },
-        {
-          "op": "addAttacker",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "97478a52",
@@ -1466,11 +1371,6 @@
       "rawScripts": 0,
       "buffEffects": [],
       "unregisteredOps": [
-        {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        },
         {
           "op": "setTouchSide",
           "target": "assister",
@@ -1637,11 +1537,6 @@
         "phyLifesteal"
       ],
       "unregisteredOps": [
-        {
-          "op": "setHitTarget",
-          "target": "assister",
-          "count": 1
-        },
         {
           "op": "setTouchSide",
           "target": "assister",
