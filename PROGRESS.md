@@ -41,6 +41,7 @@
 | 15 | 选人页原版化：`tools/ui-pack`（FFDec 按元件导出 face 266 张 + select 壳 9 元件 + 地图缩略图 16 张 → assets/ui/ + baked/ui.json）+ SetupScene 原版布局换肤 | ✅ | §3.3 切片 15 |
 | 16 | 菜单主页原版化：ui-pack 扩展（stg_title 90 帧 WebP 流帧 + mc_wzbtn 按钮件）+ MenuScene 原版化重写（开场动画/跳过 + wzbtn 阶梯按钮组 + 键盘导航） | ✅ | §3.3 切片 16 |
 | 17 | 实战验收修复批次：相机垂直 clamp 对齐 fixBorder + endAct 原版语义（不动播放头）+ damping 持久阻尼 + 朝向按状态分流 + 连段清槽 + 防御定格 | ✅ | §3.3 修复批次 17 |
+| 18 | 实战验收修复批次：跳跃/动作永久锁死（jumpTimes 无恢复路径 + 循环标签吞 endAction 补槽）+ 走/立标签维护门控 + idleLabel 落地回归 + 落地补槽 | ✅ | §3.3 修复批次 18 |
 
 ---
 
@@ -111,6 +112,17 @@
 - **基线**：行为有意变更，replay 5 剧本与 batch:validate 基线已重新固化；`fighter.test.ts` endAct 用例改为断言新语义（收招不换播放头）；
 - **遗留**（下一批）：进战斗无加载画面（原版有 GameLoadingStage/LoadingStage 进度条，同步串行装载卡主线程）；bg cover 首帧未定位（首个 sim 快照前右侧露底色，"黑边"）；
 - **验收**：门禁全过（build / 137 测试 / replay 5 剧本 / batch:validate 58 角色+37 辅助）；行为验证脚本确认 连段派生/佐助落地/防御定格/行走转向 四项。
+
+**修复批次 18——跳跃/动作永久锁死修复（✅ 完成，2026-11-11）**：
+
+> 玩家实测（佐助）：① 跳两次后无法再跳；② 冲刺两次后无法跳跃且无法攻击。根因是同族：状态恢复路径缺失导致资源（jumpTimes/动作槽）永久归零。
+
+- **① jumpTimes 无恢复路径（根因一）**：原版 jumpTimes 只在 `touchFloor()` 与 `idle("站立")`（setAllAct 路径）恢复，移植版只在 `createInitialState` 赋值一次 → 双跳/空瞬/快速下落耗尽后永久锁跳。补三处恢复：`onLanded` 全分支（受击落地除外，击飞系由起身恢复）、`recoverToNormal` 落地恢复、behaviors idle（frame==='站立'）；
+- **② 走/立标签维护吞掉 endAction 补槽（根因二，攻击锁死）**：精确追踪发现链条为——招1 清槽 → 跳 → 落地（槽仍空）→ 瞬步打断 落地 → dashStop@44 提前回 NORMAL 但 瞬步 时间轴残留帧（含 idle@47 = setAllAct 补槽）未播 → 走/立标签维护把标签切到 走/站立（循环标签，永远到不了 endAction）→ idle@47 与标签播尽两条补槽路径全部落空 → 槽永久空 → 攻击/防御永久不可用。修复：标签维护门控为仅当 `NORMAL && labelLock<=0 && 标签∈{站立,走}` 才切换（对齐原版 doMove 的槽位门控语义）；
+- **③ 落地补槽**：JUMP_ING 落地分支补 `slots = defaultSlots`（原版 touchFloor → clearAction + setAttack(delay 1) 重填默认槽）；`recoverToNormal` 落地恢复同样补槽（空中招被打断后恢复到站立循环的锁死路径）；
+- **④ idleLabel 潜伏 bug**：落地 曾被无条件排除在 →站立 转换外，落地 播尽后 endAction 触发但标签永停（此前被 ② 的维护掩盖）——改为仅当 落地 仍在播放期（animFrame ≤ index+duration）才保持；
+- **⑤ 偏离记录**：空中攻击/空中技/空中必杀成功时置 `jumpTimes = 0`（对齐原版 doAirAttack/doAirSkill/doAirBisha）——本批次前空中动作不扣跳数；port 的 setLabel 不重启同标签播放头（原版 goFrame 会重启 → port 双击瞬步第二次被吸掉、原版则复位重播）——既有偏离，登记不改；
+- **验证**：97 core 单测全过 + 6 个真实佐助剧本场景（双跳/空瞬后跳/空瞬后攻/空攻后空瞬拒/招1+跳+冲刺+攻/快落后跳）+ 4000 局模糊测试（真实按下边沿探针，零死锁）；replay 5 剧本与 batch:validate 基线已重冻（行为有意变更）；add 冒烟零失败。
 
 | # | 块 | 内容 | 备注 |
 |---|---|---|---|

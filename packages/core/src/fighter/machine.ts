@@ -130,12 +130,25 @@ export function setLabel(
   }
 }
 
-/** 站立待机标签（有 def 才维护）。 */
+/** 站立待机标签（有 def 才维护）。
+ * 落地 仅在播放中保护（刚落地不被覆盖）；播尽（endAction 在末帧调用）
+ * 必须回 站立——偏离修正记录：曾无条件排除 落地，播尽后永远停在
+ * 落地（循环外标签，animFrame 越界推进），行走标签维护曾以劫持方式
+ * 掩盖此缺陷。 */
 function idleLabel(f: FighterState, def: FighterDef | null): void {
-  if (def && f.actLabel !== '站立' && f.actLabel !== '落地') setLabel(f, def, '站立');
+  if (!def || f.actLabel === '站立') return;
+  if (f.actLabel === '落地') {
+    const r = def.labels['落地'];
+    if (r && f.animFrame <= r.index + r.duration) return;
+  }
+  setLabel(f, def, '站立');
 }
 
-/** 回到普通状态（受击/倒地计时结束）。 */
+/** 回到普通状态（受击/倒地计时结束）。
+ * 原版受击恢复回 站立 时 setAllAct 重填槽 + 恢复跳跃/空中攻击次数
+ *（FighterMcCtrler idle("站立")：_action.jumpTimes = _fighter.jumpTimes 常量）。
+ * 偏离修正记录：曾不重填槽——空中攻击/技被命中打断后槽保持清空，受击恢复
+ * 回 站立（循环标签，endAction 不可达）→ 攻击/防御永久失效。 */
 export function recoverToNormal(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.NORMAL;
   f.hurtTimer = 0;
@@ -144,8 +157,14 @@ export function recoverToNormal(f: FighterState, def: FighterDef | null): void {
   f.beHitGap = 0;
   f.lastHurtHitId = null;
   f.lastDefHitId = null;
-  if (f.onGround) idleLabel(f, def);
-  else setLabel(f, def, '跳中');
+  if (f.onGround) {
+    f.slots = defaultSlots(def);
+    f.jumpTimes = JUMP_TIMES_START;
+    f.airHitTimes = 1;
+    idleLabel(f, def);
+  } else {
+    setLabel(f, def, '跳中');
+  }
 }
 
 /**
@@ -777,8 +796,18 @@ export function stepIntentsFor(
       view.consume(Btn.dash);
       if (startGhostStep(f, def, GHOST_GROUND, faceTarget())) return;
     }
-    // 行走标签（物理仍由 sim 每 tick 施加）
-    if (f.actionState === ActionState.NORMAL && f.labelLock <= 0) {
+    // 行走标签（物理仍由 sim 每 tick 施加）。
+    // 偏离修正记录：曾无条件维护标签——dashStop 提前回 NORMAL 后瞬步时间轴
+    // 还剩数帧（含 idle@帧N = setAllAct 重填槽），此时标签被劫持为 站立/走
+    //（循环标签，播尽 endAction 不可达）→ 跳过 idle 与 endAction → 槽永久
+    // 为空 → 攻击/防御永久失效。原版走/站立切换由 moveLeft/moveRight 槽驱动
+    //（doMove：槽被 clearAction 清空的收尾窗口不处理移动输入），净语义 =
+    // 只在标签已处于待机族（站立/走）时维护；动作收尾标签让时间轴自己走完。
+    if (
+      f.actionState === ActionState.NORMAL &&
+      f.labelLock <= 0 &&
+      (f.actLabel === '站立' || f.actLabel === '走')
+    ) {
       const moving = view.held(Btn.left) || view.held(Btn.right);
       if (def) setLabel(f, def, moving ? '走' : '站立');
     }
@@ -804,6 +833,7 @@ export function stepIntentsFor(
       if (canAirAct && f.slots.attackAIR !== null) {
         f.airHitTimes -= 1;
         f.dampY += 1.5; // 原版 doAirAttack：addDamping(0,3)@30fps → 1.5/tick
+        f.jumpTimes = 0; // 原版 doAirAttack：空中动作后不可再空中瞬步/跳
         startAttackByLabel(f, def, f.slots.attackAIR);
       }
     }
@@ -811,7 +841,10 @@ export function stepIntentsFor(
       view.consume(Btn.skill);
       if (canAirAct && f.slots.skillAIR !== null) {
         const ok = startSkill(f, def, f.slots.skillAIR, 0, false);
-        if (ok) f.airHitTimes = 0; // 原版 doAirSkill：动作成立即耗尽
+        if (ok) {
+          f.airHitTimes = 0; // 原版 doAirSkill：动作成立即耗尽
+          f.jumpTimes = 0;
+        }
       }
     }
     if (view.buffered(Btn.superSkill)) {
@@ -823,6 +856,7 @@ export function stepIntentsFor(
         startSkill(f, def, f.slots.bishaAIR, f.slots.bishaAIRQi, false)
       ) {
         f.airHitTimes = 0;
+        f.jumpTimes = 0;
       }
     }
     // 二段跳（原版 doAirJump：jump justDown && !attack，jumpTimes 门，可取消空中攻击）
@@ -942,6 +976,10 @@ export function advanceAnimation(
 /**
  * 落地状态转移（物理判定落地后调用；vy 已清零）。
  * 击飞落地 → 倒地（击飞_倒 → 起身 → NORMAL）；跳跃落地 → 落地恢复。
+ * 跳跃次数落地即恢复（原版 touchFloor()：_action.jumpTimes = _fighter.jumpTimes
+ * 常量重填；受击落地由 recoverToNormal 恢复）。偏离修正记录：曾只在初始
+ * 状态置 JUMP_TIMES_START——双跳/空中瞬步/快速下落耗尽后落地永不恢复，
+ * 角色永久无法起跳。
  */
 export function onLanded(f: FighterState, def: FighterDef | null): void {
   if (f.actionState === ActionState.HURT_FLYING) {
@@ -952,6 +990,8 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
     f.dampX = HURT_DAMP_X;
     return;
   }
+  // 非受击落地：跳跃次数一律重填（任何空中路径耗尽后落地都可再跳）
+  f.jumpTimes = JUMP_TIMES_START;
   // 触地续接（原版 touchFloor()：setTouchFloor 预约的标签在触地时接管，
   // 普通跳跃落地同样消费；受击落地除外）
   if (f.touchFloor !== null && f.actionState !== ActionState.DEAD) {
@@ -969,6 +1009,9 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
     f.actionState = ActionState.NORMAL;
     f.dampY = 0;
     f.airHitTimes = 1;
+    // 原版 touchFloor("落地") → doAction：clearAction 后 setAttack(delay 1)
+    // 重填默认槽——上一动作（如空中攻击）清掉的槽在落地时恢复
+    f.slots = defaultSlots(def);
     const land = def?.labels['落地'];
     if (land) {
       f.actLabel = '落地';

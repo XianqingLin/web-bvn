@@ -12,6 +12,7 @@
 import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef, TriggerCondition } from './def.js';
 import { ActionState, SPEED_PLUS, defaultSlots, emptySlots } from './def.js';
 import { enterDead, switchForm, HURT_DAMP_Y } from './machine.js';
+import { JUMP_TIMES_START } from '../state.js';
 import type { FighterState, StageState } from '../state.js';
 
 /** fire 参数（原版 Bullet 构造 params 子集，语料实际出现的字段）。 */
@@ -353,6 +354,11 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.attackId = null;
     // 原版：frame=站立 → setAllAct 重填槽；其余帧 clearAction 清空（播完经 endAct 重填）
     ctx.f.slots = frame === '站立' ? defaultSlots(ctx.def) : emptySlots(ctx.f.slots);
+    // 原版 idle("站立")：_action.jumpTimes/_action.airHitTimes = _fighter 常量恢复
+    if (frame === '站立') {
+      ctx.f.jumpTimes = JUMP_TIMES_START;
+      ctx.f.airHitTimes = 1;
+    }
     setLabelTo(ctx, frame);
   },
 
