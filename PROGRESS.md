@@ -37,6 +37,7 @@
 | 10 | 逐区命中/跳跃家族/瞬身步家族/万解形态切换（词表 Tier-2 收尾） | ✅ | DESIGN §3.5 |
 | 11 | 全角色批量化验收（`tools/batch-validate`）+ 条件触发器（cond/then/else 重大语义修复） | ✅ | DESIGN §3.5 |
 | 12 | 辅助系统：fzqi/召唤流程 + Assister 实体（时间轴/物理/op 词表/loop 触发器）+ buff 结算（speedUp/attackUp/defenseUp/buffEffects）+ 验收门禁扩展 | ✅ | DESIGN §3.5；`teleport` 不移植（ADR 记录） |
+| 14 | 场景流转骨架：AppHost 子系统宿主 + SceneHost + 菜单/选人/战斗/结算场景 + 联机 pick 选人交换 + `tools/select-pack`（select.json 53 角色/40 辅助/15 地图） | ✅ | 下详（切片 13 中顺带关闭"联机辅助注入"） |
 
 ---
 
@@ -62,8 +63,18 @@
 - 独立道具寿命/矩形占位占位收紧（原版由道具内层时间轴驱动，未导出）；独立道具（attackers）渲染端未接线（快照有数据、画面不可见；元件名清单已随 13-A3 fire 采集覆盖）；
 - rawScript 抑制段逐条审计（角色 224 处已审 4 处 gaara `getAttacker`，行为无差；辅助残留 11 处：byakuya×6/itachi hitModel/suigetsu isAttacking/temari 弹速×3）；
 - 辅助未注册 op（切片 12 遗留，全在 attacker 系）：getTargetSP/setHitTarget/addAttacker/justHit/setTouchSide/removeCustomFunc/addCustomFunc(temari)，均确定性静默；
-- 联机模式辅助注入（app net 分支需两端配置指纹同步）；
+- ~~联机模式辅助注入（app net 分支需两端配置指纹同步）~~ ✅（随切片 14 关闭：pick 交换把双端选人带进 configHash，assisters 按选人装配）；
 - 验收：门禁全过；行为变更则重冻全部基线。
+
+### 3.2b 切片 14——场景流转骨架（已完成，2026-11-11）
+
+- **app 层基建**：`AppHost` 子系统宿主（events/assets/config/time + 拓扑 init，契约"app 层子系统接口"最小实现）；`SceneHost` 场景系统（1000×600 逻辑屏等比缩放居中，switchTo 异步流转）；`data.ts` baked 装载（assets 缓存）；`ui.ts` 基础控件（按钮/面板/DOM 输入）；`flow.ts` 对局流参数（mode/serverUrl/选人/地图）；
+- **场景**：menu（单机/联机入口）→ setup（三段选人：角色→辅助→地图，数据驱动 `baked/select.json`）→ battle（自 main.ts 迁移；solo 训练 / net lockstep）→ KO 结算浮层（solo 可再来一局）；
+- **联机选人交换**：protocol 新增 `pick` 消息（服务器像 input/hash 一样盲透传）；session.ts 拆 `joinRoom/sendPick/waitPeerPick/lockstart`（startSession 组合保留兼容）；pick 3s 重发兜底；地图以 P1 选择为准；双端异角色异辅助（render `fireAtlases` 改按出场者 atlasId 键控）；
+- **tools/select-pack**：select.xml/fighter.xml/assistant.xml/map.xml → `baked/select.json`（schema bvn/select@1，53 角色/40 辅助/15 地图，含 offset/more/comicType）；
+- **偏离记录**：① 联机禁用随机选人项（两端各自本地解析会选人分叉，需服务器裁决才可开）；② 原版 more= 形态切换未实现（数据已保留在 select.json）；③ 结算基于 `fighter:ko` 事件浮层，完整回合制（R1/R2 计分）归后续切片；④ 重开局仅 solo；
+- **UI 待打磨池**：格子长名溢出、DOM 输入样式、Logo 演出/选人动画；
+- **验收**：门禁全过（build / 137 测试 / replay 5 剧本 / batch:validate）；Playwright 驱动 菜单→选角色→选辅助→选地图→战斗 全链路截图验证（发现并修复 battle 迁移漏调 `renderer.onSnapshot`）。
 
 ### 3.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）
 
@@ -73,7 +84,7 @@
 | 2 | 录像回放 | 输入序列 + 种子 + 数据版本戳的存储与播放 UI | 帧同步免费送，core 无需改 |
 | 3 | 观战 | 只收不发输入的观战客户端 | net 层扩展 |
 | 4 | rollback | 可选；视云上延迟体验决策 | 架构接口已预留（DESIGN §6） |
-| 5 | 菜单流 | Logo→菜单→选人→战斗→结算 场景流转 + select.xml 配置化 | app 层场景系统 |
+| 5 | 菜单流 | ✅ 骨架已由切片 14 完成；余 Logo 演出/选人动画/格子图渲染打磨 | app 层场景系统 |
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
 | 7 | 音效/特效接线 | 音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好） | 音效随机选音源在渲染层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
@@ -82,6 +93,6 @@
 
 ## 四、下一步（按优先级）
 
-1. **真机体验验证**（§3.1）——云服务器已部署（wss 冒烟通过），剩公网两端完整对局人工验收，阶段 2 的收尾条件；
-2. **切片 13 演出/审计收紧**（§3.2）——或按用户指示切换其他块；
+1. **真机体验验证**（§3.1）——云服务器已部署（wss 冒烟通过）+ 切片 14 菜单/联机 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
+2. **切片 13 演出/审计收紧**（§3.2 余项）——或按用户指示切换其他块；
 3. 阶段 4 各块按上表顺序推进，每块开工前细化为切片并登记进 §二 明细表。
