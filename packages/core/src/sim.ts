@@ -109,6 +109,7 @@ const ASSISTER_QI_RATE = 0.15;
 /** 站立自动面向对手的间隔（原版 renderAnimate：站立态计数 >5 即每 6 帧一次） */
 const AUTO_FACE_INTERVAL = 6;
 /** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
+/** 无元件时间轴（animTotal=0）时 attacker 的占位寿命回退（原版无此机制）。 */
 const ATTACKER_LIFE_TICKS = 120;
 
 /**
@@ -308,6 +309,7 @@ export class Sim {
       this.stepAnimation(); // 5. [动画帧] 30Hz
       this.stepHitResolution(); // 6. [动画帧] 30Hz
       this.stepBulletAnim(); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
+      this.stepAttackerAnim(); // [动画帧] 30Hz（原版 FighterAttacker.renderAnimate）
     }
     this.stepMatchFlow(); // 7. 流程事件
     return this.stepOutput(); // 8. 输出
@@ -585,6 +587,25 @@ export class Sim {
   }
 
   /**
+   * 独立道具内层时间轴推进（原版 FighterAttacker.renderAnimate）：逐动画帧
+   * nextFrame，currentFrame == totalFrames-1 → removeSelf（off-by-one 原样
+   * 保留）。与 Bullet 不同：类内无标签分派（loop/remove 等是 Bullet 专属
+   * 语义），故纯推进不查标签——语料 32 个 attacker 元件全部多帧且无 loop
+   * 标签，播尽移除全覆盖。发射 tick 在 stepHitResolution 先于本步（同
+   * bullet 节奏）：生成帧 animFrame 已为 2。
+   */
+  private stepAttackerAnim(): void {
+    const { attackers } = this.state;
+    const removed: number[] = [];
+    for (const a of attackers) {
+      if (a.animTotal <= 0) continue;
+      if (a.animFrame < a.animTotal) a.animFrame += 1;
+      if (a.animFrame === a.animTotal - 1) removed.push(a.id);
+    }
+    if (removed.length > 0) this.removeAttackers(removed);
+  }
+
+  /**
    * 飞行道具死亡（原版 Bullet.doHit）：停命中，有元件时间轴则进入残留段
    * （跳 hit 标签段；无标签原地停住播尽），entity:despawn 延后到播尽——
    * 命中残留演出随 despawn 收紧（切片 13-A3）。无动画数据时保持旧行为
@@ -665,7 +686,7 @@ export class Sim {
   /**
    * 生成独立道具（behaviors.addAttacker 引擎桥；原版 FighterAttacker.init）。
    * 位置：x 轴沿朝向镜像；moveToTarget 轴改以 target 为基准。
-   * 偏离：命中矩形/寿命占位见 state.ts AttackerState 注；range 轴语料未出现，不支持（确定性静默）。
+   * 偏离：命中矩形占位见 state.ts AttackerState 注；range 轴语料未出现，不支持（确定性静默）。
    */
   private spawnAttacker(spec: AttackerSpawnSpec): void {
     const { owner, name, local, hit, hitId, params } = spec;
@@ -696,6 +717,8 @@ export class Sim {
       applyG: params.applyG === true,
       gRamp: 0,
       holdTicks: ATTACKER_LIFE_TICKS,
+      animTotal: spec.anim?.totalFrames ?? 0,
+      animFrame: 1,
       hit: hit !== null ? { ...hit } : null,
       hitId,
       hitAble: true,
@@ -706,7 +729,7 @@ export class Sim {
     this.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: owner.id });
   }
 
-  /** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 寿命（原版 FighterAttacker.render）。 */
+  /** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。 */
   private stepAttackers(): void {
     const { stage, fighters, attackers } = this.state;
     const removed: number[] = [];
@@ -726,7 +749,8 @@ export class Sim {
           a.y += a.gRamp;
         }
       }
-      if (--a.holdTicks <= 0) removed.push(a.id);
+      // 寿命：有元件时间轴由 stepAttackerAnim 播尽移除；无时间轴走占位回退
+      if (a.animTotal <= 0 && --a.holdTicks <= 0) removed.push(a.id);
     }
     if (removed.length > 0) this.removeAttackers(removed);
   }

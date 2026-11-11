@@ -383,7 +383,8 @@ export class BattleRenderer {
       const rel = el.main;
       sp.root.position.set(a.facing === 1 ? ix - rel.x : ix + rel.x + rel.w, iy - rel.y);
       sp.root.scale.x = a.facing;
-      this.applyFireFrame(sp, loaded, a.name, 1);
+      // 内层时间轴动画帧（animTotal=0 无时间轴时回退首帧；切片 13-A5）
+      this.applyFireFrame(sp, loaded, a.name, a.animTotal > 0 ? a.animFrame : 1);
     }
     // despawn 收尾：快照缺席即移除（寿命到期/命中失效统一走这里）
     for (const [id, sp] of this.attackerSprites) {

@@ -73,6 +73,8 @@ export interface AttackerSpawnSpec {
   hit: HitDef | null;
   /** 命中动作 id（气回充/必杀判定用） */
   hitId: string | null;
+  /** 元件时间轴（fires 表；缺失 = 无动画数据，寿命走 holdTicks 回退） */
+  anim?: { totalFrames: number; labels: Record<string, number> };
   params: AttackerParams;
 }
 
@@ -612,6 +614,7 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
       local,
       hit,
       hitId: hit !== null ? actionId : null,
+      ...(ctx.def.fires?.[name] ? { anim: ctx.def.fires[name] } : {}),
       params: parseAttackerParams(args[1]),
     });
   },

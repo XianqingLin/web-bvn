@@ -226,8 +226,11 @@ export interface BulletState {
  * 独立道具（原版 FighterAttacker 子集，module-map §5.7）。
  * 与 Bullet 的差异：位置由「相对 owner/target 的偏移」驱动（followTarget /
  * moveToTarget 模式），命中矩形随实体中心平移。
- * 偏离（素材缺口，切片 10 收紧）：attacker 内层时间轴未导出——命中矩形取
- * 发射帧命名子对象判定区并全程固定，寿命取 ATTACKER_LIFE_TICKS 占位。
+ * 寿命：有元件时间轴（animTotal>0）= 播尽移除（原版 renderAnimate 的
+ * currentFrame == totalFrames-1 → removeSelf，off-by-one 原样保留，无标签
+ * 分派——FighterAttacker 类无标签处理）；无时间轴 = holdTicks 占位回退。
+ * 偏离（素材缺口，切片 10 收紧）：attacker 逐帧命中矩形未导出——命中
+ * 矩形取发射帧命名子对象判定区并全程固定。
  */
 export interface AttackerState {
   id: number;
@@ -251,8 +254,12 @@ export interface AttackerState {
   /** 是否施加重力（原版 params.applyG；语料全显式 false = 悬停） */
   applyG: boolean;
   gRamp: number;
-  /** 剩余存在 tick（寿命占位，见偏离注） */
+  /** 剩余存在 tick（仅无时间轴 animTotal=0 时的回退寿命，见偏离注） */
   holdTicks: number;
+  /** 元件时间轴总帧数（0 = 无动画数据，寿命走 holdTicks 回退；切片 13-A5） */
+  animTotal: number;
+  /** 当前动画帧（1 基，30Hz 推进，原版 FighterAttacker.renderAnimate） */
+  animFrame: number;
   /** 命中定义（发射动作 HitDef 拷贝；无动作表 = 纯表现实体） */
   hit: HitDef | null;
   /** 命中动作 id（气回充/必杀判定用；纯表现实体为 null） */

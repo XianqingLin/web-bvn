@@ -381,6 +381,56 @@ describe('切片 9：独立道具（addAttacker）', () => {
     expect(res.snaps.at(-1)!.state.fighters[1]!.hp).toBe(970);
   });
 
+  // —— 切片 13-A5：attacker 元件时间轴生命周期（原版 FighterAttacker.renderAnimate） ——
+
+  /** 注入 fires 元数据的 attacker sim（zh3mc → anim；剔 setHitTarget 同上）。 */
+  function makeAnimSim(totalFrames: number, labels: Record<string, number> = {}): Sim {
+    const def = makeDef();
+    def.fires = { zh3mc: { totalFrames, labels } };
+    def.triggers = def.triggers.filter((t) => t.op !== 'setHitTarget');
+    return new Sim(makeConfig({ p2x: 200, def }));
+  }
+
+  it('anim 注入 + 30Hz 推进：发射帧已到 2、每 2 tick +1、播尽移除（off-by-one）', () => {
+    const sim = makeAnimSim(9);
+    // 按住 skill 进 招1，捕获首个含 attacker 的快照（生成 tick）
+    let spawned: ReturnType<Sim['tick']> | null = null;
+    for (let i = 0; i < 200 && !spawned; i++) {
+      const s = sim.tick({ p1: i < 12 ? Btn.skill : 0, p2: 0 });
+      if (s.state.attackers.length > 0) spawned = s;
+    }
+    expect(spawned).not.toBeNull();
+    const a0 = spawned!.state.attackers[0]!;
+    expect(a0.animTotal).toBe(9);
+    expect(a0.animFrame).toBe(2); // 生成 tick 已推进一步（stepHitResolution 先行）
+    // 每 2 tick +1：10 tick 后帧 7 仍在（未到 totalFrames-1）
+    let mid: ReturnType<Sim['tick']> | null = null;
+    for (let i = 0; i < 10; i++) mid = sim.tick({ p1: 0, p2: 0 });
+    expect(mid!.state.attackers[0]!.animFrame).toBe(7);
+    // 再 2 tick → 帧 8 = totalFrames-1 → 播尽移除（原版不播末帧）
+    let end: ReturnType<Sim['tick']> | null = null;
+    for (let i = 0; i < 2; i++) end = sim.tick({ p1: 0, p2: 0 });
+    expect(end!.state.attackers).toHaveLength(0);
+  });
+
+  it('无 anim 数据（animTotal=0）回退 holdTicks 占位寿命', () => {
+    const sim = makeSim({ p2x: 200, dropTriggers: ['setHitTarget'] });
+    let spawnTick = -1;
+    for (let i = 0; i < 300; i++) {
+      const s = sim.tick({ p1: i === 0 ? Btn.skill : 0, p2: 0 });
+      if (spawnTick < 0 && s.state.attackers.length > 0) spawnTick = s.tick;
+      if (spawnTick >= 0) {
+        if (s.tick - spawnTick < 120) {
+          expect(s.state.attackers.length).toBe(1); // 占位寿命内仍在
+        } else {
+          expect(s.state.attackers).toHaveLength(0); // 120 tick 到期消散
+          break;
+        }
+      }
+    }
+    expect(spawnTick).toBeGreaterThanOrEqual(0);
+  });
+
   it('setHurtAction（自我携带）：受击时播专用受击动画而非进受击态', () => {
     // 站立第 5 帧 setHurtAction('被打')（tick 8）；随后 P2 反击命中 P1
     const res = play(makeSim(), [
