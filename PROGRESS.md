@@ -78,15 +78,23 @@
 
 ### 3.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）
 
+**切片 15——选人页原版化（已定案待开工，2026-11-11 讨论）**：
+
+- 资产已探明：face.swf 在 `OpenBleachVsNaruto/_release/extracted/swf_output/assets/`（266 类 = 67 形态 × 4 张头像，类名同 fighter.xml）；select.swf 场景壳在 `swf_source/#FighterTester/swfs/`；地图缩略图 15 张现成 PNG 在 `swf_output/assets/map/`；
+- 路线（用户拍板）：FFDec CLI **按元件导出**（主时间轴为空，不能按帧）；新工具 `tools/ui-pack` → assets/ui/ + baked/ui.json；
+- 范围：头像格子 + 原版格子框/展示框换肤 SetupScene + 地图缩略图；**不做**：格子动画、血条头像接 HUD、胜利立绘接结算、title 主菜单（各留后续）；
+- 布局（用户拍板）：照原版 60×60 头像格 + 原版行列（select.json row/col/offset 即原版数据）；
+- 开工简报详见 memory `bvn-slice15-ui-assets-plan`。
+
 | # | 块 | 内容 | 备注 |
 |---|---|---|---|
 | 1 | 断线处理 | peer-lost 后判负/重连（现为冻结等待） | ADR-15 预留 |
 | 2 | 录像回放 | 输入序列 + 种子 + 数据版本戳的存储与播放 UI | 帧同步免费送，core 无需改 |
 | 3 | 观战 | 只收不发输入的观战客户端 | net 层扩展 |
 | 4 | rollback | 可选；视云上延迟体验决策 | 架构接口已预留（DESIGN §6） |
-| 5 | 菜单流 | ✅ 骨架已由切片 14 完成；余 Logo 演出/选人动画/格子图渲染打磨 | app 层场景系统 |
+| 5 | 菜单流 | ✅ 骨架已由切片 14 完成；余 Logo 演出/选人动画打磨（选人头像格=切片 15） | app 层场景系统 |
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
-| 7 | 音效/特效接线 | 音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好） | 音效随机选音源在渲染层做，不进 sim |
+| 7 | 音效/特效接线 | 音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好）；effect.swf 已定位 | 音效随机选音源在渲染层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 
 ---
