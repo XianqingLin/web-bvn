@@ -30,9 +30,12 @@ export interface BattleAssetsSpec {
   /** 死亡线 bottom（front 层纵向视差公式用；缺省 = 逻辑高） */
   mapBottom?: number;
   fighterAtlasJson?: Record<string, FighterAtlas>;
-  /** fire 元件图集（切片 13-A3）：角色/辅助各一份（同 id 出场，单角色对局模型）。
-   *  bullet 按 viaAssist 选辅助侧，其余选角色侧；缺条目回退色块。 */
-  fireAtlasIds?: { fighter?: string; assister?: string };
+  /**
+   * fire 元件图集（切片 13-A3 引入，切片 14 多角色化）：键为**出场者 atlasId**
+   * （fighter 侧 = 角色 atlasId；assister 侧 = 辅助 atlasId），值为 fire 图集 id。
+   * bullet 按 owner 归属（ownerId → 对应精灵的 atlasId）选择；缺条目回退色块。
+   */
+  fireAtlases?: { fighter?: Record<string, string>; assister?: Record<string, string> };
   fireAtlasJson?: Record<string, FireAtlas>;
 }
 
@@ -73,11 +76,9 @@ export class BattleRenderer {
   private sprites = new Map<number, FighterSprite>();
   /** 辅助精灵（切片 12）：key = 召唤者 fighter id（同主同时至多一个辅助） */
   private assistSprites = new Map<number, FighterSprite>();
-  /** fire 图集（切片 13-A3）：'fighter'/'assister' 两侧；null = 该侧无图集（色块回退） */
-  private fireLoaded: { fighter: LoadedFireAtlas | null; assister: LoadedFireAtlas | null } = {
-    fighter: null,
-    assister: null,
-  };
+  /** fire 图集（切片 14 多角色）：键 = 出场者 atlasId；无条目 = 色块回退 */
+  private fireLoadedFighter = new Map<string, LoadedFireAtlas>();
+  private fireLoadedAssister = new Map<string, LoadedFireAtlas>();
   /** bullet 精灵：key = bullet id；快照缺席即移除（despawn 收尾） */
   private bulletSprites = new Map<number, BulletSprite>();
   private mapLoaded: LoadedMapAtlas | null = null;
@@ -170,14 +171,20 @@ export class BattleRenderer {
       this.assistSprites.set(a.ownerId, this.makeSprite(a.atlasId, loaded, 0));
     }
 
-    // fire 元件图集（切片 13-A3）：JSON 缺失（角色无 fire 包）= null，色块回退
-    for (const ok of ['fighter', 'assister'] as const) {
-      const atlasId = spec.fireAtlasIds?.[ok];
-      if (!atlasId) continue;
-      const atlasJson =
-        spec.fireAtlasJson?.[atlasId] ??
-        ((await this.fetchJson(`${spec.baseUrl}/fires/${ok}/${atlasId}.atlas.json`)) as FireAtlas);
-      this.fireLoaded[ok] = await loadFireAtlas(`${spec.baseUrl}/fires/${ok}`, atlasJson);
+    // fire 元件图集（切片 14 多角色）：按出场者 atlasId 装载；缺失条目色块回退
+    for (const kind of ['fighter', 'assister'] as const) {
+      for (const [ownerAtlasId, fireAtlasId] of Object.entries(spec.fireAtlases?.[kind] ?? {})) {
+        const atlasJson =
+          spec.fireAtlasJson?.[fireAtlasId] ??
+          ((await this.fetchJson(
+            `${spec.baseUrl}/fires/${kind}/${fireAtlasId}.atlas.json`,
+          )) as FireAtlas);
+        const loaded = await loadFireAtlas(`${spec.baseUrl}/fires/${kind}`, atlasJson);
+        (kind === 'fighter' ? this.fireLoadedFighter : this.fireLoadedAssister).set(
+          ownerAtlasId,
+          loaded,
+        );
+      }
     }
   }
 
@@ -350,7 +357,9 @@ export class BattleRenderer {
       const p = prev.state.bullets.find((x) => x.id === b.id) ?? b;
       const ix = p.x + (b.x - p.x) * alpha;
       const iy = p.y + (b.y - p.y) * alpha;
-      const loaded = this.fireLoaded[b.viaAssist ? 'assister' : 'fighter'];
+      const loaded = b.viaAssist
+        ? this.fireLoadedAssister.get(this.assistSprites.get(b.ownerId)?.atlasId ?? '')
+        : this.fireLoadedFighter.get(this.sprites.get(b.ownerId)?.atlasId ?? '');
       const el = loaded?.atlas.fires[b.name];
       if (!loaded || !el || b.animTotal <= 0) {
         this.drawBulletBlock(g, b, ix, iy);
@@ -542,5 +551,16 @@ export class BattleRenderer {
       this.hudLayer.addChild(this.hintText);
     }
     this.hintText.text = text;
+  }
+
+  /** 场景退出清理（切片 14）：卸显示对象与监听，复用同一 Application。 */
+  destroy(): void {
+    this.app.renderer.off('resize', this.onResize, this);
+    for (const sp of this.bulletSprites.values()) sp.root.destroy({ children: true });
+    this.bulletSprites.clear();
+    this.app.stage.removeChild(this.bgFixed, this.world, this.hudLayer);
+    this.bgFixed.destroy({ children: true });
+    this.world.destroy({ children: true });
+    this.hudLayer.destroy({ children: true });
   }
 }

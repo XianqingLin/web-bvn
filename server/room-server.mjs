@@ -6,7 +6,7 @@
  *   1. create → 开新房分配 4 位房间码（P1）；join <code> → 入房（P2）；
  *      失败回 error（room-not-found / room-full）并关闭连接；
  *   2. 收齐双方 hello（配置指纹）→ 广播 start；
- *   3. input/hash 透传给同房间对端（不解析）；
+ *   3. input/hash/pick 透传给同房间对端（不解析；pick = 切片 14 选人结果交换）；
  *   4. 断线最小处理：通知存活方 peer-lost（冻结等待，判负归阶段 4）；
  *      无重连。房空即销毁。
  *
@@ -91,7 +91,8 @@ wss.on('connection', (ws) => {
         break;
       }
       case 'input':
-      case 'hash': {
+      case 'hash':
+      case 'pick': {
         if (!room) return;
         const peer = peerOf(room, player);
         if (peer) send(peer, msg);
