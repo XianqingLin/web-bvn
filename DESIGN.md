@@ -183,7 +183,7 @@ Node + WebSocket 房间服务器，只做输入中继与房间管理，不跑模
 
 TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客户端共享 core 包与类型）；Vitest（core 在 Node 环境测）；GPL-3.0（OpenBVN 转译传染性要求）。不用定点数。
 
-## 9. 阶段 1 切片（POC）
+## 9. 切片划分与重排理由（阶段 1~2）
 
 > 各切片完成状态以 [PROGRESS.md](PROGRESS.md)（进度台账）为准，本节保留切片划分与重排理由。
 >

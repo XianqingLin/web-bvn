@@ -11,6 +11,7 @@
 | [DESIGN.md](DESIGN.md) | 设计文档：分层、core 详细设计、决策记录（ADR） |
 | [BVN-module-map.md](BVN-module-map.md) | 原版 AS3 源码逆向结论（转译的参考规格书） |
 | [BVN-online-port-plan.md](BVN-online-port-plan.md) | 立项书：路线、风险、阶段划分 |
+| [docs/cloud-server.md](docs/cloud-server.md) | 云服务器部署手册（**本地文档，gitignore 不入库**；含服务器凭据指引，严禁提交） |
 
 ## 红线速记（细节以契约为准）
 
@@ -18,7 +19,7 @@
 - 逻辑 60Hz、动画判定 30Hz，计时只用帧常量；
 - 输入只以 ButtonMask 位图进 sim；相机不进模拟（牵引边界代替）；
 - 角色差异进 JSON 数据，不进引擎分支；
-- 完工门禁：build 过、确定性单测过、`tools/replay` 哈希门禁过。
+- 完工门禁：build 过、确定性单测过、`tools/replay` 哈希门禁过、`pnpm batch:validate` 基线门禁过。
 
 ## 项目定位
 
