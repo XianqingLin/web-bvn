@@ -50,6 +50,11 @@ async function boot(): Promise<void> {
     flow.localPick = { fighter: 'ichigo', assist: 'gaara' };
     flow.mapId = 'KonohaMura';
     scenes.switchTo(new BattleScene(flow, null));
+  } else if (mode === 'setup') {
+    // dev 直通：只开选人页（不自动确认；切片 15 目检/驱动用）
+    flow.mode = 'solo';
+    flow.autoPick = false;
+    scenes.switchTo(new SetupScene(flow, null));
   } else if (mode === 'net') {
     flow.mode = 'net';
     const server = params.get('server');

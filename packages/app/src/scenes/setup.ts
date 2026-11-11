@@ -1,30 +1,37 @@
 /**
- * 选人场景（切片 14 骨架）：角色网格 → 辅助网格 → 地图（联机 P1 专属）→
- * 确认 → 联机 pick 交换 → 战斗场景。
+ * 选人场景（切片 14 骨架 → 切片 15 原版化换肤）。
  *
- * 骨架期限制（记录）：
+ * 演出照原版 SelectFighterStage 规格：
+ *  - 原版 800×600 舞台在 1000×600 逻辑屏横向居中（OX=100）；
+ *  - 头像格：slt_item 60×60 框，50×50 头像垫底于框下，网格起点 (15,100)、
+ *    列距 80、行距 = (600-50-100-10)/(行数-1)，offset 为原版像素微调；
+ *  - 光标（P1 蓝/P2 粉）hover 跟随，PNG 原点 = 格子位 + (-18,-26)；
+ *  - 已选展示框（大头像 245×62 + 名字）在底部两角，P2 内容容器镜像；
+ *  - 地图选择 = 原版轮盘：select_map 面板 + 左右箭头 + 缩略图 + kuang 框叠顶，
+ *    点缩略图即确认（原版语义），random 项确认时解析。
+ *
+ * 骨架期限制（记录，切片 14 沿用）：
  *  - 随机项（random*）仅单机可用——联机两端各自本地解析会选人分叉；
- *  - 原版 more= 形态切换未实现（数据保留在 select.json）；
+ *  - 原版 more= 形态切换未实现（数据保留，more= 项格框黄色提示）；
  *  - 选人结果交换靠服务器 pick 透传 + 3s 重发（对端未确认前补发）。
  */
-import { Container, Graphics, Text } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { sendPick, waitPeerPick, type PickInfo, type WsLike } from '@bvn/net';
 import type { Scene, SceneCtx } from './scene.js';
-import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
-import { loadSelect, type SelectData, type SelectEntry } from '../data.js';
+import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
+import { loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
 import type { Flow, Pick } from '../flow.js';
 import { BattleScene } from './battle.js';
 
-const X0 = 36;
-const Y0 = 96;
-const CELL_W = 88;
-const CELL_H = 38;
-const GAP = 6;
+/** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
+const STAGE_W = 800;
+const OX = (UI_W - STAGE_W) / 2;
 
 export class SetupScene implements Scene {
   readonly name = 'setup';
 
   private select: SelectData | null = null;
+  private uiData: UiData | null = null;
   private phase: 'fighter' | 'assist' | 'map' | 'exchange' = 'fighter';
   private fighter: SelectEntry | null = null;
   private assist: SelectEntry | null = null;
@@ -35,6 +42,19 @@ export class SetupScene implements Scene {
   private status: Text | null = null;
   private ui: Container | null = null;
   private resendTimer = 0;
+  /** 异步装料守卫（阶段切换后丢弃旧装料） */
+  private loadToken = 0;
+  /** 场景 ctx（地图点击确认推进流程用；enter 时注入） */
+  private ctxRef: SceneCtx | null = null;
+  /** 地图轮盘游标 */
+  private mapIndex = 0;
+  /** select 元件纹理（enter 预载） */
+  private tex: Record<string, Texture> = {};
+  /** 光标精灵（fighter/assist 阶段跟随 hover） */
+  private cursor: Sprite | null = null;
+  /** 已选展示框上的大头像/名字（换选时替换） */
+  private bigFace: Sprite | null = null;
+  private bigName: Text | null = null;
 
   constructor(
     private readonly flow: Flow,
@@ -43,29 +63,42 @@ export class SetupScene implements Scene {
   ) {}
 
   async enter(ctx: SceneCtx): Promise<void> {
+    this.ctxRef = ctx;
     const ui = new Container();
     this.ui = ui;
     ctx.root.addChild(ui);
-    ui.addChild(makePanel(UI_W, UI_H, { color: 0x0a0e1a, alpha: 1 }));
 
     this.select = await loadSelect(ctx.ctx);
+    this.uiData = await loadUi(ctx.ctx);
     // 空连接兜底（solo 直进/数据缺失时仍有最小集）
     if (this.select.chars.length === 0) throw new Error('select.json 为空：先跑 tools/select-pack');
 
-    const title = makeLabel(this.flow.mode === 'net' ? `选人（房间 ${this.flow.room}）` : '选人', {
-      size: 28,
-      bold: true,
-    });
-    title.position.set(X0, 28);
+    // select 场景壳元件预载
+    const el = this.uiData.select.elements;
+    const pairs = await Promise.all(
+      Object.entries(el).map(async ([k, url]) => [k, await Assets.load<Texture>(`/packages/data/assets/${url}`)] as const),
+    );
+    this.tex = Object.fromEntries(pairs);
+
+    // 原版背景（800×600 居中）
+    const bg = new Sprite(this.tex.stg_select!);
+    bg.position.set(OX, 0);
+    ui.addChild(bg);
+
+    const title = makeLabel(
+      this.flow.mode === 'net' ? `选人（房间 ${this.flow.room}）` : '选人',
+      { size: 24, bold: true },
+    );
+    title.position.set(OX + 12, 20);
     ui.addChild(title);
 
     const status = makeLabel('', { size: 15, color: 0xffd54f });
-    status.position.set(X0, 66);
+    status.position.set(OX + 14, 56);
     this.status = status;
     ui.addChild(status);
 
     const backBtn = makeButton('返回', () => this.back(ctx), { w: 90, h: 34, size: 14 });
-    backBtn.position.set(UI_W - 120, 28);
+    backBtn.position.set(UI_W - 120, 20);
     ui.addChild(backBtn);
 
     this.renderPhase(ctx);
@@ -105,189 +138,337 @@ export class SetupScene implements Scene {
 
   // ---------- 阶段渲染 ----------
 
+  private phaseTitle(): string {
+    return this.phase === 'fighter' ? '选择角色' : this.phase === 'assist' ? '选择辅助' : '选择地图';
+  }
+
   private renderPhase(ctx: SceneCtx): void {
+    this.loadToken++;
+    this.cursor = null;
+    this.bigFace = null;
+    this.bigName = null;
     this.phaseRoot?.destroy({ children: true });
     const root = new Container();
     this.phaseRoot = root;
     this.ui!.addChild(root);
 
-    const step = (n: number, label: string, active: boolean) => {
-      return makeLabel(`〔${n}〕${label}`, {
-        size: 14,
-        color: active ? 0xffffff : 0x55607a,
-        bold: active,
-      });
-    };
-    const steps = new Container();
-    let sx = X0;
-    const labels: [number, string, boolean][] = [
-      [1, '选角色', this.phase === 'fighter'],
-      [2, '选辅助', this.phase === 'assist'],
-      [3, '选地图', this.phase === 'map'],
-    ];
-    for (const [n, label, active] of labels) {
-      const t = step(n, label, active);
-      t.position.set(sx, UI_H - 118);
-      sx += 130;
-      steps.addChild(t);
+    if (this.status) this.status.text = '';
+
+    // 确认按钮：顶部右侧（底部两角让位原版展示框）
+    if (this.phase === 'fighter' || this.phase === 'assist' || this.phase === 'map') {
+      const confirmLabel =
+        this.phase === 'map'
+          ? this.flow.mode === 'net'
+            ? '锁定并等待对手'
+            : '开始对局'
+          : this.phase === 'fighter'
+            ? '确认角色'
+            : '确认辅助';
+      this.mountConfirm(root, confirmLabel, () => this.onConfirm(ctx));
+      if (this.phase !== 'fighter') {
+        const backBtn = makeButton('上一步', () => {
+          this.phase = this.phase === 'map' ? 'assist' : 'fighter';
+          this.renderPhase(ctx);
+        }, { w: 90, h: 34, size: 14 });
+        backBtn.position.set(UI_W - 220, 20);
+        root.addChild(backBtn);
+      }
     }
-    root.addChild(steps);
 
     if (this.phase === 'fighter') {
       this.renderGrid(root, this.select!.chars, (e) => {
         this.fighter = e;
         this.status!.text = `角色：${e.name}`;
-      }, this.flow.mode === 'net');
-      this.mountConfirm(root, '确认角色', () => {
-        this.phase = 'assist';
-        this.renderPhase(ctx);
       });
     } else if (this.phase === 'assist') {
       this.renderGrid(root, this.select!.assists, (e) => {
         this.assist = e;
         this.status!.text = `辅助：${e.name}`;
-      }, this.flow.mode === 'net');
-      const backBtn = makeButton('上一步', () => {
-        this.phase = 'fighter';
-        this.renderPhase(ctx);
-      }, { w: 90, h: 34, size: 14 });
-      backBtn.position.set(UI_W - 220, UI_H - 52);
-      root.addChild(backBtn);
-      this.mountConfirm(root, '确认辅助', () => {
-        if (this.flow.mode === 'solo') {
-          this.phase = 'map';
-          this.renderPhase(ctx);
-        } else {
-          // 联机：P1 先选地图（P2 直接交换）
-          if (this.flow.player === 1) {
-            this.phase = 'map';
-            this.renderPhase(ctx);
-          } else {
-            this.beginExchange(ctx);
-          }
-        }
       });
     } else if (this.phase === 'map') {
-      this.renderMaps(root, ctx);
-      const backBtn = makeButton('上一步', () => {
-        this.phase = 'assist';
-        this.renderPhase(ctx);
-      }, { w: 90, h: 34, size: 14 });
-      backBtn.position.set(UI_W - 220, UI_H - 52);
-      root.addChild(backBtn);
-      this.mountConfirm(root, this.flow.mode === 'net' ? '锁定并等待对手' : '开始对局', () => {
-        if (this.flow.mode === 'net') this.beginExchange(ctx);
-        else this.startSolo(ctx);
-      });
+      this.renderMaps(root);
     } else {
       // exchange：联机交换中（状态显示在 status）
     }
   }
 
-  private mountConfirm(root: Container, label: string, onClick: () => void): void {
-    const btn = makeButton(label, () => {
-      if (!this.ready()) {
-        this.status!.text = '请先完成本步选择';
+  private onConfirm(ctx: SceneCtx): void {
+    if (this.phase === 'fighter') {
+      if (!this.fighter) {
+        this.status!.text = '请先选择角色';
         return;
       }
-      onClick();
-    }, { w: 150 });
-    btn.position.set(UI_W - 170, UI_H - 56);
+      this.phase = 'assist';
+      this.renderPhase(ctx);
+    } else if (this.phase === 'assist') {
+      if (!this.assist) {
+        this.status!.text = '请先选择辅助';
+        return;
+      }
+      if (this.flow.mode === 'solo' || this.flow.player === 1) {
+        this.phase = 'map';
+        this.renderPhase(ctx);
+      } else {
+        this.beginExchange(ctx);
+      }
+    } else if (this.phase === 'map') {
+      if (!this.mapChosen) {
+        this.status!.text = '请先选择地图';
+        return;
+      }
+      if (this.flow.mode === 'net') this.beginExchange(ctx);
+      else this.startSolo(ctx);
+    }
+  }
+
+  private mountConfirm(root: Container, label: string, onClick: () => void): void {
+    const btn = makeButton(label, onClick, { w: 150, h: 34, size: 15 });
+    btn.position.set(UI_W - 170, 62);
     root.addChild(btn);
   }
 
-  /** 当前阶段的完成校验（确认按钮按步放行）。 */
-  private ready(): boolean {
-    if (this.phase === 'fighter') return this.fighter !== null;
-    if (this.phase === 'assist') return this.assist !== null;
-    if (this.phase === 'map') return this.mapChosen;
-    return true;
-  }
+  // ---------- 头像网格（原版布局） ----------
 
-  // ---------- 网格 ----------
+  /** 原版布局坐标：startX = x+left + gapX*col（gapX 由 HCount 推导），行距同理。 */
+  private cellPos(e: SelectEntry, list: SelectEntry[]): [number, number] {
+    const L = this.uiData!.select.layout;
+    const hCount = Math.max(...list.map((x) => x.col)) + 1;
+    const vCount = Math.max(...list.map((x) => x.row)) + 1;
+    const gapX = (L.stage[0] - L.unit[0] - L.gridPadding.left - L.gridPadding.right) / (hCount - 1);
+    const gapY = (L.stage[1] - L.unit[1] - L.gridPadding.top - L.gridPadding.bottom) / (vCount - 1);
+    const [dx, dy] = (e.offset ?? '0,0').split(',').map(Number);
+    return [
+      OX + L.gridOrigin[0] + gapX * e.col + (dx || 0),
+      L.gridOrigin[1] + gapY * e.row + (dy || 0),
+    ];
+  }
 
   private renderGrid(
     root: Container,
     entries: SelectEntry[],
     onPick: (e: SelectEntry) => void,
-    disableRandom: boolean,
   ): void {
-    let selectedGfx: Graphics | null = null;
-    for (const e of entries) {
-      const cell = new Container();
-      const [dx, dy] = (e.offset ?? '0,0').split(',').map(Number);
-      cell.position.set(X0 + e.col * (CELL_W + GAP) + (dx || 0), Y0 + e.row * (CELL_H + GAP) + (dy || 0));
-      const bg = new Graphics();
-      bg.rect(0, 0, CELL_W, CELL_H).fill({ color: 0x1c2a44, alpha: 0.95 });
-      bg.stroke({ width: 1, color: 0x3a4a66 }).rect(0.5, 0.5, CELL_W - 1, CELL_H - 1);
-      const t = makeLabel(e.name, { size: 13 });
-      t.anchor.set(0.5);
-      t.position.set(CELL_W / 2, CELL_H / 2);
-      cell.addChild(bg, t);
-      const isRandom = e.comicType < 0;
-      if (isRandom && disableRandom) {
-        bg.alpha = 0.35;
-        t.alpha = 0.5;
-      } else {
-        cell.eventMode = 'static';
-        cell.cursor = 'pointer';
-        cell.on('pointerover', () => bg.fill({ color: 0x2a3c5e, alpha: 0.95 }));
-        cell.on('pointerout', () => bg.fill({ color: 0x1c2a44, alpha: 0.95 }));
-        cell.on('pointertap', () => {
-          if (selectedGfx) selectedGfx.visible = false;
-          selectedGfx = cell.getChildByName('hl') as Graphics;
-          if (selectedGfx) selectedGfx.visible = true;
-          onPick(e);
-        });
-        const hl = new Graphics();
-        hl.name = 'hl';
-        hl.rect(0, 0, CELL_W, CELL_H).stroke({ width: 2, color: 0xffd54f });
-        hl.visible = false;
-        cell.addChild(hl);
+    const ui = this.uiData!;
+    const token = ++this.loadToken;
+    const player = this.flow.player === 2 ? 'p2' : 'p1';
+    const disableRandom = this.flow.mode === 'net';
+
+    // 头像纹理批量预载后挂格子（丢失头像类兜底 = 无头像的空格框）
+    void Promise.all(
+      entries.map(async (e) => {
+        const url = uiFaceUrl(ui, e.id, '');
+        return [e, url ? await Assets.load<Texture>(url) : null] as const;
+      }),
+    ).then((loaded) => {
+      if (token !== this.loadToken) return; // 阶段已切换
+
+      // 光标（P1 蓝 / P2 粉），PNG 原点 = 格子位 + cursorOffset
+      const cursor = new Sprite(this.tex[`cursor_${player}`]!);
+      cursor.visible = false;
+      this.cursor = cursor;
+
+      let first: [number, number] | null = null;
+      for (const [e, faceTex] of loaded) {
+        const [x, y] = this.cellPos(e, entries);
+        const cell = new Container();
+        cell.position.set(x, y);
+        // 原版层级：头像 (0,0) 垫底，slt_item 框叠加
+        if (faceTex) {
+          const face = new Sprite(faceTex);
+          face.width = 50;
+          face.height = 50;
+          cell.addChild(face);
+        }
+        const frame = new Sprite(this.tex.slt_item!);
+        cell.addChild(frame);
+
+        const isRandom = e.comicType < 0;
+        if (isRandom && disableRandom) {
+          cell.alpha = 0.35;
+        } else {
+          if (e.more) frame.tint = 0xffee55; // 原版 more= 项黄光提示（形态切换未实现）
+          cell.eventMode = 'static';
+          cell.cursor = 'pointer';
+          cell.on('pointerover', () => {
+            // 原版 doHover：光标跟随悬停
+            cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
+            cursor.visible = true;
+          });
+          cell.on('pointertap', () => {
+            cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
+            cursor.visible = true;
+            onPick(e);
+            this.refreshBigFace();
+          });
+        }
+        if (!first && !(isRandom && disableRandom)) first = [x, y];
+        root.addChild(cell);
       }
-      root.addChild(cell);
-    }
+
+      // 初始光标停在第一个可选格
+      if (first) {
+        cursor.position.set(first[0] + ui.select.cursorOffset[0], first[1] + ui.select.cursorOffset[1]);
+        cursor.visible = true;
+      }
+      root.addChild(cursor);
+      // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
+      this.mountSelectedBox(root);
+      this.refreshBigFace();
+    });
   }
 
-  private renderMaps(root: Container, _ctx: SceneCtx): void {
-    // 5 列 × 3 行地图按钮 + 随机
-    const entries: { id: string | null; name: string }[] = [
-      ...this.select!.maps.map((m) => ({ id: m.id as string | null, name: m.name })),
-      { id: null, name: '随机地图' },
-    ];
-    const cols = 5;
-    const w = 168;
-    const h = 46;
-    let selectedGfx: Graphics | null = null;
-    entries.forEach((e, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const cell = new Container();
-      cell.position.set(X0 + col * (w + GAP), Y0 + row * (h + GAP));
-      const bg = new Graphics();
-      bg.rect(0, 0, w, h).fill({ color: 0x1c2a44, alpha: 0.95 });
-      bg.stroke({ width: 1, color: 0x3a4a66 }).rect(0.5, 0.5, w - 1, h - 1);
-      const t = makeLabel(e.name, { size: 15 });
-      t.anchor.set(0.5);
-      t.position.set(w / 2, h / 2);
-      cell.addChild(bg, t);
-      cell.eventMode = 'static';
-      cell.cursor = 'pointer';
-      cell.on('pointertap', () => {
-        this.mapId = e.id;
-        this.mapChosen = true;
-        if (selectedGfx) selectedGfx.visible = false;
-        selectedGfx = cell.getChildByName('hl') as Graphics;
-        if (selectedGfx) selectedGfx.visible = true;
-        this.status!.text = `地图：${e.name}`;
-      });
-      const hl = new Graphics();
-      hl.name = 'hl';
-      hl.rect(0, 0, w, h).stroke({ width: 2, color: 0xffd54f });
-      hl.visible = false;
-      cell.addChild(hl);
-      root.addChild(cell);
+  // ---------- 已选展示框（原版 SelectedFighterGroup 规格） ----------
+
+  /** 底部展示框：大头像 245×62 + 名字；P2 内容容器镜像（原版 selected_item_p2_mc）。 */
+  private mountSelectedBox(root: Container): void {
+    const ui = this.uiData!;
+    const isP2 = this.flow.player === 2;
+    const [bx, by] = isP2 ? ui.select.selectedPos.p2 : ui.select.selectedPos.p1;
+    const box = new Container();
+    box.position.set(OX + bx, by);
+
+    // ct 容器：P1 (4.75,4.75)；P2 镜像原点 (248.6,4.75) scale.x=-1（原版摆法）；
+    // 头像垫底、框叠加（原版框 shape depth 6 > ct depth 1）
+    const ct = new Container();
+    const [cx, cy] = isP2 ? ui.select.faceBigP2Origin : ui.select.faceBigOffset;
+    ct.position.set(cx, cy);
+    if (isP2) ct.scale.x = -1;
+    const face = new Sprite(Texture.EMPTY);
+    face.width = 245;
+    face.height = 62;
+    ct.addChild(face);
+    this.bigFace = face;
+    box.addChild(ct);
+    box.addChild(new Sprite(this.tex[isP2 ? 'selected_p2' : 'selected_p1']!));
+
+    // 名字：P1 右对齐（右缘 x≈243）/ P2 左对齐 x=10；y = 高-25
+    const name = new Text('', {
+      fontFamily: 'system-ui, "Microsoft YaHei", sans-serif',
+      fontSize: 14,
+      fill: 0xffffff,
+      stroke: { color: 0x000000, width: 2 },
     });
+    if (isP2) {
+      name.position.set(10, 45);
+    } else {
+      name.anchor.set(1, 0);
+      name.position.set(243, 45);
+    }
+    this.bigName = name;
+    box.addChild(name);
+    root.addChild(box);
+  }
+
+  /** 换选后刷新展示框大头像/名字（当前阶段对应列表）。 */
+  private refreshBigFace(): void {
+    const entry = this.phase === 'fighter' ? this.fighter : this.assist;
+    if (!this.bigFace || !this.bigName) return;
+    if (!entry) return;
+    this.bigName.text = entry.name;
+    const url = uiFaceUrl(this.uiData!, entry.id, '_b');
+    if (!url) return;
+    const token = this.loadToken;
+    void Assets.load<Texture>(url).then((t) => {
+      if (token !== this.loadToken) return;
+      this.bigFace!.texture = t;
+      this.bigFace!.width = 245;
+      this.bigFace!.height = 62;
+    });
+  }
+
+  // ---------- 地图轮盘（原版 MapSelectUI 规格） ----------
+
+  private mapEntries(): { id: string | null; name: string }[] {
+    return [
+      ...this.select!.maps.map((m) => ({ id: m.id as string | null, name: m.name })),
+      { id: null, name: '随机地图' }, // 原版 random 项（random.png）
+    ];
+  }
+
+  private renderMaps(root: Container): void {
+    const ui = this.uiData!;
+    const [px, py] = ui.select.mapPanelPos;
+    // select_map PNG 画布原点 = 元件 bounds 左上（mc 原点在 PNG 内约 (78,0)）；
+    // 面板挂载 x = 原版 mc.x(157) - PNG 内原点偏移(78)
+    const panel = new Container();
+    panel.position.set(OX + px - 78, py);
+    const bg = new Sprite(this.tex.select_map!);
+    panel.addChild(bg);
+
+    const entries = this.mapEntries();
+    this.mapIndex = ((this.mapIndex % entries.length) + entries.length) % entries.length;
+
+    // 缩略图（450×240，与 ct 区同尺寸）+ kuang 叠顶（原版 kuang 在缩略图之上）
+    const pic = new Sprite(Texture.EMPTY);
+    pic.width = 450;
+    pic.height = 240;
+    pic.position.set(...ui.select.mapPicOffset);
+    pic.eventMode = 'static';
+    pic.cursor = 'pointer';
+    panel.addChild(pic);
+    const kuang = new Sprite(this.tex.select_map_kuang!);
+    kuang.position.set(...ui.select.mapKuangOffset);
+    panel.addChild(kuang);
+
+    // 点缩略图即确认（原版 kuang 语义；随机项确认时解析）
+    pic.on('pointertap', () => this.confirmMap(entries[this.mapIndex]!));
+
+    // 左右箭头热区（透明命中区，PNG 坐标）
+    const mkHit = (x: number, dir: -1 | 1) => {
+      const hit = new Container();
+      hit.position.set(x, 105);
+      hit.eventMode = 'static';
+      hit.cursor = 'pointer';
+      const g = new Graphics();
+      g.rect(0, 0, 55, 65).fill({ alpha: 0 });
+      hit.addChild(g);
+      hit.on('pointertap', () => {
+        this.mapIndex = (this.mapIndex + dir + entries.length) % entries.length;
+        this.showMapPic(pic, entries);
+      });
+      panel.addChild(hit);
+    };
+    mkHit(5, -1); // 左箭头（PNG x≈18..57）
+    mkHit(577, 1); // 右箭头（PNG x≈585..625）
+
+    // 名牌 + 地图名（原版 select_map_txt_mc：舞台坐标 (308.5,533)，居中）
+    const [tx, ty] = ui.select.mapTextPos;
+    const name = new Text('', {
+      fontFamily: 'system-ui, "Microsoft YaHei", sans-serif',
+      fontSize: 14,
+      fill: 0xffffff,
+      stroke: { color: 0x000000, width: 2 },
+    });
+    name.anchor.set(0.5, 0);
+    name.position.set(OX + tx + 183 / 2, ty + 6);
+    root.addChild(name);
+    this.mapNameLabel = name;
+
+    root.addChild(panel);
+    this.showMapPic(pic, entries);
+  }
+
+  private mapNameLabel: Text | null = null;
+
+  /** 选定当前轮盘地图并推进确认流程（随机项 mapId=null，resolvePick 解析）。 */
+  private confirmMap(e: { id: string | null; name: string }): void {
+    this.mapId = e.id;
+    this.mapChosen = true;
+    this.status!.text = `地图：${e.name}`;
+    this.onConfirm(this.ctxRef!);
+  }
+
+  private showMapPic(pic: Sprite, entries: { id: string | null; name: string }[]): void {
+    const e = entries[this.mapIndex]!;
+    const url = `/packages/data/assets/${this.uiData!.maps.dir}/${e.id ?? 'random'}.png`;
+    const token = this.loadToken;
+    void Assets.load<Texture>(url).then((t) => {
+      if (token !== this.loadToken) return;
+      pic.texture = t;
+      pic.width = 450;
+      pic.height = 240;
+    });
+    if (this.mapNameLabel) this.mapNameLabel.text = e.name;
   }
 
   // ---------- 交换与开打 ----------
@@ -363,6 +544,8 @@ export class SetupScene implements Scene {
   }
 
   exit(): void {
+    this.loadToken++;
+    this.ctxRef = null;
     this.phaseRoot?.destroy({ children: true });
     this.ui?.destroy({ children: true });
     this.ui = null;

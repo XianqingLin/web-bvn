@@ -39,6 +39,50 @@ export function loadSelect(ctx: Ctx): Promise<SelectData> {
   return ctx.assets.json<SelectData>(`${BAKED}/select.json`);
 }
 
+// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@1，切片 15） ----------
+
+export interface UiSelectData {
+  elements: Record<string, string>;
+  /** 光标 PNG 原点相对格子位偏移 */
+  cursorOffset: [number, number];
+  /** 地图面板：缩略图/kuang 相对 select_map.png 左上角（450×240 缩略图） */
+  mapPicOffset: [number, number];
+  mapKuangOffset: [number, number];
+  mapTextPos: [number, number];
+  /** 展示框大头像 ct 偏移；P2 镜像容器原点 */
+  faceBigOffset: [number, number];
+  faceBigP2Origin: [number, number];
+  /** 展示框位置（原版 800×600 舞台坐标） */
+  selectedPos: { p1: [number, number]; p2: [number, number] };
+  /** 地图面板位置（原版 800×600 舞台坐标） */
+  mapPanelPos: [number, number];
+  /** 原版 select_config 布局（格子起点/间距由行列数推导） */
+  layout: {
+    stage: [number, number];
+    gridOrigin: [number, number];
+    gridPadding: { left: number; right: number; top: number; bottom: number };
+    unit: [number, number];
+  };
+}
+
+export interface UiData {
+  schema: string;
+  /** 头像类名 → assets/ui/faces/ 下文件名（grid = id，大头像 = id_b） */
+  faces: Record<string, string>;
+  select: UiSelectData;
+  maps: { dir: string };
+}
+
+export function loadUi(ctx: Ctx): Promise<UiData> {
+  return ctx.assets.json<UiData>(`${BAKED}/ui.json`);
+}
+
+/** 头像纹理 URL（kind：'' = 50×50 格子头像 / '_b' = 245×62 大头像）。 */
+export function uiFaceUrl(ui: UiData, id: string, kind: '' | '_b'): string | null {
+  const file = ui.faces[id + kind];
+  return file ? `${ASSETS}/ui/faces/${file}` : null;
+}
+
 // ---------- 角色包 ----------
 
 export interface FighterPack {
