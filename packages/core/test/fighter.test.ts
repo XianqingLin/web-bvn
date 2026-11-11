@@ -242,19 +242,26 @@ describe('behaviors 注册表（契约硬规则 7）', () => {
     expect(end.state.fighters[0]!.x).toBeGreaterThan(100); // moveOnce 位移生效
   });
 
-  it('endAct 触发动作收招', () => {
+  it('endAct 收招不换播放头：攻击态保持到标签播尽才回 NORMAL（原版 endAct 语义）', () => {
     const def = makeDef({
       attackLabels: { k1: '砍1' },
       triggers: [{ frame: 56, target: 'mc', op: 'endAct', args: [] }],
     });
     const sim = new Sim(makeConfig({ p2x: 9999, def1: def }));
     sim.tick({ p1: Btn.attack, p2: 0 });
+    // endAct@帧56：槽清空/attackId 清空，但不回位——帧 58-70 仍是攻击态
+    //（原版 endAct 不动播放头，后续帧触发仍会执行；偏离修正前曾立即回 NORMAL）
+    const afterEndAct = runTicks(sim, 6);
+    expect(afterEndAct.state.fighters[0]!.actionState).not.toBe(ActionState.NORMAL);
+    expect(afterEndAct.state.fighters[0]!.attackId).toBeNull();
+    expect(afterEndAct.state.fighters[0]!.slots.attack).toBeNull();
+    // 标签播尽（砍1 index54+duration17 → 帧 71）经 endAction 常规路径回 NORMAL
     let ended = false;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       const s = sim.tick({ p1: 0, p2: 0 });
       if (s.state.fighters[0]!.actionState === ActionState.NORMAL) ended = true;
     }
-    expect(ended).toBe(true); // 远处无人命中，endAct 提前收招回 NORMAL
+    expect(ended).toBe(true); // 远处无人命中，播尽后回 NORMAL
   });
 
   it('未注册 op 静默忽略（确定性）', () => {

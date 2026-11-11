@@ -10,7 +10,7 @@
  * 词表扩充 = 契约 §帧触发表 + 本注册表 + data 校验器三处同 commit。
  */
 import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef, TriggerCondition } from './def.js';
-import { ActionState, SPEED_PLUS, defaultSlots } from './def.js';
+import { ActionState, SPEED_PLUS, defaultSlots, emptySlots } from './def.js';
 import { enterDead, switchForm, HURT_DAMP_Y } from './machine.js';
 import type { FighterState, StageState } from '../state.js';
 
@@ -115,16 +115,21 @@ function num(v: BehaviorArg | undefined, fallback = 0): number {
  */
 export const defaultBehaviors: Record<string, BehaviorHandler> = {
   // —— 自身移动（原版 FighterMC/FighterMcCtrler move 系，速度类 ×SPEED_PLUS） ——
-  // move(x,y)：置位移速度（含朝向），POC 取义为触发时瞬时设定
+  // move(x,y)：置位移速度（含朝向）。原版 setVelocity 内部附带 setDamping(0,0)
+  //（BaseGameSprite.as:259-263），故置速度时清旧阻尼。
   move(ctx, args) {
     ctx.f.vx = num(args[0]) * SPEED_PLUS * ctx.f.facing;
     ctx.f.vy = num(args[1]) * SPEED_PLUS;
+    ctx.f.dampX = 0;
+    ctx.f.dampY = 0;
   },
   // movePercent(px,py)：按自身移速比例的推动（招式位移常用）
   movePercent(ctx, args) {
     const speed = (ctx.def?.speed ?? 0) * SPEED_PLUS;
     ctx.f.vx = speed * num(args[0]) * ctx.f.facing;
     ctx.f.vy = speed * num(args[1]);
+    ctx.f.dampX = 0;
+    ctx.f.dampY = 0;
   },
   // moveOnce(dx,dy)：瞬移式位移（瞬步/突进类，POC 取义为一次位移）
   moveOnce(ctx, args) {
@@ -157,23 +162,35 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.airMove = false;
     ctx.f.touchFloor = null;
   },
-  // stop / stopMove：清空位移速度
+  // stop / stopMove：清空位移速度（原版 stop → setVelocity(0,0)，附带清阻尼）
   stop(ctx) {
     ctx.f.vx = 0;
     ctx.f.vy = 0;
+    ctx.f.dampX = 0;
+    ctx.f.dampY = 0;
   },
   stopMove(ctx) {
     ctx.f.vx = 0;
     ctx.f.vy = 0;
+    ctx.f.dampX = 0;
+    ctx.f.dampY = 0;
   },
-  // damping(x,y)：速度衰减（POC 取义：速度 ×(1-k)；原版 num_wake 为线性逼近）
+  // damping(x,y) / dampingPercent(px,py)：安装持久阻尼（原版 FighterMcCtrler
+  // damping = setDamping(x,y)、dampingPercent = setDamping(speed*x, speed*y)，
+  // FighterMcCtrler.as:441-446），物理步每 tick 经 num_wake 线性衰减速度。
+  // 30fps→60Hz 换算：每帧衰减量减半（×SPEED_PLUS，与 JUMP_DAMPING 0.5→0.25、
+  // addDamping(0,3)→1.5 同一约定）。
+  // 偏离修正记录：曾错误实现为一次性 vx×(1-k) 且不写 damp 字段——凡
+  // 「负 vy + dampingPercent」的招式（佐助招1/招3/超必杀收尾等）速度永不
+  // 衰减，而重力仅 vy≥0 施加 → 永久失重上飘。
   damping(ctx, args) {
-    ctx.f.vx *= 1 - num(args[0]);
-    ctx.f.vy *= 1 - num(args[1]);
+    ctx.f.dampX = num(args[0]) * SPEED_PLUS;
+    ctx.f.dampY = num(args[1]) * SPEED_PLUS;
   },
   dampingPercent(ctx, args) {
-    ctx.f.vx *= 1 - num(args[0]);
-    ctx.f.vy *= 1 - num(args[1]);
+    const speed = (ctx.def?.speed ?? 0) * SPEED_PLUS;
+    ctx.f.dampX = speed * num(args[0]);
+    ctx.f.dampY = speed * num(args[1]);
   },
 
   // —— 状态标记 ——
@@ -639,35 +656,6 @@ function setLabelTo(ctx: BehaviorContext, name: string): void {
   }
 }
 
-/** 槽全清（原版 _action.clearAction；保留数值槽字段形状）。 */
-function emptySlots(s: FighterSlots): FighterSlots {
-  return {
-    attack: null,
-    skill1: null,
-    skill2: null,
-    zhao1: null,
-    zhao2: null,
-    zhao3: null,
-    catch1: null,
-    catch2: null,
-    bisha: null,
-    bishaQi: s.bishaQi,
-    bishaUp: null,
-    bishaUpQi: s.bishaUpQi,
-    bishaSuper: null,
-    bishaSuperQi: s.bishaSuperQi,
-    dash: null,
-    attackAIR: null,
-    skillAIR: null,
-    bishaAIR: null,
-    bishaAIRQi: s.bishaAIRQi,
-    jump: null,
-    wanKai: null,
-    wanKaiW: null,
-    wanKaiS: null,
-  };
-}
-
 function firstArg(args: BehaviorArg[]): Record<string, unknown> {
   return args.length > 0 ? { arg: args[0] } : {};
 }
@@ -799,15 +787,18 @@ export function evaluateTriggerCondition(cond: TriggerCondition, ctx: BehaviorCo
  */
 export function createBehaviorRegistry(engine: {
   endAct(f: FighterState, def: FighterDef | null): void;
+  releaseGrab(f: FighterState): void;
   spawnBullet(spec: BulletSpawnSpec): void;
   spawnAttacker(spec: AttackerSpawnSpec): void;
   switchForm(f: FighterState, frame: number): void;
 }): Record<string, BehaviorHandler> {
   return {
     ...defaultBehaviors,
-    // endAct：动作收招（原版 MC 时间轴通知 ctrler 动作结束）
+    // endAct：动作收招（原版 MC 时间轴通知 ctrler 动作结束；原版 endAct 内
+    // moveTarget(null)——抓取吸附须带重力恢复地释放，走引擎回调）
     endAct(ctx) {
       engine.endAct(ctx.f, ctx.def);
+      if (ctx.f.moveTarget !== null) engine.releaseGrab(ctx.f);
     },
   };
 }

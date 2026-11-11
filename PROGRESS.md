@@ -40,6 +40,7 @@
 | 14 | 场景流转骨架：AppHost 子系统宿主 + SceneHost + 菜单/选人/战斗/结算场景 + 联机 pick 选人交换 + `tools/select-pack`（select.json 53 角色/40 辅助/15 地图） | ✅ | 下详（切片 13 中顺带关闭"联机辅助注入"） |
 | 15 | 选人页原版化：`tools/ui-pack`（FFDec 按元件导出 face 266 张 + select 壳 9 元件 + 地图缩略图 16 张 → assets/ui/ + baked/ui.json）+ SetupScene 原版布局换肤 | ✅ | §3.3 切片 15 |
 | 16 | 菜单主页原版化：ui-pack 扩展（stg_title 90 帧 WebP 流帧 + mc_wzbtn 按钮件）+ MenuScene 原版化重写（开场动画/跳过 + wzbtn 阶梯按钮组 + 键盘导航） | ✅ | §3.3 切片 16 |
+| 17 | 实战验收修复批次：相机垂直 clamp 对齐 fixBorder + endAct 原版语义（不动播放头）+ damping 持久阻尼 + 朝向按状态分流 + 连段清槽 + 防御定格 | ✅ | §3.3 修复批次 17 |
 
 ---
 
@@ -97,6 +98,20 @@
 - **偏离记录**：① BitmapFontText/BitmapText → 系统字体 Text（切片 15 ② 同类）；② 原版 select 动画 alpha -1→1 Elastic 1s → 0.35s 快速淡入；③ 背景帧内的三个下载/论坛徽标**保留**（立项时拟去除，实际为烙进原版帧的美术内容，逐帧修补代价大且保留更忠实——与立项方案偏离，登记于此）；④ 原版 BGM（op 音源）未接（音效块后续）；
 - **验收**：门禁全过（build / 137 测试 / replay 5 剧本 / batch:validate）；Playwright 目检 开场动画→定格→点击跳过→按钮组入场→子菜单展开→选人→战斗 全链路截图。
 
+**修复批次 17——实战验收修复（✅ 完成，2026-11-11）**：
+
+> 玩家实测暴露五个真 bug + 两个体验项（加载无进度条、进场黑边），本批修五个核心 bug；加载画面与 bg 首帧定位留后续。
+
+- **① 相机垂直 clamp（背景错乱根因）**：曾用 `groundY`（≈570）做垂直锚，视口底边探到 y≈870、越出地图内容范围（baked 地图 line_bottom 归一化 600），露出 bg 全景图的地图区以下部分（楼群/树林/土墙）——即截图里"舞台下方又一段背景"。改为 `cy ∈ [halfH, bottomY-halfH]`（renderer.ts），对齐原版 GameCamera fixBorder 的 scrollRect 夹死语义；
+- **② endAct 原版语义（佐助远攻飞天根因）**：原版 endAct（FighterMcCtrler.as:449）只 clearAction + 置 FREEZE，**不动播放头**；移植版曾接成 endAction（立即换标签回位），招式 endAct 之后的帧触发永远采样不到——佐助招1 序列 `movePercent@378 → endAct@383 → dampingPercent@384 → idle@389`，阻尼触发器被跳过 → vy 恒负 → 重力只对 vy≥0 施加 → 永久上飘。新增 `machine.endActAction`（清槽/清标志/关钢身/释放抓取，不换标签不回位），标签播尽或后续 idle 触发收尾；`releaseGrab` 经引擎回调接线（抓取释放带重力恢复）。**波及**：所有"endAct 后还有帧触发"的招式（佐助招1/招3/超必杀收尾/跳招等）；
+- **③ damping 持久阻尼**：behaviors 的 `damping/dampingPercent` 曾错误实现为一次性 `vx×(1-k)` 且不写 damp 字段；改回原版 setDamping 语义（安装持久阻尼，物理步 num_wake 每 tick 线性衰减），30fps→60Hz 按 ×SPEED_PLUS 减半换算（与 JUMP_DAMPING 同约定）；`move/movePercent/stop/stopMove` 补 setVelocity 附带的清阻尼语义；
+- **④ 朝向按状态分流**：曾 NORMAL 态（含行走）每帧强制面向对手；对齐原版——站立待机每 6 帧自动面向（tick 取模）、行走朝向 = 方向键（可背对移动）、跳跃保持起跳朝向、防御方向键转向并重播抬手段（sim.ts）；
+- **⑤ 连段修复**：startAttack/startSkill 接原版 doAction 的 clearAction（清空全部动作槽）——动作播放中再按攻击键不重启动作、时间轴不复位，连段只能经 setAttack 帧触发重填槽后派生（一护：砍1@帧135 重填 → 派生砍2）；删除"槽空直接重启 k1"的切片 3 兜底；攻击发起改为成功才消费输入缓冲；
+- **⑥ 防御定格**：`防御` 移出 LOOP_LABELS（曾 6 帧动画每 0.2s 循环重播、观感抽搐），advanceAnimation 增防御定格分支——抬手段播 3 帧（原版 goFrame("防御",true,3)）后停住，转向重播由朝向分支驱动；
+- **基线**：行为有意变更，replay 5 剧本与 batch:validate 基线已重新固化；`fighter.test.ts` endAct 用例改为断言新语义（收招不换播放头）；
+- **遗留**（下一批）：进战斗无加载画面（原版有 GameLoadingStage/LoadingStage 进度条，同步串行装载卡主线程）；bg cover 首帧未定位（首个 sim 快照前右侧露底色，"黑边"）；
+- **验收**：门禁全过（build / 137 测试 / replay 5 剧本 / batch:validate 58 角色+37 辅助）；行为验证脚本确认 连段派生/佐助落地/防御定格/行走转向 四项。
+
 | # | 块 | 内容 | 备注 |
 |---|---|---|---|
 | 1 | 断线处理 | peer-lost 后判负/重连（现为冻结等待） | ADR-15 预留 |
@@ -107,6 +122,7 @@
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
 | 7 | 音效/特效接线 | 音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好）；effect.swf 已定位 | 音效随机选音源在渲染层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
+| 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
 
 ---
 

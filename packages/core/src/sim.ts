@@ -44,6 +44,7 @@ import {
   advanceAnimation,
   applyJumpLaunch,
   endAction,
+  endActAction,
   enterDead,
   enterGuardBreak,
   enterHurt,
@@ -105,6 +106,8 @@ const BULLET_QI_RATE = 0.1;
 const ATTACKER_QI_RATE = 0.15;
 /** 辅助命中回气：召唤者 power×0.15（原版 Assister.hit） */
 const ASSISTER_QI_RATE = 0.15;
+/** 站立自动面向对手的间隔（原版 renderAnimate：站立态计数 >5 即每 6 帧一次） */
+const AUTO_FACE_INTERVAL = 6;
 /** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
 const ATTACKER_LIFE_TICKS = 120;
 
@@ -203,7 +206,8 @@ export class Sim {
       [...this.assisterDefs].map(([id, d]) => [id, indexTriggers(d)]),
     );
     this.behaviors = createBehaviorRegistry({
-      endAct: endAction,
+      endAct: endActAction,
+      releaseGrab: (f) => this.releaseGrab(f),
       spawnBullet: (spec) => this.spawnBullet(spec),
       spawnAttacker: (spec) => this.spawnAttacker(spec),
       switchForm: (f, frame) => this.doSwitchForm(f, frame),
@@ -244,7 +248,8 @@ export class Sim {
       }
     }
     sim.behaviors = createBehaviorRegistry({
-      endAct: endAction,
+      endAct: endActAction,
+      releaseGrab: (f) => sim.releaseGrab(f),
       spawnBullet: (spec) => sim.spawnBullet(spec),
       spawnAttacker: (spec) => sim.spawnAttacker(spec),
       switchForm: (f, frame) => sim.doSwitchForm(f, frame),
@@ -361,18 +366,33 @@ export class Sim {
       const f = fighters[i]!;
       const def = this.defOf(f);
       const view = this.views[i]!;
-      // 朝向：可行动状态自动面向对手（原版 direct 语义）；
-      // 防御态为手动朝向（原版 renderDefense：按住方向即转向）。
-      if (
-        (f.actionState === ActionState.NORMAL ||
-          f.actionState === ActionState.JUMP_ING) &&
-        f.hp > 0
-      ) {
+      // 朝向按状态分流（原版语义）：
+      //   站立待机：自动面向对手（原版 renderAnimate 仅 currentFrameName=="站立"
+      //     时计数，>5 帧 setDirectToTarget → 每 6 帧一次；用 tick 取模等价实现）
+      //   行走：方向键决定（原版 renderMoving：moveLEFT→direct=-1，
+      //     moveRIGHT→direct=1），可背对对手移动，停下回站立后自动转回
+      //   跳跃：保持起跳时朝向（原版 doJump 不改 direct）
+      //   防御：方向键决定（原版 renderDefense），转向时重播抬手段
+      if (f.actionState === ActionState.NORMAL && f.hp > 0) {
         const other = fighters[i === 0 ? 1 : 0];
-        if (other) f.facing = other.x >= f.x ? 1 : -1;
+        if (f.actLabel === '站立') {
+          if (other && this.state.tick % AUTO_FACE_INTERVAL === 0) {
+            f.facing = other.x >= f.x ? 1 : -1;
+          }
+        } else if (f.actLabel === '走') {
+          if (view.held(Btn.left)) f.facing = -1;
+          else if (view.held(Btn.right)) f.facing = 1;
+        }
       } else if (f.actionState === ActionState.DEFENCE_ING) {
-        if (view.held(Btn.left)) f.facing = -1;
-        else if (view.held(Btn.right)) f.facing = 1;
+        const def = this.defOf(f);
+        const dir = view.held(Btn.left) ? -1 : view.held(Btn.right) ? 1 : 0;
+        if (dir !== 0 && f.facing !== dir) {
+          f.facing = dir as 1 | -1;
+          // 原版 renderDefense 转向分支：setDefenseAction 重播抬手
+          //（goFrame("防御", true, 3)——从首帧重放，定格逻辑见 advanceAnimation）
+          const range = def?.labels['防御'];
+          if (range) f.animFrame = range.index + 1;
+        }
       }
       // 摔技目标判定需要对手状态（allowCatch）；双人模型取另一角色
       const other = fighters[i === 0 ? 1 : 0] ?? null;

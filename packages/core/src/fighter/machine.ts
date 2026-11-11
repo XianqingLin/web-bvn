@@ -26,6 +26,7 @@ import {
   currentAreas,
   currentBodyRect,
   defaultSlots,
+  emptySlots,
   isAttackingState,
   worldRect,
   type AreaRect,
@@ -36,6 +37,8 @@ import {
 import type { FighterState } from '../state.js';
 
 // —— 原版常量导入换算（DESIGN §3.1：速度/衰减类 ×SPEED_PLUS=0.5，帧数类不折算） ——
+/** 防御抬手段定格帧数（原版 goFrame("防御", true, 3) 的第三参） */
+export const DEFENSE_FREEZE_FRAMES = 3;
 /** 原版 JUMP_DAMPING=0.5@30fps → 0.25/tick@60Hz */
 export const JUMP_DAMPING = 0.25;
 /** 原版 HURT_DAMPING_X=0.1@30fps → 0.05/tick@60Hz */
@@ -186,6 +189,33 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
 }
 
 /**
+ * 动作收招·原版语义（原版 endAct，FighterMcCtrler.as:449-457）：
+ * 只清槽 + 清 per-action 标志 + 钢身关闭 + 释放抓取，**不动播放头、不换标签、
+ * 不回位**——时间轴继续走到后续帧触发（如佐助招1：endAct@383 →
+ * dampingPercent@384 → idle@389）或标签播尽（advanceAnimation 的 endAction
+ * 常规路径）才收尾。
+ *
+ * 偏离修正记录：曾直接复用 endAction（回位/换标签）——招式 endAct 之后还有
+ * 帧触发时，换标签跳走会让它们永远采样不到（佐助招1 阻尼失效 → 永久上飘）。
+ * 原版此时置 FREEZE(40)（未接入），移植版以保持当前攻击态 + attackId 清空
+ * 等价：意图门不再重入（槽已清）、判定不再结算（无 attackId）、能量门多开
+ * 数帧（与原版 FREEZE 的差异，偏离记录）。
+ */
+export function endActAction(f: FighterState, def: FighterDef | null): void {
+  f.attackId = null;
+  f.attackHit = [];
+  f.slots = emptySlots(f.slots);
+  f.steelBody = false;
+  f.isCross = false;
+  f.airMove = false;
+  f.touchFloor = null;
+  f.hurtAction = null;
+  f.hitTarget = null;
+  f.hitTargetChecker = null;
+  void def;
+}
+
+/**
  * 起跳预约（原版 doJump：切 JUMP_ING + 起跳标签 + JUMP_DELAY_FRAME 延迟；
  * 延迟结束时才施加速度并消耗 jumpTimes——见 applyJumpLaunch）。
  * 二段跳门（原版 doJump：jumpTimes<=0 拒绝）：jumpTimes 耗尽不可跳。
@@ -256,6 +286,11 @@ export function startAttack(
   f.hurtAction = null;
   f.hitTarget = null;
   f.hitTargetChecker = null;
+  // 原版 doAction 先 _action.clearAction() 清空全部动作槽：动作播放中槽为空，
+  // 再按攻击键不会重启动作（时间轴不被复位），连段只能等 setAttack 帧触发
+  // 重填槽后派生。偏离修正记录：曾不清槽 + 兜底直接重启 k1，导致连按 J
+  // 永远重复第一击、连段触发帧永远不可达。
+  f.slots = emptySlots(f.slots);
   return true;
 }
 
@@ -268,11 +303,6 @@ function startAttackByLabel(
   const id = actionIdForLabel(def, label);
   if (id === null) return false;
   return startAttack(f, def, id);
-}
-
-/** 地面攻击键 → 砍1（槽 attack；连段由帧触发 setAttack 改写槽实现）。 */
-function groundAttackId(def: FighterDef | null): string | null {
-  return def && def.attackLabels['k1'] !== undefined ? 'k1' : null;
 }
 
 /** 万解兜底判定（原版 checkDoWankai：槽缺失时允许 防御中 / 砍1 前 2 帧取消）。 */
@@ -302,7 +332,10 @@ function checkWanKai(
 
 // —— 防御 / 瞬步 / 技 / 必杀 ——
 
-/** 进入防御（原版 doDefense：dampingPercent(1,1) 停住 + 防御 label 循环）。 */
+/**
+ * 进入防御（原版 doDefense → setDefenseAction → goFrame("防御", true, 3)）：
+ * 停住 + 清槽仅留 防御中可发起的动作；动画播 3 帧后定格（advanceAnimation）。
+ */
 function doDefense(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.DEFENCE_ING;
   f.vx = 0;
@@ -465,13 +498,14 @@ function startSkill(
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
-  // 原版 clearAction：新动作清除 per-action 标志
+  // 原版 clearAction：新动作清除 per-action 标志（同 startAttack，含清槽）
   f.isCross = false;
   f.airMove = false;
   f.touchFloor = null;
   f.hurtAction = null;
   f.hitTarget = null;
   f.hitTargetChecker = null;
+  f.slots = emptySlots(f.slots);
   return true;
 }
 
@@ -700,22 +734,16 @@ export function stepIntentsFor(
         startSkill(f, def, f.slots.bisha, f.slots.bishaQi, false);
       }
     }
-    // 攻击系（attack ± 上/下；原版 skill2/skill1/attack 顺序）
+    // 攻击系（attack ± 上/下；原版 skill2/skill1/attack 顺序）。
+    // 发起成功才消费缓冲：槽为空（动作播放中，原版 clearAction 语义）时不
+    // 重启动作，缓冲留给 setAttack 帧触发重填槽后的连段派生。
     if (view.buffered(Btn.attack)) {
       if (up && f.slots.skill2 !== null) {
-        view.consume(Btn.attack);
-        startAttackByLabel(f, def, f.slots.skill2);
+        if (startAttackByLabel(f, def, f.slots.skill2)) view.consume(Btn.attack);
       } else if (down && f.slots.skill1 !== null) {
-        view.consume(Btn.attack);
-        startAttackByLabel(f, def, f.slots.skill1);
+        if (startAttackByLabel(f, def, f.slots.skill1)) view.consume(Btn.attack);
       } else if (!up && !down && !view.held(Btn.jump) && f.slots.attack !== null) {
-        view.consume(Btn.attack);
-        startAttackByLabel(f, def, f.slots.attack);
-      } else if (!up && !down && !view.held(Btn.jump)) {
-        // 槽为空但 k1 直接可用（def 无槽接线时的兜底，与切片 3 行为兼容）
-        const id = groundAttackId(def);
-        view.consume(Btn.attack);
-        if (id !== null) startAttack(f, def, id);
+        if (startAttackByLabel(f, def, f.slots.attack)) view.consume(Btn.attack);
       }
     }
     // 技系（skill ± 上/下；原版 zhao3/zhao2/zhao1 顺序）
@@ -882,7 +910,19 @@ export function advanceAnimation(
   const label = f.actLabel;
   const range = label !== null ? def.labels[label] : undefined;
   if (range) {
-    f.animFrame += 1;
+    // 防御定格（原版 goFrame("防御", true, 3) + FighterMC.renderAnimate：
+    // 手动推进 3 帧后 _renderMainAnimate=false，时间轴停住，按住多久都静止；
+    // 转向重播由 sim 的防御朝向分支重置 animFrame 实现）。防御不进 LOOP——
+    // 冻结帧不会到达标签末尾，常规"播尽即 endAction"路径对防御不可达。
+    if (
+      label === '防御' &&
+      f.actionState === ActionState.DEFENCE_ING &&
+      f.animFrame >= range.index + DEFENSE_FREEZE_FRAMES
+    ) {
+      f.animFrame = range.index + Math.min(DEFENSE_FREEZE_FRAMES, range.duration);
+    } else {
+      f.animFrame += 1;
+    }
     if (f.animFrame > range.index + range.duration) {
       if (LOOP_LABELS.has(label!)) f.animFrame = range.index + 1;
       else {

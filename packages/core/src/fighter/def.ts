@@ -168,8 +168,11 @@ export const ActionState = {
   WAN_KAI_ING: 50,
 } as const;
 
-/** 循环播放的动作标签（其余标签播完即结束动作）。防御循环按住 ↓ 期间保持。 */
-export const LOOP_LABELS: ReadonlySet<string> = new Set(['站立', '走', '跳中', '落', '防御']);
+/** 循环播放的动作标签（其余标签播完即结束动作）。
+ * 偏离修正记录：'防御' 曾在此集合（按住期间循环重播、观感抽搐）——原版
+ * 防御不循环，goFrame("防御", true, 3) 抬手段播 3 帧后时间轴定格，由
+ * advanceAnimation 的防御定格分支实现。 */
+export const LOOP_LABELS: ReadonlySet<string> = new Set(['站立', '走', '跳中', '落']);
 
 /** 原版 FighterActionState.isAttacking：能量回充/状态门用。 */
 export function isAttackingState(v: number): boolean {
@@ -246,6 +249,37 @@ export function defaultSlots(def: FighterDef | null): FighterSlots {
     wanKai: has('万解') ? '万解' : null,
     wanKaiW: has('万解W') ? '万解W' : null,
     wanKaiS: has('万解S') ? '万解S' : null,
+  };
+}
+
+/** 槽全清（原版 FighterAction.clearAction；保留数值槽字段形状）。
+ * 原版每次 doAction 发起动作都会先清槽——动作播放中再按攻击键不重启动作，
+ * 连段只能经 setAttack 帧触发重填槽后派生；重填回默认在 endAction（setAllAct）。 */
+export function emptySlots(s: FighterSlots): FighterSlots {
+  return {
+    attack: null,
+    skill1: null,
+    skill2: null,
+    zhao1: null,
+    zhao2: null,
+    zhao3: null,
+    catch1: null,
+    catch2: null,
+    bisha: null,
+    bishaQi: s.bishaQi,
+    bishaUp: null,
+    bishaUpQi: s.bishaUpQi,
+    bishaSuper: null,
+    bishaSuperQi: s.bishaSuperQi,
+    dash: null,
+    attackAIR: null,
+    skillAIR: null,
+    bishaAIR: null,
+    bishaAIRQi: s.bishaAIRQi,
+    jump: null,
+    wanKai: null,
+    wanKaiW: null,
+    wanKaiS: null,
   };
 }
 

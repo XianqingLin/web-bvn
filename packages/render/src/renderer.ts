@@ -476,8 +476,13 @@ export class BattleRenderer {
     const loX = st.leftBound + halfW;
     const hiX = st.rightBound - halfW;
     const cx = loX > hiX ? (st.leftBound + st.rightBound) / 2 : Math.min(Math.max(this.camX, loX), hiX);
-    // 垂直：地面附近为锚，跳起最多上移 260（避免脱离地图）
-    const cy = Math.min(Math.max(this.camY, st.groundY - 260), st.groundY);
+    // 垂直：视口不得越出地图显示边界（原版 GameCamera fixBorder：setY 把
+    // scrollRect.y 夹死在 [_fbR.y, _fbR.height]）。地图内容底边 = bottomY
+    //（baked 地图 line_bottom 归一化 600），顶边 = 0；zoom=1 时视口恰为
+    // 整张地图，任何情况下不露出 bg 全景的地图区以下部分。
+    const loY = halfH;
+    const hiY = st.bottomY - halfH;
+    const cy = loY > hiY ? st.bottomY / 2 : Math.min(Math.max(this.camY, loY), hiY);
     this.world.scale.set(this.zoom);
     this.world.position.set(this.viewW / 2 - cx * this.zoom, this.viewH / 2 - cy * this.zoom);
     // bg：随视口缩放、不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外）；
