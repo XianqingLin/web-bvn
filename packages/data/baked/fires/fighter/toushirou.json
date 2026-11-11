@@ -1,0 +1,1 @@
+{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"toushirou","fires":{"tz1atm":{"totalFrames":22,"labels":{"hit":11,"loop_start":4,"loop":10}},"cbsmc":{"totalFrames":89,"labels":{}},"tz3atm":{"totalFrames":22,"labels":{"hit":11,"loop_start":4,"loop":10}},"tz2atm":{"totalFrames":22,"labels":{"hit":11,"loop_start":4,"loop":10}}}}

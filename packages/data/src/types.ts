@@ -311,3 +311,31 @@ export interface MapPackage {
   /** 前景层宽度（相机牵引边界参考） */
   mapSize?: { w: number; h: number };
 }
+
+/**
+ * fire / attacker 元件时间轴元数据（切片 13-A3）。
+ *
+ * fire(mcName)/addAttacker(mcName) 的命名子元件自带时间轴，原版由
+ * Bullet.renderAnimate（30Hz）推进，帧标签驱动生命周期：
+ * loop→回跳 loop_start（无则 1）；remove/播尽→移除；hit_over→停止命中；
+ * 命中→跳 hit 段播残留；寿命到期有 timeout 标签→跳 timeout 续播。
+ * sim 只消费 totalFrames + labels（确定性生命周期）；png 帧在图集
+ * （assets，渲染侧），不进烘焙包。
+ */
+export interface FireTimeline {
+  /** 元件自身时间轴总帧数 */
+  totalFrames: number;
+  /** 帧标签名 → 起始帧（1 基） */
+  labels: Record<string, number>;
+}
+
+/** fire 元件元数据包（baked/fires/<ownerKind>/<id>.json，schema bvn/fire@1）。 */
+export interface FirePackage {
+  schema: 'bvn/fire@1';
+  kind: 'fire';
+  /** fighter=角色 / assister=辅助（id 可能同名，如 byakuya 双栖） */
+  ownerKind: 'fighter' | 'assister';
+  id: string;
+  /** 元件名 → 时间轴元数据；采集未找到的元件不出现（消费端确定性静默） */
+  fires: Record<string, FireTimeline>;
+}

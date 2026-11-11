@@ -34,11 +34,14 @@ export interface AssisterView {
   loopTriggers: LoopTriggerDef[];
   /** 增益 buff（切片 12：orihime attrResistance / yachiru phyLifesteal） */
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
+  /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期） */
+  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
 }
 
 export function compileAssistant(
   xfl: AssistantPackage,
   runtime: RuntimeFighterPackage,
+  fires?: AssisterView['fires'],
 ): AssisterView {
   const form = runtime.forms[0];
   if (!form || form.totalFrames === 0) {
@@ -64,5 +67,6 @@ export function compileAssistant(
       untilFrame: t.untilFrame === null ? null : t.untilFrame + 1,
     })),
     ...(xfl.buffEffects !== undefined ? { buffEffects: xfl.buffEffects } : {}),
+    ...(fires ? { fires } : {}),
   };
 }

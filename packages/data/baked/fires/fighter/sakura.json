@@ -1,0 +1,1 @@
+{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"sakura","fires":{"zh1atm":{"totalFrames":13,"labels":{"hit":7,"loop":6}},"zh32atm":{"totalFrames":11,"labels":{"hit":5,"loop":4}},"zh3atm":{"totalFrames":11,"labels":{"hit":5,"loop":4}},"kj1mc":{"totalFrames":34,"labels":{"touchfloor":15}},"zh31atm":{"totalFrames":11,"labels":{"hit":5,"loop":4}}}}

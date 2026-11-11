@@ -1,0 +1,1 @@
+{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"soifon","fires":{"zh1atm":{"totalFrames":16,"labels":{"hit":10,"loop_start":3,"loop":9}},"cbsatm":{"totalFrames":55,"labels":{"hit":5,"loop":4}}}}

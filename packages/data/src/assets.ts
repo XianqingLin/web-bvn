@@ -64,6 +64,56 @@ export interface MapAtlas {
   layers: MapAtlasLayer[];
 }
 
+/** fire 元件渲染数据（bvn/fire-atlas@1 的 fires 表项）。 */
+export interface FireElementAtlas {
+  /** 元件摆放在内层时间轴上的坐标（渲染容器锚定用） */
+  rootX: number;
+  rootY: number;
+  totalFrames: number;
+  labels: Record<string, number>;
+  /** 'main' 子对象 bounds（原版 Bullet._bulletArea 锚；无 main = 0 矩形） */
+  main: { x: number; y: number; w: number; h: number };
+  frames: AtlasFrameRef[];
+}
+
+/** fire 元件图集（assets/fires/<ownerKind>/<id>.atlas.json，bvn/fire-atlas@1）。 */
+export interface FireAtlas {
+  schema: 'bvn/fire-atlas@1';
+  kind: 'fire';
+  ownerKind: 'fighter' | 'assister';
+  id: string;
+  sheets: { file: string; w: number; h: number }[];
+  /** pngId → sheet 内 quad */
+  frames: Record<string, AtlasQuad>;
+  fires: Record<string, FireElementAtlas>;
+}
+
+export function validateFireAtlas(pkg: unknown): { errors: string[]; warnings: string[] } {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const a = pkg as FireAtlas;
+  if (a.schema !== 'bvn/fire-atlas@1') errors.push(`schema 应为 bvn/fire-atlas@1，收到 ${a.schema}`);
+  if (a.ownerKind !== 'fighter' && a.ownerKind !== 'assister') {
+    errors.push(`ownerKind 非法: ${a.ownerKind}`);
+  }
+  if (!Array.isArray(a.sheets) || a.sheets.length === 0) errors.push('sheets 为空');
+  if (!a.frames || typeof a.frames !== 'object') errors.push('frames 缺失');
+  if (!a.fires || typeof a.fires !== 'object') errors.push('fires 缺失');
+  const pngIds = new Set(Object.keys(a.frames ?? {}));
+  for (const [nm, el] of Object.entries(a.fires ?? {})) {
+    if (!el.frames) {
+      errors.push(`fire ${nm} 缺 frames`);
+      continue;
+    }
+    for (const fr of el.frames) {
+      if (fr.png >= 0 && !pngIds.has(String(fr.png))) {
+        errors.push(`fire ${nm} frame ${fr.frame} 引用不存在的 png ${fr.png}`);
+      }
+    }
+  }
+  return { errors, warnings };
+}
+
 export function validateFighterAtlas(pkg: unknown): { errors: string[]; warnings: string[] } {
   const errors: string[] = [];
   const warnings: string[] = [];

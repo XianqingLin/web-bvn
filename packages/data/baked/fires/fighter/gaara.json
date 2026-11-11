@@ -1,0 +1,1 @@
+{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"gaara","fires":{"zh3mc":{"totalFrames":24,"labels":{}},"cbsmc":{"totalFrames":196,"labels":{"big":131,"start":66,"miss":179,"end":192}},"bsmc":{"totalFrames":139,"labels":{"miss":50,"fly":65,"boom":122}},"zh1atm":{"totalFrames":20,"labels":{"hit":10,"loop":9}}}}

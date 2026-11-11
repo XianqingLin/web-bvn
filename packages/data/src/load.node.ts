@@ -10,18 +10,20 @@ import { join } from 'node:path';
 import type {
   AssistantPackage,
   FighterPackage,
+  FirePackage,
   MapPackage,
   RuntimeFighterPackage,
 } from './types.js';
-import type { FighterAtlas, MapAtlas } from './assets.js';
+import type { FighterAtlas, FireAtlas, MapAtlas } from './assets.js';
 import {
   validateAssistantPackage,
   validateFighterPackage,
+  validateFirePackage,
   validateMapPackage,
   validateRuntimeFighterPackage,
   type ValidationResult,
 } from './validate.js';
-import { validateFighterAtlas, validateMapAtlas } from './assets.js';
+import { validateFighterAtlas, validateFireAtlas, validateMapAtlas } from './assets.js';
 
 function readValidated<T>(path: string, schema: string, validate: (pkg: T) => ValidationResult): T {
   let parsed: unknown;
@@ -96,5 +98,31 @@ export function loadMapAtlas(assetsDir: string, id: string): MapAtlas {
     join(assetsDir, 'maps', `${id}.atlas.json`),
     'bvn/map-atlas@1',
     validateMapAtlas,
+  );
+}
+
+/** 加载并校验 fire 元数据包（baked/fires/<ownerKind>/<id>.json，schema bvn/fire@1）。 */
+export function loadFirePackage(
+  bakedDir: string,
+  ownerKind: 'fighter' | 'assister',
+  id: string,
+): FirePackage {
+  return readValidated<FirePackage>(
+    join(bakedDir, 'fires', ownerKind, `${id}.json`),
+    'bvn/fire@1',
+    validateFirePackage,
+  );
+}
+
+/** 加载并校验 fire 元件图集（assets/fires/<ownerKind>/<id>.atlas.json，schema bvn/fire-atlas@1）。 */
+export function loadFireAtlas(
+  assetsDir: string,
+  ownerKind: 'fighter' | 'assister',
+  id: string,
+): FireAtlas {
+  return readValidated<FireAtlas>(
+    join(assetsDir, 'fires', ownerKind, `${id}.atlas.json`),
+    'bvn/fire-atlas@1',
+    validateFireAtlas,
   );
 }

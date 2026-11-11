@@ -48,6 +48,8 @@ export interface FighterView {
    * 映射缺失 = 该角色没有此动作帧，动作不可用）。
    */
   attackLabels: Record<string, string>;
+  /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期） */
+  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
 }
 
 /** 形态数值缺省值（XFL 包缺形态脚本时兜底；ichigo 初形态实测值）。 */
@@ -91,6 +93,7 @@ export function compileFighterRuntime(
   runtime: RuntimeFighterPackage,
   xfl?: FighterPackage,
   formIndex?: number,
+  fires?: FighterView['fires'],
 ): FighterView {
   const idx = formIndex ?? runtime.forms.findIndex((f) => f.totalFrames > 0);
   const form = runtime.forms[idx];
@@ -148,6 +151,7 @@ export function compileFighterRuntime(
     totalFrames: form.totalFrames,
     triggers,
     attackLabels,
+    ...(fires ? { fires } : {}),
   };
 }
 
@@ -160,11 +164,12 @@ export function compileFighterRuntime(
 export function compileFighterForms(
   runtime: RuntimeFighterPackage,
   xfl?: FighterPackage,
+  fires?: FighterView['fires'],
 ): FighterView[] {
   const out: FighterView[] = [];
   for (let i = 0; i < runtime.forms.length; i++) {
     if (runtime.forms[i]!.totalFrames === 0) continue;
-    out.push(compileFighterRuntime(runtime, xfl, i));
+    out.push(compileFighterRuntime(runtime, xfl, i, fires));
   }
   if (out.length === 0) {
     throw new Error(`${runtime.id}: 没有含动画数据的形态`);

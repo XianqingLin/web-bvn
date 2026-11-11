@@ -3,6 +3,7 @@ import type {
   AssistantPackage,
   FighterPackage,
   LoopTriggerDef,
+  FirePackage,
   MapPackage,
   RuntimeFighterPackage,
   RuntimeFrameAreas,
@@ -424,6 +425,41 @@ export function validateMapPackage(pkg: MapPackage): ValidationResult {
         out.warnings.push(`floors[${i}]: xTo < xFrom`);
       }
     });
+  }
+  return out;
+}
+
+/** fire 元件元数据包校验（bvn/fire@1；sim 消费 totalFrames/labels 做生命周期）。 */
+export function validateFirePackage(pkg: FirePackage): ValidationResult {
+  const out: ValidationResult = { errors: [], warnings: [] };
+
+  if (pkg.schema !== 'bvn/fire@1') {
+    out.errors.push(`schema 必须是 "bvn/fire@1"，收到 "${pkg.schema}"`);
+  }
+  if (pkg.kind !== 'fire') out.errors.push('kind 必须是 "fire"');
+  if (pkg.ownerKind !== 'fighter' && pkg.ownerKind !== 'assister') {
+    out.errors.push(`ownerKind 必须是 fighter|assister，收到 "${pkg.ownerKind}"`);
+  }
+  if (!pkg.id) out.errors.push('缺 id');
+  if (!pkg.fires || typeof pkg.fires !== 'object') {
+    out.errors.push('缺 fires 表');
+    return out;
+  }
+  for (const [name, tl] of Object.entries(pkg.fires)) {
+    if (!Number.isInteger(tl.totalFrames) || tl.totalFrames < 1) {
+      out.errors.push(`fires[${name}]: totalFrames 必须是 ≥1 的整数`);
+    }
+    if (!tl.labels || typeof tl.labels !== 'object') {
+      out.errors.push(`fires[${name}]: 缺 labels 表`);
+      continue;
+    }
+    for (const [lab, frame] of Object.entries(tl.labels)) {
+      if (!Number.isInteger(frame) || frame < 1) {
+        out.errors.push(`fires[${name}].labels[${lab}]: 帧号必须是 ≥1 的整数`);
+      } else if (Number.isInteger(tl.totalFrames) && frame > tl.totalFrames) {
+        out.warnings.push(`fires[${name}].labels[${lab}]: 帧号 ${frame} 超出 totalFrames ${tl.totalFrames}`);
+      }
+    }
   }
   return out;
 }

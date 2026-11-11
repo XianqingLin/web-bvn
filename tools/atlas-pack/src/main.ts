@@ -64,6 +64,25 @@ interface CaptureMap {
   fileUrl: string;
   layers: CaptureMapLayer[];
 }
+/** fire 元件采集记录（capFire 产出；missing = 时间轴上未找到） */
+interface CaptureFireElem {
+  missing?: boolean;
+  rootX?: number;
+  rootY?: number;
+  totalFrames?: number;
+  labels?: Record<string, number>;
+  main?: { x: number; y: number; w: number; h: number };
+  frames?: CaptureFrame[];
+}
+interface CaptureFire {
+  kind: string;
+  ownerKind: 'fighter' | 'assister';
+  id: string;
+  fileUrl: string;
+  pngCount: number;
+  pngs: CapturePngMeta[];
+  fires: Record<string, CaptureFireElem>;
+}
 
 interface PlacedFrame {
   sheet: number;
@@ -87,6 +106,38 @@ interface MapAtlasPkg {
   kind: 'map';
   id: string;
   layers: (CaptureMapLayer & { file: string })[];
+}
+
+/** bvn/fire-atlas@1：fire 元件图集（每个 ownerKind+id 一份） */
+interface FireAtlasPkg {
+  schema: 'bvn/fire-atlas@1';
+  kind: 'fire';
+  ownerKind: 'fighter' | 'assister';
+  id: string;
+  sheets: { file: string; w: number; h: number }[];
+  /** pngId → sheet 内 quad */
+  frames: Record<string, PlacedFrame>;
+  /** 元件名 → 元件级元数据（frames 引用 pngId） */
+  fires: Record<
+    string,
+    {
+      rootX: number;
+      rootY: number;
+      totalFrames: number;
+      labels: Record<string, number>;
+      main: { x: number; y: number; w: number; h: number };
+      frames: CaptureFrame[];
+    }
+  >;
+}
+
+/** bvn/fire@1：baked fire 元数据（core def 注入用，无渲染数据） */
+interface FireBakedPkg {
+  schema: 'bvn/fire@1';
+  kind: 'fire';
+  ownerKind: 'fighter' | 'assister';
+  id: string;
+  fires: Record<string, { totalFrames: number; labels: Record<string, number> }>;
 }
 
 function fail(msg: string): never {
@@ -260,6 +311,69 @@ function packMap(cap: CaptureMap): { atlas: MapAtlasPkg; layers: { file: string;
   return { atlas, layers: buffers };
 }
 
+// ---------- fire 打包 ----------
+// capture 产物 atlas_fire_<ownerKind>_<id>.json → 两路输出：
+//   assets/fires/<ownerKind>/<id>.atlas.json + sheet-<n>.png（bvn/fire-atlas@1）
+//   baked/fires/<ownerKind>/<id>.json（bvn/fire@1，只留 totalFrames+labels）
+// 采集 missing 的元件两路都不出现（消费端确定性静默/渲染回退色块）。
+function packFire(cap: CaptureFire): {
+  atlas: FireAtlasPkg;
+  baked: FireBakedPkg;
+  sheets: { file: string; bytes: Buffer }[];
+} {
+  const pngDir = join(captureDir, 'png', `fire_${cap.ownerKind}_${cap.id}`);
+  const items: Rect[] = cap.pngs.map((p) => ({ id: p.id, w: p.w, h: p.h }));
+  const { sheets, placements } = pack(items, SHEET);
+
+  const sheetFiles: { file: string; w: number; h: number }[] = [];
+  const sheetBuffers: { file: string; bytes: Buffer }[] = [];
+  for (let i = 0; i < sheets.length; i++) {
+    const s = sheets[i]!;
+    const file = `${cap.id}.sheet-${i}.png`;
+    const png = composite(s.used, pngDir, SHEET);
+    sheetBuffers.push({ file, bytes: PNG.sync.write(png, { deflateLevel: 9 }) });
+    sheetFiles.push({ file, w: SHEET, h: SHEET });
+  }
+
+  const frames: Record<string, PlacedFrame> = {};
+  for (const [id, p] of placements) {
+    frames[String(id)] = p;
+  }
+
+  const firesAtlas: FireAtlasPkg['fires'] = {};
+  const firesBaked: FireBakedPkg['fires'] = {};
+  for (const [nm, e] of Object.entries(cap.fires)) {
+    if (e.missing || e.frames === undefined || e.totalFrames === undefined) continue;
+    firesAtlas[nm] = {
+      rootX: e.rootX ?? 0,
+      rootY: e.rootY ?? 0,
+      totalFrames: e.totalFrames,
+      labels: e.labels ?? {},
+      main: e.main ?? { x: 0, y: 0, w: 0, h: 0 },
+      frames: e.frames,
+    };
+    firesBaked[nm] = { totalFrames: e.totalFrames, labels: e.labels ?? {} };
+  }
+
+  const atlas: FireAtlasPkg = {
+    schema: 'bvn/fire-atlas@1',
+    kind: 'fire',
+    ownerKind: cap.ownerKind,
+    id: cap.id,
+    sheets: sheetFiles,
+    frames,
+    fires: firesAtlas,
+  };
+  const baked: FireBakedPkg = {
+    schema: 'bvn/fire@1',
+    kind: 'fire',
+    ownerKind: cap.ownerKind,
+    id: cap.id,
+    fires: firesBaked,
+  };
+  return { atlas, baked, sheets: sheetBuffers };
+}
+
 // ---------- 主流程 ----------
 function sha1(b: Buffer | string): string {
   return createHash('sha1').update(b).digest('hex');
@@ -269,16 +383,31 @@ function main(): void {
   const files = readdirSync(captureDir).filter((f) => f.endsWith('.json') && f !== 'manifest.json');
   const charFiles = files.filter((f) => f.startsWith('atlas_char_'));
   const mapFiles = files.filter((f) => f.startsWith('atlas_map_'));
+  const fireFiles = files.filter((f) => f.startsWith('atlas_fire_'));
 
+  const bakedDir = resolve(ROOT, 'packages/data/baked');
   const targets = [
     { dir: join(outDir, 'fighters'), label: 'fighters' },
     { dir: join(outDir, 'assistants'), label: 'assistants' },
     { dir: join(outDir, 'maps'), label: 'maps' },
+    { dir: join(outDir, 'fires', 'fighter'), label: 'fires/fighter' },
+    { dir: join(outDir, 'fires', 'assister'), label: 'fires/assister' },
   ];
   for (const t of targets) mkdirSync(t.dir, { recursive: true });
+  for (const d of ['fires/fighter', 'fires/assister']) {
+    mkdirSync(join(bakedDir, d), { recursive: true });
+  }
 
   let failures = 0;
-  const stats = { fighters: 0, assistants: 0, maps: 0, uniqueFrames: 0, totalFrames: 0, bytes: 0 };
+  const stats = {
+    fighters: 0,
+    assistants: 0,
+    maps: 0,
+    fires: 0,
+    uniqueFrames: 0,
+    totalFrames: 0,
+    bytes: 0,
+  };
 
   for (const f of charFiles) {
     const cap = JSON.parse(readFileSync(join(captureDir, f), 'utf8')) as CaptureChar;
@@ -320,8 +449,39 @@ function main(): void {
     }
   }
 
+  for (const f of fireFiles) {
+    const cap = JSON.parse(readFileSync(join(captureDir, f), 'utf8')) as CaptureFire;
+    try {
+      const { atlas, baked, sheets } = packFire(cap);
+      writeFileSync(
+        join(outDir, 'fires', cap.ownerKind, `${cap.id}.atlas.json`),
+        JSON.stringify(atlas),
+      );
+      writeFileSync(
+        join(bakedDir, 'fires', cap.ownerKind, `${cap.id}.json`),
+        JSON.stringify(baked),
+      );
+      for (const s of sheets) {
+        writeFileSync(join(outDir, 'fires', cap.ownerKind, s.file), s.bytes);
+        stats.bytes += s.bytes.length;
+      }
+      stats.fires++;
+      stats.uniqueFrames += cap.pngs.length;
+      stats.totalFrames += Object.values(cap.fires).reduce(
+        (n, e) => n + (e.frames ? e.frames.length : 0),
+        0,
+      );
+      console.log(
+        `atlas-pack: fire ${cap.ownerKind} ${cap.id} → ${sheets.length} sheet、元件 ${Object.keys(baked.fires).length}/${Object.keys(cap.fires).length}`,
+      );
+    } catch (e) {
+      console.error(`error[fire:${cap.ownerKind}:${cap.id}]: ${(e as Error).message}`);
+      failures++;
+    }
+  }
+
   console.log(
-    `atlas-pack: fighters=${stats.fighters} assistants=${stats.assistants} maps=${stats.maps} ` +
+    `atlas-pack: fighters=${stats.fighters} assistants=${stats.assistants} maps=${stats.maps} fires=${stats.fires} ` +
       `唯一帧=${stats.uniqueFrames} 总帧引用=${stats.totalFrames} 素材=${Math.round(stats.bytes / 1024 / 1024)}MB`,
   );
   if (failures > 0) {
