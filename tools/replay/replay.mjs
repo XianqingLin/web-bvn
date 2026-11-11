@@ -22,6 +22,7 @@ import { compileAssistant, compileFighterForms, compileMapStage } from '@bvn/dat
 import {
   loadAssistantPackage,
   loadFighterPackage,
+  loadFirePackage,
   loadMapPackage,
   loadRuntimeFighterPackage,
 } from '@bvn/data/node';
@@ -79,12 +80,25 @@ function buildFighterDefs() {
   const defs = list.map((f) => {
     const runtime = loadRuntimeFighterPackage(BAKED_DIR, f.pkg, 'fighters-runtime');
     const xfl = loadFighterPackage(BAKED_DIR, f.pkg);
+    // fire 元数据（切片 13-A3）：可选——缺包 = 该角色 bullet 无动画生命周期
+    let fires = null;
+    try {
+      fires = loadFirePackage(BAKED_DIR, 'fighter', f.pkg).fires;
+    } catch {
+      /* 无 fire 包 */
+    }
     // 多形态（切片 10）：编译全部含动画的形态；[0] 作为 def（与单形态兼容）
-    const forms = compileFighterForms(runtime, xfl);
+    const forms = compileFighterForms(runtime, xfl, fires ?? undefined);
     if (f.assist) {
       const axfl = loadAssistantPackage(BAKED_DIR, f.assist);
       const art = loadRuntimeFighterPackage(BAKED_DIR, f.assist, 'assistants-runtime');
-      assistants[f.assist] = compileAssistant(axfl, art);
+      let afires = null;
+      try {
+        afires = loadFirePackage(BAKED_DIR, 'assister', f.assist).fires;
+      } catch {
+        /* 无 fire 包 */
+      }
+      assistants[f.assist] = compileAssistant(axfl, art, afires ?? undefined);
     }
     return { def: forms[0], forms, assistId: f.assist ?? null };
   });

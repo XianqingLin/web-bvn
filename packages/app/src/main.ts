@@ -35,6 +35,13 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** 可选 JSON（404 = null）：fire 包等按角色可选的资源。 */
+async function fetchJsonOptional<T>(url: string): Promise<T | null> {
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  return (res.json() as Promise<T>) ?? null;
+}
+
 // ---------- 键盘 → ButtonMask ----------
 // J 攻击 K 跳 L 瞬步 U 技 I 必杀；P1 用 WASD，P2 用方向键（同机双窗口各用一套）
 const KEYMAP_P1: Record<string, number> = {
@@ -104,9 +111,14 @@ async function boot(): Promise<void> {
     `${BAKED}/fighters-runtime/${FIGHTER_ID}.json`,
   );
   const xfl = await fetchJson<import('@bvn/data').FighterPackage>(`${BAKED}/fighters/${FIGHTER_ID}.json`);
-  const def = compileFighterRuntime(runtime, xfl);
+  // fire 元数据（切片 13-A3）：可选——角色无 fire 包时 bullet 走无动画生命周期
+  const fires = await fetchJsonOptional<import('@bvn/data').FirePackage>(
+    `${BAKED}/fires/fighter/${FIGHTER_ID}.json`,
+  );
+  const firesTable = fires?.fires;
+  const def = compileFighterRuntime(runtime, xfl, undefined, firesTable);
   // 多形态（切片 10 万解切换）：编译全部含动画的形态，def 即 forms[0]
-  const forms = compileFighterForms(runtime, xfl);
+  const forms = compileFighterForms(runtime, xfl, firesTable);
   const mapPkg = await fetchJson<import('@bvn/data').MapPackage>(`${BAKED}/maps/${MAP_ID}.json`);
   const { stage, p1Spawn, p2Spawn } = compileMapStage(mapPkg);
 
@@ -117,7 +129,10 @@ async function boot(): Promise<void> {
   const assistRuntime = await fetchJson<import('@bvn/data').RuntimeFighterPackage>(
     `${BAKED}/assistants-runtime/${ASSIST_ID}.json`,
   );
-  const assistDef = compileAssistant(assistXfl, assistRuntime);
+  const assistFires = await fetchJsonOptional<import('@bvn/data').FirePackage>(
+    `${BAKED}/fires/assister/${ASSIST_ID}.json`,
+  );
+  const assistDef = compileAssistant(assistXfl, assistRuntime, assistFires?.fires);
 
   const makeSim = (training: boolean): Sim =>
     new Sim({
@@ -151,6 +166,10 @@ async function boot(): Promise<void> {
     mapAtlasId: MAP_ID,
     mapBottomOffset: mapPkg.bottomOffset,
     mapBottom: mapPkg.bottom,
+    fireAtlasIds: {
+      ...(fires ? { fighter: FIGHTER_ID } : {}),
+      ...(assistFires ? { assister: ASSIST_ID } : {}),
+    },
   });
 
   const TICK_MS = 1000 / 60;

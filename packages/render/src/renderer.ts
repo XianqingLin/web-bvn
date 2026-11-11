@@ -7,8 +7,8 @@
  */
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { SimSnapshot } from '@bvn/core';
-import type { FighterAtlas, MapAtlas } from '@bvn/data';
-import { frameTexture, loadFighterAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedMapAtlas } from './atlas.js';
+import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
+import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedFireAtlas, type LoadedMapAtlas } from './atlas.js';
 
 const TICK_MS = 1000 / 60;
 const LOGICAL_W = 1000;
@@ -30,6 +30,10 @@ export interface BattleAssetsSpec {
   /** 死亡线 bottom（front 层纵向视差公式用；缺省 = 逻辑高） */
   mapBottom?: number;
   fighterAtlasJson?: Record<string, FighterAtlas>;
+  /** fire 元件图集（切片 13-A3）：角色/辅助各一份（同 id 出场，单角色对局模型）。
+   *  bullet 按 viaAssist 选辅助侧，其余选角色侧；缺条目回退色块。 */
+  fireAtlasIds?: { fighter?: string; assister?: string };
+  fireAtlasJson?: Record<string, FireAtlas>;
 }
 
 interface FighterSprite {
@@ -42,6 +46,14 @@ interface FighterSprite {
   /** 已应用的内层帧 pngId（避免每渲染帧换纹理） */
   appliedPng: number;
   appliedFacing: number;
+}
+
+/** bullet 精灵（切片 13-A3）：容器 = 元件原点锚，子 Sprite = 当前帧内容 */
+interface BulletSprite {
+  root: Container;
+  body: Sprite;
+  /** 已应用的动画帧（避免每渲染帧换纹理） */
+  appliedFrame: number;
 }
 
 export class BattleRenderer {
@@ -61,6 +73,13 @@ export class BattleRenderer {
   private sprites = new Map<number, FighterSprite>();
   /** 辅助精灵（切片 12）：key = 召唤者 fighter id（同主同时至多一个辅助） */
   private assistSprites = new Map<number, FighterSprite>();
+  /** fire 图集（切片 13-A3）：'fighter'/'assister' 两侧；null = 该侧无图集（色块回退） */
+  private fireLoaded: { fighter: LoadedFireAtlas | null; assister: LoadedFireAtlas | null } = {
+    fighter: null,
+    assister: null,
+  };
+  /** bullet 精灵：key = bullet id；快照缺席即移除（despawn 收尾） */
+  private bulletSprites = new Map<number, BulletSprite>();
   private mapLoaded: LoadedMapAtlas | null = null;
   /** 视觉层整体下移量（原版 MapMain.initlize 的 bottomOffset，切片 13-A2） */
   private mapBottomOffset = 0;
@@ -149,6 +168,16 @@ export class BattleRenderer {
       const atlas = await atlasFor(a.atlasId, 'assister');
       const loaded = await loadFighterAtlas(`${spec.baseUrl}/assistants`, atlas);
       this.assistSprites.set(a.ownerId, this.makeSprite(a.atlasId, loaded, 0));
+    }
+
+    // fire 元件图集（切片 13-A3）：JSON 缺失（角色无 fire 包）= null，色块回退
+    for (const ok of ['fighter', 'assister'] as const) {
+      const atlasId = spec.fireAtlasIds?.[ok];
+      if (!atlasId) continue;
+      const atlasJson =
+        spec.fireAtlasJson?.[atlasId] ??
+        ((await this.fetchJson(`${spec.baseUrl}/fires/${ok}/${atlasId}.atlas.json`)) as FireAtlas);
+      this.fireLoaded[ok] = await loadFireAtlas(`${spec.baseUrl}/fires/${ok}`, atlasJson);
     }
   }
 
@@ -302,8 +331,13 @@ export class BattleRenderer {
   }
 
   /**
-   * 飞行道具（切片 8 占位表现）：命中矩形色块 + 按发射朝向的尖端。
-   * bullet 精灵图集（fire 元件自身时间轴）待后续切片接入图集管线。
+   * 飞行道具（切片 13-A3）：fire 元件精灵按自身时间轴帧渲染；无图集条目
+   * （animTotal=0 / 元件缺采 / 该侧图集未装）回退命中矩形色块。
+   *
+   * 元件原点锚 = RectUtils.apply 逆运算（rel = main 子对象 bounds 相对元件
+   * 原点，direct=1 空间）：mcX = direct>0 ? rect.x - rel.x : rect.x + rel.x
+   * + rel.w；mcY = rect.y - rel.y。main 缺失（0 矩形）时退化为矩形左上角。
+   * 翻转用容器 scale.x = facing（同角色 root 模式）；帧取最新快照不插值。
    */
   private updateBullets(
     prev: SimSnapshot,
@@ -316,15 +350,77 @@ export class BattleRenderer {
       const p = prev.state.bullets.find((x) => x.id === b.id) ?? b;
       const ix = p.x + (b.x - p.x) * alpha;
       const iy = p.y + (b.y - p.y) * alpha;
-      // 颜色按 hitType 粗分（1-3 近战系红 / 4-6 魔法系紫 / 7-10 属性系橙 / 摔白）
-      const hitType = b.hit.hitType;
-      const color =
-        hitType <= 3 ? 0xff5544 : hitType <= 6 ? 0xcc66ff : hitType <= 10 ? 0xffaa33 : 0xffffff;
-      g.rect(ix, iy, b.w, b.h).fill({ color, alpha: 0.85 });
-      // 尖端：朝 facing 方向的小三角指示
-      const tipX = b.facing === 1 ? ix + b.w : ix;
-      g.moveTo(tipX, iy + b.h / 2 - 5).lineTo(tipX + b.facing * 8, iy + b.h / 2).lineTo(tipX, iy + b.h / 2 + 5).fill({ color, alpha: 0.85 });
+      const loaded = this.fireLoaded[b.viaAssist ? 'assister' : 'fighter'];
+      const el = loaded?.atlas.fires[b.name];
+      if (!loaded || !el || b.animTotal <= 0) {
+        this.drawBulletBlock(g, b, ix, iy);
+        continue;
+      }
+      let sp = this.bulletSprites.get(b.id);
+      if (!sp) {
+        const root = new Container();
+        const body = new Sprite(Texture.WHITE);
+        body.visible = false;
+        root.addChild(body);
+        this.bulletLayer.addChild(root);
+        sp = { root, body, appliedFrame: -1 };
+        this.bulletSprites.set(b.id, sp);
+      }
+      const rel = el.main;
+      sp.root.position.set(b.facing === 1 ? ix - rel.x : ix + rel.x + rel.w, iy - rel.y);
+      sp.root.scale.x = b.facing;
+      this.applyBulletFrame(sp, loaded, b.name, b.animFrame);
     }
+    // despawn 收尾：快照缺席即移除（残留段播尽/寿命到期/出界统一走这里）
+    for (const [id, sp] of this.bulletSprites) {
+      if (!next.state.bullets.some((x) => x.id === id)) {
+        this.bulletLayer.removeChild(sp.root);
+        sp.root.destroy({ children: true });
+        this.bulletSprites.delete(id);
+      }
+    }
+  }
+
+  /** 色块回退（切片 8 占位表现）：命中矩形 + 朝向尖端。 */
+  private drawBulletBlock(
+    g: Graphics,
+    b: { facing: 1 | -1; w: number; h: number; hit: { hitType: number } },
+    ix: number,
+    iy: number,
+  ): void {
+    // 颜色按 hitType 粗分（1-3 近战系红 / 4-6 魔法系紫 / 7-10 属性系橙 / 摔白）
+    const hitType = b.hit.hitType;
+    const color =
+      hitType <= 3 ? 0xff5544 : hitType <= 6 ? 0xcc66ff : hitType <= 10 ? 0xffaa33 : 0xffffff;
+    g.rect(ix, iy, b.w, b.h).fill({ color, alpha: 0.85 });
+    // 尖端：朝 facing 方向的小三角指示
+    const tipX = b.facing === 1 ? ix + b.w : ix;
+    g.moveTo(tipX, iy + b.h / 2 - 5).lineTo(tipX + b.facing * 8, iy + b.h / 2).lineTo(tipX, iy + b.h / 2 + 5).fill({ color, alpha: 0.85 });
+  }
+
+  /** 应用 fire 元件帧：查图集 fires[name].frames[animFrame-1]。 */
+  private applyBulletFrame(
+    sp: BulletSprite,
+    loaded: LoadedFireAtlas,
+    name: string,
+    animFrame: number,
+  ): void {
+    if (sp.appliedFrame === animFrame) return;
+    sp.appliedFrame = animFrame;
+    const frame = loaded.atlas.fires[name]?.frames[animFrame - 1];
+    if (!frame || frame.png < 0) {
+      sp.body.visible = false;
+      return;
+    }
+    const tex = frameTexture(loaded, frame.png);
+    if (!tex) {
+      sp.body.visible = false;
+      return;
+    }
+    sp.body.visible = true;
+    sp.body.texture = tex;
+    // frame.x/y = 内容相对元件原点偏移（容器已按 facing 镜像）
+    sp.body.position.set(frame.x ?? 0, frame.y ?? 0);
   }
 
   /** 应用内层动画帧：查图集 form.frames[animFrame-1]。 */

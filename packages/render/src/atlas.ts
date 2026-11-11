@@ -2,7 +2,7 @@
  * 图集 → Pixi 纹理：加载 sheet PNG + 按 quad 建 Texture 缓存。
  */
 import { Assets, Rectangle, Texture } from 'pixi.js';
-import type { FighterAtlas, MapAtlas } from '@bvn/data';
+import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
 
 export interface LoadedFighterAtlas {
   atlas: FighterAtlas;
@@ -23,7 +23,7 @@ export async function loadFighterAtlas(
   return { atlas, textures: new Map(), sources };
 }
 
-export function frameTexture(loaded: LoadedFighterAtlas, pngId: number): Texture | null {
+export function frameTexture(loaded: LoadedFighterAtlas | LoadedFireAtlas, pngId: number): Texture | null {
   const cached = loaded.textures.get(pngId);
   if (cached !== undefined) return cached;
   const quad = loaded.atlas.frames[String(pngId)];
@@ -42,6 +42,21 @@ export interface LoadedMapAtlas {
   atlas: MapAtlas;
   /** layer index → 纹理 */
   textures: Texture[];
+}
+
+export interface LoadedFireAtlas {
+  atlas: FireAtlas;
+  /** pngId → frame 纹理（惰性建，与角色图集同缓存模式） */
+  textures: Map<number, Texture>;
+  sources: Texture['source'][];
+}
+
+/** 加载 fire 元件图集（atlas JSON + 全部 sheet）。 */
+export async function loadFireAtlas(baseUrl: string, atlas: FireAtlas): Promise<LoadedFireAtlas> {
+  const sources: Texture['source'][] = await Promise.all(
+    atlas.sheets.map((s) => Assets.load<Texture>(`${baseUrl}/${s.file}`).then((t) => t.source)),
+  );
+  return { atlas, textures: new Map(), sources };
 }
 
 /** 加载地图图集（每子图层一张 PNG）。 */
