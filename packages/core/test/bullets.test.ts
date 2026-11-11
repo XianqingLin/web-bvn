@@ -334,3 +334,108 @@ describe('切片 8：状态开关 op', () => {
     expect(f.slots.attack).toBe('砍1'); // setAllAct 重填
   });
 });
+
+// ---------- 切片 13-A3：bullet 元件时间轴生命周期 ----------
+
+/** 带 anim 元数据的 fire def（def.fires → spawnBullet.anim → animTotal>0）。 */
+function makeAnimFireDef(
+  totalFrames: number,
+  labels: Record<string, number>,
+  params: Record<string, unknown>,
+): FighterDef {
+  const def = makeFireDef(params);
+  def.fires = { zh1atm: { totalFrames, labels } };
+  return def;
+}
+
+/**
+ * 30Hz 推进节奏：发射在 stepHitResolution（先于同帧 stepBulletAnim）——
+ * 发射 tick 动画帧已推进到 2；此后每 2 tick +1（tick%2===0 块）。
+ */
+describe('切片 13-A3：bullet 元件时间轴生命周期', () => {
+  it('anim 注入 + 30Hz 推进：每 2 tick 动画帧 +1', () => {
+    const def = makeAnimFireDef(9, {}, { x: 0, hold: 60, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    const spawned = tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    const b0 = spawned.state.bullets[0]!;
+    expect(b0.animTotal).toBe(9);
+    expect(b0.animFrame).toBe(2); // 发射当帧已推进一步（stepHitResolution 先行）
+    // 每 2 tick +1：2 tick → 帧 3；再 8 tick → 帧 7
+    let snap = runTicks(sim, 2);
+    expect(snap.state.bullets[0]!.animFrame).toBe(3);
+    snap = runTicks(sim, 8);
+    expect(snap.state.bullets[0]!.animFrame).toBe(7);
+    // 帧数推进满 8（= totalFrames-1）即移除（原版 off-by-one：不播末帧）
+    snap = runTicks(sim, 4);
+    expect(snap.state.bullets).toHaveLength(0);
+  });
+
+  it('loop 标签：回跳 loop_start 循环播放，不移除', () => {
+    const def = makeAnimFireDef(9, { loop: 4 }, { x: 0, hold: 60, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    // 帧序列 2→3→4(触发回跳)→1（发射帧 2 起，3 步一个周期）；30 tick = 5 周期 → 帧 2
+    const snap = runTicks(sim, 30);
+    const b = snap.state.bullets[0];
+    expect(b).toBeDefined();
+    expect(b!.animFrame).toBe(2);
+  });
+
+  it('remove 标签：到帧即移除', () => {
+    const def = makeAnimFireDef(9, { remove: 6 }, { x: 0, hold: 60, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    // 3 步 → 帧 5 仍在
+    let snap = runTicks(sim, 6);
+    expect(snap.state.bullets).toHaveLength(1);
+    // 4 步 → 帧 6（remove）移除
+    snap = runTicks(sim, 2);
+    expect(snap.state.bullets).toHaveLength(0);
+  });
+
+  it('timeout 标签：寿命到期跳 timeout 段续播至播尽', () => {
+    const def = makeAnimFireDef(9, { timeout: 5 }, { x: 0, hold: 0.1, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    // hold 6 tick 到期不消散（旧行为会移除）：跳帧 5，同帧动画推进到 6，
+    // 再 4 tick（2 步）到帧 8——播尽移除在到期后 6 tick
+    const mid = runTicks(sim, 8);
+    const b = mid.state.bullets[0];
+    expect(b).toBeDefined();
+    expect(b!.holdTicks).toBe(-1); // 已进 timeout 段（不再递减）
+    expect(b!.animFrame).toBe(7);
+    const end = runTicks(sim, 4);
+    expect(end.state.bullets).toHaveLength(0);
+  });
+
+  it('1 帧元件永不自动移除（原版 off-by-one quirk 原样保留）', () => {
+    const def = makeAnimFireDef(1, {}, { x: 0, hold: -1, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    const snap = runTicks(sim, 40);
+    const b = snap.state.bullets[0];
+    expect(b).toBeDefined();
+    expect(b!.animFrame).toBe(1);
+  });
+
+  it('命中残留段：停移动 + 停命中，播尽后 despawn', () => {
+    // P2 贴近（弹体寿命仅 ~14 动画 tick，须在帧 8 移除前命中）
+    const def = makeAnimFireDef(9, { hit: 5 }, { x: 5, hold: 60, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 150 }));
+    for (let i = 0; i < 12; i++) sim.tick({ p1: Btn.skill, p2: 0 });
+    // 命中瞬间：hitAnim=true、跳 hit 帧、不再推进位置
+    const hitSnap = tickUntil(sim, (s) => s.state.bullets.some((b) => b.hitAnim), 200);
+    const hb = hitSnap.state.bullets.find((b) => b.hitAnim)!;
+    expect(hb.hitAble).toBe(false);
+    expect(hb.animFrame).toBeGreaterThanOrEqual(5); // 跳 hit 标签帧（同帧可能已推进）
+    const hx = hb.x;
+    // 残留段停移动（stepBullets 早退）
+    const after = runTicks(sim, 6);
+    const ab = after.state.bullets.find((b) => b.hitAnim);
+    if (ab) expect(ab.x).toBe(hx);
+    // 播尽（帧 5→8）后 despawn；命中已结算（P2 扣血）
+    const end = runTicks(sim, 40);
+    expect(end.state.bullets).toHaveLength(0);
+    expect(end.state.fighters[1]!.hp).toBe(970);
+  });
+});

@@ -43,6 +43,8 @@ export interface BulletSpawnSpec {
   /** 命中定义（发射动作 HitDef） */
   hit: HitDef;
   params: FireParams;
+  /** 元件时间轴元数据（baked fires 包；缺失 = 无动画生命周期，仅 hold/出界驱动） */
+  anim?: { totalFrames: number; labels: Record<string, number> };
 }
 
 /** addAttacker 参数（原版 FighterAttacker 构造 params 语料字段）。 */
@@ -353,6 +355,7 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
       local,
       hit,
       params: parseFireParams(args[1]),
+      ...(ctx.def.fires?.[name] ? { anim: ctx.def.fires[name] } : {}),
     });
   },
 

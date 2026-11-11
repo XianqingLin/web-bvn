@@ -104,6 +104,8 @@ export interface FighterDef {
   triggers: FrameTrigger[];
   /** 已验证存在的攻击动作 id → 动画标签（缺失 = 动作不可用） */
   attackLabels: Record<string, string>;
+  /** fire 元件时间轴元数据（baked fires 包注入；缺元件 = 该 fire 无动画生命周期） */
+  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
 }
 
 /**
@@ -136,6 +138,8 @@ export interface AssisterDef {
   loopTriggers: LoopTriggerDef[];
   /** 增益 buff（生效期 = 辅助在场期间；orihime 受击减免 / yachiru 物吸血） */
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
+  /** fire 元件时间轴元数据（baked fires 包注入；缺元件 = 该 fire 无动画生命周期） */
+  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
 }
 
 /**

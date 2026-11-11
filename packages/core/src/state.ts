@@ -208,10 +208,18 @@ export interface BulletState {
   hpMax: number;
   /** 命中定义（发射动作的 HitDef 拷贝） */
   hit: HitDef;
-  /** 仍可命中（hits 耗尽/被摧毁后 false） */
+  /** 仍可命中（hits 耗尽/被摧毁/命中残留段后 false） */
   hitAble: boolean;
   /** 辅助发射（切片 12）：命中不回气（原版 Bullet `owner is FighterMain` 守卫不成立） */
   viaAssist: boolean;
+  /** 元件时间轴总帧数（0 = 无动画数据，仅 hold/出界驱动；切片 13-A3） */
+  animTotal: number;
+  /** 当前动画帧（1 基，30Hz 推进，原版 Bullet.renderAnimate） */
+  animFrame: number;
+  /** 帧标签 → 起始帧（loop/remove/hit/hit_over/timeout/loop_start） */
+  animLabels: Record<string, number>;
+  /** 命中残留段（原版 _isHit）：停移动、播尽移除；despawn 时机即残留结束 */
+  hitAnim: boolean;
 }
 
 /**

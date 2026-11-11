@@ -302,6 +302,7 @@ export class Sim {
     if (this.state.tick % 2 === 0) {
       this.stepAnimation(); // 5. [动画帧] 30Hz
       this.stepHitResolution(); // 6. [动画帧] 30Hz
+      this.stepBulletAnim(); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
     }
     this.stepMatchFlow(); // 7. 流程事件
     return this.stepOutput(); // 8. 输出
@@ -481,6 +482,8 @@ export class Sim {
     const { stage, bullets } = this.state;
     const removed: number[] = [];
     for (const b of bullets) {
+      // 命中残留段（原版 _isHit → render 早退）：停移动，仅时间轴推进
+      if (b.hitAnim) continue;
       // 位移（局部空间速度；x 沿发射朝向）+ 加速（add×2×SPEED_PLUS = add/tick）
       b.x += b.sx * SPEED_PLUS * b.facing;
       b.y += b.sy * SPEED_PLUS;
@@ -491,9 +494,15 @@ export class Sim {
       if (b.sx < b.minX) b.sx = b.minX;
       if (b.sy > b.maxY) b.sy = b.maxY;
       if (b.sy < b.minY) b.sy = b.minY;
-      // 寿命（原版 holdFrame 递减至 0 → timeout/remove；此处置 despawn，命中
-      // 消散表现由渲染层经 entity:despawn 事件处理）
+      // 寿命（原版 holdFrame 递减至 0 → 有 timeout 标签跳 timeout 段续播至
+      // 时间轴播尽移除，无标签立即移除；_isTimeout 后不再递减）
       if (b.holdTicks >= 0 && --b.holdTicks <= 0) {
+        const timeoutFrame = b.animLabels['timeout'];
+        if (b.animTotal > 0 && timeoutFrame !== undefined) {
+          b.animFrame = timeoutFrame;
+          b.holdTicks = -1;
+          continue;
+        }
         removed.push(b.id);
         continue;
       }
@@ -507,6 +516,69 @@ export class Sim {
       }
     }
     if (removed.length > 0) this.removeBullets(removed);
+  }
+
+  /**
+   * 飞行道具动画推进（原版 Bullet.renderAnimate，30Hz；切片 13-A3）。
+   *
+   * 原版语义：mc.nextFrame() 后按 currentLabel（≤当前帧的最近标签）分派——
+   * loop→回跳 loop_start（无则帧 1）；remove→移除；hit_over→停止命中；
+   * 其余：currentFrame == totalFrames-1 → 移除（原版 off-by-one 原样保留，
+   * 1 帧元件永不自动移除）。命中残留段（hitAnim）继续推进至播尽——
+   * entity:despawn 时机即残留结束（渲染层随之收尾）。
+   */
+  private stepBulletAnim(): void {
+    const { bullets } = this.state;
+    const removed: number[] = [];
+    for (const b of bullets) {
+      if (b.animTotal <= 0) continue;
+      // 推进（到尾停住：原版 nextFrame 在末帧滞留，播尽判定见下）
+      if (b.animFrame < b.animTotal) b.animFrame += 1;
+      // currentLabel = 起始帧 ≤ 当前帧的最近标签
+      let label: string | null = null;
+      let labelFrame = 0;
+      for (const [name, start] of Object.entries(b.animLabels)) {
+        if (start <= b.animFrame && start >= labelFrame) {
+          // 同帧多标签按字典序稳定取（同帧多标签语料不存在；确定性优先）
+          if (start === labelFrame && (label === null || name < label)) continue;
+          label = name;
+          labelFrame = start;
+        }
+      }
+      switch (label) {
+        case 'loop':
+          b.animFrame = b.animLabels['loop_start'] ?? 1;
+          break;
+        case 'remove':
+          removed.push(b.id);
+          break;
+        case 'hit_over':
+          b.hitAble = false;
+          break;
+        default:
+          // 原版：currentFrame == totalFrames - 1 → removeSelf
+          if (b.animFrame === b.animTotal - 1) removed.push(b.id);
+          break;
+      }
+    }
+    if (removed.length > 0) this.removeBullets(removed);
+  }
+
+  /**
+   * 飞行道具死亡（原版 Bullet.doHit）：停命中，有元件时间轴则进入残留段
+   * （跳 hit 标签段；无标签原地停住播尽），entity:despawn 延后到播尽——
+   * 命中残留演出随 despawn 收紧（切片 13-A3）。无动画数据时保持旧行为
+   * （立即移除）。
+   */
+  private killBullet(b: BulletState): void {
+    b.hitAble = false;
+    if (b.animTotal <= 0) {
+      this.despawnBullet(b.id);
+      return;
+    }
+    b.hitAnim = true;
+    const hitFrame = b.animLabels['hit'];
+    if (hitFrame !== undefined) b.animFrame = hitFrame;
   }
 
   /** 发射（behaviors.fire 引擎桥）：判定区换算世界坐标 + 参数换算入 SimState。 */
@@ -549,6 +621,10 @@ export class Sim {
       hit: { ...hit },
       hitAble: true,
       viaAssist: false,
+      animTotal: spec.anim?.totalFrames ?? 0,
+      animFrame: 1,
+      animLabels: spec.anim ? { ...spec.anim.labels } : {},
+      hitAnim: false,
     };    this.state.nextEntityId += 1;
     this.state.bullets.push(bullet);
     this.state.bullets.sort((a, b) => a.id - b.id);
@@ -843,6 +919,10 @@ export class Sim {
       hit: { ...hit },
       hitAble: true,
       viaAssist: true,
+      animTotal: spec.anim?.totalFrames ?? 0,
+      animFrame: 1,
+      animLabels: spec.anim ? { ...spec.anim.labels } : {},
+      hitAnim: false,
     };
     this.state.nextEntityId += 1;
     this.state.bullets.push(bullet);
@@ -1071,14 +1151,15 @@ export class Sim {
           break;
         }
       }
-      // 角色攻击 vs 敌方道具（原版 Bullet.beHit：hp -= power；摧毁不回气——简化偏离）
+      // 角色攻击 vs 敌方道具（原版 Bullet.beHit：hp -= power；摧毁不回气——简化偏离；
+      // 死亡走 killBullet 进残留段，切片 13-A3）
       for (const b of bullets) {
         if (!b.hitAble || b.ownerId === atk.id) continue;
         const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
         const zone = zones.find((z) => rectsOverlap(z.rect, bRect));
         if (!zone) continue;
         b.hp -= zone.zone.hit.power;
-        if (b.hp <= 0) this.despawnBullet(b.id);
+        if (b.hp <= 0) this.killBullet(b);
       }
     }
     // 道具 → 角色 / 道具 → 道具（2 人模型：ownerId 不同即敌对）
@@ -1114,9 +1195,10 @@ export class Sim {
           // 也不消费发射者 hurtAction（那是投技/近战动作的携带语义）
           null,
         );
-        // 原版 hitTimes：每次命中递减，耗尽 → doHit（停止命中并消散）
+        // 原版 hitTimes：每次命中递减，耗尽 → doHit（停止命中，播残留段至
+        // 时间轴播尽移除——切片 13-A3 起 entity:despawn 即残留结束）
         if (b.hitTimes > 0 && --b.hitTimes <= 0) {
-          this.despawnBullet(b.id);
+          this.killBullet(b);
           consumed = true;
           break;
         }
@@ -1130,8 +1212,8 @@ export class Sim {
         if (!rectsOverlap(bRect, oRect)) continue;
         b.hp -= other.hpMax;
         other.hp -= b.hpMax;
-        if (b.hp <= 0) this.despawnBullet(b.id);
-        if (other.hp <= 0) this.despawnBullet(other.id);
+        if (b.hp <= 0) this.killBullet(b);
+        if (other.hp <= 0) this.killBullet(other);
         if (!this.state.bullets.includes(b)) break;
       }
     }

@@ -51,6 +51,8 @@ export interface AssistBulletSpawnSpec {
   local: AreaRect;
   hit: HitDef;
   params: FireParams;
+  /** 元件时间轴元数据（baked fires 包；缺失 = 无动画生命周期） */
+  anim?: { totalFrames: number; labels: Record<string, number> };
 }
 
 export type AssisterHandler = (ctx: AssisterContext, args: BehaviorArg[], target: string) => void;
@@ -165,6 +167,7 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
       local,
       hit,
       params: parseFireParams(args[1]),
+      ...(ctx.def.fires?.[name] ? { anim: ctx.def.fires[name] } : {}),
     });
   },
 
