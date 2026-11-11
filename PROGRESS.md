@@ -54,12 +54,12 @@
 
 ### 3.2 阶段 3 尾巴（纯增量特性，不阻塞阶段 4 立项）
 
-**切片 13（候选）——演出/数据审计收紧**：
+**切片 13——演出/数据审计收紧**：
 
-- bullet 精灵图集接入 render（替换道具占位色块；命中残留演出随 `entity:despawn` 收紧）；
-- **辅助图集 capture 补齐（实机验收确认，2026-11-10）**：37 辅助包 26 个帧索引全空（png 全 -1，无 sheet）、11 个仅 30~54% 帧被栅格化（且缺口集中在出场段）——capture 桥对辅助 MC 的镜像推进不完整，辅助召唤后长时间隐身；app demo 暂用 minato（61-132 帧段可见）；
-- **地图层装配错位（实机验收确认）**：视觉层渲染位置与碰撞地板不吻合（KonohaMura：碰撞 388~480 / 主地面 570，视觉层浮在 ~174-297 一带），主地面下方大片露底色；原版 MapMain 为 4 层视差滚动（bg/map/front/front_fix），renderer 现为静态摆放且未导出视差参数——需核对 capture 桥 `x/y` 与 `bx/by` 的坐标系语义后重排，并补视差/平铺；
-- 独立道具寿命/矩形占位收紧（原版由道具内层时间轴驱动，未导出）；独立道具（attackers）渲染端未接线（快照有数据、画面不可见）；
+- ✅ **13-A1 辅助图集 capture 补齐**（commit 42b4078）：capture 桥辅助路径改连续全时间轴扫描，37 辅助包全量栅格化；
+- ✅ **13-A2 地图层装配对齐原版**（commit 6764029）：bottomOffset 下移 / bg 屏幕固定 cover / front 层 0.1 视差（镜像 MapMain.render）；
+- ✅ **13-A3 bullet 精灵图集接入 + 命中残留收紧**（2026-11-11）：capture 桥新增 fire 采集（175 元件全命中，含 byakuya 辅助 atmmc 运行时挂载——fake 控制器补 AssisterCtrler API 后帧脚本可跑通）；atlas-pack fire 模式双路输出（`assets/fires/<ownerKind>/` 图集 bvn/fire-atlas@1 + `baked/fires/` 元数据 bvn/fire@1）；core Bullet 增 animTotal/animFrame/animLabels/hitAnim（30Hz stepBulletAnim 标签分派：loop/remove/hit_over/timeout/播尽 off-by-one quirk 原样保留；killBullet 命中残留段=停移动播尽移除）；render bullet 精灵替换色块（容器锚=RectUtils.apply 逆运算，scale.x=facing，无图集条目回退色块）。**偏离记录**：bullet 命中矩形沿用 spawn 帧 atm 判定区（原版用元件帧1视觉 bounds；61% 元件两者一致，46 项大偏差为 atm 手调平衡数据如万解斩月 267×265，切换需改平衡+重冻基线，暂不切）。基线哈希不变（5 剧本无远程弹；新增 6 条生命周期单测覆盖）；
+- 独立道具寿命/矩形占位占位收紧（原版由道具内层时间轴驱动，未导出）；独立道具（attackers）渲染端未接线（快照有数据、画面不可见；元件名清单已随 13-A3 fire 采集覆盖）；
 - rawScript 抑制段逐条审计（角色 224 处已审 4 处 gaara `getAttacker`，行为无差；辅助残留 11 处：byakuya×6/itachi hitModel/suigetsu isAttacking/temari 弹速×3）；
 - 辅助未注册 op（切片 12 遗留，全在 attacker 系）：getTargetSP/setHitTarget/addAttacker/justHit/setTouchSide/removeCustomFunc/addCustomFunc(temari)，均确定性静默；
 - 联机模式辅助注入（app net 分支需两端配置指纹同步）；
