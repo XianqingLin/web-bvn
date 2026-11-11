@@ -109,6 +109,48 @@
                _capItems.push({"kind":"map","id":mv.id,"url":mv.fileUrl});
             }
          }
+         // fire 采集（切片 13-A3）：fire/addAttacker 命名子元件逐帧栅格化。
+         // 名单来自 fire-names.json（collect-fire-names.mjs 从 baked JSON 提取），
+         // 元件缺失/非 MC 的记 skip 不算失败。attackers（B 步）同机制顺带覆盖。
+         if(onlyKind == null || onlyKind == "fire")
+         {
+            var fnj:Object = null;
+            try
+            {
+               var ff:File = File.documentsDirectory.resolvePath("bvn-atlas/fire-names.json");
+               if(ff.exists)
+               {
+                  var sfn:FileStream = new FileStream();
+                  sfn.open(ff,"read");
+                  fnj = JSON.parse(sfn.readUTFBytes(sfn.bytesAvailable));
+                  sfn.close();
+               }
+            }
+            catch(fe2:Error)
+            {
+            }
+            if(fnj != null)
+            {
+               for each(var ffv:* in fs)
+               {
+                  if(fnj.fighter != null && fnj.fighter[ffv.id] != null)
+                  {
+                     _capItems.push({"kind":"fire","ownerKind":"fighter","id":ffv.id,"url":ffv.fileUrl,"names":fnj.fighter[ffv.id]});
+                  }
+               }
+               for each(var fav:* in asl)
+               {
+                  if(fnj.assister != null && fnj.assister[fav.id] != null)
+                  {
+                     _capItems.push({"kind":"fire","ownerKind":"assister","id":fav.id,"url":fav.fileUrl,"names":fnj.assister[fav.id]});
+                  }
+               }
+            }
+            else
+            {
+               capBootLog("fire-names.json 缺失，跳过 fire 采集");
+            }
+         }
          capBootLog("items built: " + _capItems.length);
          capLog("capture items: " + _capItems.length);
          _capIdx = 0;
@@ -164,6 +206,10 @@
                if(item.kind == "map")
                {
                   capMap(item,loader.content);
+               }
+               else if(item.kind == "fire")
+               {
+                  capFire(item,loader.content as MovieClip);
                }
                else
                {
@@ -226,15 +272,12 @@
 
       // ---------- 角色 / 辅助 capture ----------
 
-      private function capChar(item:Object, root:MovieClip) : void
+      // no-op 控制器注入（同 dump 桥：帧脚本的 ctrler 调用全部吸收）。
+      // capChar 与 capFire 共用——fire 元件多为时间轴摆放，但部分（如 byakuya
+      // 辅助 atmmc）在帧脚本里 new + addChild 运行时挂载，脚本不走 ctrler
+      // 挂载就不会发生，capFire 扫描前必须先注入。
+      private function capInitFakes(root:MovieClip, id:String) : Object
       {
-         if(root == null)
-         {
-            item.error = "SWF root 不是 MovieClip";
-            return;
-         }
-
-         // no-op 控制器（同 dump 桥：帧脚本的 ctrler 调用全部吸收）
          var innerRef:* = null;
          var fakeCtrler:Object = {
             "defineAction":function(param1:String, param2:Object) : void {},
@@ -261,19 +304,29 @@
             "jumpPower":0,
             "speed":0
          };
+         // 辅助侧 no-op（AssisterCtrler API）：byakuya 辅助第 52 帧脚本在
+         // attach atmmc 前调 addCustomFunc——缺了脚本抛错、挂载不发生
+         var assistNoops:Array = ["addCustomFunc","removeCustomFunc","addAttacker","setHitTarget","removeAttacker","setTouchSide","finish"];
+         for each(var nm3:String in assistNoops)
+         {
+            fakeCtrler[nm3] = function(... rest) : * { return null; };
+         }
+         fakeCtrler["getAttacker"] = function(... rest) : * { return null; };
+         fakeCtrler["getOwner"] = function(... rest) : * { return null; };
+         fakeCtrler["getTarget"] = function(... rest) : * { return null; };
          var mcNoops:Array = ["addQi","dash","dashStop","endAct","fire","gotoAndPlay","idle","justHitToPlay","loop","move","movePercent","setAirMove","setAttack","setAttackAIR","setBisha","setBishaAIR","setBishaSUPER","setBishaUP","setDash","setHitTarget","setHurtAction","setJump","setSkill","setSkillAIR","setSteelBody","setTouchFloor","setZhao","stop","stopMove","setBishaEnd","playVoice"];
          var fakeMc:Object = {};
          for each(var nm1:String in mcNoops)
          {
             fakeMc[nm1] = function(... rest) : * { return null; };
          }
-         var effNoops:Array = ["bisha","dash","endBisha","endShadow","endShake","endWanKai","jump","playSoundHit","shadow","shake","shine","slowDown","startShake","startWanKai","walk"];
+         var effNoops:Array = ["bisha","dash","endBisha","endShadow","endShake","endWanKai","jump","playSoundHit","playSoundHit2","shadow","shake","shine","slowDown","startShake","startWanKai","walk"];
          var fakeEff:Object = {};
          for each(var nm2:String in effNoops)
          {
             fakeEff[nm2] = function(... rest) : * { return null; };
          }
-
+         fakeCtrler["effect"] = fakeEff;
          var isFighterType:Boolean = false;
          if(root.initFighter != null)
          {
@@ -288,7 +341,7 @@
             }
             catch(ie:Error)
             {
-               capBootLog("initFighter ERR " + item.id + ": " + ie.message);
+               capBootLog("initFighter ERR " + id + ": " + ie.message);
             }
          }
          if(!isFighterType && root.setAssistCtrler != null)
@@ -299,9 +352,23 @@
             }
             catch(ae:Error)
             {
-               capBootLog("setAssistCtrler ERR " + item.id + ": " + ae.message);
+               capBootLog("setAssistCtrler ERR " + id + ": " + ae.message);
             }
          }
+         return {"isFighterType":isFighterType,"innerRef":innerRef};
+      }
+
+      private function capChar(item:Object, root:MovieClip) : void
+      {
+         if(root == null)
+         {
+            item.error = "SWF root 不是 MovieClip";
+            return;
+         }
+
+         var inited:Object = capInitFakes(root,item.id);
+         var innerRef:* = inited.innerRef;
+         var isFighterType:Boolean = inited.isFighterType;
          if(!isFighterType && root.setAssistCtrler == null && root.initFighter == null)
          {
             item.error = "SWF 无 initFighter/setAssistCtrler 入口";
@@ -567,7 +634,7 @@
                seen[key] = pngId;
                var png:ByteArray = capPngEncode(bmp);
                bmp.dispose();
-               capWritePng(item.kind + "_" + item.id,pngId,png);
+               capWritePng(item.pngPrefix != null ? item.pngPrefix : item.kind + "_" + item.id,pngId,png);
                pngList.push({"id":pngId,"w":rw,"h":rh});
             }
             outFrames[f - 1] = {
@@ -605,6 +672,187 @@
          px.length = 0;
          _h1 = a;
          _h2 = b;
+      }
+
+      // ---------- fire / attacker 元件 capture（切片 13-A3） ----------
+
+      // fire(mcName) 取命名子 MovieClip 挂 playerLayer 飞行（FighterMcCtrler：
+      // _mc=内层"mc"剪辑的子对象；AssisterCtrler：_assister.mc 的子对象）——
+      // 元件不在 root 直下，而是摆在内层时间轴的关键帧上，须全时间轴扫描定位。
+      // Bullet.renderAnimate（30Hz）只推进元件自身时间轴；嵌套子剪辑采集时
+      // 沿用 capAdvanceChildren（同辅助扫描）。帧标签（loop/remove/hit/
+      // hit_over/timeout）与 main 子对象 bounds（Bullet._bulletArea 锚）一并记录。
+      private function capFire(item:Object, root:MovieClip) : void
+      {
+         if(root == null)
+         {
+            item.error = "SWF root 不是 MovieClip";
+            return;
+         }
+         var names:Array = item.names as Array;
+         if(names == null || names.length == 0)
+         {
+            capLog("fire " + item.id + " 无名单，跳过");
+            item.ok = true;
+            return;
+         }
+         // 注入 fake 控制器：帧脚本里的运行时挂载（new + addChild）才能发生
+         capInitFakes(root,item.id);
+         var wanted:Object = {};
+         for(var ni:int = 0; ni < names.length; ni++)
+         {
+            wanted[String(names[ni])] = true;
+         }
+         // 阶段一：递归扫描定位元件实例（首个命中即定，同名同库符号时间轴一致）。
+         // root 的子对象多为未命名 instanceNNN（内层 MC 不叫 "mc"），fire 元件
+         // 摆在内层时间轴关键帧上——逐 root 帧重扫，后代 MovieClip 逐帧推进枚举
+         // 直接子对象，深度 3 足够（root > 内层 > 嵌套）。
+         var found:Object = {};
+         _capFoundCount = 0;
+         for(var r:int = 1; r <= root.totalFrames; r++)
+         {
+            if(_capFoundCount >= names.length)
+            {
+               break;
+            }
+            try
+            {
+               root.gotoAndStop(r);
+            }
+            catch(re:Error)
+            {
+               capBootLog("fire locate root " + item.id + " r" + r + " ERR: " + re.message);
+            }
+            capSweepFind(root,wanted,found,3,item.id,r,names.length);
+         }
+         // 阶段二：逐元件栅格化自身时间轴 + 记录元数据
+         var seen:Object = {};
+         var pngCount:int = 0;
+         var pngList:Array = [];
+         var fires:Object = {};
+         var fireSkipRe:RegExp = /^(atm|bdmn|AImain|main)/;
+         // png 目录带 ownerKind：fighter/assister 的 id 可能同名（byakuya 双栖）
+         item.pngPrefix = "fire_" + item.ownerKind + "_" + item.id;
+         for(var nmS:String in wanted)
+         {
+            var mc:MovieClip = found[nmS] as MovieClip;
+            if(mc == null)
+            {
+               fires[nmS] = {"missing":true};
+               capLog("fire " + item.id + " " + nmS + " 时间轴上未找到");
+               continue;
+            }
+            // main 锚：Bullet.setHitVO 的 _bulletArea 来源（无 main 回退元件自身
+            // bounds，同原版）；坐标 = 相对元件原点（direct=1 空间）
+            var anchor:DisplayObject = mc.getChildByName("main");
+            if(anchor == null)
+            {
+               anchor = mc;
+            }
+            var ab:Rectangle = anchor.getBounds(mc);
+            var rec:Object = {
+               "rootX":mc.x,
+               "rootY":mc.y,
+               "totalFrames":mc.totalFrames,
+               "labels":capLabelsOf(mc),
+               "main":{"x":ab.x,"y":ab.y,"w":ab.width,"h":ab.height},
+               "frames":[]
+            };
+            for(var f0:int = 1; f0 <= mc.totalFrames; f0++)
+            {
+               rec.frames.push({"frame":f0,"png":-1});
+            }
+            for(var f2:int = 1; f2 <= mc.totalFrames; f2++)
+            {
+               try
+               {
+                  mc.gotoAndStop(f2);
+               }
+               catch(e:Error)
+               {
+                  capBootLog("fire goto " + item.id + " " + nmS + " f" + f2 + " ERR: " + e.message);
+               }
+               capAdvanceChildren(mc,fireSkipRe);
+               capShotFrame(item,mc,mc,f2,seen,pngList,function():int
+               {
+                  pngCount++;
+                  return pngCount;
+               },rec.frames,fireSkipRe);
+            }
+            fires[nmS] = rec;
+         }
+         var outData:Object = {
+            "kind":"fire",
+            "ownerKind":item.ownerKind,
+            "id":item.id,
+            "fileUrl":item.url,
+            "pngCount":pngList.length,
+            "pngs":pngList,
+            "fires":fires
+         };
+         capWriteJson("atlas_fire_" + item.ownerKind + "_" + item.id + ".json",outData);
+         capLog("captured fire " + item.ownerKind + ":" + item.id + " 元件=" + names.length + " pngs=" + pngList.length);
+      }
+
+      private function capLabelsOf(mc:MovieClip) : Object
+      {
+         var out:Object = {};
+         var labels:Array = mc.currentLabels;
+         for(var i:int = 0; i < labels.length; i++)
+         {
+            out[String(labels[i].name)] = int(labels[i].frame);
+         }
+         return out;
+      }
+
+      // 递归扫描定位：枚举 mc 直接子对象，命中 wanted 记入 found；其余
+      // 多帧 MovieClip 逐帧推进下钻（depth 层）。仅枚举不栅格化，成本低。
+      // _capFoundCount 达到 wanted 总数即全树提前退出。
+      private var _capFoundCount:int = 0;
+
+      private function capSweepFind(mc:MovieClip, wanted:Object, found:Object, depth:int, id:String, r:int, wantedTotal:int) : void
+      {
+         if(depth <= 0 || mc.totalFrames < 1 || _capFoundCount >= wantedTotal)
+         {
+            return;
+         }
+         for(var f:int = 1; f <= mc.totalFrames; f++)
+         {
+            if(_capFoundCount >= wantedTotal)
+            {
+               return;
+            }
+            try
+            {
+               mc.gotoAndStop(f);
+            }
+            catch(le:Error)
+            {
+               capBootLog("fire locate " + id + " r" + r + " f" + f + " ERR: " + le.message);
+            }
+            for(var i:int = 0; i < mc.numChildren; i++)
+            {
+               var ch:MovieClip = mc.getChildAt(i) as MovieClip;
+               if(ch == null || ch.name == null)
+               {
+                  continue;
+               }
+               if(found[ch.name] != null)
+               {
+                  continue;
+               }
+               if(wanted[ch.name] == true && ch.totalFrames >= 1)
+               {
+                  found[ch.name] = ch;
+                  _capFoundCount++;
+                  continue;
+               }
+               if(depth > 1 && ch.totalFrames > 1)
+               {
+                  capSweepFind(ch,wanted,found,depth - 1,id,r,wantedTotal);
+               }
+            }
+         }
       }
 
       // ---------- 地图 capture：逐子图层 PNG + 偏移 ----------
