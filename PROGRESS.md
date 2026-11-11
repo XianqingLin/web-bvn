@@ -14,7 +14,7 @@
 | 1 | POC：单机对战闭环 + 训练模式 | ✅（切片 1~5） |
 | 2 | 联机：lockstep + 房间服务器 | ✅（切片 6~7；云上真机验证待做） |
 | 3 | 批量化：全角色机制 + 验收门禁 | ✅ 主线（切片 8~11）；尾巴见遗留池 |
-| 4 | 体验完善：rollback/观战/录像/菜单流等 | 🔄（切片 15 ✅；余断线/录像/观战/rollback/街机/音效/本地双人） |
+| 4 | 体验完善：rollback/观战/录像/菜单流等 | 🔄（切片 15/16 ✅；余断线/录像/观战/rollback/街机/音效/本地双人） |
 
 门禁速记（每次收尾全过才算完成）：`pnpm build` + 确定性单测 + `tools/replay` 五剧本哈希（含 assist-duel）+ `pnpm batch:validate`（58 角色 + 37 辅助，基线 `tools/batch-validate/baseline.json`）。行为有意变更 → 重冻全部基线并在提交说明写明。
 
@@ -39,6 +39,7 @@
 | 12 | 辅助系统：fzqi/召唤流程 + Assister 实体（时间轴/物理/op 词表/loop 触发器）+ buff 结算（speedUp/attackUp/defenseUp/buffEffects）+ 验收门禁扩展 | ✅ | DESIGN §3.5；`teleport` 不移植（ADR 记录） |
 | 14 | 场景流转骨架：AppHost 子系统宿主 + SceneHost + 菜单/选人/战斗/结算场景 + 联机 pick 选人交换 + `tools/select-pack`（select.json 53 角色/40 辅助/15 地图） | ✅ | 下详（切片 13 中顺带关闭"联机辅助注入"） |
 | 15 | 选人页原版化：`tools/ui-pack`（FFDec 按元件导出 face 266 张 + select 壳 9 元件 + 地图缩略图 16 张 → assets/ui/ + baked/ui.json）+ SetupScene 原版布局换肤 | ✅ | §3.3 切片 15 |
+| 16 | 菜单主页原版化：ui-pack 扩展（stg_title 90 帧 WebP 流帧 + mc_wzbtn 按钮件）+ MenuScene 原版化重写（开场动画/跳过 + wzbtn 阶梯按钮组 + 键盘导航） | ✅ | §3.3 切片 16 |
 
 ---
 
@@ -88,13 +89,21 @@
 - **不做**（留后续）：格子呼吸动画、血条头像接 HUD、胜利立绘接结算、title.swf 主菜单；
 - **验收**：门禁全过（build / 137 测试 / replay 5 剧本 / batch:validate）；Playwright 驱动 选角色→选辅助→地图轮盘翻页→确认→战斗 全链路截图目检（光标/展示框/轮盘/背景均原版件）。
 
+**切片 16——菜单主页原版化（✅ 完成，2026-11-11）**：
+
+- **tools/ui-pack 扩展**：title.swf `-export sprite` 导出 stg_title（sprite 64）90 帧 → sharp WebP q80 → `assets/ui/title/<n>.webp`（~8.4MB，原 PNG 115MB 的 1/13；sharp 为根 devDependency）；common_ui.swf 导出 mc_wzbtn（388×75 按钮板）+ wzimg_bgimg 帧 1/2（hover 橙板/开态蓝板）→ `assets/ui/menu/`；ui.json 增 `title`/`menu` 段（帧参数 + 布局常量，schema 仍 bvn/ui@1 加性扩展）；
+- **关键逆向**：title.swf 主时间轴为空，动画在 stg_title 类内；帧脚本 `addFrameScript(49/74, stop)`——intro 播帧 2..50 定格等点击，`gotoAndPlay("menu")`（帧标签=帧 65）播到帧 75 定格；帧 51-64/76-90 运行时不可见（资产保留）；帧 PNG 画布内舞台 (0,0) 位于 (859,100)（自写时间轴 union-bounds 计算得 2350×748，与 FFDec 画布 2351×749 对上）；按钮组挂 stg_title 内 identity 占位 btnct → 舞台 (470,100)，MenuBtnGroup xadd -40 / 项距 height+5 / childMode 项高 55；
+- **MenuScene 重写**：800×600 舞台区裁剪挂载（帧 PNG 挂 `舞台-(859,100)`）；流帧播放 = fetch→createImageBitmap→ImageSource 手工管显存（单帧解码 ~7MB，全量常驻 ~630MB 不可行 → 常驻窗 ~9 帧 + 预取身前 4 帧 + 释放身后帧；**纹理就绪才推进帧**，否则释放窗口会销毁显示中的纹理）；点击/任意键跳过（500ms 后启用；跳过期间 'skipping' 相位暂停推进/释放，防加载竞态；热区跳过后让位按钮组）；按钮组：SINGLE PLAY/单机训练 + NET PLAY/联机对战（子菜单 CREATE/JOIN ROOM 直连 NetScene auto create/join）；hover 橙板 + 中文小字（挂板内，仅 hover/开态可见，原版如此）、开态/子项蓝板 scaleX0.9/scaleY0.75、fadIn scaleX 0.01→1 Back.easeOut 逐项 0.04s、400ms 后可操作；键盘 ↑/↓/Enter/Esc 导航；版本字右下角（黑色 18px，原版样式）；
+- **偏离记录**：① BitmapFontText/BitmapText → 系统字体 Text（切片 15 ② 同类）；② 原版 select 动画 alpha -1→1 Elastic 1s → 0.35s 快速淡入；③ 背景帧内的三个下载/论坛徽标**保留**（立项时拟去除，实际为烙进原版帧的美术内容，逐帧修补代价大且保留更忠实——与立项方案偏离，登记于此）；④ 原版 BGM（op 音源）未接（音效块后续）；
+- **验收**：门禁全过（build / 137 测试 / replay 5 剧本 / batch:validate）；Playwright 目检 开场动画→定格→点击跳过→按钮组入场→子菜单展开→选人→战斗 全链路截图。
+
 | # | 块 | 内容 | 备注 |
 |---|---|---|---|
 | 1 | 断线处理 | peer-lost 后判负/重连（现为冻结等待） | ADR-15 预留 |
 | 2 | 录像回放 | 输入序列 + 种子 + 数据版本戳的存储与播放 UI | 帧同步免费送，core 无需改 |
 | 3 | 观战 | 只收不发输入的观战客户端 | net 层扩展 |
 | 4 | rollback | 可选；视云上延迟体验决策 | 架构接口已预留（DESIGN §6） |
-| 5 | 菜单流 | ✅ 骨架已由切片 14 完成；✅ 选人页原版化（切片 15）；余 Logo 演出/格子动画/结算立绘打磨 | app 层场景系统 |
+| 5 | 菜单流 | ✅ 骨架（切片 14）；✅ 选人页原版化（切片 15）；✅ 菜单主页原版化（切片 16）；余 Logo 演出/格子动画/结算立绘/开场徽标去除（可选）打磨 | app 层场景系统 |
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
 | 7 | 音效/特效接线 | 音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好）；effect.swf 已定位 | 音效随机选音源在渲染层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |

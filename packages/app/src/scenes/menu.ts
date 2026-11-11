@@ -1,54 +1,611 @@
 /**
- * 主菜单（切片 14 骨架）：标题 + 单机训练 / 联机对战 两个入口。
+ * 主菜单（切片 16 原版化）。
+ *
+ * 开场：stg_title 流帧（baked/ui.json title 段）——原版语义：帧 2..50 播完定格（帧脚本
+ * addFrameScript(49,stop)），点击/任意键 → gotoAndPlay("menu")：帧 65..75 定格，按钮组
+ * 同时入场。帧 PNG 注册：原版把 stg_title 以 (0,0) addChild 到 800×600 舞台，FFDec 导出
+ * 画布原点 = 内容 bounds 左上 → 挂载位 = 舞台位 - stageOriginInFrame，并裁剪到舞台矩形
+ * （原版窗口即舞台，越界内容不可见）。
+ *
+ * 按钮：mc_wzbtn 阶梯组（MenuStage/MenuBtnGroup/MenuBtn 规格）：组位 (470,100)、
+ * xadd -40、项距 height+5；English 标签 + hover 橙板（中文小字挂板内，仅 hover/开态可见）；
+ * 子菜单子项/开态蓝板 scaleX 0.9/scaleY 0.75、项高 55；入场 scaleX 0.01→1 Back.easeOut 逐项 0.04s；
+ * 键盘 ↑/↓/Enter/Backspace 导航。偏离：BitmapFontText/BitmapText → 系统字体 Text（切片 15 ②同）。
+ *
+ * 流帧播放：单帧解码 ~7MB 显存，全量常驻 ~630MB 不可行 → 常驻小窗口（预取 5 帧、
+ * 释放身后帧）；磁盘 WebP 共 ~8.5MB（PNG 的 1/13）。
  */
-import { Container } from 'pixi.js';
+import { Assets, Container, Graphics, ImageSource, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
-import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
+import { makeLabel, UI_H, UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
+import { ASSETS, loadUi, type UiData } from '../data.js';
 import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
+
+/** 原版 MainGame.VERSION 同位常量（仓库无版本管线，发布时更新）。 */
+const VERSION = 'BVN Web v0.0.0';
+
+/** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
+const OX = (UI_W - 800) / 2;
+
+// ---------- 极简补间（TweenLite 近似：显示对象数字属性路径 + Back.easeOut） ----------
+
+/** 属性路径（'x' / 'scale.x' / 'alpha' …）读写（pixi 的 scale/position 是 ObservablePoint）。 */
+function getProp(o: Container, path: string): number {
+  let cur: unknown = o;
+  for (const seg of path.split('.')) cur = (cur as Record<string, unknown>)[seg];
+  return cur as number;
+}
+function setProp(o: Container, path: string, v: number): void {
+  const segs = path.split('.');
+  let cur: unknown = o;
+  for (const seg of segs.slice(0, -1)) cur = (cur as Record<string, unknown>)[seg];
+  (cur as Record<string, number>)[segs[segs.length - 1]!] = v;
+}
+
+interface Tween {
+  obj: Container;
+  paths: string[];
+  from: number[];
+  to: number[];
+  t: number;
+  dur: number;
+  ease: (k: number) => number;
+  delay: number;
+  done: (() => void) | undefined;
+}
+const tweens: Tween[] = [];
+const backOut = (k: number) => {
+  const c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * (k - 1) ** 3 + c1 * (k - 1) ** 2;
+};
+function tweenOf(
+  obj: Container,
+  to: Record<string, number>,
+  durMs: number,
+  opts: { ease?: (k: number) => number; delayMs?: number; done?: () => void } = {},
+): void {
+  const paths = Object.keys(to);
+  tweens.push({
+    obj,
+    paths,
+    from: paths.map((p) => getProp(obj, p)),
+    to: paths.map((p) => to[p]!),
+    t: 0,
+    dur: durMs,
+    ease: opts.ease ?? backOut,
+    delay: opts.delayMs ?? 0,
+    done: opts.done,
+  });
+}
+function tickTweens(dtMs: number): void {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    if (!tw) continue;
+    if (tw.delay > 0) {
+      tw.delay -= dtMs;
+      continue;
+    }
+    tw.t = Math.min(tw.dur, tw.t + dtMs);
+    const k = tw.dur > 0 ? tw.ease(tw.t / tw.dur) : 1;
+    for (let p = 0; p < tw.paths.length; p++) {
+      const path = tw.paths[p];
+      if (path) setProp(tw.obj, path, (tw.from[p] ?? 0) + ((tw.to[p] ?? 0) - (tw.from[p] ?? 0)) * k);
+    }
+    if (tw.t >= tw.dur) {
+      tweens.splice(i, 1);
+      tw.done?.();
+    }
+  }
+}
+
+// ---------- stg_title 流帧播放（常驻窗口 + 预取） ----------
+
+class TitleStream {
+  private readonly cache = new Map<number, Texture>();
+  private readonly loading = new Map<number, Promise<Texture | null>>();
+  private readonly failedFrames = new Set<number>();
+  private dead = false;
+
+  constructor(private readonly info: UiData['title']) {}
+
+  /** 触发 [i, i+ahead] 加载；返回 i 是否已可用。 */
+  ensure(i: number, ahead = 5): boolean {
+    const to = Math.min(i + ahead, this.info.frames);
+    for (let k = Math.max(1, i); k <= to; k++) this.load(k);
+    return this.cache.has(i);
+  }
+
+  /** 加载失败帧（不重试，播放停在该帧前一位并保持背景）。 */
+  failed(i: number): boolean {
+    return this.failedFrames.has(i);
+  }
+
+  get(i: number): Texture | undefined {
+    return this.cache.get(i);
+  }
+
+  /** 释放窗口外帧（全分辨率解码帧 ~7MB 显存，常驻窗必须小）。 */
+  release(keep: (i: number) => boolean): void {
+    for (const [i, tex] of this.cache) {
+      if (!keep(i) && !this.loading.has(i)) {
+        tex.destroy(true);
+        this.cache.delete(i);
+      }
+    }
+  }
+
+  dispose(): void {
+    this.dead = true;
+    for (const tex of this.cache.values()) tex.destroy(true);
+    this.cache.clear();
+  }
+
+  private load(i: number): Promise<Texture | null> {
+    if (this.failedFrames.has(i)) return Promise.resolve(null);
+    let p = this.loading.get(i);
+    if (!p) {
+      p = fetch(`${ASSETS}/${this.info.dir}/${i}.webp`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`${r.status}`);
+          return r.blob();
+        })
+        .then((b) => createImageBitmap(b))
+        .then((bmp) => {
+          if (this.dead) {
+            bmp.close();
+            return null;
+          }
+          const tex = new Texture({ source: new ImageSource({ resource: bmp }) });
+          this.cache.set(i, tex);
+          return tex;
+        })
+        .catch(() => {
+          this.failedFrames.add(i);
+          return null;
+        })
+        .finally(() => this.loading.delete(i));
+      this.loading.set(i, p);
+    }
+    return p;
+  }
+}
+
+// ---------- 菜单项定义与按钮（MenuBtn 原版语义） ----------
+
+interface MenuEntry {
+  en: string;
+  cn: string;
+  children?: MenuEntry[];
+  action?: () => void;
+}
+
+class MenuBtn {
+  readonly ui = new Container();
+  /** 布局项高（原版 MenuBtn.height：常态 75，childMode 55）。 */
+  height: number;
+  index = 0;
+  children: MenuBtn[] | null = null;
+  private isOpen = false;
+  private readonly bg: Sprite;
+  private readonly label: Text;
+  private readonly texBg1: Texture;
+  private readonly texBg2: Texture;
+
+  constructor(
+    readonly entry: MenuEntry,
+    menu: UiData['menu'],
+    tex: { btn: Texture; bg1: Texture; bg2: Texture },
+    isChild: boolean,
+    onHover: (b: MenuBtn) => void,
+    onSelect: (b: MenuBtn) => void,
+  ) {
+    this.height = menu.btnHeight;
+    this.texBg1 = tex.bg1;
+    this.texBg2 = tex.bg2;
+    this.ui.addChild(new Sprite(tex.btn));
+
+    // bg 子件（原版 wzimg_bgimg 帧 1=橙 / 帧 2=蓝）：hover 橙板（bg1）/ 开态·子项蓝板（bg2），
+    // 挂 (0,-5)，中文小字挂板内 (10,45)（bg 隐藏时中文不可见，原版如此）
+    this.bg = new Sprite(isChild ? tex.bg2 : tex.bg1);
+    this.bg.position.set(menu.bgOffset[0], menu.bgOffset[1]);
+    if (isChild) {
+      this.height = menu.childHeight;
+      this.bg.scale.set(0.9, 0.75); // childMode：ui.bg.scaleX 0.9 / scaleY 0.75
+    } else {
+      this.bg.visible = false;
+    }
+    const cnText = makeLabel(entry.cn, { size: 18, color: 0xffffff });
+    cnText.position.set(menu.cnTextPos[0], menu.cnTextPos[1]);
+    this.bg.addChild(cnText);
+
+    // English 标签：原版 BitmapFontText 居中（x=-w/2）；系统字体近似，锚点居中
+    this.label = makeLabel(entry.en, { size: 24, color: 0xffffff, bold: true });
+    this.label.anchor.set(0.5, 0);
+    this.label.position.set(388 / 2, 10);
+    if (isChild) this.label.scale.set(0.75);
+
+    this.ui.addChild(this.bg, this.label);
+    this.ui.eventMode = 'static';
+    this.ui.cursor = 'pointer';
+    this.ui.on('pointerover', () => onHover(this));
+    this.ui.on('pointertap', () => onSelect(this));
+  }
+
+  hover(): void {
+    if (this.isOpen || this.bg.visible) return;
+    this.bg.visible = true;
+    this.bg.scale.set(0.01, 1);
+    tweenOf(this.bg, { 'scale.x': 1 }, 200);
+  }
+
+  normal(): void {
+    if (this.isOpen) return;
+    this.bg.visible = false;
+  }
+
+  openChild(): void {
+    if (this.isOpen) return;
+    this.isOpen = true;
+    this.bg.texture = this.texBg2; // 原版 ui.bg.gotoAndStop(2)：开态蓝板（帧 2）
+  }
+
+  closeChild(): void {
+    if (!this.isOpen) return;
+    this.isOpen = false;
+    this.bg.texture = this.texBg1; // 原版 ui.bg.gotoAndStop(1)：回到 hover 橙板（帧 1）
+  }
+
+  /** 原版 select：alpha -1→1 Elastic 1s 后回调；近似为快速淡入 0.35s。 */
+  select(back: () => void): void {
+    this.ui.alpha = 0.1;
+    tweenOf(this.ui, { alpha: 1 }, 350, { ease: (k) => k, done: back });
+  }
+}
+
+// ---------- 场景 ----------
 
 export class MenuScene implements Scene {
   readonly name = 'menu';
 
+  private uiData: UiData | null = null;
+  private stream: TitleStream | null = null;
+  private frameSprite: Sprite | null = null;
+  private phase: 'intro' | 'skipping' | 'menu-anim' | 'menu' = 'intro';
+  private frame = 0;
+  private acc = 0;
+  private skipEnabled = false;
+  private destroyed = false;
+
+  private menuGroup: Container | null = null;
+  private btns: MenuBtn[] = [];
+  private childOpen: MenuBtn | null = null;
+  private menuEnabled = false;
+  private navIndex = 0;
+
+  private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
+  private readonly timers: number[] = [];
+  private switchTo: ((s: Scene) => void) | null = null;
+
   constructor(private readonly flow: Flow) {}
 
-  enter({ root, switchTo }: SceneCtx): void {
-    const ui = new Container();
-    root.addChild(ui);
+  async enter(ctx: SceneCtx): Promise<void> {
+    const root = ctx.root;
+    this.switchTo = ctx.switchTo;
 
-    // 背景
-    const bg = makePanel(UI_W, UI_H, { color: 0x0a0e1a, alpha: 1 });
-    ui.addChild(bg);
+    // 黑底（帧 PNG 未就绪时）
+    const bg = new Graphics();
+    bg.rect(0, 0, UI_W, UI_H).fill({ color: 0x000000 });
+    root.addChild(bg);
 
-    const title = makeLabel('死神 VS 火影', { size: 56, color: 0xffffff, bold: true });
-    title.anchor.set(0.5);
-    title.position.set(UI_W / 2, 160);
-    const sub = makeLabel('BVN Web —— 确定性帧同步重构版', { size: 16, color: 0x7a86a0 });
-    sub.anchor.set(0.5);
-    sub.position.set(UI_W / 2, 208);
-    ui.addChild(title, sub);
+    this.uiData = await loadUi(ctx.ctx);
+    const title = this.uiData.title;
 
-    const soloBtn = makeButton('单机训练', () => {
-      this.flow.mode = 'solo';
-      switchTo(new SetupScene(this.flow));
-    });
-    soloBtn.position.set(UI_W / 2 - 100, 300);
-    const netBtn = makeButton('联机对战', () => {
-      this.flow.mode = 'net';
-      switchTo(new NetScene(this.flow));
-    });
-    netBtn.position.set(UI_W / 2 - 100, 360);
-    ui.addChild(soloBtn, netBtn);
+    // 原版：stg_title (0,0) 挂 800×600 舞台 → 帧 PNG 挂 舞台-stageOriginInFrame，裁剪到舞台矩形
+    const clip = new Container();
+    const mask = new Graphics();
+    mask.rect(OX, 0, 800, 600).fill({ color: 0xffffff });
+    clip.mask = mask;
+    root.addChild(mask, clip);
+    const frameSprite = new Sprite();
+    frameSprite.position.set(OX - title.stageOriginInFrame[0], -title.stageOriginInFrame[1]);
+    clip.addChild(frameSprite);
+    this.frameSprite = frameSprite;
 
-    const hint = makeLabel(
-      'P1 键位：WASD 移动 / J 攻击 / K 跳 / L 瞬步 / U 技 / I 必杀 / O 辅助',
-      { size: 13, color: 0x66708a },
+    // 菜单按钮组（原版：intro 期间即构建，showBtns 时挂入并入场）
+    const btnTex = {
+      btn: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn}`),
+      bg1: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg1}`),
+      bg2: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg2}`),
+    };
+    const group = new Container();
+    group.position.set(OX + this.uiData.menu.groupPos[0], this.uiData.menu.groupPos[1]);
+    group.visible = false;
+    this.menuGroup = group;
+    root.addChild(group);
+    this.buildMenuGroup(btnTex);
+
+    // 版本字（原版 afterBuild：右下角内缩，黑色 18px）
+    const version = makeLabel(VERSION, { size: 18, color: 0x000000 });
+    version.position.set(OX + 800 - this.uiData.menu.versionPad[0] - version.width, UI_H - this.uiData.menu.versionPad[1] - version.height);
+    root.addChild(version);
+
+    // 流帧：预取头几帧后开播
+    this.stream = new TitleStream(title);
+    this.stream.ensure(title.introFrom, 5);
+    await this.waitFrames(title.introFrom, 4);
+    if (this.destroyed) return;
+    frameSprite.texture = this.stream.get(title.introFrom) ?? Texture.WHITE;
+    this.frame = title.introFrom;
+    this.acc = 0;
+    this.phase = 'intro';
+    group.visible = false;
+
+    // 点击跳过（原版 500ms 后启用；点击区 = 舞台矩形）
+    this.timers.push(
+      window.setTimeout(() => {
+        if (!this.destroyed) this.skipEnabled = true;
+      }, 500),
     );
-    hint.anchor.set(0.5, 1);
-    hint.position.set(UI_W / 2, UI_H - 16);
-    ui.addChild(hint);
+    const hit = new Graphics();
+    hit.rect(OX, 0, 800, 600).fill({ color: 0xffffff, alpha: 0 });
+    hit.eventMode = 'static';
+    hit.cursor = 'pointer';
+    hit.on('pointertap', () => {
+      this.skipIntro();
+      // 跳过后热区让位给按钮组（否则挡住全部指针事件）
+      hit.eventMode = 'none';
+      hit.cursor = 'default';
+    });
+    root.addChild(hit);
+
+    window.addEventListener('keydown', this.onKey);
   }
 
-  exit(): void {}
+  update(dtMs: number): void {
+    tickTweens(dtMs);
+    if (!this.stream || !this.frameSprite || !this.uiData) return;
+    const t = this.uiData.title;
+    if (this.phase === 'intro' || this.phase === 'menu-anim') {
+      this.acc += dtMs;
+      const from = this.phase === 'intro' ? t.introFrom : t.menuFrame;
+      const stop = this.phase === 'intro' ? t.introStop : t.menuStop;
+      const f = Math.min(stop, from + Math.floor((this.acc * t.fps) / 1000));
+      if (f !== this.frame) {
+        const tex = this.stream.get(f);
+        if (tex) {
+          // 纹理就绪才推进（sprite 始终显示 this.frame 的纹理，release 窗口才是安全的）
+          this.frame = f;
+          this.frameSprite.texture = tex;
+        } else {
+          this.stream.ensure(f, 4); // 停帧等待加载
+        }
+      }
+      // menu 段播完定格（intro 段定格仍留在 'intro' 等点击，原版帧脚本 stop 语义）
+      if (this.phase === 'menu-anim' && this.frame >= stop) this.phase = 'menu';
+      // 常驻窗口：身后 2 帧、身前 6 帧
+      this.stream.release((i) => i >= this.frame - 2 && i <= this.frame + 6);
+      this.stream.ensure(this.frame + 1, 4); // 持续预取身前帧
+    }
+  }
+
+  exit(): void {
+    this.destroyed = true;
+    window.removeEventListener('keydown', this.onKey);
+    for (const id of this.timers) window.clearTimeout(id);
+    tweens.length = 0;
+    this.stream?.dispose();
+    this.stream = null;
+  }
+
+  // ---------- 流程 ----------
+
+  private async skipIntro(): Promise<void> {
+    if (!this.skipEnabled || !this.uiData || this.phase !== 'intro') return;
+    this.skipEnabled = false;
+    this.phase = 'skipping'; // 等待 menu 帧加载期间暂停推进/释放
+    const t = this.uiData.title;
+    await this.waitFrames(t.menuFrame, 5);
+    if (this.destroyed) return;
+    this.acc = 0;
+    this.frame = t.menuFrame;
+    const tex = this.stream?.get(t.menuFrame);
+    if (tex && this.frameSprite) this.frameSprite.texture = tex;
+    this.phase = 'menu-anim';
+    // 按钮组入场（原版 showBtns：btnGroup 挂入 + fadIn(0.2, 0.04)，400ms 后可操作）
+    const group = this.menuGroup;
+    if (group) {
+      group.visible = true;
+      this.btns.forEach((b, i) => {
+        b.ui.scale.set(0.01, 1);
+        tweenOf(b.ui, { 'scale.x': 1 }, 200, { delayMs: i * 40 });
+      });
+      this.timers.push(
+        window.setTimeout(() => {
+          if (!this.destroyed) this.menuEnabled = true;
+        }, 400),
+      );
+    }
+  }
+
+  private async waitFrames(first: number, ahead: number): Promise<void> {
+    // 轮询等待首帧纹理可用（load 完成即 resolve）
+    for (;;) {
+      if (this.stream?.ensure(first, ahead)) {
+        const tex = this.stream.get(first);
+        if (tex) return;
+      }
+      if (this.destroyed) return;
+      await new Promise((r) => window.setTimeout(r, 50));
+    }
+  }
+
+  // ---------- 按钮组（MenuBtnGroup 语义） ----------
+
+  private buildMenuGroup(tex: { btn: Texture; bg1: Texture; bg2: Texture }): void {
+    const menu = this.uiData!.menu;
+    const defs: MenuEntry[] = [
+      {
+        en: 'SINGLE PLAY',
+        cn: '单机训练',
+        action: () => {
+          this.flow.mode = 'solo';
+          this.switchTo?.(new SetupScene(this.flow));
+        },
+      },
+      {
+        en: 'NET PLAY',
+        cn: '联机对战',
+        children: [
+          {
+            en: 'CREATE ROOM',
+            cn: '创建房间',
+            action: () => {
+              this.flow.mode = 'net';
+              this.switchTo?.(new NetScene(this.flow, { action: 'create' }));
+            },
+          },
+          {
+            en: 'JOIN ROOM',
+            cn: '加入房间',
+            action: () => {
+              this.flow.mode = 'net';
+              this.switchTo?.(new NetScene(this.flow, { action: 'join' }));
+            },
+          },
+        ],
+      },
+    ];
+    const make = (o: MenuEntry, isChild: boolean): MenuBtn => {
+      const b = new MenuBtn(
+        o,
+        menu,
+        tex,
+        isChild,
+        (x) => this.hoverBtn(x),
+        (x) => this.selectBtn(x),
+      );
+      if (!isChild) {
+        b.index = this.btns.length;
+        this.btns.push(b);
+      }
+      if (o.children) {
+        b.children = o.children.map((c, j) => {
+          const cb = make(c, true);
+          cb.index = j;
+          return cb;
+        });
+      }
+      return b;
+    };
+    for (const o of defs) make(o, false);
+    this.layout(false);
+    for (const b of this.btns) this.menuGroup!.addChild(b.ui);
+    this.hoverBtn(this.btns[0]!);
+  }
+
+  private layout(animate: boolean): void {
+    const menu = this.uiData!.menu;
+    let lx = 0;
+    let ly = 0;
+    const place = (b: MenuBtn, isChildNew: boolean, childIdx: number) => {
+      if (animate) tweenOf(b.ui, { x: lx, y: ly }, 200, { ease: (k) => k });
+      else b.ui.position.set(lx, ly);
+      if (isChildNew) {
+        // 原版 setBtns：子项入场 scaleX 0.01→1 Back.easeOut 逐项 0.04s
+        b.ui.scale.set(0.01, 1);
+        tweenOf(b.ui, { 'scale.x': 1 }, 200, { delayMs: childIdx * 40 });
+      }
+      ly += b.height + menu.yadd;
+      lx += menu.xadd;
+    };
+    for (const b of this.btns) {
+      place(b, false, 0);
+      if (this.childOpen === b && b.children) {
+        b.children.forEach((cb, j) => place(cb, !cb.ui.parent, j));
+      }
+    }
+  }
+
+  private hoverBtn(btn: MenuBtn): void {
+    const list = this.currentList();
+    const idx = list.indexOf(btn);
+    if (idx >= 0) this.navIndex = idx;
+    for (const b of this.btns) (b === btn ? b.hover() : b.normal());
+    if (this.childOpen) {
+      for (const cb of this.childOpen.children!) (cb === btn ? cb.hover() : cb.normal());
+    }
+  }
+
+  private selectBtn(btn: MenuBtn): void {
+    if (!this.menuEnabled) return;
+    if (btn.children) {
+      this.toggleChildren(btn);
+      return;
+    }
+    this.menuEnabled = false;
+    btn.select(() => btn.entry.action?.());
+  }
+
+  private toggleChildren(btn: MenuBtn): void {
+    if (this.childOpen) {
+      const same = btn === this.childOpen;
+      if (!same) this.childOpen.normal();
+      if (same) {
+        this.closeChildren();
+        return;
+      }
+      this.closeChildren();
+    }
+    this.childOpen = btn;
+    btn.openChild();
+    this.layout(true);
+    for (const cb of btn.children!) {
+      if (!cb.ui.parent) this.menuGroup!.addChild(cb.ui);
+    }
+    this.hoverBtn(btn.children![0]!);
+  }
+
+  private closeChildren(): void {
+    const btn = this.childOpen;
+    if (!btn) return;
+    for (const cb of btn.children!) cb.ui.removeFromParent();
+    btn.closeChild();
+    this.childOpen = null;
+    this.layout(true);
+  }
+
+  private currentList(): MenuBtn[] {
+    return this.childOpen ? this.childOpen.children! : this.btns;
+  }
+
+  private handleKey(e: KeyboardEvent): void {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    const k = e.key;
+    if (this.phase === 'intro') {
+      // 原版 GameInputer.anyKey：任意键跳过
+      this.skipIntro();
+      return;
+    }
+    if (!this.menuEnabled) return;
+    const list = this.currentList();
+    if (k === 'ArrowUp' || k === 'w' || k === 'W') {
+      e.preventDefault();
+      this.navIndex = (this.navIndex - 1 + list.length) % list.length;
+      this.hoverBtn(list[this.navIndex]!);
+    } else if (k === 'ArrowDown' || k === 's' || k === 'S') {
+      e.preventDefault();
+      this.navIndex = (this.navIndex + 1) % list.length;
+      this.hoverBtn(list[this.navIndex]!);
+    } else if (k === 'Enter' || k === ' ' || k === 'j' || k === 'J') {
+      e.preventDefault();
+      this.selectBtn(list[this.navIndex]!);
+    } else if (k === 'Escape' || k === 'Backspace') {
+      if (this.childOpen) {
+        this.navIndex = this.btns.indexOf(this.childOpen);
+        this.closeChildren();
+      }
+    }
+  }
 }

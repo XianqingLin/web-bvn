@@ -7,13 +7,22 @@
  *      剥掉数字前缀后按类名落盘 assets/ui/faces/（类名 = fighter.xml face 属性 = select.json id / id_b）；
  *   2. select.swf -export sprite → 挑选场景壳元件（背景/格子/光标/展示框/地图面板）拷为
  *      assets/ui/select/<逻辑名>.png；
+ *   2b. title.swf -export sprite → stg_title 90 帧（2351×749，动画主时间轴在 sprite 内、
+ *       "menu" 标签 = 帧 65）→ sharp 转 WebP q80 → assets/ui/title/<帧>.webp（~8.5MB）；
+ *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
+ *       → assets/ui/menu/；
  *   3. 地图缩略图 15 张 + random.png 原样拷入 assets/ui/maps/（450×240，与 select_map_mc ct 区同尺寸）；
- *   4. 产出 baked/ui.json（schema bvn/ui@1）：类名→文件映射 + select 元件表 + 原版布局常量。
+ *   4. 产出 baked/ui.json（schema bvn/ui@1）：类名→文件映射 + select 元件表 + 原版布局常量
+ *       + title 流帧参数 + menu 按钮阶梯布局常量。
  *
  * 坐标语义（FFDec sprite 导出的 PNG 画布原点 = 元件内容 bounds 左上角，注册点偏移已换算）：
  *   - 光标 PNG 放在 格子位 + (-18,-26)（select_item_mc 内层 mc 摆放矩阵 translateX/Y=-360/-520 twips）；
  *   - 地图缩略图放在 select_map PNG 内 (97.5,24)，kuang 框叠回 (92,19)（原版 kuang 在缩略图之上）；
- *   - 大头像放在展示框 PNG 内 (4.75,4.75)；P2 展示框内容容器镜像（scaleX=-1，原点 x=248.6）。
+ *   - 大头像放在展示框 PNG 内 (4.75,4.75)；P2 展示框内容容器镜像（scaleX=-1，原点 x=248.6）；
+ *   - stg_title 帧 PNG 内 舞台(0,0) 位于 (859,100)（由时间轴 union bounds 反推，与 FFDec
+ *       画布 2351×749 对上）；原版把 stg_title 以 (0,0) 直接 addChild 到 800×600 舞台，
+ *       播放时须把帧 PNG 挂在 舞台-(859,100) 并裁剪到舞台矩形（原版窗口即舞台）。
+ *   - 按钮组挂进 stg_title 内 identity 占位 btnct → 舞台 (470,100)；wzbtn bg 子件在 (0,-5)。
  *
  * 用法：node tools/ui-pack/ui-pack.mjs [--ffdec PATH] [--out-assets DIR] [--out-baked FILE]
  */
@@ -28,6 +37,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
+import sharp from 'sharp';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -41,6 +51,8 @@ const FACE_SWF = resolve(
   opt('face-swf', 'OpenBleachVsNaruto/_release/extracted/swf_output/assets/face.swf'),
 );
 const SELECT_SWF = resolve(opt('select-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/select.swf'));
+const TITLE_SWF = resolve(opt('title-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/title.swf'));
+const COMMON_SWF = resolve(opt('common-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/common_ui.swf'));
 const MAP_DIR = resolve(opt('map-dir', 'OpenBleachVsNaruto/swf_output/assets/map'));
 const OUT_ASSETS = resolve(opt('out-assets', 'packages/data/assets/ui'));
 const OUT_BAKED = resolve(opt('out-baked', 'packages/data/baked/ui.json'));
@@ -59,6 +71,28 @@ const SELECT_ELEMENTS = {
   select_map_txt: [90, 1], // 地图名牌 183×32
 };
 
+// common_ui.swf 元件表：逻辑名 → [spriteId, 帧号]（mc_wzbtn 常态板 + wzimg_bgimg hover/开态）
+const MENU_ELEMENTS = {
+  wzbtn: [14, 1], // 菜单按钮板 388×75（常态，English 标签叠其上）
+  wzbtn_bg1: [13, 1], // hover 高亮板（橙色；挂 (0,-5)，中文小字叠 (10,45)）
+  wzbtn_bg2: [13, 2], // 开态/子项板（蓝色）
+};
+
+// title.swf stg_title（sprite 64）流帧参数（90 帧全部唯一；运行时仅 1-50 与 65-75 可见，见 PROGRESS 切片 16）
+const TITLE = {
+  spriteId: 64,
+  frames: 90,
+  fps: 30, // title.swf frameRate（MovieClip 播放速率随文档）
+  /** 帧脚本 addFrameScript(49, stop)：intro 播到帧 50 定格，等点击/任意键 */
+  introFrom: 2,
+  introStop: 50,
+  /** gotoAndPlay("menu")：按钮段从帧 65 播到帧 75 定格（addFrameScript(74, stop)） */
+  menuFrame: 65,
+  menuStop: 75,
+  /** 帧 PNG 内原版舞台 (0,0) 的位置（union bounds 反推） */
+  stageOriginInFrame: [859, 100],
+};
+
 function run(cmd, args_) {
   console.log(`$ ${cmd} ${args_.join(' ')}`);
   execFileSync(cmd, args_, { stdio: ['ignore', 'pipe', 'inherit'] });
@@ -73,6 +107,8 @@ mkdirSync(SCRATCH, { recursive: true });
 if (!existsSync(FFDEC)) throw new Error(`FFDec CLI 不存在：${FFDEC}`);
 run(FFDEC, ['-export', 'image', join(SCRATCH, 'face'), FACE_SWF]);
 run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'select'), SELECT_SWF]);
+run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'title'), TITLE_SWF]);
+run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'menu'), COMMON_SWF]);
 
 // ---------- 2. 头像 → assets/ui/faces/ ----------
 const facesDir = join(OUT_ASSETS, 'faces');
@@ -104,6 +140,42 @@ for (const [logical, [spriteId, frame]] of Object.entries(SELECT_ELEMENTS)) {
   const src = join(selectExportDir, dir, `${frame}.png`);
   if (!existsSync(src)) throw new Error(`select.swf sprite ${spriteId} 缺帧 ${frame}（${logical}）`);
   cpSync(src, join(selectDir, `${logical}.png`));
+}
+
+// ---------- 3b. title 流帧 → assets/ui/title/<n>.webp（WebP q80：~8.5MB / 90 帧） ----------
+const titleDir = join(OUT_ASSETS, 'title');
+rmSync(titleDir, { recursive: true, force: true });
+mkdirSync(titleDir, { recursive: true });
+{
+  const spriteDir = readdirSync(join(SCRATCH, 'title')).find(
+    (d) => d === `DefineSprite_${TITLE.spriteId}` || d.startsWith(`DefineSprite_${TITLE.spriteId}_`),
+  );
+  if (!spriteDir) throw new Error(`title.swf 未找到 sprite ${TITLE.spriteId}`);
+  const frames = readdirSync(join(SCRATCH, 'title', spriteDir)).filter((f) => f.endsWith('.png'));
+  if (frames.length !== TITLE.frames) {
+    throw new Error(`stg_title 帧数变化：${frames.length} ≠ ${TITLE.frames}（规格须同步更新）`);
+  }
+  for (let i = 1; i <= TITLE.frames; i++) {
+    const src = join(SCRATCH, 'title', spriteDir, `${i}.png`);
+    await sharp(src).webp({ quality: 80 }).toFile(join(titleDir, `${i}.webp`));
+  }
+}
+
+// ---------- 3c. menu 按钮 → assets/ui/menu/ ----------
+const menuDir = join(OUT_ASSETS, 'menu');
+rmSync(menuDir, { recursive: true, force: true });
+mkdirSync(menuDir, { recursive: true });
+{
+  const menuExportDir = join(SCRATCH, 'menu');
+  for (const [logical, [spriteId, frame]] of Object.entries(MENU_ELEMENTS)) {
+    const dir = readdirSync(menuExportDir).find(
+      (d) => d === `DefineSprite_${spriteId}` || d.startsWith(`DefineSprite_${spriteId}_`),
+    );
+    if (!dir) throw new Error(`common_ui.swf 未找到 sprite ${spriteId}（${logical}）`);
+    const src = join(menuExportDir, dir, `${frame}.png`);
+    if (!existsSync(src)) throw new Error(`common_ui.swf sprite ${spriteId} 缺帧 ${frame}（${logical}）`);
+    cpSync(src, join(menuDir, `${logical}.png`));
+  }
 }
 
 // ---------- 4. 地图缩略图 → assets/ui/maps/ ----------
@@ -145,10 +217,39 @@ const doc = {
     layout: LAYOUT,
   },
   maps: { dir: 'ui/maps' },
+  // ---- 切片 16：title 开场流帧 + 主菜单按钮（原版 MenuStage/MenuBtnGroup/MenuBtn 规格） ----
+  title: {
+    dir: 'ui/title',
+    frames: TITLE.frames,
+    fps: TITLE.fps,
+    /** 帧 PNG 内原版舞台 (0,0) 位置：挂载时 sprite 位置 = 舞台位 - stageOriginInFrame，并裁剪到舞台矩形 */
+    stageOriginInFrame: TITLE.stageOriginInFrame,
+    /** 原版 stg_title 帧脚本语义：intro 播 introFrom..introStop 定格；点击后 menuFrame..menuStop 定格 */
+    introFrom: TITLE.introFrom,
+    introStop: TITLE.introStop,
+    menuFrame: TITLE.menuFrame,
+    menuStop: TITLE.menuStop,
+  },
+  menu: {
+    elements: Object.fromEntries(Object.keys(MENU_ELEMENTS).map((k) => [k, `ui/menu/${k}.png`])),
+    /** 按钮组在原版 800×600 舞台内的位置（stg_title 内 btnct 占位 identity → 舞台坐标） */
+    groupPos: [470, 100],
+    /** MenuBtnGroup 阶梯：后一项 x += xadd；y += 项高 + yadd */
+    xadd: -40,
+    yadd: 5,
+    btnHeight: 75,
+    childHeight: 55, // childMode（scaleY 0.75）后 MenuBtn.height
+    /** hover 板相对按钮原点偏移（mc_wzbtn 内 bg 子件摆放矩阵 translateY=-100 twips） */
+    bgOffset: [0, -5],
+    /** 中文小字在 hover 板内的位置（MenuBtn 构造） */
+    cnTextPos: [10, 45],
+    /** 版本字位置 = 舞台右下角内缩（MenuStage.afterBuild） */
+    versionPad: [15, 10],
+  },
 };
 
 mkdirSync(dirname(OUT_BAKED), { recursive: true });
 writeFileSync(OUT_BAKED, JSON.stringify(doc));
 console.log(
-  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
+  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title ${TITLE.frames} 帧 / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
 );

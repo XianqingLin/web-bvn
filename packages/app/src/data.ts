@@ -71,6 +71,30 @@ export interface UiData {
   faces: Record<string, string>;
   select: UiSelectData;
   maps: { dir: string };
+  /** 切片 16：title 开场流帧（原版 stg_title 帧脚本语义） */
+  title: {
+    dir: string;
+    frames: number;
+    fps: number;
+    /** 帧 PNG 内原版舞台 (0,0) 位置 */
+    stageOriginInFrame: [number, number];
+    introFrom: number;
+    introStop: number;
+    menuFrame: number;
+    menuStop: number;
+  };
+  /** 切片 16：主菜单按钮（原版 MenuBtnGroup/MenuBtn 规格） */
+  menu: {
+    elements: Record<string, string>;
+    groupPos: [number, number];
+    xadd: number;
+    yadd: number;
+    btnHeight: number;
+    childHeight: number;
+    bgOffset: [number, number];
+    cnTextPos: [number, number];
+    versionPad: [number, number];
+  };
 }
 
 export function loadUi(ctx: Ctx): Promise<UiData> {
