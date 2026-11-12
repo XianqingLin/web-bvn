@@ -140,7 +140,7 @@ function stepToward(v: number, target: number, speed: number): number {
 
 /**
  * 表现事件（契约 §表现事件表）。
- * 新增事件类型必须在 ARCHITECTURE.md 事件表同 commit 登记。
+ * 新增事件类型必须在 docs/ARCHITECTURE.md 事件表同 commit 登记。
  */
 export interface SimEvent {
   tick: number;

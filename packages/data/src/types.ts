@@ -36,7 +36,7 @@ export type TriggerArg =
 
 /**
  * 帧触发（FrameTrigger，契约 §帧触发表）。
- * op 的规范词表见 ARCHITECTURE.md；导出器无损保留原版调用名，
+ * op 的规范词表见 docs/ARCHITECTURE.md；导出器无损保留原版调用名，
  * op 词表的扩充 = 契约 + core 实现 + 本校验器三处同 commit。
  */
 export interface TriggerDef {
