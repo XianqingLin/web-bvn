@@ -31,6 +31,21 @@ describe('compileFighterRuntime（RuntimeFighterPackage → core 角色定义）
     expect(def.attackLabels['bs']).toBe('必杀');
   });
 
+  it('B3：kbs→空中必杀（有标签形态映射，无标签形态不映射）', () => {
+    // ichigo 缺省形态（formIndex=1）无 空中必杀 标签 → 不映射（checkFrame 语义）
+    expect(def.attackLabels['kbs']).toBeUndefined();
+    // aizen 缺省形态有 空中必杀 段 → kbs 映射成立
+    const aizen = loadRuntimeFighterPackage(BAKED_DIR, 'aizen', 'fighters-runtime');
+    const aizenDef = compileFighterRuntime(aizen, loadFighterPackage(BAKED_DIR, 'aizen'));
+    expect(aizenDef.attackLabels['kbs']).toBe('空中必杀');
+    // 分段动作 id（kbs1~4 同 bs1 惯例）不进映射——只经判定区名解析
+    // （grimmjow 有 kbs1 分段动作，其标签表中无 空中必杀1 帧）
+    const grimmjow = loadRuntimeFighterPackage(BAKED_DIR, 'grimmjow', 'fighters-runtime');
+    const grimmjowDef = compileFighterRuntime(grimmjow, loadFighterPackage(BAKED_DIR, 'grimmjow'));
+    expect(grimmjowDef.attackLabels['kbs']).toBe('空中必杀');
+    expect(grimmjowDef.attackLabels['kbs1']).toBeUndefined();
+  });
+
   it('判定区按帧收录，攻击判定名 = <actionId>atm', () => {
     const k1 = def.labels['砍1']!;
     const frames = Object.keys(def.areas)

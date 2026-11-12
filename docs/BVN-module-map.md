@@ -344,8 +344,8 @@ defineAction("cbs",{power:450,hitType:5,hitx:40,hity:0,hurtTime:0,hurtType:1,isB
 $fighter_ctrler.defineBishaFace("Ichigo_1", bsface1);
 ```
 
-**动作 id → 动画标签映射**（切片 5 核对原版 `FighterKeyCtrler` 按键分流后定案；切片 3 的 kj1→跳砍 系误读，已纠正）：
-`kN→砍N`、`kjN→砍技N`（下+攻击 / 上+攻击的技）、`zhN→招N`（skill 键系）、`tk→跳砍`（空中攻击）、`tz→跳招`、`shN→摔N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`。
+**动作 id → 动画标签映射**（切片 5 核对原版 `FighterKeyCtrler` 按键分流后定案；切片 3 的 kj1→跳砍 系误读，已纠正；B3 补 kbs）：
+`kN→砍N`、`kjN→砍技N`（下+攻击 / 上+攻击的技）、`zhN→招N`（skill 键系）、`tk→跳砍`（空中攻击）、`tz→跳招`、`shN→摔N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`、`kbs→空中必杀`（原版实证：`HitVO.isBisha` 含 kbs 分支、`FighterAILogic` airBisha 引用 "kbs"、`FighterHitRange.BISHA_AIR="kbsmian"`；语料 18 角色主 id `kbs` + 10 角色 `kbs1`~`kbs4` 分段动作——分段 id 只经判定区名解析，同 bs1 惯例不进标签映射）。
 
 **结论**：这些脚本属于“角色逻辑”，必须转译，不能只当素材。38 个角色 + 37 个辅助都要做，但体格小（单角色 3~19 KB）。
 

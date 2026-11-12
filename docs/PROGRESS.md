@@ -50,6 +50,7 @@
 | 21 | 阶段 3 尾巴·B1：byakuya 抓取链 customFunc 三函数数据化 + attacker 元件脚本分派 + finishIfNoAttacker 守卫 + 辅助 loop 同标签 rewind 保活 | ✅ | §三·切片 21；余项见 §4.2 |
 | 22 | 阶段 3 尾巴·B2：必杀/万解切人插图——core 冻结锁（cutinLock 全场停走/锁主 30Hz/保护性解锁）+ `tools/bisha-pack` 素材管线（71 帧横幅 + 92 张立绘）+ render 黑幕/横幅/立绘接线 | ✅ | §三·切片 22 |
 | 23 | 阶段 3 尾巴·B5：独立道具逐帧命中矩形——attacker 原点锚定语义 + fires org/hits 逐帧命中数据（dump 桥扩展采集 86 元件 + `tools/b5-pack` 合并）+ madara justHit 卫语句 cond 触发器 + itachi 动态伤害 setHitPowerByTargetHpMax | ✅ | §三·切片 23 |
+| 24 | 阶段 3 尾巴·B3：空中必杀 attackId——data 层补 `kbs→空中必杀` 动作 id 映射（批次 20 遗留）；顺带核实空中必杀判定/演出/道具链全角色已通，修正"纯表现无判定"误记 | ✅ | §三·切片 24 |
 
 ---
 
@@ -122,6 +123,14 @@
 - **门禁**：core 114 测试（新增 B5 逐帧命中 2 项）；replay 4 剧本零漂移、assist-duel 基线重冻（`hitPowerOverrides` 空槽 + 原点坐标进序列化——**零行为差异**已用全量 state 逐 tick 对比证明）；batch:validate 基线门禁原样通过（其基线不含这些字段）。
 - **遗留**：逐帧命中行为变更无 replay 剧本覆盖（5 剧本无语料角色）；byakuya 抓取伤害 atm1（power=50）等真实判定待实战验收；歧义 6 例的正确性抽样核对未做。
 
+### 切片 24·B3——空中必杀 attackId（✅ 2026-11-12）
+
+批次 20 遗留的"空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）"收编。核查结论先行：**"纯表现无判定"是当时的误记**——命中结算自切片 10 起按帧逐区解析（区名精确 → 去 atm 反查动作表），不依赖 attackId；实测 aizen 空中必杀 kbsatm→kbs 命中成立（power 200）、切人插图/顺流播放均正常。真正缺口是 data 层 `deriveAttackLabel` 缺 `kbs→空中必杀` 映射，空中必杀发起后 attackId 恒 null：
+- **修复**：`packages/data/src/fighter.ts` 映射表补 `kbs`（原版实证：`HitVO.isBisha` 含 kbs 分支、`FighterAILogic` airBisha 用 "kbs"、`FighterHitRange.BISHA_AIR="kbsmian"`；语料 18 角色主 id kbs + kbs1~4 分段动作——分段 id 同 bs1 惯例只经判定区名解析，不进映射）。修复后空中必杀发起 attackId='kbs'，与 bs/sbs/cbs 对齐，为 §4.3 块 6 AI 转译（FighterAILogic 按 kbs 引用）备好词表。
+- **全角色核实**（25 形态有 空中必杀 段）：近战系 kbs(N)atm 全部可解析；道具系 byakuya/deidara/naruto root5 走 addAttacker、ichigo/madara 走 fire；抓取系 toushirou 走 setHitTarget；grimmjow/kimimaro/sakura/naruto root6 段内无判定区无道具——与原版 SWF 逐帧 dump 一致（纯位移/演出段，非缺数据）。
+- **已知边界（维持现状）**：原版 setAirAllAct 无条件填 bishaAIR 槽（无 checkFrame），无该标签的角色空中按必杀 = 原版 goFrame 未定义行为；移植版槽按标签存在性填写（defaultSlots 既有偏离，按钮无效但不扣气不黑屏）。
+- **门禁**：data 17 测试（新增 kbs 映射 1 项）；core 126 / replay 5 剧本 / batch:validate 全过零漂移（基线剧本不含空中必杀输入）。
+
 ### 工具治理——双哈希 + 漂移归因工具（✅ 2026-11-12）
 
 哈希门禁的漂移调查（证明"纯表示变更"）在切片 9/13/23 反复消耗手工流程，治理如下（DESIGN §3.8 双哈希）：
@@ -149,7 +158,7 @@
 - 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；~~itachi 动态伤害~~（✅ 切片 23 收编）；suigetsu `isAttacking=true`（唯一读者 AI）；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
 - ~~必杀切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费~~（✅ 切片 22 收编，含万解 wanKai/endWanKai 同机制覆盖）；
-- 空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）——时间轴顺流已能播放该段，纯表现无判定；
+- ~~空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）~~（✅ 切片 24 收编：data 层补 `kbs→空中必杀` 映射；"纯表现无判定"系误记——命中按帧逐区解析不依赖 attackId，实测已通）；
 - 验收：门禁全过；行为变更则重冻对应基线。
 
 ### 4.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）
@@ -171,5 +180,5 @@
 ## 五、下一步（按优先级）
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
-2. **阶段 3 尾巴**（§4.2，余项：空中必杀 attackId（B3）/ temari 风场（B4）——切片 21 已收编 B1、切片 22 已收编 B2、切片 23 已收编 B5 逐帧命中矩形）——或按用户指示切换其他块；
+2. **阶段 3 尾巴**（§4.2，余项：temari 风场（B4）——切片 21 已收编 B1、切片 22 已收编 B2、切片 23 已收编 B5 逐帧命中矩形、切片 24 已收编 B3 空中必杀 attackId）——或按用户指示切换其他块；
 3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

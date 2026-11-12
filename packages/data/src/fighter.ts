@@ -62,7 +62,10 @@ const DEFAULT_STATS = { speed: 6, jumpPower: 15, heavy: 3 };
  * setAttack/setSkill/setBisha 系默认帧名约定，module-map §5.3）：
  *   kN→砍N；kjN→砍技N（攻击取消技，非跳砍——kj1atm 判定区实证在砍技1 段）；
  *   tk/tz→跳砍/跳招（空中攻击/技能）；zhN→招N；shN→摔N；
- *   bs→必杀、sbs→上必杀、cbs→超必杀。
+ *   bs→必杀、sbs→上必杀、cbs→超必杀、kbs→空中必杀（B3；原版 HitVO.isBisha
+ *   含 kbs 分支 + FighterAILogic airBisha 引用 + FighterHitRange.BISHA_AIR
+ *   = "kbsmian"，语料 18 角色主 id kbs + kbs1~4 分段动作——分段 id 只经
+ *   判定区名解析，同 bs1/sbs1 惯例不进本映射）。
  * 标签不存在 = 该动作不可用（原版 checkFrame 语义）。
  */
 function deriveAttackLabel(
@@ -82,6 +85,7 @@ function deriveAttackLabel(
   if (actionId === 'bs') return labels['必杀'] !== undefined ? '必杀' : null;
   if (actionId === 'sbs') return labels['上必杀'] !== undefined ? '上必杀' : null;
   if (actionId === 'cbs') return labels['超必杀'] !== undefined ? '超必杀' : null;
+  if (actionId === 'kbs') return labels['空中必杀'] !== undefined ? '空中必杀' : null;
   return null;
 }
 
