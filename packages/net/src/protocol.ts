@@ -1,5 +1,5 @@
 /**
- * lockstep + 房间协议（切片 6/7，ADR-14/15）。
+ * lockstep + 房间协议（切片 6/7）。
  * 服务器解析连接编排（create/join/welcome/hello/start/error），
  * input/hash 原样透传给同房间对端，不解析。
  */

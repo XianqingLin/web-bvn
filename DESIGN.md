@@ -3,9 +3,9 @@
 > 本文档回答"为什么这么做"；**"必须怎么做"以 [ARCHITECTURE.md](ARCHITECTURE.md)（引擎契约）为准**。
 > 读者：项目决策者、需要理解设计背景的协作者。干活的 AI 只需读契约。
 > 前置阅读：[BVN-module-map.md](BVN-module-map.md)（原版逆向）。
-> 决策变更登记在 §10 ADR 表。
+> 决策变更直接修改对应设计段，写明理由与日期（本仓不用 ADR 编号表）。
 >
-> **与 PROGRESS 的分工**：变动默认只改 PROGRESS（台账）；产生"要永远记住的规则/规格"才改本文档（**就地修改对应规格段，不追加日志**）；决策变更才登记 ADR。任何时刻不维护"待收紧"式欠账清单——欠的活记 PROGRESS §4.2。
+> **与 PROGRESS 的分工**：变动默认只改 PROGRESS（台账）；产生"要永远记住的规则/规格"才改本文档（**就地修改对应规格段，不追加日志**）；决策变更就地改对应段写明理由与日期。任何时刻不维护"待收紧"式欠账清单——欠的活记 PROGRESS §4.2。
 
 ---
 
@@ -14,7 +14,7 @@
 1. **确定性模拟核心（core）是唯一真理来源。** 同一输入序列 → 逐帧相同状态，可哈希校验。渲染、联机、回放、AI 都建立在"喂输入、读快照"一个接口上。
 2. **数据驱动。** 61 个角色的差异压进 JSON，core 只有一套通用引擎。新增角色 = 新增数据。
 3. **联机不侵入逻辑。** 帧同步只是"输入从网络来而不是键盘来"；单机、联机、回放、对拍共用同一份模拟代码。
-4. **重构优于复刻。** 原版源码是参考规格书；行为对齐手感，结构自由重写（见 ADR-1）。
+4. **重构优于复刻。** 原版源码是参考规格书；行为对齐手感，结构自由重写。
 5. **对拍是脚手架。** 阶段 1 用它对齐手感，之后退为回归工具。
 
 文档方法论（借鉴 Claude of Duty 的 AI 协作实践）：契约化硬规则、事件词表集中登记、门禁工具先行；高耦合的 core 单线程开发，天然独立的批量任务（角色转译等）才并行 fan-out。
@@ -39,7 +39,7 @@ app → render → core ← net      （依赖只许向下；data 被各层只�
 
 原版按画质在 30/60fps 间切换，且动画与判定独立按 30Hz 采样（module-map §3）。移植版固定 60Hz 逻辑帧（原版 60fps 模式，`SPEED_PLUS=0.5` 的手感基准），30fps 原版视为历史降速档不移植。一切计时帧化——原版大量"0.1 秒窗口"类常量是按帧率换算的隐性帧依赖，直接用帧常量表达更诚实也更稳定。
 
-原版物理常量移植规则（切片 3 起生效）：原版反编译值一律 × `SPEED_PLUS=0.5`（时间性量：重力斜坡步长、穿台速度阈值等），空间容差类（吸附带、平台容差 ±10px）不乘系数。重力采用原版 `_g` 斜坡模型（离地预置初值、空中递增、封顶，上升段清零），不是线性 `v += g` 积分——这决定"重力坠落总能落在平台上、只有显式下落速度（击飞）才穿台"的原版手感。
+原版物理常量移植规则（切片 3 起生效）：原版反编译值一律 × `SPEED_PLUS=0.5`（时间性量：重力斜坡步长、穿台速度阈值等），空间容差类（吸附带、平台容差 ±10px）与帧数类（动画帧/延迟帧数）不折算；hurtTime 特例 = ms→30Hz 帧换算再叠加原版偏移（§3.5 命中与受击）。重力采用原版 `_g` 斜坡模型（离地预置初值、空中递增、封顶，上升段清零），不是线性 `v += g` 积分——这决定"重力坠落总能落在平台上、只有显式下落速度（击飞）才穿台"的原版手感。
 
 ### 3.2 tick 管线（顺序即契约）
 
@@ -57,11 +57,11 @@ sim.tick(inputs: InputFrame):
 
 原版用 `Dictionary` 注册 ENTER_FRAME 回调、迭代顺序未定义——定序不是洁癖，是在消除一个真实的非确定性来源。
 
-### 3.3 输入系统：位图 + 可配置缓冲（ADR-3）
+### 3.3 输入系统：位图 + 可配置缓冲
 
 原版有经典/非经典两种输入模式，本质是同一件事的两个特例。统一为：**持续型行为**（移动/防御）直接读按住位图；**触发型行为**（攻击/跳/技能）过缓冲器，按下边沿后 `INPUT_BUFFER_FRAMES`（默认 6 帧 = 0.1s）内有效。缓冲窗口设 0 即退化为原版经典手感——一个常量取代模式概念。帧同步只传位图，缓冲是两端本地推导，协议与缓冲参数无关。缓冲器同时是将来指令技（↓→+攻击）的挂载点。
 
-### 3.4 版边：牵引边界替代相机耦合（ADR-4）
+### 3.4 版边：牵引边界替代相机耦合
 
 原版"角色不能跑出镜头"使逻辑被迫读相机矩形。其实现捷径背后的设计意图是"两角色不能拉开超过一屏"，直接写成逻辑：
 
@@ -81,7 +81,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 - **动画驱动**：`actLabel` + `animFrame`（内层时间轴绝对帧号，1 起，30Hz）。循环标签集合 `LOOP_LABELS`（站立/走/跳中/落）回绕播放；`advanceAnimation` = 先采样当前帧（帧触发器/判定区以此帧为准），再推进。
 - **判定区**：`def.areas[animFrame]` 查表（运行时 dump 几何，脚底锚点、direct=1 局部坐标）→ 世界 AABB（朝向镜像）；命中 = 攻击方 atm ∩ 受击方 bdmn。攻击判定名 = `<actionId>atm`。
-- **静态数据**：`FighterDef` 经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
+- **静态数据**：`FighterDef` 经 `SimConfig` 注入 Sim 注册表，**不进 SimState**；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 - **动画映射**（动作 id ↔ 标签）：`kjN→砍技N`、`tk→跳砍`、`tz→跳招`、`shN→摔N`、`zhN→招N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`；gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（30Hz 采样下语义无差异）。
 
 **命中与受击**
@@ -119,7 +119,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 - **槽位分流**：attack/±↓/↑ 组合由槽位路由（skill1/skill2/zhao1-3/bisha 系/catch 系/dash）；SKILL_ING / BISHA_ING / BISHA_SUPER_ING 照原版枚举。
 - **连段**：动作发起即清空全部动作槽（原版 doAction→clearAction），播放中再按攻击键不重启动作、时间轴不复位；连段 = 帧触发 `setAttack("砍2")` 重填槽后派生；槽重填默认于 endAction。空中槽 attackAIR/skillAIR/bishaAIR（airHitTimes 递减耗尽不再触发）；`setJump(label)` 覆写跳跃标签。
-- **万解**：qi ≥ 300 时 攻击+跳 组合（W→S→普通 优先级，缓冲按下/按住混合——对原版按住电平判定的手感取向偏离，ADR-1）→ 扣 300 气 → WAN_KAI_ING 50 tick 演出（免伤）→ 效果事件 wanKai/endWanKai；`startWanKai` 参数为必杀 FACE 名（语料全体 doWanKai 无参）。
+- **万解**：qi ≥ 300 时 攻击+跳 组合（W→S→普通 优先级，缓冲按下/按住混合——对原版按住电平判定的手感取向偏离）→ 扣 300 气 → WAN_KAI_ING 50 tick 演出（免伤）→ 效果事件 wanKai/endWanKai；`startWanKai` 参数为必杀 FACE 名（语料全体 doWanKai 无参）。
 - **万解形态切换**：`doWanKai(frame)`/`switchForm(frame)` = 根时间轴切换（0 = 下一形态，>0 按 `def.rootFrame` 寻址）——切 `formIndex`（`SimConfig.fighters[].forms` 多形态注册表，data 层 `compileFighterForms` 编译）+ 槽重填 + 播新形态 开场 + `fighter:form` 事件驱动 render 换图集；单形态静默不切。
 
 **飞行道具与独立道具**
@@ -158,11 +158,11 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 ### 3.6 角色数据与帧触发器
 
-原版角色的玩法差异藏在 XFL 时间轴脚本里（`defineAction`/`fire`/`addAttacker`/形态切换，module-map §6.2）。移植版表达为 JSON 数据 + 帧触发原语（原语表见契约，扩充原语需契约/core/校验器三处同改）。38 角色脚本全部保留转译（ADR-6）；数据化不了的复杂机制收进 `core/fighter/behaviors/` 插件目录，不污染通用引擎。
+原版角色的玩法差异藏在 XFL 时间轴脚本里（`defineAction`/`fire`/`addAttacker`/形态切换，module-map §6.2）。移植版表达为 JSON 数据 + 帧触发原语（原语表见契约，扩充原语需契约/core/校验器三处同改）。38 角色脚本全部保留转译；数据化不了的复杂机制收进 `core/fighter/behaviors/` 插件目录，不污染通用引擎。
 
 ### 3.7 确定性
 
-核心战斗路径本就不用随机，数值只有四则运算，IEEE754 双精度跨端一致（module-map §9）——确定性可行且不需要定点数（ADR-8）。剩余隐患（迭代顺序、相机耦合、帧率常量、sortOn 稳定性）全部用契约硬规则第 1/3/5 条消除。具体禁令清单见契约 §硬规则 1。
+核心战斗路径本就不用随机，数值只有四则运算，IEEE754 双精度跨端一致（module-map §9）——确定性可行且不需要定点数。剩余隐患（迭代顺序、相机耦合、帧率常量、sortOn 稳定性）全部用契约硬规则第 1/3/5 条消除。具体禁令清单见契约 §硬规则 1。
 
 ### 3.8 快照与哈希
 
@@ -170,8 +170,8 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 ## 4. 数据与素材管线
 
-- **导出**：FFDec 反编译主 SWF + 注入导出脚本（ADR-5，参考 bvn-ai-public 的状态桥），运行时遍历 dump 帧标签、`getBounds` 判定几何、`defineAction` 表、帧触发点、地图边界/地板/出生点。输出带源 SWF 哈希版本戳。
-- **图集**（ADR-13，切片 4 定案）：原版角色/辅助图形是矢量符号（XFL 库几乎无位图），必须运行时栅格化——`tools/atlas-capture`（AIR capture 桥，范式同 dump 桥）。**关键语义**：姿势美术画在内层子剪辑自身的时间轴里，引擎每 tick 手动驱动（`FighterMC.renderAnimate`：主时间轴 `nextFrame()` + `renderChildren()` 把每个姿势子剪辑推进 1 格）——单纯 `gotoAndStop(f)` 子剪辑停在初始帧截不到姿势。capture 逐标签镜像引擎时序（`gotoAndStop(标签起始)` → 推进子剪辑 → 截图 → `nextFrame`+推进 → 截图），输出帧号 = 绝对内层帧（与 core `animFrame` 一致）→ `BitmapData.draw(root)` → 手写 PNG 编码（SWF ver17 无 `BitmapData.encode`）→ **像素哈希去重**（166k 帧引用 → 46k 唯一帧）；`tools/atlas-pack`（Node + pngjs）shelf 装包 2048² sheet，排序固定可复现。锚点契约：每帧记内容相对**角色 root 原点**的 bounds 偏移——原版 `BaseGameSprite` 直接 `_mainMc.x=_x; scaleX=direct`，即角色坐标 = root 局部原点、翻转绕原点，render 端 `translate(x,y) → scaleX(direct) → draw(bounds 偏移)` 复现。地图背景走同一 capture 桥（逐子图层 PNG + 偏移）。产物 `packages/data/assets/`（gitignore，管线可再生）。
+- **导出**：FFDec 反编译主 SWF + 注入导出脚本（参考 bvn-ai-public 的状态桥），运行时遍历 dump 帧标签、`getBounds` 判定几何、`defineAction` 表、帧触发点、地图边界/地板/出生点。输出带源 SWF 哈希版本戳。
+- **图集**（切片 4 定案）：原版角色/辅助图形是矢量符号（XFL 库几乎无位图），必须运行时栅格化——`tools/atlas-capture`（AIR capture 桥，范式同 dump 桥）。**关键语义**：姿势美术画在内层子剪辑自身的时间轴里，引擎每 tick 手动驱动（`FighterMC.renderAnimate`：主时间轴 `nextFrame()` + `renderChildren()` 把每个姿势子剪辑推进 1 格）——单纯 `gotoAndStop(f)` 子剪辑停在初始帧截不到姿势。capture 逐标签镜像引擎时序（`gotoAndStop(标签起始)` → 推进子剪辑 → 截图 → `nextFrame`+推进 → 截图），输出帧号 = 绝对内层帧（与 core `animFrame` 一致）→ `BitmapData.draw(root)` → 手写 PNG 编码（SWF ver17 无 `BitmapData.encode`）→ **像素哈希去重**（166k 帧引用 → 46k 唯一帧）；`tools/atlas-pack`（Node + pngjs）shelf 装包 2048² sheet，排序固定可复现。锚点契约：每帧记内容相对**角色 root 原点**的 bounds 偏移——原版 `BaseGameSprite` 直接 `_mainMc.x=_x; scaleX=direct`，即角色坐标 = root 局部原点、翻转绕原点，render 端 `translate(x,y) → scaleX(direct) → draw(bounds 偏移)` 复现。地图背景走同一 capture 桥（逐子图层 PNG + 偏移）。产物 `packages/data/assets/`（gitignore，管线可再生）。
 - **配置**：原版 fighter/select/map/mission XML → JSON。
 
 ## 5. 渲染层
@@ -215,30 +215,9 @@ TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客
 4. render ✅（切片 4 + 切片 5 清遗留）：帧动画、地图层、相机、基础 HUD；切片 5 补相机 clamp 接舞台边界、floor 前景层遮挡、HUD 回合文本；
 5. app ✅（切片 4 + 切片 5 训练模式）：dev 预览页（键盘 → ButtonMask → tick → 渲染）；训练模式 = P2 假人（输入恒空）+ 无限血 + R 键重置；
 6. **切片 5 = 阶段 1 收尾** ✅：确定性单测 40 过、replay 门禁四剧本（含新增 ichigo-mechanics）过。遗留池（不阻塞阶段 2）：摔技/万解/空中瞬步/二段跳/必杀飞行道具（fire 原语）；
-7. **切片 6 = 联机地基** ✅：`InputSource` 抽象（本地键盘 / replay / 网络统一喂 sim，sim 本身零改动）+ lockstep 客户端（输入延迟帧、帧号对齐、输入缓冲）+ 同机双客户端经本地服务器镜像联调。落地（ADR-14）：`core/inputSource` 接口 + `ScriptedInputSource`（剧本回放源，tools/replay 剧本同构）；`packages/net`——协议词表（welcome/hello/start/input/hash/peer-lost）、`Transport` 抽象（`loopbackPair` 内存直连 + `wsTransport` 浏览器/node ws 双兼容）、`LockstepClient`（本地输入延迟 INPUT_DELAY=3 帧、按 tick 输入缓冲、每 HASH_STRIDE=60 tick 交换状态哈希检测失步、hello 配置指纹互验）；`server/relay.mjs` 最小中继（分配位次、收齐 hello 广播 start、input/hash 纯透传）。联调门禁：双客户端 loopback 对跑剧本 finalHash 相等且等于单机直跑（抽象零漂移）+ 停步语义 + 失步检测 + 真实 relay 进程 ws 端到端；app dev 页 `?mode=net&role=p1|p2` 双窗口联机入口。
-8. **切片 7 = 房间服务器** ✅：Node.js WebSocket 房间（创建/加入、输入中继、断线最小处理：超时判负或冻结等待），局域网两机联调。落地（ADR-15）：`server/room-server.mjs`——4 位房间码（无易混字符）、create/join 入房（错误码 room-not-found/room-full）、收齐 hello 广播 start、input/hash 按房间透传、断线通知 peer-lost 后冻结等待（判负归阶段 4）、无重连；`packages/net` 协议词表扩展 create/join/welcome/error + `startSession` 会话助手（入房 + LockstepClient 装配一步到位，onWelcome 提前给 create 方房间码）；app `?mode=net&action=create|join&room=&port=` + 停步 5s 看门狗提示。注意 startSession 语义：要等 start 广播才 resolve——create/join 必须并发。门禁：net 7 测试（房间 e2e 对跑剧本哈希 = 单机直跑、room-not-found、room-full + 切片 6 全部回归）。
+7. **切片 6 = 联机地基** ✅：`InputSource` 抽象（本地键盘 / replay / 网络统一喂 sim，sim 本身零改动）+ lockstep 客户端（输入延迟帧、帧号对齐、输入缓冲）+ 同机双客户端经本地服务器镜像联调。落地：`core/inputSource` 接口 + `ScriptedInputSource`（剧本回放源，tools/replay 剧本同构）；`packages/net`——协议词表（welcome/hello/start/input/hash/peer-lost）、`Transport` 抽象（`loopbackPair` 内存直连 + `wsTransport` 浏览器/node ws 双兼容）、`LockstepClient`（本地输入延迟 INPUT_DELAY=3 帧、按 tick 输入缓冲、每 HASH_STRIDE=60 tick 交换状态哈希检测失步、hello 配置指纹互验）；`server/relay.mjs` 最小中继（分配位次、收齐 hello 广播 start、input/hash 纯透传）。联调门禁：双客户端 loopback 对跑剧本 finalHash 相等且等于单机直跑（抽象零漂移）+ 停步语义 + 失步检测 + 真实 relay 进程 ws 端到端；app dev 页 `?mode=net&role=p1|p2` 双窗口联机入口。
+8. **切片 7 = 房间服务器** ✅：Node.js WebSocket 房间（创建/加入、输入中继、断线最小处理：超时判负或冻结等待），局域网两机联调。落地：`server/room-server.mjs`——4 位房间码（无易混字符）、create/join 入房（错误码 room-not-found/room-full）、收齐 hello 广播 start、input/hash 按房间透传、断线通知 peer-lost 后冻结等待（判负归阶段 4）、无重连；`packages/net` 协议词表扩展 create/join/welcome/error + `startSession` 会话助手（入房 + LockstepClient 装配一步到位，onWelcome 提前给 create 方房间码）；app `?mode=net&action=create|join&room=&port=` + 停步 5s 看门狗提示。注意 startSession 语义：要等 start 广播才 resolve——create/join 必须并发。门禁：net 7 测试（房间 e2e 对跑剧本哈希 = 单机直跑、room-not-found、room-full + 切片 6 全部回归）。
 9. 公网联调与延迟体验调优视切片 7 结果立项（输入延迟帧自适应、可选升级 rollback——归阶段 4）。
 
 阶段 1 明确不做：本地双人、rollback、第二个可操作角色、完整菜单流、街机模式、音效（事件队列留好）。本地双人进扩展项池，最后做。
 
-## 10. 决策记录（ADR）
-
-| # | 决策 | 日期 |
-|---|---|---|
-| 1 | 重构定位：行为对齐而非逐帧复刻，允许有意识偏离原版 | 2026-11-08 |
-| 2 | 60Hz 逻辑帧 + 30Hz 动画/判定帧 | 2026-11-08 |
-| 3 | 输入统一为位图 + 可配置缓冲窗口，废弃双模式 | 2026-11-08 |
-| 4 | 版边用牵引边界，相机纯渲染化 | 2026-11-08 |
-| 5 | 素材用 FFDec 运行时导出器 | 2026-11-08 |
-| 6 | 38 角色自定义脚本全部保留，尽量数据化 | 2026-11-08 |
-| 7 | 联机 lockstep 先行，架构为 rollback 留口 | 2026-11-08 |
-| 8 | 双精度浮点，不引入定点数 | 2026-11-08 |
-| 9 | 文档分层：契约（ARCHITECTURE.md）与设计文档分离，CLAUDE.md 做入口 | 2026-11-08 |
-| 10 | harness 先行：replay 哈希门禁与 core 骨架同期交付；core 单线程开发，批量任务才 fan-out | 2026-11-08 |
-| 11 | 角色定义（FighterDef）为静态配置：SimConfig 注入注册表、不进 SimState，快照恢复时回注（states 小、快照便宜） | 2026-11-09 |
-| 12 | 原版常量换算细则定案：速度/衰减类 ×SPEED_PLUS(0.5)，帧数类（hurtTime 折算后的动画帧、HURT_FRAME_OFFSET）与空间类不折算；hurtTime 按 ms→30Hz 帧换算再叠加原版偏移 | 2026-11-09 |
-| 13 | 图集管线：AIR runtime capture 桥逐帧栅格化（矢量符号必须运行时渲染）+ 像素哈希去重 + Node shelf 打包；锚点 = 内容相对角色 root 原点 bounds；地图走同桥逐子图层截取 | 2026-11-09 |
-| 14 | lockstep 最小协议：消息词表 welcome/hello/start/input/hash/peer-lost；本地输入延迟 INPUT_DELAY=3 帧（采样槽 = 完成 tick 数 + delay）；失步检测 = 每 HASH_STRIDE=60 tick 交换状态哈希；hello 携带配置指纹（seed+舞台+角色标识）开跑前互验；中继只做连接编排，input/hash 纯透传（切片 7 房间服务器以词表为底稿） | 2026-11-09 |
-| 15 | 房间协议扩展：入房词表 create/join/welcome(room)/error(room-not-found\|room-full)；位次由服务器分配（create→P1，join→P2）；断线处理 = 冻结等待 + peer-lost 提示（判负/重连归阶段 4）；房间码 4 位无易混字符，房空即销毁 | 2026-11-09 |
-
-推翻旧决策：标 ~~删除线~~ 并追加新行写明替代方案与日期。

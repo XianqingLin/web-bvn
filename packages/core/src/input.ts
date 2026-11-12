@@ -1,5 +1,5 @@
 /**
- * 输入系统：位图 + 可配置缓冲（DESIGN §3.3 / ADR-3）。
+ * 输入系统：位图 + 可配置缓冲（DESIGN §3.3）。
  * 契约硬规则 4：输入只以 ButtonMask 位图进入 sim；
  * just-down 与缓冲由 core 从位图历史本地推导，不存在"键盘状态"旁路。
  */
@@ -37,7 +37,7 @@ export interface InputFrame {
 
 /**
  * 触发型行为按下边沿后的有效窗口（帧）。
- * 设为 0 即退化为原版经典手感（ADR-3：一个常量取代模式概念）。
+ * 设为 0 即退化为原版经典手感（一个常量取代模式概念）。
  */
 export const INPUT_BUFFER_FRAMES = 6;
 

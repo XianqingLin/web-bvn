@@ -13,7 +13,7 @@ export const STAGE_WIDTH = 1000;
 export const STAGE_HEIGHT = 600;
 
 /**
- * 版边牵引半宽（ADR-4）：版边 = 两角色中点 ± 该值，clamp 到地图边界。
+ * 版边牵引半宽：版边 = 两角色中点 ± 该值，clamp 到地图边界。
  * 相机是纯渲染职责，不进模拟。
  */
 export const PLAYFIELD_HALF_WIDTH = 500;
@@ -188,7 +188,7 @@ export interface BulletState {
   y: number;
   w: number;
   h: number;
-  /** 局部空间速度（60Hz：位移 = s×SPEED_PLUS，加速 = add/tick，见 ADR-12 换算） */
+  /** 局部空间速度（60Hz：位移 = s×SPEED_PLUS，加速 = add/tick，换算见 DESIGN §3.1） */
   sx: number;
   sy: number;
   /** 每 tick 加速度（原版 params.x.add×2×SPEED_PLUS = add/tick） */

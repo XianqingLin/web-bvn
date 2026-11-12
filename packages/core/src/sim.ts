@@ -86,7 +86,7 @@ const LAND_TOLERANCE = 10;
 /** 地面滑行摩擦（受击/倒地滑行衰减；POC 取义，原版按 HURT_DAMPING 结算） */
 const GROUND_FRICTION = 0.9;
 
-// —— 能量（原版 GameConfig/FighterMain，速率 ×SPEED_PLUS=0.5，ADR-12） ——
+// —— 能量（原版 GameConfig/FighterMain，速率 ×SPEED_PLUS=0.5） ——
 // ENERGY_GAP_TICKS 从 state.js 导入（机器与 sim 共用）
 const ENERGY_ADD_NORMAL = 1; // 2 × 0.5
 const ENERGY_ADD_DEFENSE = 0.4; // 0.8 × 0.5
@@ -509,7 +509,7 @@ export class Sim {
     this.stepAssisterPhysics();
     // 抓取吸附施加（原版 FighterMC.moveTarget：把目标吸向自身锚点）
     this.stepMoveTargets();
-    // 牵引边界（ADR-4）：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
+    // 牵引边界：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
     // 相机不进模拟（契约硬规则 5）。
     this.clampPlayfield();
   }
@@ -1729,7 +1729,7 @@ export class Sim {
           f.isAllowBeHit = true;
         }
       }
-      // 能量回充（原版 renderEnergy：速率 ×SPEED_PLUS，ADR-12）
+      // 能量回充（原版 renderEnergy：速率 ×SPEED_PLUS）
       if (f.energyGap > 0) {
         f.energyGap -= 1;
       } else if (f.energy < ENERGY_MAX) {

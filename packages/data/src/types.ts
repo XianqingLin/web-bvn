@@ -86,7 +86,7 @@ export interface CondTriggerDef {
 
 /**
  * 结构化提取无法覆盖的帧脚本原文（如辅助的链式调用/任意赋值/形态切换状态变量）。
- * 保留目的：转译参考与 behaviors 插件目录（ADR-6）的输入。**不直接进引擎执行。**
+ * 保留目的：转译参考与 behaviors 插件目录（DESIGN §3.6）的输入。**不直接进引擎执行。**
  */
 export interface RawFrameScript {
   frame: number;
@@ -183,7 +183,7 @@ export interface FighterPackage {
 /**
  * 辅助烘焙包（f_assistant）。辅助是单时间轴（无形态），
  * 脚本含任意逻辑（链式调用/直接赋值），rawScripts 占比天然高——
- * 数据化不了的部分走 behaviors 插件目录（ADR-6）。
+ * 数据化不了的部分走 behaviors 插件目录。
  */
 export interface AssistantPackage {
   schema: 'bvn/assistant@1';

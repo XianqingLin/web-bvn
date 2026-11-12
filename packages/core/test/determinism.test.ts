@@ -60,7 +60,7 @@ describe('确定性（契约硬规则 1 / 完工门禁）', () => {
     expect(tailB).toEqual(tailA);
   });
 
-  it('牵引边界：两角色中点 ± PLAYFIELD_HALF_WIDTH 之外不可达（ADR-4）', () => {
+  it('牵引边界：两角色中点 ± PLAYFIELD_HALF_WIDTH 之外不可达', () => {
     const sim = new Sim(createDefaultConfig(1));
     // P1 一直向右走 600 tick，无边界时 x = 300 + 4*600 = 2700，远超一屏
     let last = sim.tick({ p1: Btn.right, p2: 0 });
@@ -72,7 +72,7 @@ describe('确定性（契约硬规则 1 / 完工门禁）', () => {
   });
 });
 
-describe('输入缓冲（ADR-3）', () => {
+describe('输入缓冲', () => {
   it('按下边沿后窗口内 buffered 有效，justDown 仅首帧', () => {
     const pi = createPlayerInput();
     const press = advancePlayerInput(pi, Btn.attack);

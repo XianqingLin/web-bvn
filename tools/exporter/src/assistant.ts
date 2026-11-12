@@ -1,7 +1,7 @@
 /**
  * 辅助 XFL → AssistantPackage（bvn/assistant@1）离线提取。
  * 与角色的差异：无形态（单时间轴）、$assisterCtrler 目标、
- * 脚本含任意逻辑（链式调用/直接赋值）——rawScripts 兜底， behaviors 插件化见 ADR-6。
+ * 脚本含任意逻辑（链式调用/直接赋值）——rawScripts 兜底， behaviors 插件化见 DESIGN §3.6。
  */
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';

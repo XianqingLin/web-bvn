@@ -690,7 +690,7 @@ export function stepIntentsFor(
   const up = view.held(Btn.up);
 
   // —— 万解（原版 renderWanKaiCtrl：W→S→无修饰；attack+jump 同时按住；
-  //     原版按住级检测，移植版过攻击/跳缓冲器（ADR-3 触发型统一） ——
+  //     原版按住级检测，移植版过攻击/跳缓冲器（触发型统一） ——
   const wankaiPress =
     (view.buffered(Btn.attack) && view.held(Btn.jump)) ||
     (view.buffered(Btn.jump) && view.held(Btn.attack));

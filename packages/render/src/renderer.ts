@@ -2,7 +2,7 @@
  * BattleRenderer —— 战斗画面渲染（DESIGN §5）。
  *
  * 唯一输入 = SimSnapshot（契约）：位置在相邻两快照间线性插值，
- * 动画帧/朝向取最新快照；相机纯渲染（ADR-4）；HUD 读快照；
+ * 动画帧/朝向取最新快照；相机纯渲染；HUD 读快照；
  * 表现事件按 tick 去重消费（不回读 sim 内部状态）。
  */
 import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
@@ -543,7 +543,7 @@ export class BattleRenderer {
     this.camY += (midY - this.camY) * k;
     this.zoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
 
-    // 相机不进模拟（ADR-4）：纯渲染变换。按快照舞台边界 clamp（版边牵引的渲染面）。
+    // 相机不进模拟：纯渲染变换。按快照舞台边界 clamp（版边牵引的渲染面）。
     const st = snap.state.stage;
     const halfW = this.viewW / this.zoom / 2;
     const halfH = this.viewH / this.zoom / 2;

@@ -3,7 +3,7 @@
  *
  * 本 pass 覆盖 module-map §6.2（根时间轴脚本：defineAction 表/数值/声音绑定）
  * 与 §6.3 的时间轴部分（帧标签 + 帧触发），不含几何判定区——
- * 判定区走运行时导出（方案 A，ADR-5），两者在 JSON 中合流。
+ * 判定区走运行时导出（方案 A），两者在 JSON 中合流。
  */
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';

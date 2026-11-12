@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * tools/replay —— 输入剧本回放 + 哈希门禁（DESIGN §7 / ADR-10）。
+ * tools/replay —— 输入剧本回放 + 哈希门禁（DESIGN §7）。
  *
  * 剧本格式（JSON）：
  *   { "name": "...", "seed": 1,

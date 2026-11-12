@@ -84,7 +84,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 角色 JSON 的 `triggers` 只允许使用以下原语；扩充原语类型 = 改本表 + core 实现（`core/fighter/behaviors.ts` 注册表）+ data 校验器，三处同 commit：
 
-- 移动类（速度值 ×SPEED_PLUS，ADR-12）：`move`、`movePercent`、`moveOnce`、`dash`、`stop`/`stopMove`、`damping`/`dampingPercent`
+- 移动类（速度值 ×SPEED_PLUS，换算见 DESIGN §3.1）：`move`、`movePercent`、`moveOnce`、`dash`、`stop`/`stopMove`、`damping`/`dampingPercent`
 - 状态/资源：`setSteelBody`、`addQi`、`endAct`（收招）、`setCross`、`isApplyG`、`setAirMove`、`setTouchFloor(label)`、`idle(frame?)`（主动回位）
 - 瞬步系（target 分流：mc=动作控制，effect=表现事件）：`dash`、`dashStop(p)`；纯表现：`shadow`/`endShadow`、`bisha`/`endBisha`、`slowDown(t)`、`walk`、`jump`、`touchFloor`
 - 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`

@@ -1,5 +1,5 @@
 /**
- * Lockstep 客户端（DESIGN §6 / §9.7 / ADR-14）：
+ * Lockstep 客户端（DESIGN §6 / §9.7）：
  * 只交换输入不同步状态——每端本地模拟全部逻辑。
  *  - 本地输入延迟 INPUT_DELAY 帧：采样后延迟生效，掩盖网络抖动；
  *  - frame(tick) 等齐本端与远端输入才放行；等不到返回 null，
