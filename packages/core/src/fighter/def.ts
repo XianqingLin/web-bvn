@@ -105,7 +105,20 @@ export interface FighterDef {
   /** 已验证存在的攻击动作 id → 动画标签（缺失 = 动作不可用） */
   attackLabels: Record<string, string>;
   /** fire 元件时间轴元数据（baked fires 包注入；缺元件 = 该 fire 无动画生命周期） */
-  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
+  fires?: Record<string, FireTimelineDef>;
+}
+
+/**
+ * fire / attacker 元件时间轴元数据（bvn/fire@1 FireTimeline 的 core 镜像；
+ * B5 起 addAttacker 元件含 org（生成锚定基准）+ hits（逐帧命中区，帧号 1 基，
+ * 矩形为元件局部 direct=1 空间，名字由消费端按动作表精确 → 去 atm 解析）。
+ * fire 弹体不消费 org/hits（弹体命中矩形仍是 main 锚）。
+ */
+export interface FireTimelineDef {
+  totalFrames: number;
+  labels: Record<string, number>;
+  org?: { x: number; y: number };
+  hits?: Record<string, { name: string; x: number; y: number; w: number; h: number }[]>;
 }
 
 /**
@@ -139,15 +152,15 @@ export interface AssisterDef {
   /** 增益 buff（生效期 = 辅助在场期间；orihime 受击减免 / yachiru 物吸血） */
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
   /** fire 元件时间轴元数据（baked fires 包注入；缺元件 = 该 fire 无动画生命周期） */
-  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
+  fires?: Record<string, FireTimelineDef>;
   /**
    * attacker 元件脚本（切片 21）：addAttacker 名 → 元件时间轴。
    * labels 1 基（'end' → 跳转落点帧）；triggers 帧号 1 起（与 animFrame 同基，
    * compileAssistant 已 +1），target ∈ {attacker, effect}。stepAttackerAnim
    * 逐帧分派（仅 viaAssist 道具）。语料：byakuya/gaara/itachi/madara/
    * rangiku/sai/shikamaru（stop/gotoAndPlay/stopFollowTarget/removeSelf/
-   * shine/playSoundHit2/endAct；madara justHit miss 分支留 raw——内层
-   * hitVO 未导出前无真值）。
+   * shine/playSoundHit2/endAct；B5 起 madara justHit miss 分支走 cond 触发器：
+   * justHit 查询 = 目标 lastHurtHitId 比对，attacker 语境复用近战语义）。
    */
   attackerScripts?: Record<
     string,

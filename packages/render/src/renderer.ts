@@ -550,12 +550,13 @@ export class BattleRenderer {
   }
 
   /**
-   * 独立道具（切片 13-A4）：fire 元件精灵静态首帧渲染。
+   * 独立道具（切片 13-A4；B5 原点锚定）：fire 元件精灵静态首帧渲染。
    *
-   * attacker 无自身时间轴推进（core 偏离：内层时间轴未导出，寿命/矩形占位
-   * 见 AttackerState 注），故只画 frames[0]。锚点/翻转/图集选择同 bullet
-   * （命中矩形同 worldRect 镜像约定；el.main 逆运算；owner 恒为 fighter）；
-   * 缺图集条目或首帧缺纹理回退命中矩形色块（纯表现实体 hit=null 用青绿色区分）。
+   * attacker 无自身时间轴推进（寿命/命中矩形见 AttackerState 注），故只画
+   * frames[0]。B5 起 core x/y = 元件原点世界坐标：精灵容器直接锚原点 +
+   * scale.x 翻转（同角色 root 模式）；回退色块画 fbHit 矩形（沿朝向镜像
+   * 平移到原点，同 core attackerLocalRect 约定）；缺图集条目或首帧缺纹理
+   * 回退命中矩形色块（纯表现实体 hit=null 用青绿色区分）。
    */
   private updateAttackers(
     prev: SimSnapshot,
@@ -576,7 +577,18 @@ export class BattleRenderer {
       // 只要求图集条目存在（首帧可为空：atmc 等元件第 1 帧留空淡入，
       // png=-1 帧由 applyFireFrame 逐帧隐藏——按首帧判空会误回退色块）
       if (!loaded || !el || el.frames.length === 0) {
-        this.drawPropBlock(g, a.facing, a.w, a.h, a.hit?.hitType ?? null, ix, iy);
+        // 回退色块：fbHit 沿朝向镜像平移到原点（facing=-1 时 x 轴翻转）
+        const rx = ix + (a.facing === 1 ? a.fbHit.x : -a.fbHit.x - a.fbHit.w);
+        const ry = iy + a.fbHit.y;
+        this.drawPropBlock(
+          g,
+          a.facing,
+          a.fbHit.w,
+          a.fbHit.h,
+          a.hit?.hitType ?? null,
+          rx,
+          ry,
+        );
         continue;
       }
       let sp = this.attackerSprites.get(a.id);
@@ -589,8 +601,8 @@ export class BattleRenderer {
         sp = { root, body, appliedFrame: -1 };
         this.attackerSprites.set(a.id, sp);
       }
-      const rel = el.main;
-      sp.root.position.set(a.facing === 1 ? ix - rel.x : ix + rel.x + rel.w, iy - rel.y);
+      // B5 原点锚：容器 = 元件原点，子帧内容由图集 rel（相对原点）承载
+      sp.root.position.set(ix, iy);
       sp.root.scale.x = a.facing;
       // 内层时间轴动画帧（animTotal=0 无时间轴时回退首帧；切片 13-A5）
       this.applyFireFrame(sp, loaded, a.name, a.animTotal > 0 ? a.animFrame : 1);

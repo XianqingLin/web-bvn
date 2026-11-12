@@ -49,6 +49,7 @@
 | 20 | 实战验收修复批次：落地滑步（行走物理标签门 + labelLock 清锁）+ 必杀 1 帧桩截断（时间轴顺流，全角色家族性）+ 上+必杀/上+技被跳覆盖（意图分支待机态门）+ 防御接管速度 | ✅ | §三·批次 20 |
 | 21 | 阶段 3 尾巴·B1：byakuya 抓取链 customFunc 三函数数据化 + attacker 元件脚本分派 + finishIfNoAttacker 守卫 + 辅助 loop 同标签 rewind 保活 | ✅ | §三·切片 21；余项见 §4.2 |
 | 22 | 阶段 3 尾巴·B2：必杀/万解切人插图——core 冻结锁（cutinLock 全场停走/锁主 30Hz/保护性解锁）+ `tools/bisha-pack` 素材管线（71 帧横幅 + 92 张立绘）+ render 黑幕/横幅/立绘接线 | ✅ | §三·切片 22 |
+| 23 | 阶段 3 尾巴·B5：独立道具逐帧命中矩形——attacker 原点锚定语义 + fires org/hits 逐帧命中数据（dump 桥扩展采集 86 元件 + `tools/b5-pack` 合并）+ madara justHit 卫语句 cond 触发器 + itachi 动态伤害 setHitPowerByTargetHpMax | ✅ | §三·切片 23 |
 
 ---
 
@@ -111,6 +112,16 @@
 - **render/app 接线**：黑幕屏幕空间层（bgFixed 与 world 之间）+ 横幅/立绘容器（mapLayer 与 fighterLayer 之间，角色在黑幕之上=原版层序）；faceId = 施法者相对目标 x（原版 showFace）；白闪以白色加色叠层近似（偏离记录）；地图层锁定期隐藏；事件去重键补 payload id（此前同 tick 两个 effect 事件会互吞）。
 - **门禁**：core 112 测试（新增 cutin.test.ts 6 项）；replay 5 剧本 + batch:validate 基线重冻（冻结锁改真实语料时间线，预期内）。
 
+### 切片 23·B5——独立道具逐帧命中矩形（✅ 2026-11-12）
+
+原版 `FighterAttacker.findHitArea` 逐帧扫元件命名子对象（`getBounds(元件)`）解析 hitVO——此前道具命中矩形是发射帧占位。切片 23 把整条链补齐（commit 待填）：
+- **core 语义升级**：attacker 位置从"命中矩形左上角"改为**元件原点**世界坐标（原版 `_mcOrgPoint`）；`fires[name].org/hits` 存在 → 命中检查逐帧解析（命中区名按 owner 动作表精确 → 去 atm 解析；无命中区帧 = 无判定）；缺数据回退生成帧占位（世界矩形与旧中心语义等价——切片 9 测试即此断言的更新）。顺带修 applyG 地面夹取未跟上原点锚定的 bug（assist-duel 漂移排查中发现）。
+- **采集管线**：dump 桥（tools/bridge/inject-methods.as3）扩展 attacker 元件采集——语料名单从 baked 数据生成注入（86 名），逐帧 `getBounds(元件)` + org + fake `setAttackerCtrler` 吸收内层帧脚本（byakuya atmc 为运行时挂载，需补 AssisterCtrler no-op 才能挂上，同 capture 桥教训）；`tools/b5-pack` 合并进 baked fires 包（86 项，6 例同名跨形态消歧取 addAttacker 所在形态）。XFL 静态审计先行（`tools/b5-pack/audit-corpus.mjs`，86 语料 79 唯一解析/7 歧义）。
+- **顺带收编**（同前置"内层 hitVO 可消费"）：madara miss 分支——导出器 `matchJustHitGuard` 提取卫语句为 `if` cond 触发器，core `dispatchAttackerCond` 分派（justHit = 目标 lastHurtHitId 比对）；itachi 动态伤害——导出器 `extractHitPowerSet` 识别 `hitVO.power = targetHpMax × rate` 为 `setHitPowerByTargetHpMax` op，覆写存辅助实例、其生成的 attacker 命中解析时消费。
+- **render 接线**：attacker 精灵改元件原点锚（scale.x 翻转同角色 root 模式），回退色块画 fbHit 矩形。
+- **门禁**：core 114 测试（新增 B5 逐帧命中 2 项）；replay 4 剧本零漂移、assist-duel 基线重冻（`hitPowerOverrides` 空槽 + 原点坐标进序列化——**零行为差异**已用全量 state 逐 tick 对比证明）；batch:validate 基线门禁原样通过（其基线不含这些字段）。
+- **遗留**：逐帧命中行为变更无 replay 剧本覆盖（5 剧本无语料角色）；byakuya 抓取伤害 atm1（power=50）等真实判定待实战验收；歧义 6 例的正确性抽样核对未做。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -127,8 +138,8 @@
 
 ### 4.2 阶段 3 尾巴（切片 13 余项，纯增量特性，不阻塞阶段 4 推进）
 
-- 独立道具逐帧命中矩形（原版由道具内层时间轴逐帧驱动，未导出——现取发射帧命名子对象判定区/零矩形占位，atmc 抓取伤害的内层 hitVO（atm1，power=50）同源待导；需 capture/dump 桥新导出管线，待语料审计后决策）；
-- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；itachi 动态伤害 `power = targetHpMax×0.008`（与逐帧矩形同前置：消费方 attacker 内层 hitVO）；suigetsu `isAttacking=true`（唯一读者 AI）；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
+- ~~独立道具逐帧命中矩形~~（✅ 切片 23 收编，含 byakuya atm1 抓取伤害 / itachi 动态伤害 / madara miss 分支；遗留：无 replay 剧本覆盖逐帧命中行为变更 + 歧义 6 例抽样核对，见 §三·切片 23）；
+- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；~~itachi 动态伤害~~（✅ 切片 23 收编）；suigetsu `isAttacking=true`（唯一读者 AI）；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
 - ~~必杀切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费~~（✅ 切片 22 收编，含万解 wanKai/endWanKai 同机制覆盖）；
 - 空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）——时间轴顺流已能播放该段，纯表现无判定；
@@ -153,5 +164,5 @@
 ## 五、下一步（按优先级）
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
-2. **阶段 3 尾巴**（§4.2，余项：逐帧命中矩形（B5）/ 空中必杀 attackId（B3）/ temari 风场（B4）——切片 21 已收编 B1 checkFunc 链、切片 22 已收编 B2 切人插图）——或按用户指示切换其他块；
+2. **阶段 3 尾巴**（§4.2，余项：空中必杀 attackId（B3）/ temari 风场（B4）——切片 21 已收编 B1、切片 22 已收编 B2、切片 23 已收编 B5 逐帧命中矩形）——或按用户指示切换其他块；
 3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

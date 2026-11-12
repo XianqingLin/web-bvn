@@ -29,6 +29,7 @@ import {
   type FighterDef,
   type FrameTrigger,
   type HitDef,
+  type TriggerCondition,
 } from './fighter/def.js';
 import {
   attackRateOf,
@@ -719,6 +720,7 @@ export class Sim {
    */
   private dispatchAttackerScript(a: AttackerState, t: FrameTrigger): boolean {
     if (t.target === 'attacker') {
+      if (t.op === 'if') return this.dispatchAttackerCond(a, t);
       switch (t.op) {
         case 'stop':
           a.animHold = true;
@@ -764,6 +766,47 @@ export class Sim {
       default:
         return false;
     }
+  }
+
+  /**
+   * attacker 元件条件触发分派（B5，madara miss 分支）：cond 成立执行 then，
+   * 否则执行 else；分支体调用仍走元件脚本分派（gotoAndPlay 需经 frameJumped
+   * 语义），removeSelf 短路同帧移除。
+   */
+  private dispatchAttackerCond(a: AttackerState, t: FrameTrigger): boolean {
+    const cond = t.cond;
+    if (cond === undefined) return false;
+    const branch = this.evaluateAttackerCondition(a, cond) ? t.then : t.else;
+    if (!branch) return false;
+    for (const c of branch) {
+      const removed = this.dispatchAttackerScript(a, {
+        frame: t.frame,
+        target: c.target,
+        op: c.op,
+        args: c.args,
+      });
+      if (removed) return true;
+    }
+    return false;
+  }
+
+  /**
+   * attacker 语境条件查询（B5）。justHit：原版 FighterAttackerCtrler.justHit
+   * 委托 owner 控制器 → AssisterCtrler.isJustHit = 目标 hurtHit.id 比对；
+   * port = 目标 lastHurtHitId（受击恢复清空，近战 justHit 同语义）。
+   * 未知查询 op = false（确定性静默，同 fighter 侧 evaluateTriggerCondition）。
+   */
+  private evaluateAttackerCondition(a: AttackerState, cond: TriggerCondition): boolean {
+    if (cond.op === 'justHit') {
+      const hitid = typeof cond.args[0] === 'string' ? cond.args[0] : null;
+      const t = this.state.fighters.find((f) => f.id !== a.ownerId) ?? null;
+      const v =
+        t !== null &&
+        hitid !== null &&
+        (t.lastHurtHitId === hitid || (cond.args[1] === true && t.lastDefHitId === hitid));
+      return cond.negate === true ? !v : v;
+    }
+    return false;
   }
 
   /**
@@ -846,17 +889,19 @@ export class Sim {
 
   /**
    * 生成独立道具（behaviors.addAttacker 引擎桥；原版 FighterAttacker.init）。
-   * 位置：x 轴沿朝向镜像；moveToTarget 轴改以 target 为基准。
-   * 偏离：命中矩形占位见 state.ts AttackerState 注；range 轴语料未出现，不支持（确定性静默）。
+   * 位置：元件原点锚定（B5），x 轴沿朝向镜像；moveToTarget 轴改以 target 为基准。
+   * 偏离：fires 缺逐帧数据的元件回退占位矩形见 state.ts AttackerState 注；
+   * range 轴语料未出现，不支持（确定性静默）。
    */
   private spawnAttacker(spec: AttackerSpawnSpec): void {
-    const { owner, name, local, hit, hitId, params } = spec;
+    const { owner, name, local, fbHit, hit, hitId, params } = spec;
     this.spawnAttackerEntity({
       anchor: owner,
       ownerId: owner.id,
       targetOf: this.state.fighters.find((f) => f.id !== owner.id) ?? null,
       name,
       local,
+      fbHit,
       hit,
       hitId,
       anim: spec.anim,
@@ -869,12 +914,13 @@ export class Sim {
   /**
    * 辅助生成独立道具（assister.addAttacker 引擎桥；原版同 FighterAttacker，
    * owner = 辅助实体）：位置锚/朝向取辅助实体，命中回气归召唤者
-   * （原版 getOwnerFighter 回溯），渲染图集走辅助侧（viaAssist）。
+   * （原版 getOwnerFighter 回溯），渲染图集/逐帧命中数据走辅助侧（viaAssist）。
    */
   private spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void {
     const owner = this.state.fighters.find((f) => f.id === spec.ownerId) ?? null;
-    // 元件脚本（切片 21）：def.attackerScripts[name] 存在 → 标签并入
-    // animLabels（fires 元数据同基同值，attackerScripts 优先）+ 记录脚本来源
+    // 来源辅助 def id（B5 起 viaAssist 必设：fires 元数据/元件脚本寻址）；
+    // def.attackerScripts[name] 存在 → 标签并入 animLabels（fires 元数据
+    // 同基同值，attackerScripts 优先）
     const def = this.assisterDefs.get(spec.self.assistId);
     const scripts = def?.attackerScripts?.[spec.name];
     this.spawnAttackerEntity({
@@ -884,14 +930,14 @@ export class Sim {
         owner !== null ? this.state.fighters.find((f) => f.id !== owner.id) ?? null : null,
       name: spec.name,
       local: spec.local,
+      fbHit: spec.fbHit,
       hit: spec.hit,
       hitId: spec.hitId,
       anim: spec.anim,
       params: spec.params,
       viaAssist: true,
-      ...(scripts !== undefined
-        ? { scriptAssistId: spec.self.assistId, scriptLabels: scripts.labels }
-        : { scriptAssistId: null }),
+      scriptAssistId: spec.self.assistId,
+      ...(scripts !== undefined ? { scriptLabels: scripts.labels } : {}),
     });
   }
 
@@ -901,23 +947,29 @@ export class Sim {
     targetOf: FighterState | null;
     name: string;
     local: AreaRect;
+    fbHit: { x: number; y: number; w: number; h: number };
     hit: HitDef | null;
     hitId: string | null;
     anim?: { totalFrames: number; labels: Record<string, number> } | undefined;
     params: AttackerParams;
     viaAssist: boolean;
-    /** 元件脚本来源辅助 def id（切片 21；null = 角色生成/无脚本） */
+    /** 来源辅助 def id（viaAssist 时必设：fires 元数据/元件脚本寻址；
+     *  切片 21 仅脚本来源，B5 扩展；null = 角色生成） */
     scriptAssistId: string | null;
     /** 元件脚本标签（def.attackerScripts[name].labels；并入 animLabels） */
     scriptLabels?: Record<string, number>;
   }): void {
-    const { anchor, ownerId, targetOf: t, name, local, hit, hitId, anim, params, viaAssist } = args;
-    const centerX = local.x + local.w / 2;
-    const centerY = local.y + local.h / 2;
+    const { anchor, ownerId, targetOf: t, name, local, fbHit, hit, hitId, anim, params, viaAssist } = args;
+    // 元件原点（root 空间 direct=1）= 生成帧判定区 − 回退矩形偏移；
+    // 原版 _mcOrgPoint = (mainmc.x, mainmc.y)（实例摆放在父时间轴的位置）
+    const orgX = local.x - fbHit.x;
+    const orgY = local.y - fbHit.y;
     const axisX = typeof params.x === 'object' && params.x !== null ? params.x : null;
     const axisY = typeof params.y === 'object' && params.y !== null ? params.y : null;
-    const startX = typeof params.x === 'number' ? params.x + centerX : axisX?.offset ?? centerX;
-    const startY = typeof params.y === 'number' ? params.y + centerY : axisY?.offset ?? centerY;
+    // 原版 _startX：number → params.x + _mcOrgPoint.x；轴对象 → offset；
+    // 缺省 → _mcOrgPoint（FighterAttacker.as:36-96）
+    const startX = typeof params.x === 'number' ? params.x + orgX : axisX?.offset ?? orgX;
+    const startY = typeof params.y === 'number' ? params.y + orgY : axisY?.offset ?? orgY;
     let cx = anchor.x + startX * anchor.facing;
     let cy = anchor.y + startY;
     if (axisX?.moveToTarget === true && t !== null) cx = t.x + startX * anchor.facing;
@@ -927,10 +979,11 @@ export class Sim {
       ownerId,
       facing: anchor.facing,
       name,
-      x: cx - local.w / 2,
-      y: cy - local.h / 2,
+      x: cx,
+      y: cy,
       w: local.w,
       h: local.h,
+      fbHit,
       offsetX: startX,
       offsetY: startY,
       followX: axisX?.followTarget === true,
@@ -961,14 +1014,16 @@ export class Sim {
     const removed: number[] = [];
     for (const a of attackers) {
       const t = fighters.find((f) => f.id !== a.ownerId) ?? null;
-      // followTarget：中心重定位到 target + 局部偏移（x 沿道具朝向镜像）；
+      // followTarget：原点重定位到 target + 局部偏移（x 沿道具朝向镜像）；
       // 非 follow 轴生成后固定（原版 attacker 是绝对定位实体）
-      if (a.followX && t !== null) a.x = t.x + a.offsetX * a.facing - a.w / 2;
-      if (a.followY && t !== null) a.y = t.y + a.offsetY - a.h / 2;
+      if (a.followX && t !== null) a.x = t.x + a.offsetX * a.facing;
+      if (a.followY && t !== null) a.y = t.y + a.offsetY;
       if (a.applyG) {
-        const bottom = a.y + a.h;
+        // 底边 = 原点 + 回退矩形底（B5 原点锚定；回退 org=中心时与旧
+        // a.y + a.h 中心语义等价）
+        const bottom = a.y + a.fbHit.y + a.fbHit.h;
         if (bottom >= stage.groundY) {
-          a.y = stage.groundY - a.h;
+          a.y = stage.groundY - (a.fbHit.y + a.fbHit.h);
           a.gRamp = GRAVITY_START;
         } else {
           a.gRamp = Math.min(a.gRamp + GRAVITY_STEP, GRAVITY_CAP);
@@ -990,6 +1045,60 @@ export class Sim {
       }
       return true;
     });
+  }
+
+  /**
+   * B5 逐帧命中路径（原版 FighterAttacker.getCurrentHits → hit 结算）：
+   * 当前帧命中区逐区解析动作（区序 = 元件子对象序），矩形与目标身体相交
+   * → 回气 + applyHit + hitAble=false。返回是否有命中成立。
+   */
+  private attackerFrameHit(
+    a: AttackerState,
+    areas: { name: string; x: number; y: number; w: number; h: number }[],
+    actions: Record<string, HitDef>,
+    powerOverride: Record<string, number> | undefined,
+    owner: FighterState | null,
+    fighters: FighterState[],
+  ): boolean {
+    for (const area of areas) {
+      const actionId = resolveAttackerActionId(area.name, actions);
+      if (actionId === null) continue; // 无动作表的区 = 纯表现
+      const base = actions[actionId]!;
+      // 命中力覆写（itachi 动态伤害：power = target.hpMax × rate）
+      const hit: HitDef =
+        powerOverride?.[actionId] !== undefined
+          ? { ...base, power: powerOverride[actionId]! }
+          : base;
+      const rect = attackerLocalRect(a, area);
+      for (const tgt of fighters) {
+        if (tgt.id === a.ownerId) continue;
+        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
+        const tgtDef = this.defOf(tgt);
+        const bodyLocal = tgtDef
+          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+          : null;
+        if (!bodyLocal) continue;
+        if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
+        if (owner !== null && !isBishaAction(actionId)) {
+          owner.qi = Math.min(300, owner.qi + hit.power * ATTACKER_QI_RATE);
+        }
+        this.applyHit(
+          a.ownerId,
+          a.facing,
+          rect.x + rect.w / 2,
+          tgt,
+          tgtDef,
+          hit,
+          rect,
+          actionId,
+          owner,
+          true, // viaEntity：回气已在调用侧按 ATTACKER_QI_RATE 结算，跳过近战分支
+        );
+        a.hitAble = false;
+        return true;
+      }
+    }
+    return false;
   }
 
   // —— 辅助实体（切片 12，原版 Assister） ——
@@ -1025,6 +1134,7 @@ export class Sim {
       buffEffects: def.buffEffects !== undefined ? { ...def.buffEffects } : {},
       customFunc: null,
       frameJumped: false,
+      hitPowerOverrides: {},
     };
     this.state.nextEntityId += 1;
     this.state.assisters.push(assister);
@@ -1035,6 +1145,32 @@ export class Sim {
       name: assistId,
       owner: owner.id,
     });
+    // 生成帧脚本（原版帧 1 脚本在实例化时执行一次，随后才 gotoAndPlay(2)；
+    // port 出场帧 = 2，帧 1 触发器在此补跑——itachi 动态伤害等生成期副作用）
+    const spawnCtx: AssisterContext = {
+      self: assister,
+      def,
+      owner,
+      ownerDef: this.defOf(owner),
+      fighters: this.state.fighters,
+      stage: this.state.stage,
+      emit: (type, payload) => this.emit(type, payload),
+      spawnAssistBullet: (spec) => this.spawnAssistBullet(spec),
+      spawnAssistAttacker: (spec) => this.spawnAssistAttacker(spec),
+      remove: () => {},
+      setCutin: (kind) => this.setCutin('assister', assister.id, kind),
+      getAttacker: () => null,
+      gotoAndPlayAttacker: () => {},
+      stopFollowAttacker: () => {},
+      removeAttacker: () => {},
+    };
+    const spawnList = this.assisterTriggerIndex.get(assistId)?.get(1);
+    if (spawnList) {
+      for (const t of spawnList) {
+        const h = this.assisterBehaviors[t.op];
+        if (h) h(spawnCtx, t.args, t.target);
+      }
+    }
   }
 
   private assistIdOf(f: FighterState): string | null {
@@ -1557,12 +1693,46 @@ export class Sim {
         if (!this.state.bullets.includes(b)) break;
       }
     }
-    // 独立道具 → 角色（原版 FighterAttacker 命中：非必杀所有者回气 power×0.15；
-    // 单次命中即失效——attacker 无多次命中语料）
+    // 独立道具 → 角色（原版 FighterAttacker 命中：findHitArea 逐帧扫描命名
+    // 子对象 → getHitVOByDisplayName 解析（精确 → 去首个 atm），RectUtils 镜像
+    // 平移到原点；无命中区帧 = 无判定；非必杀所有者回气 power×0.15；单次命中
+    // 即失效——attacker 无多次命中语料。fires 缺逐帧数据的元件回退生成帧
+    // 占位矩形 + 生成动作全程固定——state.ts 偏离注）
     for (const a of this.state.attackers) {
-      if (!a.hitAble || a.hit === null) continue;
-      const rect = { x: a.x, y: a.y, w: a.w, h: a.h };
+      if (!a.hitAble) continue;
       const owner = this.state.fighters.find((f) => f.id === a.ownerId) ?? null;
+      // 命中数据源：viaAssist → 辅助 def fires；角色生成 → owner 当前形态 fires
+      const tl =
+        a.viaAssist && a.scriptAssistId !== null
+          ? this.assisterDefs.get(a.scriptAssistId)?.fires?.[a.name]
+          : owner !== null
+            ? this.defOf(owner)?.fires?.[a.name]
+            : undefined;
+      const frameAreas = tl?.hits?.[String(a.animFrame)];
+      if (frameAreas !== undefined) {
+        // 逐帧路径：动作表 = viaAssist → 辅助 def；角色 → owner 当前形态 def
+        //（偏离：原版 hitModel 跨形态累积注册，port 用单一动作表；
+        // 语料 attacker 命中区名基本同形态，形态切换中命中罕见）
+        const actions =
+          a.viaAssist && a.scriptAssistId !== null
+            ? this.assisterDefs.get(a.scriptAssistId)?.actions
+            : owner !== null
+              ? this.defOf(owner)?.actions
+              : undefined;
+        if (actions === undefined) continue;
+        // 命中力覆写（itachi 动态伤害：assister 生成时按 target hpMax 改写
+        // hitVO.power——原版 hitModel.getHitVO 直接改写实例）
+        const powerOverride =
+          a.viaAssist && a.scriptAssistId !== null
+            ? this.state.assisters.find(
+                (s) => s.assistId === a.scriptAssistId && s.ownerId === a.ownerId,
+              )?.hitPowerOverrides
+            : undefined;
+        this.attackerFrameHit(a, frameAreas, actions, powerOverride, owner, fighters);
+      }
+      if (a.hit === null) continue;
+      // 回退路径：生成帧占位矩形（元件局部 fbHit 镜像平移到原点）全程固定
+      const rect = attackerLocalRect(a, a.fbHit);
       for (const tgt of fighters) {
         if (tgt.id === a.ownerId) continue;
         if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
@@ -1578,7 +1748,7 @@ export class Sim {
         this.applyHit(
           a.ownerId,
           a.facing,
-          a.x + a.w / 2,
+          rect.x + rect.w / 2,
           tgt,
           tgtDef,
           a.hit,
@@ -1861,4 +2031,33 @@ function indexTriggers(def: { triggers: FrameTrigger[] }): Map<number, FrameTrig
 /** 原版 HitVO.isBisha：动作 id 含 bs/sbs/cbs/kbs（子串 bs 覆盖全部）。 */
 function isBishaAction(actionId: string): boolean {
   return actionId.includes('bs');
+}
+
+/** 元件局部矩形 → 世界矩形（原版 RectUtils.cached：原点锚定 + direct 镜像）。 */
+function attackerLocalRect(
+  a: { x: number; y: number; facing: 1 | -1 },
+  r: { x: number; y: number; w: number; h: number },
+): { x: number; y: number; w: number; h: number } {
+  return {
+    x: a.x + (a.facing === 1 ? r.x : -r.x - r.w),
+    y: a.y + r.y,
+    w: r.w,
+    h: r.h,
+  };
+}
+
+/**
+ * 命中区名 → 动作 id（原版 FighterHitModel.getHitVOByDisplayName：
+ * 精确 id 先查；名字含 "atm" 再查去首个 atm 的结果；都查不到 = null）。
+ */
+function resolveAttackerActionId(
+  name: string,
+  actions: Record<string, unknown>,
+): string | null {
+  if (actions[name] !== undefined) return name;
+  if (name.includes('atm')) {
+    const stripped = name.replace('atm', '');
+    if (actions[stripped] !== undefined) return stripped;
+  }
+  return null;
 }

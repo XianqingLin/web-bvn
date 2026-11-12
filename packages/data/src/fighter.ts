@@ -17,6 +17,7 @@ import type {
   ActionDef,
   AreaRect,
   FighterPackage,
+  FireTimeline,
   LabelRange,
   RuntimeFighterPackage,
   TriggerDef,
@@ -48,8 +49,9 @@ export interface FighterView {
    * 映射缺失 = 该角色没有此动作帧，动作不可用）。
    */
   attackLabels: Record<string, string>;
-  /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期） */
-  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
+  /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期；
+   *  B5 起 addAttacker 元件含 org/hits 逐帧命中数据） */
+  fires?: Record<string, FireTimeline>;
 }
 
 /** 形态数值缺省值（XFL 包缺形态脚本时兜底；ichigo 初形态实测值）。 */

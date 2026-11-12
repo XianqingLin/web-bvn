@@ -364,8 +364,11 @@ describe('切片 9：独立道具（addAttacker）', () => {
     const a = mid.state.attackers[0]!;
     expect(a.applyG).toBe(false);
     expect(a.name).toBe('zh3mc');
-    // followTarget：y = target.y + offsetY（中心）
-    expect(a.y).toBe(mid.state.fighters[1]!.y - 25 - a.h / 2);
+    // B5 原点锚定：a.y = target.y + offsetY（元件原点）；生成帧判定区
+    // 平移为回退矩形 fbHit（缺逐帧数据 = 以 local 中心为 org，世界矩形
+    // 与旧中心语义等价：rect.y = a.y + fbHit.y = target.y - 25 - h/2）
+    expect(a.y).toBe(mid.state.fighters[1]!.y - 25);
+    expect(a.y + a.fbHit.y).toBe(mid.state.fighters[1]!.y - 25 - a.h / 2);
     // 寿命占位 120 tick 到期
     expect(res.snaps.at(-1)!.state.attackers).toHaveLength(0);
     expect(
@@ -431,8 +434,7 @@ describe('切片 9：独立道具（addAttacker）', () => {
     expect(end!.state.attackers).toHaveLength(0);
   });
 
-  it('无 anim 数据（animTotal=0）回退 holdTicks 占位寿命', () => {
-    const sim = makeSim({ p2x: 200, dropTriggers: ['setHitTarget'] });
+  it('无 anim 数据（animTotal=0）回退 holdTicks 占位寿命', () => {    const sim = makeSim({ p2x: 200, dropTriggers: ['setHitTarget'] });
     let spawnTick = -1;
     for (let i = 0; i < 300; i++) {
       const s = sim.tick({ p1: i === 0 ? Btn.skill : 0, p2: 0 });
@@ -462,5 +464,71 @@ describe('切片 9：独立道具（addAttacker）', () => {
     expect(p1.actionState).toBe(ActionState.HURT_ACT_ING);
     // 受击方回气（通用受击态与自定义受击动画都结算）
     expect(p1.qi).toBeCloseTo(30 * 0.085);
+  });
+});
+
+// —— B5：逐帧命中矩形（fires org/hits；原版 FighterAttacker.findHitArea 语义） ——
+
+/** 注入 org/hits 逐帧数据的 def（zh3mc 帧 2 命中区名可配；区矩形与生成
+ * 帧判定区同形：{x:-15,y:-15,w:30,h:30}，org=(25,-25)=判定区中心）。 */
+function makeFrameDef(hitName = 'zh3atm'): FighterDef {
+  const def = makeDef();
+  def.fires = {
+    zh3mc: {
+      totalFrames: 9,
+      labels: {},
+      org: { x: 25, y: -25 },
+      hits: { '2': [{ name: hitName, x: -15, y: -15, w: 30, h: 30 }] },
+    },
+  };
+  def.triggers = def.triggers.filter((t) => t.op !== 'setHitTarget');
+  return def;
+}
+
+/** 播到首个含 attacker 的快照，再继续 tick 到动作收尾。 */
+function playToAttacker(sim: Sim, extraTicks = 20): {
+  spawn: ReturnType<Sim['tick']>;
+  last: ReturnType<Sim['tick']>;
+} {
+  let spawn: ReturnType<Sim['tick']> | null = null;
+  for (let i = 0; i < 200 && !spawn; i++) {
+    const s = sim.tick({ p1: i < 12 ? Btn.skill : 0, p2: 0 });
+    if (s.state.attackers.length > 0) spawn = s;
+  }
+  if (spawn === null) throw new Error('attacker 未生成');
+  let last = spawn;
+  for (let i = 0; i < extraTicks; i++) last = sim.tick({ p1: 0, p2: 0 });
+  return { spawn, last };
+}
+
+describe('B5：逐帧命中矩形', () => {
+  it('逐帧路径：hasFrameData 生成（hit/hitId=null + fbHit=local−org）+ 命中区帧解析命中', () => {
+    const sim = new Sim(makeConfig({ p2x: 200, def: makeFrameDef() }));
+    // 命中发生在 spawn 后 1~2 tick（followX 下一 tick 才把原点吸到 target），
+    // 道具 animTotal=9 约 16 tick 播尽——少 tick 快照抓「命中后仍在场」
+    const { spawn, last } = playToAttacker(sim, 2);
+    const a = spawn.state.attackers[0]!;
+    // hasFrameData：不再用动作表兜底（命中检查逐帧解析）
+    expect(a.hit).toBeNull();
+    expect(a.hitId).toBeNull();
+    // 原点锚定：x/y = 锚点 + 轴 offset（x offset 0 → 锚点原值；y -25）。
+    // followX 轴从下一 tick 起重定位到 target + offset（spawn tick 未走 stepAttackers）
+    expect(a.x).toBe(spawn.state.fighters[0]!.x);
+    expect(a.y).toBe(spawn.state.fighters[1]!.y - 25);
+    // fbHit = 生成帧判定区 − org（元件局部 direct=1）
+    expect(a.fbHit).toEqual({ x: -15, y: -15, w: 30, h: 30 });
+    // 帧 2 命中区 zh3atm → 去 atm 解析 zh3 动作 → 与目标身体相交命中
+    const p2 = last.state.fighters[1]!;
+    expect(p2.hp).toBe(970); // 1000 - 30
+    const p1 = last.state.fighters[0]!;
+    expect(p1.qi).toBeCloseTo(30 * 0.15); // attacker 回气（zh3 非 bs）
+    expect(spawn.state.attackers[0]!.hitAble).toBe(true);
+    expect(last.state.attackers[0]!.hitAble).toBe(false); // 单次命中即失效
+  });
+
+  it('命中区名无动作表解析 = 纯表现：全程无判定', () => {
+    const sim = new Sim(makeConfig({ p2x: 200, def: makeFrameDef('xyzmc') }));
+    const { last } = playToAttacker(sim, 30);
+    expect(last.state.fighters[1]!.hp).toBe(1000);
   });
 });

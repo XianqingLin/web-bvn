@@ -21,6 +21,8 @@ import {
   extractConsts,
   extractDefineActions,
   extractFunctionBodies,
+  extractHitPowerSet,
+  matchJustHitGuard,
   parseLoopTriggerBody,
   scriptResidue,
   stripComments,
@@ -78,7 +80,18 @@ function collectTimeline(
             args: call.args as TriggerArg[],
           });
         }
-        if (scriptResidue(kf.script, { assist: true }) !== '') {
+        // B5：hitModel 命中力改写识别（itachi 动态伤害）→ setHitPowerByTargetHpMax
+        const hitPower = extractHitPowerSet(kf.script);
+        const residueSrc = hitPower !== null ? hitPower.stripped : kf.script;
+        if (hitPower !== null) {
+          into.triggers.push({
+            frame: kf.index,
+            target: 'assister',
+            op: 'setHitPowerByTargetHpMax',
+            args: [hitPower.hitId, hitPower.rate] as unknown as TriggerArg[],
+          });
+        }
+        if (scriptResidue(residueSrc, { assist: true }) !== '') {
           into.rawScripts ??= [];
           into.rawScripts.push({ frame: kf.index, raw: kf.script });
         }
@@ -294,7 +307,22 @@ function extractAttackerScripts(
   for (const [l, r] of Object.entries(sym.labels)) labels[l] = r.index + 1;
   const triggers: NonNullable<AssistantPackage['attackerScripts']>[string]['triggers'] = [];
   for (const r of sym.rawScripts ?? []) {
-    const stripped = stripComments(r.raw);
+    const stripped = stripComments(r.raw).trim();
+    // B5：卫语句惯用语（madara miss 分支）→ cond 触发器（op='if'，分支体
+    // 随附；core dispatchAttackerCond 分派，justHit = 目标 lastHurtHitId）
+    const guard = matchJustHitGuard(stripped);
+    if (guard !== null) {
+      triggers.push({
+        frame: r.frame,
+        target: 'attacker',
+        op: 'if',
+        args: [],
+        cond: { target: 'attacker', op: 'justHit', args: [guard.hitId], negate: true },
+        then: [],
+        else: [{ target: 'attacker', op: 'gotoAndPlay', args: [guard.label] }],
+      } as unknown as (typeof triggers)[number]);
+      continue;
+    }
     if (/\bif\b|\bvar\b|\bfor\b|\bwhile\b|\breturn\b/.test(stripped)) continue;
     for (const c of extractAttackerCalls(stripped)) {
       triggers.push({ frame: r.frame, target: c.target, op: c.op, args: c.args });

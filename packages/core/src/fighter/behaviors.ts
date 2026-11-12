@@ -9,7 +9,15 @@
  * 未注册 op 一律忽略（确定性静默）。
  * 词表扩充 = 契约 §帧触发表 + 本注册表 + data 校验器三处同 commit。
  */
-import type { AreaRect, BehaviorArg, FighterDef, FighterSlots, HitDef, TriggerCondition } from './def.js';
+import type {
+  AreaRect,
+  BehaviorArg,
+  FighterDef,
+  FighterSlots,
+  FireTimelineDef,
+  HitDef,
+  TriggerCondition,
+} from './def.js';
 import { ActionState, SPEED_PLUS, defaultSlots, emptySlots } from './def.js';
 import { enterDead, switchForm, HURT_DAMP_Y } from './machine.js';
 import { JUMP_TIMES_START } from '../state.js';
@@ -67,11 +75,14 @@ export interface AttackerSpawnSpec {
   owner: FighterState;
   /** 命名子对象（原版 addAttacker(mcName)） */
   name: string;
-  /** 生成帧判定区（root 本地坐标，direct=1；位置/尺寸来源） */
+  /** 生成帧判定区（root 本地坐标，direct=1；尺寸/回退矩形来源） */
   local: AreaRect;
-  /** 命中定义（发射动作 HitDef；无动作表 = null 纯表现实体） */
+  /** 回退命中矩形（元件局部 direct=1；fires 缺逐帧数据时全程固定消费） */
+  fbHit: { x: number; y: number; w: number; h: number };
+  /** 命中定义（发射动作 HitDef 拷贝；有逐帧数据 = null，命中检查逐帧解析；
+   *  无动作表 = null 纯表现实体） */
   hit: HitDef | null;
-  /** 命中动作 id（气回充/必杀判定用） */
+  /** 命中动作 id（回退路径气回充/必杀判定用） */
   hitId: string | null;
   /** 元件时间轴（fires 表；缺失 = 无动画数据，寿命走 holdTicks 回退） */
   anim?: { totalFrames: number; labels: Record<string, number> };
@@ -612,29 +623,19 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   },
 
   // —— 独立道具（原版 FighterMcCtrler.addAttacker → FighterAttacker，
-  // module-map §5.7；命名反查同 fire：去 atm 后缀查动作表；
-  // 无动作表 = 纯表现实体。偏离：attacker 内层时间轴未导出，
-  // 命中矩形/寿命为占位，切片 10 收紧） ——
+  // module-map §5.7。B5：fires[name].org/hits 存在 → 原点锚定 + 命中检查
+  // 逐帧解析（fbHit 仅回退）；缺数据回退 = 生成帧动作猜名 + 占位矩形） ——
   addAttacker(ctx, args) {
     const name = typeof args[0] === 'string' ? args[0] : null;
     if (name === null || !ctx.def) return;
     const local = (ctx.def.areas[ctx.f.animFrame] ?? []).find((a) => a.name === name);
     if (!local) return;
-    // 原版命中判定来自道具自身内层时间轴（未导出）；用 owner actions 表兜底：
-    // 依名字形态猜 actionId（'zh3mc'→'zh3'、'k1atm'→'k1'），都查不到 = 纯视觉道具
-    const actionId = name.replace('atm', '').replace(/mc$/, '');
-    const hit =
-      ctx.def.actions[actionId] ??
-      ctx.def.actions[name] ??
-      ctx.def.actions[name.replace('atm', '')] ??
-      ctx.def.actions[name.replace(/mc$/, '')] ??
-      null;
+    const spawn = resolveAttackerSpawn(ctx.def.fires, ctx.def.actions, name, local);
     ctx.spawnAttacker({
       owner: ctx.f,
       name,
       local,
-      hit,
-      hitId: hit !== null ? actionId : null,
+      ...spawn,
       ...(ctx.def.fires?.[name] ? { anim: ctx.def.fires[name] } : {}),
       params: parseAttackerParams(args[1]),
     });
@@ -649,6 +650,35 @@ function parseFireParams(v: BehaviorArg | undefined): FireParams {
 /** addAttacker 参数解析（语料字段：x/y 的 number|轴对象、applyG）。 */
 export function parseAttackerParams(v: BehaviorArg | undefined): AttackerParams {
   return typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as AttackerParams) : {};
+}
+
+/**
+ * addAttacker 生成参数统一换算（B5；fighter/assister 两侧共用）。
+ * 有逐帧命中数据（fires[name].org 存在）→ hit/hitId = null（命中检查逐帧
+ * 解析，state.ts AttackerState 注）；缺数据回退 = 生成帧动作猜名（原版
+ * getHitVOByDisplayName 镜像：先原名后去 atm）+ 生成帧判定区平移到元件
+ * 原点的占位矩形（无 org 数据时退化为中心对齐——切片 10 占位语义）。
+ */
+export function resolveAttackerSpawn(
+  fires: Record<string, FireTimelineDef> | undefined,
+  actions: Record<string, HitDef>,
+  name: string,
+  local: AreaRect,
+): {
+  fbHit: { x: number; y: number; w: number; h: number };
+  hit: HitDef | null;
+  hitId: string | null;
+  hasFrameData: boolean;
+} {
+  const tl = fires?.[name];
+  const hasFrameData = tl?.org !== undefined;
+  const org = tl?.org ?? { x: local.x + local.w / 2, y: local.y + local.h / 2 };
+  const fbHit = { x: local.x - org.x, y: local.y - org.y, w: local.w, h: local.h };
+  if (hasFrameData) return { fbHit, hit: null, hitId: null, hasFrameData };
+  const actionId =
+    actions[name] !== undefined ? name : name.replace('atm', '').replace(/mc$/, '');
+  const hit = actions[actionId] ?? null;
+  return { fbHit, hit, hitId: hit !== null ? actionId : null, hasFrameData };
 }
 
 /** 目标：另一角色（双人模型； fighters 按 id 升序）。 */

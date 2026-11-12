@@ -902,3 +902,63 @@ export function extractAttackerCalls(script: string): CtrlerCall[] {
   }
   return calls;
 }
+
+/**
+ * attacker 元件卫语句识别（B5，madara miss 分支）：
+ *   if(!$attacker_ctrler.justHit("x")){ $attacker_ctrler.gotoAndPlay("y"); }
+ * → cond 触发器（justHit 取反 → else 分支 gotoAndPlay）。整条语句匹配
+ * （stripComments + trim 后），带多余语句/else 分支不匹配（留 raw 审计）。
+ */
+export function matchJustHitGuard(script: string): { hitId: string; label: string } | null {
+  const m = /^if\s*\(\s*!\s*\$attacker_ctrler\.justHit\(\s*"(\w+)"\s*\)\s*\)\s*\{\s*\$attacker_ctrler\.gotoAndPlay\(\s*"(\w+)"\s*\)\s*;?\s*\}\s*;?$/.exec(
+    script,
+  );
+  return m ? { hitId: m[1]!, label: m[2]! } : null;
+}
+
+/**
+ * hitModel 命中力改写识别（B5，itachi 动态伤害；assister 生成帧脚本）：
+ *   const RATE:Number = 0.008;
+ *   var <v>:* = $assisterCtrler.hitModel.getHitVO("<id>");
+ *   var targetHpMax:Number = $assisterCtrler.getOwner()...getTargetSP().hpMax;
+ *   <v>.power = targetHpMax * RATE;
+ * → 触发器 setHitPowerByTargetHpMax(id, rate)。乘式逐因子求值：
+ * targetHpMax（×1）× 数值字面量 × const 数值；其余因子（变量/表达式）不匹配。
+ */
+export function extractHitPowerSet(
+  script: string,
+): { hitId: string; rate: number; stripped: string } | null {
+  const vm = /\bvar\s+(\w+)\s*:\s*\*\s*=\s*\$assisterCtrler\.hitModel\.getHitVO\(\s*"(\w+)"\s*\)\s*;/.exec(
+    script,
+  );
+  if (!vm) return null;
+  const varName = vm[1]!;
+  const am = new RegExp(`${varName}\\.power\\s*=\\s*([^;\\n]+)\\s*;`).exec(script);
+  if (!am) return null;
+  const expr = am[1]!;
+  let sawFactor = false;
+  let rate = 1;
+  for (const rawFactor of expr.split('*')) {
+    const f = rawFactor.trim();
+    if (/^targetHpMax$/i.test(f)) {
+      sawFactor = true;
+      continue;
+    }
+    if (/^-?(\d+\.?\d*|\.\d+)$/.test(f)) {
+      rate *= Number(f);
+      sawFactor = true;
+      continue;
+    }
+    return null; // 未知因子（变量/表达式）→ 不匹配
+  }
+  if (!sawFactor) return null;
+  // 剥除已数据化语句：var 声明、赋值、本脚本 const 数值声明（extractConsts 同源）
+  let stripped = script
+    .replace(vm[0], '')
+    .replace(am[0], '')
+    .replace(/(?:const|var)\s+(\w+):Number\s*=\s*(-?[\d.]+)\s*;/g, (full, nm: string) =>
+      expr.includes(nm) ? '' : full,
+    );
+  stripped = stripped.replace(/var\s+targetHpMax:Number\s*=[^;]*;\s*/g, '');
+  return { hitId: vm[2]!, rate, stripped };
+}

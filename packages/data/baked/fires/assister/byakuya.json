@@ -1,1 +1,56 @@
-{"schema":"bvn/fire@1","kind":"fire","ownerKind":"assister","id":"byakuya","fires":{"atmmc":{"totalFrames":15,"labels":{"end":10}}}}
+{
+  "schema": "bvn/fire@1",
+  "kind": "fire",
+  "ownerKind": "assister",
+  "id": "byakuya",
+  "fires": {
+    "atmmc": {
+      "totalFrames": 15,
+      "labels": {
+        "end": 10
+      },
+      "org": {
+        "y": 0,
+        "x": 0
+      },
+      "hits": {
+        "5": [
+          {
+            "x": -44.5,
+            "y": -39.05,
+            "w": 89.7,
+            "name": "atm1",
+            "h": 94.44999999999999
+          }
+        ],
+        "6": [
+          {
+            "x": -44.5,
+            "y": -39.05,
+            "w": 89.7,
+            "name": "atm1",
+            "h": 94.44999999999999
+          }
+        ],
+        "7": [
+          {
+            "x": -44.5,
+            "y": -39.05,
+            "w": 89.7,
+            "name": "atm1",
+            "h": 94.44999999999999
+          }
+        ],
+        "8": [
+          {
+            "x": -44.5,
+            "y": -39.05,
+            "w": 89.7,
+            "name": "atm1",
+            "h": 94.44999999999999
+          }
+        ]
+      }
+    }
+  }
+}

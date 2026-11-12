@@ -1,1 +1,98 @@
-{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"orochimaru","fires":{"sbsmc":{"totalFrames":56,"labels":{}},"kj2mc":{"totalFrames":18,"labels":{}},"zh1atm":{"totalFrames":16,"labels":{"hit":9,"loop":5}}}}
+{
+  "schema": "bvn/fire@1",
+  "kind": "fire",
+  "ownerKind": "fighter",
+  "id": "orochimaru",
+  "fires": {
+    "sbsmc": {
+      "totalFrames": 56,
+      "labels": {},
+      "org": {
+        "y": 23,
+        "x": 265.5
+      },
+      "hits": {
+        "3": [
+          {
+            "x": -56.1,
+            "y": -174.6,
+            "w": 141.75,
+            "name": "sbsatm",
+            "h": 183.25
+          }
+        ],
+        "4": [
+          {
+            "x": -70.5,
+            "y": -229.05,
+            "w": 154.9,
+            "name": "sbsatm",
+            "h": 238.10000000000002
+          }
+        ],
+        "5": [
+          {
+            "x": -84.9,
+            "y": -283.6,
+            "w": 168.10000000000002,
+            "name": "sbsatm",
+            "h": 293
+          }
+        ],
+        "6": [
+          {
+            "x": -99.35,
+            "y": -338.05,
+            "w": 181.25,
+            "name": "sbsatm",
+            "h": 347.90000000000003
+          }
+        ]
+      }
+    },
+    "kj2mc": {
+      "totalFrames": 18,
+      "labels": {},
+      "org": {
+        "y": 24.15,
+        "x": 160.85
+      },
+      "hits": {
+        "5": [
+          {
+            "x": -97.7,
+            "y": -113.65,
+            "w": 198.9,
+            "name": "kj2atm",
+            "h": 113.65
+          }
+        ],
+        "6": [
+          {
+            "x": -97.7,
+            "y": -113.65,
+            "w": 198.9,
+            "name": "kj2atm",
+            "h": 113.65
+          }
+        ],
+        "7": [
+          {
+            "x": -97.7,
+            "y": -113.65,
+            "w": 198.9,
+            "name": "kj2atm",
+            "h": 113.65
+          }
+        ]
+      }
+    },
+    "zh1atm": {
+      "totalFrames": 16,
+      "labels": {
+        "hit": 9,
+        "loop": 5
+      }
+    }
+  }
+}

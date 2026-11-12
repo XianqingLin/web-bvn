@@ -12,6 +12,7 @@ import type {
   ActionDef,
   AreaRect,
   AssistantPackage,
+  FireTimeline,
   LabelRange,
   LoopTriggerDef,
   RuntimeFighterPackage,
@@ -34,8 +35,9 @@ export interface AssisterView {
   loopTriggers: LoopTriggerDef[];
   /** 增益 buff（切片 12：orihime attrResistance / yachiru phyLifesteal） */
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
-  /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期） */
-  fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
+  /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期；
+   *  B5 起 addAttacker 元件含 org/hits 逐帧命中数据） */
+  fires?: Record<string, FireTimeline>;
   /**
    * attacker 元件脚本（切片 21）：addAttacker 名 → 元件时间轴。
    * labels 1 基；triggers 帧号已 +1（1 起，与 animFrame 同基）；

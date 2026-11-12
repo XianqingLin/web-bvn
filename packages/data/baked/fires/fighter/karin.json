@@ -1,1 +1,203 @@
-{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"karin","fires":{"zh1atm":{"totalFrames":20,"labels":{"hit":6,"loop":5}},"cbsmc":{"totalFrames":7,"labels":{}},"zh11atm":{"totalFrames":20,"labels":{"hit":6,"loop":5}},"tzatm":{"totalFrames":8,"labels":{"hit":4,"loop":3}},"cbsmc2":{"totalFrames":51,"labels":{"hit":5}},"zh3atm":{"totalFrames":8,"labels":{"hit":4,"loop":3}},"bsmc":{"totalFrames":7,"labels":{}}}}
+{
+  "schema": "bvn/fire@1",
+  "kind": "fire",
+  "ownerKind": "fighter",
+  "id": "karin",
+  "fires": {
+    "zh1atm": {
+      "totalFrames": 20,
+      "labels": {
+        "hit": 6,
+        "loop": 5
+      }
+    },
+    "cbsmc": {
+      "totalFrames": 7,
+      "labels": {},
+      "org": {
+        "y": -8.7,
+        "x": 69.7
+      },
+      "hits": {
+        "3": [
+          {
+            "x": -44.95,
+            "y": -43.25,
+            "w": 91.95,
+            "name": "cbs1atm",
+            "h": 86.5
+          }
+        ],
+        "4": [
+          {
+            "x": -44.95,
+            "y": -43.25,
+            "w": 91.95,
+            "name": "cbs1atm",
+            "h": 86.5
+          }
+        ],
+        "5": [
+          {
+            "x": -44.95,
+            "y": -43.25,
+            "w": 91.95,
+            "name": "cbs1atm",
+            "h": 86.5
+          }
+        ]
+      }
+    },
+    "zh11atm": {
+      "totalFrames": 20,
+      "labels": {
+        "hit": 6,
+        "loop": 5
+      }
+    },
+    "tzatm": {
+      "totalFrames": 8,
+      "labels": {
+        "hit": 4,
+        "loop": 3
+      }
+    },
+    "cbsmc2": {
+      "totalFrames": 51,
+      "labels": {
+        "hit": 5
+      },
+      "org": {
+        "y": -9.8,
+        "x": -2
+      },
+      "hits": {
+        "1": [
+          {
+            "x": -48.3,
+            "y": -26.75,
+            "w": 43.8,
+            "name": "hitmc",
+            "h": 46.45
+          }
+        ],
+        "2": [
+          {
+            "x": -48.3,
+            "y": -26.75,
+            "w": 43.8,
+            "name": "hitmc",
+            "h": 46.45
+          }
+        ],
+        "3": [
+          {
+            "x": -48.3,
+            "y": -26.75,
+            "w": 43.8,
+            "name": "hitmc",
+            "h": 46.45
+          }
+        ],
+        "4": [
+          {
+            "x": -48.3,
+            "y": -26.75,
+            "w": 43.8,
+            "name": "hitmc",
+            "h": 46.45
+          }
+        ],
+        "5": [
+          {
+            "x": -53.95,
+            "y": -21.25,
+            "w": 65.95,
+            "name": "cbs2atm",
+            "h": 40.5
+          }
+        ],
+        "6": [
+          {
+            "x": -53.95,
+            "y": -21.25,
+            "w": 65.95,
+            "name": "cbs2atm",
+            "h": 40.5
+          }
+        ],
+        "25": [
+          {
+            "x": -53.95,
+            "y": -21.25,
+            "w": 65.95,
+            "name": "cbsatm",
+            "h": 40.5
+          }
+        ],
+        "26": [
+          {
+            "x": -53.95,
+            "y": -21.25,
+            "w": 65.95,
+            "name": "cbsatm",
+            "h": 40.5
+          }
+        ],
+        "27": [
+          {
+            "x": -53.95,
+            "y": -21.25,
+            "w": 65.95,
+            "name": "cbsatm",
+            "h": 40.5
+          }
+        ]
+      }
+    },
+    "zh3atm": {
+      "totalFrames": 8,
+      "labels": {
+        "hit": 4,
+        "loop": 3
+      }
+    },
+    "bsmc": {
+      "totalFrames": 7,
+      "labels": {},
+      "org": {
+        "y": -8.7,
+        "x": 69.7
+      },
+      "hits": {
+        "3": [
+          {
+            "x": -44.95,
+            "y": -43.25,
+            "w": 91.95,
+            "name": "bsatm",
+            "h": 86.5
+          }
+        ],
+        "4": [
+          {
+            "x": -44.95,
+            "y": -43.25,
+            "w": 91.95,
+            "name": "bsatm",
+            "h": 86.5
+          }
+        ],
+        "5": [
+          {
+            "x": -44.95,
+            "y": -43.25,
+            "w": 91.95,
+            "name": "bsatm",
+            "h": 86.5
+          }
+        ]
+      }
+    }
+  }
+}

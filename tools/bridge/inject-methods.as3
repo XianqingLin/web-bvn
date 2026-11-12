@@ -28,6 +28,9 @@
       private var _dumpItems:Array;
       private var _dumpIdx:int = 0;
       private var _dumpLog:Array;
+      // B5 逐帧命中矩形：addAttacker 语料（build-dump-bridge.mjs 从 baked 数据
+      // 生成注入）—— kind -> id -> 元件名数组；null = 未注入（跳过采集）
+      private var _b5Wanted:Object = __B5_WANTED_JSON__;
 
       // 启动诊断日志：最先写盘，定位"应用秒退"问题用
       private function bvnBootLog(param1:String) : void
@@ -336,6 +339,17 @@
             "jumpPower":0,
             "speed":0
          };
+         // 辅助侧 no-op（AssisterCtrler API，镜像 capture 桥 capInitFakes）：
+         // byakuya 辅助帧脚本在运行时挂载 atmmc 前调 addCustomFunc——缺了
+         // 脚本抛错、挂载不发生，B5 采集就漏了它
+         var assistNoops:Array = ["addCustomFunc","removeCustomFunc","addAttacker","setHitTarget","removeAttacker","setTouchSide","finish"];
+         for each(var nm3:String in assistNoops)
+         {
+            fakeCtrler[nm3] = function(... rest) : * { return null; };
+         }
+         fakeCtrler["getAttacker"] = function(... rest) : * { return null; };
+         fakeCtrler["getOwner"] = function(... rest) : * { return null; };
+         fakeCtrler["getTarget"] = function(... rest) : * { return null; };
          // mc_ctrler / effect_ctrler 全 no-op（帧脚本对它们的调用全部吸收）
          var mcNoops:Array = ["addQi","dash","dashStop","endAct","fire","gotoAndPlay","idle","justHitToPlay","loop","move","movePercent","setAirMove","setAttack","setAttackAIR","setBisha","setBishaAIR","setBishaSUPER","setBishaUP","setDash","setHitTarget","setHurtAction","setJump","setSkill","setSkillAIR","setSteelBody","setTouchFloor","setZhao","stop","stopMove","setBishaEnd","playVoice"];
          var fakeMc:Object = {};
@@ -349,6 +363,8 @@
          {
             fakeEff[nm2] = function(... rest) : * { return null; };
          }
+         // 辅助帧脚本经 ctrler.effect 调表现系（镜像 capture 桥）
+         fakeCtrler["effect"] = fakeEff;
 
          // 入口：角色 initFighter / 辅助 setAssistCtrler
          var isFighterType:Boolean = false;
@@ -386,6 +402,32 @@
             return;
          }
 
+         // B5：本角色的 addAttacker 语料名单（无名单 = 空采集，行为同旧版）
+         var b5Wanted:Object = null;
+         try
+         {
+            if(_b5Wanted != null && _b5Wanted[item.kind] != null && _b5Wanted[item.kind][item.id] != null)
+            {
+               b5Wanted = {};
+               var b5Names:Array = _b5Wanted[item.kind][item.id] as Array;
+               for(var bi:int = 0; bi < b5Names.length; bi++)
+               {
+                  b5Wanted[String(b5Names[bi])] = true;
+               }
+            }
+         }
+         catch(b5e:Error)
+         {
+            bvnBootLog("b5 wanted ERR " + item.id + ": " + b5e.message);
+         }
+         // B5 采集状态：seen 同表内去重（同名同库符号时间轴一致），out 结果集
+         var b5:Object = b5Wanted == null ? null : {
+            "wanted":b5Wanted,
+            "seen":{},
+            "out":{},
+            "fake":bvnMakeFakeAttackerCtrler()
+         };
+
          var forms:Array = [];
          if(isFighterType)
          {
@@ -408,11 +450,38 @@
                {
                   inner = root.getChildByName("mc");
                }
+               // B5：本形态内层时间轴上的 attacker 元件（org + 逐帧命中区）。
+               // 采集发生在 bvnSweepInner 逐帧循环内（实例只在内层特定帧存在），
+               // 结果收进 b5.out 按形态挂载；b5 == null 时行为同旧版
+               var b5Out:Object = null;
+               var innerRec:Object = null;
+               if(b5 != null && inner != null)
+               {
+                  b5.seen = {};
+                  b5.out = {};
+                  innerRec = bvnSweepInner(inner,root,b5);
+                  b5Out = b5.out;
+               }
+               else
+               {
+                  innerRec = inner == null ? null : bvnSweepInner(inner,root);
+               }
                var form:Object = {
                   "rootFrame":r,
                   "actionsRegistered":regsByRootFrame[r] == null ? [] : regsByRootFrame[r],
-                  "inner":inner == null ? null : bvnSweepInner(inner,root)
+                  "inner":innerRec
                };
+               if(b5Out != null)
+               {
+                  for(var b5n:String in b5Out)
+                  {
+                     if(form.attackerMcs == null)
+                     {
+                        form.attackerMcs = {};
+                     }
+                     form.attackerMcs[b5n] = b5Out[b5n];
+                  }
+               }
                if(root.currentLabel != null && root.currentLabel != "")
                {
                   form.rootLabel = root.currentLabel;
@@ -436,11 +505,32 @@
          {
             // 辅助：root 本身就是动画时间轴，单次 sweep
             curRootFrame = 0;
-            forms.push({
+            var assistForm:Object = {
                "rootFrame":1,
                "actionsRegistered":regsByRootFrame[0] == null ? [] : regsByRootFrame[0],
-               "inner":bvnSweepInner(root,root)
-            });
+               "inner":null
+            };
+            // B5：辅助 root 时间轴上的 attacker 元件（atmmc 等）——采集同样
+            // 发生在 sweep 逐帧循环内（辅助 root 即动画时间轴）
+            if(b5 != null)
+            {
+               b5.seen = {};
+               b5.out = {};
+               assistForm.inner = bvnSweepInner(root,root,b5);
+               for(var b5m:String in b5.out)
+               {
+                  if(assistForm.attackerMcs == null)
+                  {
+                     assistForm.attackerMcs = {};
+                  }
+                  assistForm.attackerMcs[b5m] = b5.out[b5m];
+               }
+            }
+            else
+            {
+               assistForm.inner = bvnSweepInner(root,root);
+            }
+            forms.push(assistForm);
          }
 
          var outData:Object = {
@@ -460,8 +550,10 @@
          bvnWriteJson("char_" + item.kind + "_" + item.id + ".json",outData);
       }
 
-      // 内层动画时间轴逐帧 sweep：命名子节点 getBounds(root)
-      private function bvnSweepInner(mc:*, rootRef:*) : Object
+      // 内层动画时间轴逐帧 sweep：命名子节点 getBounds(root)。
+      // b5（可选，B5 逐帧命中矩形采集上下文）：wanted 名单 / seen 去重 /
+      // out 结果集 / fake 控制器——命中区在逐帧循环内从当前帧子节点采集
+      private function bvnSweepInner(mc:*, rootRef:*, b5:Object = null) : Object
       {
          var m:MovieClip = mc as MovieClip;
          if(m == null)
@@ -520,6 +612,12 @@
                var b:Rectangle = ch.getBounds(rootRef);
                rec.areas.push({"name":nm,"x":b.x,"y":b.y,"w":b.width,"h":b.height});
             }
+            // B5：当前帧子节点里的 attacker 元件（首次命中即采，同名同库
+            // 符号时间轴一致；实例只在本帧存在，错过不再出现）
+            if(b5 != null)
+            {
+               bvnCollectAttackerMcs(m,b5);
+            }
             // 只留有信息量的帧（有判定区 / 有标签 / 有异常），控制体积
             if(rec.areas.length > 0 || rec.label != null || rec.err != null || rec.movedTo != null)
             {
@@ -527,6 +625,127 @@
             }
          }
          return out;
+      }
+
+      // B5：枚举 host 当前帧子节点，语料名单命中的元件逐个 dump（首见即采）
+      private function bvnCollectAttackerMcs(host:*, b5:Object) : void
+      {
+         for(var i:int = 0; i < host.numChildren; i++)
+         {
+            var ch:DisplayObject = host.getChildAt(i);
+            var nm:String = ch.name;
+            if(nm == null || nm.indexOf("instance") == 0)
+            {
+               continue;
+            }
+            if(b5.wanted[nm] != true || b5.seen[nm])
+            {
+               continue;
+            }
+            b5.seen[nm] = true;
+            var m:MovieClip = ch as MovieClip;
+            if(m == null)
+            {
+               b5.out[nm] = {"err":"不是 MovieClip"};
+               continue;
+            }
+            b5.out[nm] = bvnDumpAttackerMc(m,b5.fake);
+         }
+      }
+
+      // B5：单个 attacker 元件 dump——原版 FighterAttacker 语义：
+      //   _mcOrgPoint = (mainmc.x, mainmc.y)（实例在父时间轴的摆放位，
+      //   direct=1 生成锚定基准）→ org
+      //   findHitArea 逐帧扫命名子对象 d.getBounds(mainmc)（元件局部
+      //   direct=1）→ hits[帧] = [{name,x,y,w,h}]（消费端按 owner 动作表
+      //   精确 → 去 atm 解析，未解析名 = 纯表现，无害）
+      // 采集前挂 fake 控制器（setAttackerCtrler 入口，原版
+      // FighterAttacker 构造调用），内层帧脚本的 $attacker_ctrler 调用
+      // 全部吸收，绝不改写状态。
+      private function bvnDumpAttackerMc(m:MovieClip, fake:*) : Object
+      {
+         try
+         {
+            if(fake != null && m["setAttackerCtrler"] != null)
+            {
+               m["setAttackerCtrler"](fake);
+            }
+         }
+         catch(se:Error)
+         {
+            bvnBootLog("setAttackerCtrler ERR: " + se.message);
+         }
+         var out:Object = {
+            "org":{"x":m.x,"y":m.y},
+            "totalFrames":m.totalFrames,
+            "labels":{},
+            "hits":{}
+         };
+         for(var f:int = 1; f <= m.totalFrames; f++)
+         {
+            var ferr:String = null;
+            try
+            {
+               m.gotoAndStop(f);
+            }
+            catch(e:Error)
+            {
+               ferr = e.message;
+            }
+            var fl:String = m.currentFrameLabel;
+            if(fl != null && fl != "" && out.labels[fl] == null)
+            {
+               out.labels[fl] = m.currentFrame;
+            }
+            var arr:Array = [];
+            for(var i:int = 0; i < m.numChildren; i++)
+            {
+               var ch:DisplayObject = m.getChildAt(i);
+               var nm:String = ch.name;
+               if(nm == null || nm.indexOf("instance") == 0)
+               {
+                  continue;
+               }
+               var b:Rectangle = ch.getBounds(m);
+               arr.push({"name":nm,"x":b.x,"y":b.y,"w":b.width,"h":b.height});
+            }
+            if(arr.length > 0)
+            {
+               out.hits[String(m.currentFrame)] = arr;
+            }
+            if(ferr != null)
+            {
+               out.err = ferr;
+            }
+         }
+         return out;
+      }
+
+      // B5：attacker 元件帧脚本控制器 fake（API 面 = FighterAttackerCtrler
+      // 公有方法，全 no-op；owner 系返回 null/false）
+      private function bvnMakeFakeAttackerCtrler() : Object
+      {
+         var fake:Object = {
+            "getOwner":function(... rest) : * { return null; },
+            "endAct":function(... rest) : void {},
+            "render":function(... rest) : void {},
+            "stopFollowTarget":function(... rest) : void {},
+            "moveToTarget":function(... rest) : void {},
+            "move":function(... rest) : void {},
+            "damping":function(... rest) : void {},
+            "stopMove":function(... rest) : void {},
+            "stop":function(... rest) : void {},
+            "gotoAndPlay":function(... rest) : void {},
+            "gotoAndStop":function(... rest) : void {},
+            "setTouchFloor":function(... rest) : void {},
+            "justHit":function(... rest) : Boolean { return false; },
+            "setHitTarget":function(... rest) : void {},
+            "setCrossMap":function(... rest) : void {},
+            "removeSelf":function(... rest) : void {},
+            "owner_mc_ctrler":null,
+            "owner_fighter_ctrler":null
+         };
+         return fake;
       }
 
       // AImain 子节点 = AI 活动范围（引擎 initHitRange：gotoAndStop(2) 后读）

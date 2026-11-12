@@ -224,14 +224,17 @@ export interface BulletState {
 }
 
 /**
- * 独立道具（原版 FighterAttacker 子集，module-map §5.7）。
+ * 独立道具（原版 FighterAttacker，module-map §5.7；B5 逐帧命中矩形）。
  * 与 Bullet 的差异：位置由「相对 owner/target 的偏移」驱动（followTarget /
- * moveToTarget 模式），命中矩形随实体中心平移。
+ * moveToTarget 模式）。位置语义 = 元件原点世界坐标（原版 _x/_y，mc 原点），
+ * 命中矩形逐帧解析：fires[name].hits[帧] 命名子对象（元件局部 direct=1）
+ * 沿朝向镜像后平移到原点；无命中区帧 = 该帧无判定（原版 findHitArea
+ * 逐帧扫描语义）。x/y/w/h 保留生成帧内容矩形供物理夹取与渲染回退。
  * 寿命：有元件时间轴（animTotal>0）= 播尽移除（原版 renderAnimate 的
  * currentFrame == totalFrames-1 → removeSelf，off-by-one 原样保留，无标签
  * 分派——FighterAttacker 类无标签处理）；无时间轴 = holdTicks 占位回退。
- * 偏离（素材缺口，切片 10 收紧）：attacker 逐帧命中矩形未导出——命中
- * 矩形取发射帧命名子对象判定区并全程固定。
+ * 偏离（数据缺口回退）：fires 数据缺 org/hits 的元件（旧采集/歧义多库
+ * 符号）→ 命中矩形/命中定义取生成帧占位并全程固定（切片 10 占位语义）。
  */
 export interface AttackerState {
   id: number;
@@ -241,12 +244,15 @@ export interface AttackerState {
   facing: 1 | -1;
   /** 元件名（如 zh3mc；渲染/调试表现用） */
   name: string;
-  /** 命中矩形（世界坐标，中心随实体移动） */
+  /** 元件原点世界坐标（命中矩形 = 原点 + 逐帧命中区镜像平移） */
   x: number;
   y: number;
+  /** 生成帧内容矩形尺寸（物理地面夹取/渲染回退色块用） */
   w: number;
   h: number;
-  /** 中心相对自身锚点的局部偏移（x 沿 facing 镜像） */
+  /** 回退命中矩形（元件局部 direct=1；仅 fires 缺逐帧数据时消费） */
+  fbHit: { x: number; y: number; w: number; h: number };
+  /** 原点相对 owner/target 的局部偏移（x 沿 facing 镜像） */
   offsetX: number;
   offsetY: number;
   /** followTarget 模式：每 tick 重定位到 target + offset（原版 followTargetX/Y） */
@@ -261,9 +267,10 @@ export interface AttackerState {
   animTotal: number;
   /** 当前动画帧（1 基，30Hz 推进，原版 FighterAttacker.renderAnimate） */
   animFrame: number;
-  /** 命中定义（发射动作 HitDef 拷贝；无动作表 = 纯表现实体） */
+  /** 命中定义（生成帧动作 HitDef 拷贝；仅回退路径消费，逐帧数据优先；
+   *  无动作表 = 纯表现实体） */
   hit: HitDef | null;
-  /** 命中动作 id（气回充/必杀判定用；纯表现实体为 null） */
+  /** 命中动作 id（回退路径气回充/必杀判定用；纯表现实体为 null） */
   hitId: string | null;
   /** 仍可命中（命中一次后 false——attacker 无多次命中语料） */
   hitAble: boolean;
@@ -276,8 +283,8 @@ export interface AttackerState {
   /** 元件帧标签 → 落点帧（1 基；fires 元数据 ∪ def.attackerScripts 标签，
    *  空 = 元件无标签） */
   animLabels: Record<string, number>;
-  /** 元件脚本来源辅助 def id（切片 21；null = 无元件脚本。def.attackerScripts
-   *  [name] 寻址；辅助退场后 attacker 仍存活时照常分派） */
+  /** 来源辅助 def id（viaAssist 时必设：fires 元数据/元件脚本/逐帧命中
+   *  数据寻址；角色生成 = null。切片 21 仅脚本来源，B5 扩展） */
   scriptAssistId: string | null;
   /** 本动画帧发生过 gotoAndPlay 跳转（外部/元件脚本）：下一动画步分派落点帧
    *  触发器且不推进（同帧 rewind 用标志传递，值比较无法区分） */
@@ -340,6 +347,11 @@ export interface AssisterState {
    *  回调 customFunc，同帧可再次跳转（byakuya loop 同帧 rewind 循环保活）——
    *  值比较无法区分「没跳」与「跳回同帧」，用标志传递 */
   frameJumped: boolean;
+  /** 命中动作 id → 改写后命中力（itachi 动态伤害：生成帧脚本
+   *  hitModel.getHitVO("atm1").power = targetHpMax × 0.008 的数据化；
+   *  原版直接改写 hitVO 实例，port 按「辅助实例 → 动作 id」存覆写，
+   *  其生成的 attacker 命中解析时消费） */
+  hitPowerOverrides: Record<string, number>;
 }
 
 /**

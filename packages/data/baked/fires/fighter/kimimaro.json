@@ -1,1 +1,108 @@
-{"schema":"bvn/fire@1","kind":"fire","ownerKind":"fighter","id":"kimimaro","fires":{"cbsmc":{"totalFrames":14,"labels":{}},"zh2mc":{"totalFrames":17,"labels":{}},"zh1atm":{"totalFrames":16,"labels":{"hit":10,"loop":9,"loop_start":3}}}}
+{
+  "schema": "bvn/fire@1",
+  "kind": "fire",
+  "ownerKind": "fighter",
+  "id": "kimimaro",
+  "fires": {
+    "cbsmc": {
+      "totalFrames": 14,
+      "labels": {},
+      "org": {
+        "y": -97.7,
+        "x": 44
+      },
+      "hits": {
+        "3": [
+          {
+            "x": -7.95,
+            "y": 47.5,
+            "w": 81.65,
+            "name": "cbs1atm",
+            "h": 71.65
+          }
+        ],
+        "4": [
+          {
+            "x": -7.95,
+            "y": 47.5,
+            "w": 81.65,
+            "name": "cbs1atm",
+            "h": 71.65
+          }
+        ],
+        "5": [
+          {
+            "x": -23.65,
+            "y": -2.5,
+            "w": 96.1,
+            "name": "cbs1atm",
+            "h": 129.4
+          }
+        ],
+        "6": [
+          {
+            "x": -23.65,
+            "y": -2.5,
+            "w": 96.1,
+            "name": "cbs1atm",
+            "h": 129.4
+          }
+        ],
+        "7": [
+          {
+            "x": -23.65,
+            "y": -2.5,
+            "w": 96.1,
+            "name": "cbs1atm",
+            "h": 129.4
+          }
+        ]
+      }
+    },
+    "zh2mc": {
+      "totalFrames": 17,
+      "labels": {},
+      "org": {
+        "y": -47.1,
+        "x": 76.55
+      },
+      "hits": {
+        "5": [
+          {
+            "x": -20,
+            "y": 8.75,
+            "w": 44.35,
+            "name": "zh2atm",
+            "h": 61.5
+          }
+        ],
+        "6": [
+          {
+            "x": -20,
+            "y": 8.75,
+            "w": 44.35,
+            "name": "zh2atm",
+            "h": 61.5
+          }
+        ],
+        "7": [
+          {
+            "x": -20,
+            "y": 8.75,
+            "w": 44.35,
+            "name": "zh2atm",
+            "h": 61.5
+          }
+        ]
+      }
+    },
+    "zh1atm": {
+      "totalFrames": 16,
+      "labels": {
+        "hit": 10,
+        "loop": 9,
+        "loop_start": 3
+      }
+    }
+  }
+}

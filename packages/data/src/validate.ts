@@ -460,6 +460,45 @@ export function validateFirePackage(pkg: FirePackage): ValidationResult {
         out.warnings.push(`fires[${name}].labels[${lab}]: 帧号 ${frame} 超出 totalFrames ${tl.totalFrames}`);
       }
     }
+    // B5：org / hits 可选（旧包缺省 = 消费端回退生成帧占位矩形）
+    if (tl.org !== undefined) {
+      if (
+        typeof tl.org.x !== 'number' ||
+        typeof tl.org.y !== 'number' ||
+        !Number.isFinite(tl.org.x) ||
+        !Number.isFinite(tl.org.y)
+      ) {
+        out.errors.push(`fires[${name}].org: 必须是有限数值 {x,y}`);
+      }
+    }
+    if (tl.hits !== undefined) {
+      if (typeof tl.hits !== 'object' || tl.hits === null) {
+        out.errors.push(`fires[${name}].hits: 必须是帧表对象`);
+      } else {
+        for (const [fs, areas] of Object.entries(tl.hits)) {
+          const frame = Number(fs);
+          if (!Number.isInteger(frame) || frame < 1) {
+            out.errors.push(`fires[${name}].hits[${fs}]: 帧号必须是 ≥1 的整数`);
+            continue;
+          }
+          if (Number.isInteger(tl.totalFrames) && frame > tl.totalFrames) {
+            out.warnings.push(`fires[${name}].hits[${fs}]: 帧号超出 totalFrames ${tl.totalFrames}`);
+          }
+          if (!Array.isArray(areas)) {
+            out.errors.push(`fires[${name}].hits[${fs}]: 必须是命中区数组`);
+            continue;
+          }
+          for (const [i, ar] of areas.entries()) {
+            if (
+              typeof ar?.name !== 'string' ||
+              ![ar.x, ar.y, ar.w, ar.h].every((v) => typeof v === 'number' && Number.isFinite(v))
+            ) {
+              out.errors.push(`fires[${name}].hits[${fs}][${i}]: 缺 name 或矩形字段非有限数值`);
+            }
+          }
+        }
+      }
+    }
   }
   return out;
 }

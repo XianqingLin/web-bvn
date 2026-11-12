@@ -1,1 +1,45 @@
-{"schema":"bvn/fire@1","kind":"fire","ownerKind":"assister","id":"gaara","fires":{"atmmc":{"totalFrames":31,"labels":{}}}}
+{
+  "schema": "bvn/fire@1",
+  "kind": "fire",
+  "ownerKind": "assister",
+  "id": "gaara",
+  "fires": {
+    "atmmc": {
+      "totalFrames": 31,
+      "labels": {},
+      "org": {
+        "y": -89.15,
+        "x": 143.85
+      },
+      "hits": {
+        "7": [
+          {
+            "x": -39.9,
+            "y": 11.25,
+            "w": 83.94999999999999,
+            "name": "atm1",
+            "h": 86.5
+          }
+        ],
+        "8": [
+          {
+            "x": -39.9,
+            "y": 11.25,
+            "w": 83.94999999999999,
+            "name": "atm1",
+            "h": 86.5
+          }
+        ],
+        "9": [
+          {
+            "x": -39.9,
+            "y": 11.25,
+            "w": 83.94999999999999,
+            "name": "atm1",
+            "h": 86.5
+          }
+        ]
+      }
+    }
+  }
+}

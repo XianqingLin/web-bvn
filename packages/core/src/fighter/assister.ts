@@ -31,7 +31,12 @@ import {
   type FighterState,
   type StageState,
 } from '../state.js';
-import { parseAttackerParams, type AttackerParams, type FireParams } from './behaviors.js';
+import {
+  parseAttackerParams,
+  resolveAttackerSpawn,
+  type AttackerParams,
+  type FireParams,
+} from './behaviors.js';
 
 /** 辅助行为上下文（瞬态，不进 SimState）。 */
 export interface AssisterContext {
@@ -82,8 +87,10 @@ export interface AssistAttackerSpawnSpec {
   self: AssisterState;
   ownerId: number;
   name: string;
-  /** 判定区（辅助 root 本地坐标，direct=1；位置/尺寸来源） */
+  /** 判定区（辅助 root 本地坐标，direct=1；尺寸/回退矩形来源） */
   local: AreaRect;
+  /** 回退命中矩形（元件局部 direct=1；fires 缺逐帧数据时全程固定消费） */
+  fbHit: { x: number; y: number; w: number; h: number };
   hit: HitDef | null;
   hitId: string | null;
   /** 元件时间轴元数据（baked fires 包；缺失 = holdTicks 占位寿命） */
@@ -211,8 +218,9 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
   //     owner = 辅助实体：位置锚/朝向取辅助；命中回气经 getOwnerFighter
   //     回溯归召唤者 power×0.15——非 viaAssist 守卫，与辅助弹不同）。
   //     判定区：原版经 getChildByName（含运行时挂载的元件，如 byakuya
-  //     atmc），authoring 判定区缺失时回退零矩形（params.offset 定位，
-  //     命中矩形待逐帧矩形导出——见 state.ts 偏离注） ——
+  //     atmc），authoring 判定区缺失时回退零矩形。B5：fires[name].org/hits
+  //     存在 → 原点锚定 + 命中检查逐帧解析（抓取伤害 atm1 power=50 即
+  //     内层逐帧 hitVO）；缺数据回退走 resolveAttackerSpawn 占位语义 ——
   addAttacker(ctx, args, target) {
     if (target !== 'assister' || ctx.owner === null) return;
     const name = typeof args[0] === 'string' ? args[0] : null;
@@ -225,22 +233,30 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
         w: 0,
         h: 0,
       };
-    // hitVO 解析镜像原版 getHitVOByDisplayName（FighterHitModel.as:45）：
-    // 先查原名，含 'atm' 再查去 atm 后缀；'atmmc' 两者皆 miss → 原版同样
-    // 得 null，抓取伤害实际来自 attacker 内层逐帧 hitVO（atm1，power=50，
-    // FighterAttacker.as:417）——归逐帧矩形导出（重型层），当前占位=纯表现
-    const actionId = ctx.def.actions[name] !== undefined ? name : name.replace('atm', '');
-    const hit = ctx.def.actions[actionId] ?? null;
+    const spawn = resolveAttackerSpawn(ctx.def.fires, ctx.def.actions, name, local);
     ctx.spawnAssistAttacker({
       self: ctx.self,
       ownerId: ctx.owner.id,
       name,
       local,
-      hit,
-      hitId: hit !== null ? actionId : null,
+      ...spawn,
       ...(ctx.def.fires?.[name] ? { anim: ctx.def.fires[name] } : {}),
       params: parseAttackerParams(args[1]),
     });
+  },
+
+  // —— setHitPowerByTargetHpMax（itachi 动态伤害，B5）：生成帧脚本
+  //     hitModel.getHitVO(id).power = getTargetSP().hpMax × rate 的数据化。
+  //     原版直接改写 hitVO 实例（作用域 = 本辅助实例的 hitModel），port 把
+  //     覆写存辅助实例状态，其生成的 attacker 命中解析时消费 ——
+  setHitPowerByTargetHpMax(ctx, args, target) {
+    if (target !== 'assister' || ctx.owner === null) return;
+    const id = typeof args[0] === 'string' ? args[0] : null;
+    const rate = typeof args[1] === 'number' ? args[1] : null;
+    if (id === null || rate === null) return;
+    const t = ctx.fighters.find((f) => f.id !== ctx.owner!.id) ?? null;
+    if (t === null) return;
+    ctx.self.hitPowerOverrides[id] = t.hpMax * rate;
   },
 
   // —— owner 系（target='fighter'；血量/气/buff） ——

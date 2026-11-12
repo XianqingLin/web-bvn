@@ -1,1 +1,45 @@
-{"schema":"bvn/fire@1","kind":"fire","ownerKind":"assister","id":"shikamaru","fires":{"atmmc":{"totalFrames":66,"labels":{}}}}
+{
+  "schema": "bvn/fire@1",
+  "kind": "fire",
+  "ownerKind": "assister",
+  "id": "shikamaru",
+  "fires": {
+    "atmmc": {
+      "totalFrames": 66,
+      "labels": {},
+      "org": {
+        "y": -1,
+        "x": 275
+      },
+      "hits": {
+        "4": [
+          {
+            "x": -18.55,
+            "y": -48.6,
+            "w": 41.900000000000006,
+            "name": "atm1",
+            "h": 50
+          }
+        ],
+        "5": [
+          {
+            "x": -18.55,
+            "y": -48.6,
+            "w": 41.900000000000006,
+            "name": "atm1",
+            "h": 50
+          }
+        ],
+        "6": [
+          {
+            "x": -18.55,
+            "y": -48.6,
+            "w": 41.900000000000006,
+            "name": "atm1",
+            "h": 50
+          }
+        ]
+      }
+    }
+  }
+}

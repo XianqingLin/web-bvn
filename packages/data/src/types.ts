@@ -205,7 +205,9 @@ export interface AssistantPackage {
    * 时间轴唯一 addAttacker 名 ↔ 唯一含 $attacker_ctrler 脚本的符号）。
    * labels 1 基（与 fire 元数据同基）；triggers 帧号 0 基（compileAssistant
    * 统一 +1，与 timeline.triggers 同规则）；target ∈ {attacker, effect}。
-   * 条件语句脚本不提取（madara justHit miss 分支——内层 hitVO 未导出前无真值）。
+   * B5：卫语句惯用语 if(!justHit("x")){gotoAndPlay("y")} 提取为 op='if'
+   * 条件触发器（cond/then/else 随附，core dispatchAttackerCond 分派）；
+   * 其余条件语句脚本仍不提取（留 raw 审计）。
    */
   attackerScripts?: Record<
     string,
@@ -332,12 +334,32 @@ export interface MapPackage {
  * 命中→跳 hit 段播残留；寿命到期有 timeout 标签→跳 timeout 续播。
  * sim 只消费 totalFrames + labels（确定性生命周期）；png 帧在图集
  * （assets，渲染侧），不进烘焙包。
+ *
+ * B5（逐帧命中矩形）：addAttacker 元件追加 org + hits——原版
+ * FighterAttacker.findHitArea 逐帧扫元件命名子对象，getBounds(元件)
+ * 解析 HitVO（名字精确匹配动作表，否则去首个 "atm" 再查；无命中区帧
+ * = 该帧无判定）。org = 元件原点在 owner 根时间轴坐标系的摆放位
+ * （direct=1，生成锚定基准）。fire 弹体不消费这两项（弹体命中矩形
+ * 仍是 main 锚），多出无害。
  */
+export interface FireHitAreaDef {
+  /** 命名子对象实例名（消费端按 owner 动作表精确 → 去 atm 解析） */
+  name: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface FireTimeline {
   /** 元件自身时间轴总帧数 */
   totalFrames: number;
   /** 帧标签名 → 起始帧（1 基） */
   labels: Record<string, number>;
+  /** 元件原点在 owner 根时间轴坐标系的摆放位（direct=1；B5 生成锚定） */
+  org?: { x: number; y: number };
+  /** 逐帧命中区（键 = 1 基帧号字符串；缺帧 = 该帧无判定；B5） */
+  hits?: Record<string, FireHitAreaDef[]>;
 }
 
 /** fire 元件元数据包（baked/fires/<ownerKind>/<id>.json，schema bvn/fire@1）。 */

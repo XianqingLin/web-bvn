@@ -101,8 +101,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 - 形态切换：`switchForm(frame)`（切片 10 实现注册，语义同 doWanKai；切 `FighterState.formIndex` + 重填槽 + 播新形态 开场 + 发 `fighter:form` 事件，单形态静默）
 - 条件触发（切片 11）：`if` 不是注册表 op——`FrameTrigger.cond/then/else`，`evaluateTriggerCondition` 求值后分派分支体（分支体内调用仍走本表原语）。查询 op：`justHit(hitId, includeDefense?)`、`targetInRange(rx, ry?)`、`getTargetState`、`getSelf`、`getTargetSP`（属性链 + cmp；属性白名单见 `fighterProp`）。未知查询 op 求值 = false（确定性静默）；分支体调用未注册同静默。全角色批量化验收门禁 `pnpm batch:validate`（58 角色编译/op 覆盖/冒烟双跑哈希/快照恢复，基线 `tools/batch-validate/baseline.json`）。
 - 已登记未实现（注册表未注册 → 确定性静默，接入时同 commit 补实现）：`teleport`、`summon`（切片 10 全语料核对：原版引擎与语料均无实例——teleport=移形换位换人、summon=辅助召唤，归辅助系统切片）、`sound`、`effect`（后两者以 playSoundHit*/shine/shake 代替）
-- 辅助 customFunc 系（切片 21，target='assister'）：`addCustomFunc(desc)`（单槽，占位即忽略；desc 为 AssisterCustomFunc 闭集 kind）、`removeCustomFunc`、`finishIfNoAttacker(attackerName)`（attacker 不在场 → finish）
-- attacker 元件脚本（切片 21，target='attacker'，数据进 `AssisterDef.attackerScripts`，仅 viaAssist 道具分派）：`stop`（= animHold 定格冻结）、`gotoAndPlay(label|frame)`（解除定格）、`stopFollowTarget`、`removeSelf`（返回移除标记，同帧不再推进）；`endAct` 元件语境 no-op
+- 辅助 customFunc 系（切片 21，target='assister'）：`addCustomFunc(desc)`（单槽，占位即忽略；desc 为 AssisterCustomFunc 闭集 kind）、`removeCustomFunc`、`finishIfNoAttacker(attackerName)`（attacker 不在场 → finish）、`setHitPowerByTargetHpMax(id, rate)`（B5：itachi 动态伤害——生成帧脚本 hitModel.getHitVO(id).power = 目标 hpMax × rate 的数据化；覆写存辅助实例，其生成的 attacker 逐帧命中解析时消费）
+- attacker 元件脚本（切片 21，target='attacker'，数据进 `AssisterDef.attackerScripts`，仅 viaAssist 道具分派）：`stop`（= animHold 定格冻结）、`gotoAndPlay(label|frame)`（解除定格）、`stopFollowTarget`、`removeSelf`（返回移除标记，同帧不再推进）；`endAct` 元件语境 no-op；B5 起 `if` 条件触发器分派（`dispatchAttackerCond`：cond 成立走 then 否则 else，分支体调用仍走元件脚本原语；查询 op 仅 `justHit`——madara miss 分支卫语句 `if(!justHit("x")){gotoAndPlay("y")}` 由导出器提取为 cond 触发器）
 
 ## 并行开发纪律
 

@@ -18,9 +18,9 @@
  * ⚠️ 运行桥 SWF 会启动 AIR 游戏窗口并自动遍历 dump，跑完自动退出。
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { resolve, dirname } from "node:path";
+import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -51,6 +51,48 @@ function patchSource() {
   if (src.includes("bvnDumpOne")) {
     throw new Error("反编译源码已含 dump 桥代码 —— 重新导出后再注入");
   }
+
+  // B5：addAttacker 语料（_b5Wanted）——从 baked fighters/assistants 包
+  // 提取（与 collect-fire-names 同一 walk），角色按 forms 合并去重。
+  // dump 桥只采集名单内元件，避免误伤姿势美术等有内层时间轴的命名件。
+  const b5Wanted = { fighter: {}, assister: {} };
+  const walkAddAttacker = (o, names) => {
+    if (Array.isArray(o)) {
+      for (const x of o) walkAddAttacker(x, names);
+    } else if (o && typeof o === "object") {
+      if (o.op === "addAttacker" && typeof o.args?.[0] === "string") {
+        names.add(o.args[0]);
+      }
+      for (const k in o) walkAddAttacker(o[k], names);
+    }
+  };
+  for (const [kind, dir] of [
+    ["fighter", "fighters"],
+    ["assister", "assistants"],
+  ]) {
+    const bakedDir = resolve(ROOT, "packages/data/baked", dir);
+    let files = [];
+    try {
+      files = readdirSync(bakedDir).filter((f) => f.endsWith(".json"));
+    } catch {
+      throw new Error(`baked/${dir} 目录不可读 —— 先跑 export:all`);
+    }
+    for (const file of files) {
+      const pkg = JSON.parse(readFileSync(join(bakedDir, file), "utf8"));
+      const names = new Set();
+      walkAddAttacker(pkg, names);
+      if (names.size > 0) {
+        b5Wanted[kind][file.replace(/\.json$/, "")] = [...names];
+      }
+    }
+  }
+  const b5Count = Object.values(b5Wanted.fighter).flat().length +
+    Object.values(b5Wanted.assister).flat().length;
+  console.log(
+    `[bridge] B5 语料：fighter ${Object.keys(b5Wanted.fighter).length} 角色 / ` +
+      `assister ${Object.keys(b5Wanted.assister).length} 辅助，` +
+      `元件名 ${b5Count} 个`,
+  );
 
   // 1) import 块：插在最后一个 import 之后
   const IMPORT_ADD = `\
@@ -110,7 +152,13 @@ function patchSource() {
   const body = stripped.slice(0, -1).trimEnd();
   if (!body.endsWith("}")) throw new Error("剥掉包括号后结构不符预期");
   const idx = body.lastIndexOf("}");
-  out = body.slice(0, idx) + "\n" + methods + "\n" + body.slice(idx) + "\n}\n";
+  out =
+    body.slice(0, idx) +
+    "\n" +
+    methods.replace("__B5_WANTED_JSON__", JSON.stringify(b5Wanted)) +
+    "\n" +
+    body.slice(idx) +
+    "\n}\n";
   return out;
 }
 
