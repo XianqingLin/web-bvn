@@ -138,6 +138,19 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 `FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 
+**机制语义备忘（切片 13 起固化；改动这些语义前先读，出处 commit 见 PROGRESS §三）**：
+
+- **时间轴顺流**（批次 20）：非循环攻击标签播尽且 ①仍处攻击态 ②段尾无重定向触发（idle/setLabelTo）③下一标签帧号连续且非循环 → 滑入续播（原版标签边界不停车）；必杀 1 帧桩（必杀→空中必杀、招1_SP→招1 等）靠此播放。
+- **endAct** 只清槽置 FREEZE，**不动播放头**（批次 17）；收尾由标签播尽或后续 idle 触发。
+- **damping = 持久阻尼**：安装后每 tick 线性衰减，非一次性乘法；move 系附带清阻尼（批次 17）。
+- **行走物理标签门**：地面位移需 `actLabel∈{站立,走} && labelLock<=0`；idle 触发清 labelLock（批次 20）。
+- **防御定格**：抬手段播 3 帧后停住；`防御` 不在 LOOP_LABELS（批次 17）。
+- **资源恢复**：落地与回待机都要补槽（defaultSlots）并恢复 jumpTimes，否则永久锁死（批次 18）；空中动作成功置 jumpTimes=0（对齐原版）。
+- **重力斜坡**：位移空间步长 +0.3/tick（GRAVITY_STEP）、上限 6——步长不再二次减半（批次 19 修正）。
+- **辅助 gotoAndPlay 无同标签守卫**：loop 靠同标签 rewind 保活（切片 21）；**步内跳转落点不再 +1 推进**，落点帧触发器下一步照常执行（13-A6 修复）。
+- **customFunc 单槽**（占位即忽略）；辅助 owner 死亡退场判定在 customFunc 之后（checkFunc 先清 attacker 再退场，切片 21）。
+- **播尽移除 at totalFrames−1**（bullet/attacker/辅助一致，原版 off-by-one 原样保留）；attacker stop = animHold 完全冻结（不推进/不分派/不回收，孤儿永驻，原版同语义）；元件第 1 帧触发器不执行。
+
 ### 3.6 角色数据与帧触发器
 
 原版角色的玩法差异藏在 XFL 时间轴脚本里（`defineAction`/`fire`/`addAttacker`/形态切换，module-map §6.2）。移植版表达为 JSON 数据 + 帧触发原语（原语表见契约，扩充原语需契约/core/校验器三处同改）。38 角色脚本全部保留转译（ADR-6）；数据化不了的复杂机制收进 `core/fighter/behaviors/` 插件目录，不污染通用引擎。
