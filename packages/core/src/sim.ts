@@ -72,10 +72,12 @@ import {
 
 // 物理帧常量（原版 BaseGameSprite/GameLogic 语义 × SPEED_PLUS=0.5，即
 // 原版自己的 60fps 手感基准——见 DESIGN §3.1；空间容差类常量不乘系数）
-//   重力斜坡：原版 applayG(12)/setInAir 的 _g（px/帧@30fps）→ 60Hz 减半
-//   穿台阈值：原版 vy ≥ 5*SPEED_PLUS；吸附带/平台容差是空间量，保持原值
+//   重力斜坡：原版 applayG(12) 的 _g（原始空间）每帧 +G_ADD×SPEED_PLUS=0.6、
+//   上限 12，位移 = _g×SPEED_PLUS → 60Hz 位移空间 = 步长 +0.3/tick、上限 6
+//   （落到位移空间直接结算，不再乘系数——修复批次 19 修正：此前步长误减半成
+//   0.6，下落加速比原版快 2 倍）；穿台阈值/吸附带/平台容差是空间量，保持原值
 const GRAVITY_START = 2;
-const GRAVITY_STEP = 0.6;
+const GRAVITY_STEP = 0.3;
 const GRAVITY_CAP = 6;
 const GROUND_SNAP_BAND = 12;
 const FALL_LAND_SPEED = 2.5;
