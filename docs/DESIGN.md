@@ -121,6 +121,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **连段**：动作发起即清空全部动作槽（原版 doAction→clearAction），播放中再按攻击键不重启动作、时间轴不复位；连段 = 帧触发 `setAttack("砍2")` 重填槽后派生；槽重填默认于 endAction。空中槽 attackAIR/skillAIR/bishaAIR（airHitTimes 递减耗尽不再触发）；`setJump(label)` 覆写跳跃标签。
 - **万解**：qi ≥ 300 时 攻击+跳 组合（W→S→普通 优先级，缓冲按下/按住混合——对原版按住电平判定的手感取向偏离）→ 扣 300 气 → WAN_KAI_ING 50 tick 演出（免伤）→ 效果事件 wanKai/endWanKai；`startWanKai` 参数为必杀 FACE 名（语料全体 doWanKai 无参）。
 - **万解形态切换**：`doWanKai(frame)`/`switchForm(frame)` = 根时间轴切换（0 = 下一形态，>0 按 `def.rootFrame` 寻址）——切 `formIndex`（`SimConfig.fighters[].forms` 多形态注册表，data 层 `compileFighterForms` 编译）+ 槽重填 + 播新形态 开场 + `fighter:form` 事件驱动 render 换图集；单形态静默不切。
+- **切人冻结锁**（切片 22，原版 `EffectCtrler.bisha`/`wanKai`）：`bisha`/`startWanKai`（事件 id `wanKai`）置 `SimState.cutinLock { kind: 'fighter'|'assister', id, type: 'bisha'|'wanKai' }`，`endBisha`/`endWanKai` 清除。原版语义 = `GameCtrler.pause()` 全场逻辑冻结 + 黑幕 + 特写立绘，施法者画面由 render 驱动继续播（帧脚本照常触发——`endBisha` 即在冻结期到来）；移植版等价 = 锁置位后下一 tick 起全场停走（输入/意图/物理/推挤/命中/计时/道具/其他实体动画），仅锁主时间轴 30Hz 推进。锁主失联保护（收招回 NORMAL/死亡/辅助退场 → 保护性解锁）：原版语料缺 end 系 = 永久黑屏软锁，web 端选解锁兜底（有意识偏离）。
 
 **飞行道具与独立道具**
 
@@ -173,10 +174,13 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **导出**：FFDec 反编译主 SWF + 注入导出脚本（参考 bvn-ai-public 的状态桥），运行时遍历 dump 帧标签、`getBounds` 判定几何、`defineAction` 表、帧触发点、地图边界/地板/出生点。输出带源 SWF 哈希版本戳。
 - **图集**（切片 4 定案）：原版角色/辅助图形是矢量符号（XFL 库几乎无位图），必须运行时栅格化——`tools/atlas-capture`（AIR capture 桥，范式同 dump 桥）。**关键语义**：姿势美术画在内层子剪辑自身的时间轴里，引擎每 tick 手动驱动（`FighterMC.renderAnimate`：主时间轴 `nextFrame()` + `renderChildren()` 把每个姿势子剪辑推进 1 格）——单纯 `gotoAndStop(f)` 子剪辑停在初始帧截不到姿势。capture 逐标签镜像引擎时序（`gotoAndStop(标签起始)` → 推进子剪辑 → 截图 → `nextFrame`+推进 → 截图），输出帧号 = 绝对内层帧（与 core `animFrame` 一致）→ `BitmapData.draw(root)` → 手写 PNG 编码（SWF ver17 无 `BitmapData.encode`）→ **像素哈希去重**（166k 帧引用 → 46k 唯一帧）；`tools/atlas-pack`（Node + pngjs）shelf 装包 2048² sheet，排序固定可复现。锚点契约：每帧记内容相对**角色 root 原点**的 bounds 偏移——原版 `BaseGameSprite` 直接 `_mainMc.x=_x; scaleX=direct`，即角色坐标 = root 局部原点、翻转绕原点，render 端 `translate(x,y) → scaleX(direct) → draw(bounds 偏移)` 复现。地图背景走同一 capture 桥（逐子图层 PNG + 偏移）。产物 `packages/data/assets/`（gitignore，管线可再生）。
 - **配置**：原版 fighter/select/map/mission XML → JSON。
+- **切人插图管线**（`tools/bisha-pack`，切片 22）：effect.swf `-export sprite` → `bisha_face_mc`（DefineSprite_633）71 帧 WebP + 各角色 SWF `-export image` 按类名挑必杀立绘位图（映射源 = baked fighters `forms[].sounds.bishaFaces`）→ `assets/bisha/`；槽位矩阵/画布原点等规格烘焙进 `baked/bisha.json`（schema `bvn/bisha@1`）。画布原点推导：PNG 画布 = 内容 union bounds，mc 空间原点 (−134,−12) 由 mc_017 照片带（自身 bounds 原点 (0,0)：5 张 picture 全部 a=2/d=2 原点摆放）在帧画布上的实测位 (133,12) 反推；打包时断言画布 1066×209，规格漂移即报错。
 
 ## 5. 渲染层
 
 PixiJS v8；逻辑坐标 1000×600（y 向下）与原版一致，渲染层负责屏幕适配。渲染帧率与逻辑解耦：位置在最近两个快照间线性插值，动画帧/朝向取最新。相机平滑跟随 + 缩放自由实现。HUD 读快照绘制；音效/特效消费表现事件队列（事件带 tick 号，自行去重）。
+
+**切人插图**（切片 22）：黑幕 = 屏幕空间层（bgFixed 与 world 之间），`SimState.cutinLock ≠ null` 期间盖满视口；横幅+立绘 = world 内 mapLayer 与 fighterLayer 之间的容器（角色仍在黑幕之上，原版层序）。横幅 = `bisha_face_mc` 71 帧流帧（30fps，0-based 帧 1 起播，destory/stop 帧自然消失），立绘按逐帧槽位矩阵合成（`bisha.json` slots：W_T/缩放绕 transformationPoint 线性补间烘焙）；faceId = 施法者在目标右侧 ? 右槽(镜像) : 左槽（原版 showFace）。白闪（原版 color offset 255→50→0）以白色加色叠层近似（偏离记录）。地图/map front 层锁定期隐藏；isSuper 相机聚焦与 bisha_super 光效未做（归特效块）。
 
 ## 6. 联机层（阶段 2，接口现已冻结）
 

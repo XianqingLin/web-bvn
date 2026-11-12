@@ -343,6 +343,22 @@ export interface AssisterState {
 }
 
 /**
+ * 特写冻结锁（切片 22，原版 EffectCtrler.bisha/wanKai 的 GameCtrler.pause 语义）：
+ * 必杀/万解切人演出期间全场冻结（对手/道具/计时/回气全部停走），仅锁主的时间轴
+ * 推进（原版施法者画面 render 驱动继续播、帧脚本照常触发——endBisha/endWanKai
+ * 即在此期间到来）。锁由 bisha/wanKai 行为 op 置位、endBisha/endWanKai 清除；
+ * 锁主脱战（角色回待机/死亡、辅助退场）时保护性清除（防软锁，修复批次 18 教训）。
+ */
+export interface CutinLockState {
+  /** 锁主实体类别（fighter id 与 assister 实体 id 同空间，必须区分） */
+  kind: 'fighter' | 'assister';
+  /** 锁主 id（fighter 配置 id 或辅助实体 id） */
+  id: number;
+  /** 演出类型（bisha = 必杀切人 / wanKai = 万解开场） */
+  type: 'bisha' | 'wanKai';
+}
+
+/**
  * 全部模拟状态收进单个 SimState（契约硬规则 1），
  * 可整体快照/恢复，为 rollback 预留（DESIGN §3.8）。
  */
@@ -361,6 +377,8 @@ export interface SimState {
   /** 实体 id 分配计数器（bullets/后续 attacker/assister 共用） */
   nextEntityId: number;
   match: MatchState;
+  /** 特写冻结锁（null = 无演出冻结） */
+  cutinLock: CutinLockState | null;
 }
 
 export interface FighterConfig {
@@ -478,5 +496,6 @@ export function createInitialState(config: SimConfig): SimState {
     assisters: [],
     nextEntityId: 1,
     match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
+    cutinLock: null,
   };
 }

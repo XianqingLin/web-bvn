@@ -94,6 +94,8 @@ export interface BehaviorContext {
   spawnAttacker(spec: AttackerSpawnSpec): void;
   /** doWanKai/switchForm 桥：多形态注册表由 sim 持有（切失败 = 静默） */
   switchForm(f: FighterState, frame: number): void;
+  /** 特写冻结锁桥（切片 22）：kind = 置锁类型，null = 解锁（owner = ctx.f） */
+  setCutin(kind: 'bisha' | 'wanKai' | null): void;
 }
 
 /**
@@ -279,17 +281,26 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   endShadow(ctx) {
     ctx.emit('effect', { id: 'endShadow', x: ctx.f.x, y: ctx.f.y, params: {} });
   },
-  // bisha(isSuper, face)：必杀特写（全屏演出）
+  // bisha(isSuper, face)：必杀特写（全屏演出）。原版 EffectCtrler.bisha：
+  // GameCtrler.pause() 全场逻辑冻结 + 黑幕 + 特写立绘，endBisha 恢复——
+  // 冻结语义进 sim（切片 22）：置 SimState.cutinLock，render 消费事件做演出。
   bisha(ctx, args) {
     ctx.emit('effect', {
       id: 'bisha',
       x: ctx.f.x,
       y: ctx.f.y,
-      params: { isSuper: args[0] === true, face: typeof args[1] === 'string' ? args[1] : null },
+      params: {
+        isSuper: args[0] === true,
+        face: typeof args[1] === 'string' ? args[1] : null,
+        owner: ctx.f.id,
+        ownerKind: 'fighter',
+      },
     });
+    ctx.setCutin('bisha');
   },
   endBisha(ctx) {
     ctx.emit('effect', { id: 'endBisha', x: ctx.f.x, y: ctx.f.y, params: {} });
+    ctx.setCutin(null);
   },
   // slowDown(t)：全局慢放 t 秒（纯演出节奏，不进逻辑）
   slowDown(ctx, args) {
@@ -570,18 +581,24 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
 
   // —— 万解（原版 EffectCtrler wanKai 演出 + FighterCtrler doWanKai 帧驱动） ——
   // startWanKai(face)：万解开场演出事件（effect 控制器消费；语料参数为特写
-  // face 名，如 "Naruto_3"——非形态 id，render 层消费）
+  // face 名——非形态 id，render 层消费）。冻结语义同 bisha（切片 22）。
   startWanKai(ctx, args) {
     ctx.emit('effect', {
       id: 'wanKai',
       x: ctx.f.x,
       y: ctx.f.y,
-      params: { face: typeof args[0] === 'string' ? args[0] : null },
+      params: {
+        face: typeof args[0] === 'string' ? args[0] : null,
+        owner: ctx.f.id,
+        ownerKind: 'fighter',
+      },
     });
+    ctx.setCutin('wanKai');
   },
   // endWanKai()：万解演出结束
   endWanKai(ctx) {
     ctx.emit('effect', { id: 'endWanKai', x: ctx.f.x, y: ctx.f.y, params: {} });
+    ctx.setCutin(null);
   },
   // doWanKai(frame)：万解形态切换（原版 FighterCtrler.doWanKai 真实语义：
   // frame=0/缺省 → 根时间轴 nextFrame = 下一形态；frame>0 → 绝对帧寻址形态）。
@@ -804,6 +821,7 @@ export function createBehaviorRegistry(engine: {
   spawnBullet(spec: BulletSpawnSpec): void;
   spawnAttacker(spec: AttackerSpawnSpec): void;
   switchForm(f: FighterState, frame: number): void;
+  setCutin(f: FighterState, kind: 'bisha' | 'wanKai' | null): void;
 }): Record<string, BehaviorHandler> {
   return {
     ...defaultBehaviors,

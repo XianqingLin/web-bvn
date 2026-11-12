@@ -19,6 +19,7 @@ import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
 import {
   ASSETS,
   loadAssistPack,
+  loadBisha,
   loadFighterPack,
   loadMapPack,
   type AssistPack,
@@ -120,6 +121,7 @@ export class BattleScene implements Scene {
     for (const a of assistList) assists[a.id] = a;
     const map = await loadMapPack(ctx.ctx, this.flow.mapId);
     this.rig = { map, p1: p1Pack, p2: p2Pack, assists };
+    const bisha = await loadBisha(ctx.ctx);
 
     // —— 渲染装配 ——
     const renderer = new BattleRenderer(ctx.pixi);
@@ -143,6 +145,7 @@ export class BattleScene implements Scene {
         ),
         assister: Object.fromEntries(assistList.filter((a) => a.hasFires).map((a) => [a.id, a.id])),
       },
+      bisha: { mc: bisha.mc, faces: bisha.faces },
     });
 
     // —— 键盘 ——

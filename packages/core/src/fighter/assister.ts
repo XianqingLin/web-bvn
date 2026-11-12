@@ -50,6 +50,8 @@ export interface AssisterContext {
   spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void;
   /** finish 原语：辅助退场 */
   remove(): void;
+  /** 特写冻结锁桥（切片 22）：kind = 置锁类型，null = 解锁（owner = ctx.self 实体） */
+  setCutin(kind: 'bisha' | 'wanKai' | null): void;
   // —— attacker 桥（切片 21：customFunc 操作本辅助挂载的道具；
   //    范围 = viaAssist 且 ownerId === owner.id（每 fighter 至多一辅助 → 无歧义），
   //    name 匹配元件名） ——
@@ -345,11 +347,18 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
       id: 'bisha',
       x: ctx.self.x,
       y: ctx.self.y,
-      params: { isSuper: args[0] === true, face: typeof args[1] === 'string' ? args[1] : null },
+      params: {
+        isSuper: args[0] === true,
+        face: typeof args[1] === 'string' ? args[1] : null,
+        owner: ctx.self.id,
+        ownerKind: 'assister',
+      },
     });
+    ctx.setCutin('bisha');
   },
   endBisha(ctx) {
     ctx.emit('effect', { id: 'endBisha', x: ctx.self.x, y: ctx.self.y, params: {} });
+    ctx.setCutin(null);
   },
   startShake(ctx, args) {
     ctx.emit('effect', { id: 'shake', x: ctx.self.x, y: ctx.self.y, params: { arg: args[0] } });

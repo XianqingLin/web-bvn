@@ -48,6 +48,7 @@
 | 19 | 修复批次：重力斜坡换算偏差（下落加速比原版快 2 倍）+ 移动/跳跃参数忠实性全面审计（结论：逐字照搬、换算等价） | ✅ | §三·批次 19 |
 | 20 | 实战验收修复批次：落地滑步（行走物理标签门 + labelLock 清锁）+ 必杀 1 帧桩截断（时间轴顺流，全角色家族性）+ 上+必杀/上+技被跳覆盖（意图分支待机态门）+ 防御接管速度 | ✅ | §三·批次 20 |
 | 21 | 阶段 3 尾巴·B1：byakuya 抓取链 customFunc 三函数数据化 + attacker 元件脚本分派 + finishIfNoAttacker 守卫 + 辅助 loop 同标签 rewind 保活 | ✅ | §三·切片 21；余项见 §4.2 |
+| 22 | 阶段 3 尾巴·B2：必杀/万解切人插图——core 冻结锁（cutinLock 全场停走/锁主 30Hz/保护性解锁）+ `tools/bisha-pack` 素材管线（71 帧横幅 + 92 张立绘）+ render 黑幕/横幅/立绘接线 | ✅ | §三·切片 22 |
 
 ---
 
@@ -102,6 +103,14 @@
 - **支撑机制**：辅助 customFunc 单槽（三 checkFunc 数据化）；attacker 元件脚本分派（stop 定格/gotoAndPlay/removeSelf/表现事件）；辅助 loop 同标签 rewind 保活（修复此前 loop 型辅助被"走到时间轴末自动退场"误伤）。
 - **跳过项（有前置）**：itachi 动态伤害、madara miss 分支（等 B5 逐帧命中矩形）；suigetsu isAttacking（等 AI 转译）；temari 风场（B4）。
 
+### 切片 22·B2——必杀/万解切人插图（✅ 2026-11-12）
+
+原版 `EffectCtrler.bisha` = `GameCtrler.pause()` 全场冻结 + 黑幕 + 特写立绘，施法者画面 render 驱动继续播（帧脚本照常触发，`endBisha` 在冻结期到来）。移植版三段落地：
+- **core 冻结锁**：`SimState.cutinLock { kind, id, type }` 由 `bisha`/`startWanKai` 置位、`endBisha`/`endWanKai` 清除；锁置位后下一 tick 起全场停走（输入/物理/推挤/命中/计时/道具/其他动画），仅锁主时间轴 30Hz 推进；锁主失联（收招/死亡/辅助退场）保护性解锁（防软锁，批次 18 教训——原版缺 end 系语料 = 永久黑屏软锁，有意识偏离）。事件 payload 补 `owner/ownerKind`（render 寻址立绘）。
+- **素材管线**（`tools/bisha-pack`）：`bisha_face_mc`（effect.swf mc_016）71 帧流帧 + 38 包 92 张必杀立绘（kenshin 死映射跳过 → 黑幕切人）→ `baked/bisha.json`（槽位矩阵/画布原点烘焙，画布 1066×209 断言）。
+- **render/app 接线**：黑幕屏幕空间层（bgFixed 与 world 之间）+ 横幅/立绘容器（mapLayer 与 fighterLayer 之间，角色在黑幕之上=原版层序）；faceId = 施法者相对目标 x（原版 showFace）；白闪以白色加色叠层近似（偏离记录）；地图层锁定期隐藏；事件去重键补 payload id（此前同 tick 两个 effect 事件会互吞）。
+- **门禁**：core 112 测试（新增 cutin.test.ts 6 项）；replay 5 剧本 + batch:validate 基线重冻（冻结锁改真实语料时间线，预期内）。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -121,7 +130,7 @@
 - 独立道具逐帧命中矩形（原版由道具内层时间轴逐帧驱动，未导出——现取发射帧命名子对象判定区/零矩形占位，atmc 抓取伤害的内层 hitVO（atm1，power=50）同源待导；需 capture/dump 桥新导出管线，待语料审计后决策）；
 - 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；itachi 动态伤害 `power = targetHpMax×0.008`（与逐帧矩形同前置：消费方 attacker 内层 hitVO）；suigetsu `isAttacking=true`（唯一读者 AI）；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
-- 必杀切人插图 effect 事件（id 'bisha'/endBisha，批次 20 发现）未在 app/render 消费——sim 侧已发事件，必杀判定与动画正常，切图演出缺位；
+- ~~必杀切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费~~（✅ 切片 22 收编，含万解 wanKai/endWanKai 同机制覆盖）；
 - 空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）——时间轴顺流已能播放该段，纯表现无判定；
 - 验收：门禁全过；行为变更则重冻对应基线。
 
@@ -144,5 +153,5 @@
 ## 五、下一步（按优先级）
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
-2. **阶段 3 尾巴**（§4.2，余项：逐帧命中矩形（B5）/ 必杀切人插图（B2）/ 空中必杀 attackId（B3）/ temari 风场（B4）——切片 21 已收编 B1 checkFunc 链）——或按用户指示切换其他块；
+2. **阶段 3 尾巴**（§4.2，余项：逐帧命中矩形（B5）/ 空中必杀 attackId（B3）/ temari 风场（B4）——切片 21 已收编 B1 checkFunc 链、切片 22 已收编 B2 切人插图）——或按用户指示切换其他块；
 3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

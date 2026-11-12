@@ -11,6 +11,7 @@ import {
   type AssisterState,
   type AttackerState,
   type BulletState,
+  type CutinLockState,
   type FighterState,
   type SimConfig,
   type SimState,
@@ -218,6 +219,7 @@ export class Sim {
       spawnBullet: (spec) => this.spawnBullet(spec),
       spawnAttacker: (spec) => this.spawnAttacker(spec),
       switchForm: (f, frame) => this.doSwitchForm(f, frame),
+      setCutin: (f, kind) => this.setCutin('fighter', f.id, kind),
     });
     this.assisterBehaviors = defaultAssisterBehaviors;
   }
@@ -260,6 +262,7 @@ export class Sim {
       spawnBullet: (spec) => sim.spawnBullet(spec),
       spawnAttacker: (spec) => sim.spawnAttacker(spec),
       switchForm: (f, frame) => sim.doSwitchForm(f, frame),
+      setCutin: (f, kind) => sim.setCutin('fighter', f.id, kind),
     });
     sim.assisterBehaviors = defaultAssisterBehaviors;
     return sim;
@@ -307,18 +310,82 @@ export class Sim {
   }
 
   tick(inputs: InputFrame): SimSnapshot {
-    this.stepInputs(inputs); // 1. 输入处理
-    this.stepIntents(); // 2. 意图决策
-    this.stepPhysics(); // 3. 物理积分
-    this.stepPush(); //    4. 推挤
-    if (this.state.tick % 2 === 0) {
-      this.stepAnimation(); // 5. [动画帧] 30Hz
-      this.stepHitResolution(); // 6. [动画帧] 30Hz
-      this.stepBulletAnim(); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
-      this.stepAttackerAnim(); // [动画帧] 30Hz（原版 FighterAttacker.renderAnimate）
+    if (this.state.cutinLock !== null) {
+      // 特写冻结（切片 22，原版 GameCtrler.pause 语义）：仅锁主时间轴推进，
+      // 输入/物理/推挤/命中/计时/回气全部停走；endBisha/endWanKai（锁主时间轴
+      // 帧触发）解锁后下一 tick 恢复正常管线。
+      this.tickCutinLock(inputs);
+    } else {
+      this.stepInputs(inputs); // 1. 输入处理
+      this.stepIntents(); // 2. 意图决策
+      this.stepPhysics(); // 3. 物理积分
+      this.stepPush(); //    4. 推挤
+      if (this.state.tick % 2 === 0) {
+        this.stepAnimation(); // 5. [动画帧] 30Hz
+        this.stepHitResolution(); // 6. [动画帧] 30Hz
+        this.stepBulletAnim(); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
+        this.stepAttackerAnim(); // [动画帧] 30Hz（原版 FighterAttacker.renderAnimate）
+      }
+      this.stepMatchFlow(); // 7. 流程事件
     }
-    this.stepMatchFlow(); // 7. 流程事件
     return this.stepOutput(); // 8. 输出
+  }
+
+  /** 特写冻结锁置位/清除（behaviors 桥；bisha/wanKai 置锁，end 系清除）。 */
+  private setCutin(
+    ownerKind: 'fighter' | 'assister',
+    id: number,
+    kind: 'bisha' | 'wanKai' | null,
+  ): void {
+    this.state.cutinLock = kind === null ? null : { kind: ownerKind, id, type: kind };
+  }
+
+  /**
+   * 特写冻结 tick（切片 22）：仅锁主（bisha/wanKai 施法者，角色或辅助）的
+   * 动画时间轴按 30Hz 推进——原版施法者画面由 render 驱动继续播、帧脚本照常
+   * 触发（endBisha/endWanKai 即在冻结期间到来）；其余全部停走。
+   * 锁主失联保护（防软锁，批次 18 教训）：角色回待机/死亡（技能收尾但语料
+   * 缺 endBisha 触发）、辅助退场 → 保护性解锁，本 tick 恢复正常管线。
+   */
+  private tickCutinLock(inputs: InputFrame): void {
+    const lock = this.state.cutinLock!;
+    if (lock.kind === 'assister') {
+      if (!this.state.assisters.some((a) => a.id === lock.id)) {
+        this.state.cutinLock = null;
+      }
+    } else {
+      const f = this.state.fighters.find((x) => x.id === lock.id);
+      if (
+        !f ||
+        f.hp <= 0 ||
+        (!isAttackingState(f.actionState) && f.actionState !== ActionState.WAN_KAI_ING)
+      ) {
+        this.state.cutinLock = null;
+      }
+    }
+    if (this.state.cutinLock === null) {
+      // 已解锁（锁主失联保护性清除）：本 tick 走正常管线（真实输入）
+      this.tickFallback(inputs);
+      return;
+    }
+    if (this.state.tick % 2 === 0) {
+      this.stepAnimation(lock);
+    }
+  }
+
+  /** 正常管线重入（锁主失联解锁 tick 复用；与 tick() 主路径同序）。 */
+  private tickFallback(inputs: InputFrame): void {
+    this.stepInputs(inputs);
+    this.stepIntents();
+    this.stepPhysics();
+    this.stepPush();
+    if (this.state.tick % 2 === 0) {
+      this.stepAnimation();
+      this.stepHitResolution();
+      this.stepBulletAnim();
+      this.stepAttackerAnim();
+    }
+    this.stepMatchFlow();
   }
 
   private emit(type: string, payload: Record<string, unknown>): void {
@@ -1011,12 +1078,14 @@ export class Sim {
     }
   }
 
-  /** 辅助 30Hz 推进：帧触发器 + 循环触发 + 动画推进 + 退场判定。 */
-  private stepAssisterAnimation(): void {
+  /** 辅助 30Hz 推进：帧触发器 + 循环触发 + 动画推进 + 退场判定。
+   *  cutinLock（切片 22）：特写冻结期只推进锁主（辅助侧切人演出）。 */
+  private stepAssisterAnimation(cutinLock?: CutinLockState): void {
     const { fighters, stage, assisters } = this.state;
     const removed: number[] = [];
     for (const s of assisters) {
       if (removed.includes(s.id)) continue;
+      if (cutinLock && !(cutinLock.kind === 'assister' && cutinLock.id === s.id)) continue;
       const def = this.assisterDefs.get(s.assistId);
       if (!def) continue;
       const owner = fighters.find((f) => f.id === s.ownerId) ?? null;
@@ -1035,6 +1104,7 @@ export class Sim {
         remove: () => {
           if (!removed.includes(s.id)) removed.push(s.id);
         },
+        setCutin: (kind) => this.setCutin('assister', s.id, kind),
         // attacker 桥（切片 21）：范围 = viaAssist 且 ownerId === 召唤者
         //（每 fighter 至多一辅助在场 → 无歧义），name 匹配元件名
         getAttacker: (name) =>
@@ -1313,11 +1383,13 @@ export class Sim {
     }
   }
 
-  // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）
-  private stepAnimation(): void {
+  // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）。
+  // cutinLock（切片 22）：特写冻结期只推进锁主的时间轴。
+  private stepAnimation(cutinLock?: CutinLockState): void {
     const { fighters, stage } = this.state;
     for (let i = 0; i < fighters.length; i++) {
       const f = fighters[i]!;
+      if (cutinLock && !(cutinLock.kind === 'fighter' && cutinLock.id === f.id)) continue;
       const def = this.defOf(f);
       if (!def) {
         advanceAnimation(f, null);
@@ -1338,6 +1410,7 @@ export class Sim {
           spawnBullet: (spec) => this.spawnBullet(spec),
           spawnAttacker: (spec) => this.spawnAttacker(spec),
           switchForm: (g, frameNum) => this.doSwitchForm(g, frameNum),
+          setCutin: (kind) => this.setCutin('fighter', f.id, kind),
         };
         for (const t of list) {
           if (t.cond) {
@@ -1378,7 +1451,8 @@ export class Sim {
       }
     }
     // 辅助实体推进（30Hz：帧触发器/循环触发/退场判定；切片 12）
-    this.stepAssisterAnimation();
+    // 特写冻结（切片 22）：cutinLock 锁主为辅助时只推进锁主
+    this.stepAssisterAnimation(cutinLock);
   }
 
   // 6. [动画帧] 命中判定与结算。

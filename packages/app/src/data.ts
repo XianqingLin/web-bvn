@@ -107,6 +107,20 @@ export function uiFaceUrl(ui: UiData, id: string, kind: '' | '_b'): string | nul
   return file ? `${ASSETS}/ui/faces/${file}` : null;
 }
 
+// ---------- bisha.json（tools/bisha-pack 产物，schema bvn/bisha@1，切片 22） ----------
+
+export interface BishaData {
+  schema: string;
+  /** mc_016 流帧规格（renderer BishaMcData 结构一致） */
+  mc: import('@bvn/render').BishaMcData;
+  /** pkgId → faceName → baseUrl 相对路径 */
+  faces: Record<string, Record<string, string>>;
+}
+
+export function loadBisha(ctx: Ctx): Promise<BishaData> {
+  return ctx.assets.json<BishaData>(`${BAKED}/bisha.json`);
+}
+
 // ---------- 角色包 ----------
 
 export interface FighterPack {

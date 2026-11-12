@@ -77,6 +77,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `round:start` / `round:end` | `{ round, winner? }` | 回合流程 |
 | `sound` | `{ id, x, y }` | 音效（渲染层消费，可随机选音源） |
 | `effect` | `{ id, x, y, params }` | 特效（震动/闪光/钢身等） |
+| `effect`（id `bisha`/`endBisha`） | `params { isSuper, face, owner, ownerKind }` | 必杀切人演出（切片 22）：`bisha` 置 `SimState.cutinLock`（全场冻结，仅施法者时间轴 30Hz 推进），`endBisha` 解锁；render 消费 = 黑幕 + 横幅流帧 + 立绘（`bisha.json`） |
+| `effect`（id `wanKai`/`endWanKai`） | `params { face, owner, ownerKind }` | 万解开场演出（切片 22）：冻结/解锁/演出机制同上，`cutinLock.type = 'wanKai'` |
 
 每个事件带 `tick` 号；渲染层自行处理去重与插值，不得回读 sim 内部状态——**快照 + 事件队列是 render 的唯一输入**。
 
@@ -86,7 +88,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 - 移动类（速度值 ×SPEED_PLUS，换算见 DESIGN §3.1）：`move`、`movePercent`、`moveOnce`、`dash`、`stop`/`stopMove`、`damping`/`dampingPercent`
 - 状态/资源：`setSteelBody`、`addQi`、`endAct`（收招）、`setCross`、`isApplyG`、`setAirMove`、`setTouchFloor(label)`、`idle(frame?)`（主动回位）
-- 瞬步系（target 分流：mc=动作控制，effect=表现事件）：`dash`、`dashStop(p)`；纯表现：`shadow`/`endShadow`、`bisha`/`endBisha`、`slowDown(t)`、`walk`、`jump`、`touchFloor`
+- 瞬步系（target 分流：mc=动作控制，effect=表现事件）：`dash`、`dashStop(p)`；纯表现：`shadow`/`endShadow`、`bisha`/`endBisha`（切片 22：置/清 `SimState.cutinLock` 冻结锁）、`slowDown(t)`、`walk`、`jump`、`touchFloor`
 - 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`
 - 表现原语（core 只发事件）：`playSoundHit1`、`playSoundHit2`、`shine`、`startShake`、`shake`、`endShake`
 - 飞行道具：`fire(mcName, params?)`（切片 8；params 语料字段 x/y/hold/hits/hp，见 DESIGN §3.5）
@@ -95,7 +97,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 - 标签跳转：`gotoAndPlay`/`gotoAndStop`/`loop`（= setLabelTo）
 - 动作槽（切片 9 扩充）：`setAllAct`（整套重填 defaultSlots）、`setJump(label)`、空中槽 `setAttackAIR`/`setSkillAIR`/`setBishaAIR(qi?)`、摔技槽 `setCatch1`/`setCatch2`、万解槽 `setWankai`/`setWankaiW`/`setWankaiS`
 - 资源：`addHp`/`addHpPercent`/`addHpLosePercent`（clamp hpMax；hp≤0 不回）、`loseHp`（自削血，归零 → 死亡）
-- 万解演出：`startWanKai`（target: effect → effect 事件 id `wanKai`）、`endWanKai`（effect 事件 `endWanKai`）、`doWanKai(frame)`（万解形态切换：0 = 下一形态，>0 按 `def.rootFrame` 寻址根时间轴——切片 10 真实语义）
+- 万解演出：`startWanKai`（target: effect → effect 事件 id `wanKai`；切片 22：置 `cutinLock`）、`endWanKai`（effect 事件 `endWanKai`；解锁）、`doWanKai(frame)`（万解形态切换：0 = 下一形态，>0 按 `def.rootFrame` 寻址根时间轴——切片 10 真实语义）
 - 形态切换：`switchForm(frame)`（切片 10 实现注册，语义同 doWanKai；切 `FighterState.formIndex` + 重填槽 + 播新形态 开场 + 发 `fighter:form` 事件，单形态静默）
 - 条件触发（切片 11）：`if` 不是注册表 op——`FrameTrigger.cond/then/else`，`evaluateTriggerCondition` 求值后分派分支体（分支体内调用仍走本表原语）。查询 op：`justHit(hitId, includeDefense?)`、`targetInRange(rx, ry?)`、`getTargetState`、`getSelf`、`getTargetSP`（属性链 + cmp；属性白名单见 `fighterProp`）。未知查询 op 求值 = false（确定性静默）；分支体调用未注册同静默。全角色批量化验收门禁 `pnpm batch:validate`（58 角色编译/op 覆盖/冒烟双跑哈希/快照恢复，基线 `tools/batch-validate/baseline.json`）。
 - 已登记未实现（注册表未注册 → 确定性静默，接入时同 commit 补实现）：`teleport`、`summon`（切片 10 全语料核对：原版引擎与语料均无实例——teleport=移形换位换人、summon=辅助召唤，归辅助系统切片）、`sound`、`effect`（后两者以 playSoundHit*/shine/shake 代替）

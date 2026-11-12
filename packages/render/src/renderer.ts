@@ -5,7 +5,7 @@
  * 动画帧/朝向取最新快照；相机纯渲染；HUD 读快照；
  * 表现事件按 tick 去重消费（不回读 sim 内部状态）。
  */
-import { Application, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
 import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedFireAtlas, type LoadedMapAtlas } from './atlas.js';
@@ -13,6 +13,27 @@ import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type Loade
 const TICK_MS = 1000 / 60;
 const LOGICAL_W = 1000;
 const LOGICAL_H = 600;
+
+/** baked/bisha.json 的 mc 块（tools/bisha-pack 产物，schema bvn/bisha@1） */
+export interface BishaMcData {
+  dir: string;
+  frames: number;
+  fps: number;
+  destoryFrame: number;
+  canvasOrigin: [number, number];
+  canvasSize: [number, number];
+  mcPos: [number, number];
+  faceSize: [number, number];
+  faceAnchor: [number, number];
+  /** 0-based 帧 → [W_Tx, W_Ty, scaleX, scaleY, rOff, gOff, bOff, alphaMul] | null */
+  slots: { facemc1: (number[] | null)[]; facemc2: (number[] | null)[] };
+}
+
+/** 切人插图资源（切片 22）：mc 流帧 + 立绘映射（pkgId → faceName → baseUrl 相对路径） */
+export interface BishaAssets {
+  mc: BishaMcData;
+  faces: Record<string, Record<string, string>>;
+}
 
 /** 战斗资源清单（app 装配后传入） */
 export interface BattleAssetsSpec {
@@ -38,6 +59,8 @@ export interface BattleAssetsSpec {
    */
   fireAtlases?: { fighter?: Record<string, string>; assister?: Record<string, string> };
   fireAtlasJson?: Record<string, FireAtlas>;
+  /** 必杀/万解切人插图（切片 22）：缺省 = 不渲染切人（黑幕/横幅/立绘全缺） */
+  bisha?: BishaAssets;
 }
 
 interface FighterSprite {
@@ -76,9 +99,22 @@ export class BattleRenderer {
   private attackerGfx: Graphics;
   private fxLayer: Container;
   private hudLayer: Container;
+  /** 切人黑幕（切片 22）：屏幕空间，覆盖全屏；原版 BlackBackView 800×600 挂
+   *  gameStage 底层（角色之下、bg 之上），web 端等价 = stage 上 bgFixed 与 world 之间 */
+  private blackLayer: Graphics;
+  /** 切人横幅+立绘（切片 22）：world 内 mapLayer 之上、fighterLayer 之下
+   *  （原版 blackback index 0、角色其上；横幅随黑幕出现） */
+  private cutinLayer: Container;
+  private cutinBand: Sprite;
+  private cutinFace: Sprite;
+  /** 立绘白闪叠层（原版 color offset 255→50→0 的近似：白色加色叠加） */
+  private cutinFaceFlash: Sprite;
   private sprites = new Map<number, FighterSprite>();
   /** 辅助精灵（切片 12）：key = 召唤者 fighter id（同主同时至多一个辅助） */
   private assistSprites = new Map<number, FighterSprite>();
+  /** 切人立绘寻址（切片 22）：fighter id / 辅助 ownerId → atlasId（load 装配） */
+  private fighterAtlasById = new Map<number, string>();
+  private assisterAtlasByOwner = new Map<number, string>();
   /** fire 图集（切片 14 多角色）：键 = 出场者 atlasId；无条目 = 色块回退 */
   private fireLoadedFighter = new Map<string, LoadedFireAtlas>();
   private fireLoadedAssister = new Map<string, LoadedFireAtlas>();
@@ -99,6 +135,20 @@ export class BattleRenderer {
   private bgSprite: Sprite | null = null;
   private roundText: Text | null = null;
   private hintText: Text | null = null;
+
+  /** 切人插图（切片 22）：mc 流帧纹理 + 已装载立绘纹理 */
+  private bishaMc: BishaMcData | null = null;
+  private bishaBandTex: Texture[] = [];
+  private bishaFaceTex = new Map<string, Texture>(); // key = `${atlasId}:${faceName}`
+  /** 当前演出：事件捕获（face/owner/槽位），锁清除即收场 */
+  private cutin: {
+    active: boolean;
+    faceName: string | null;
+    faceTex: Texture | null;
+    slot: 1 | 2;
+    accMs: number;
+    frame: number;
+  } = { active: false, faceName: null, faceTex: null, slot: 1, accMs: 0, frame: 0 };
 
   private prev: SimSnapshot | null = null;
   private next: SimSnapshot | null = null;
@@ -125,19 +175,33 @@ export class BattleRenderer {
     this.attackerGfx = new Graphics();
     this.fxLayer = new Container();
     this.hudLayer = new Container();
+    this.blackLayer = new Graphics();
+    this.blackLayer.visible = false;
+    this.cutinLayer = new Container();
+    this.cutinBand = new Sprite(Texture.WHITE);
+    this.cutinBand.visible = false;
+    this.cutinFace = new Sprite(Texture.WHITE);
+    this.cutinFace.visible = false;
+    this.cutinFaceFlash = new Sprite(Texture.WHITE);
+    this.cutinFaceFlash.visible = false;
+    this.cutinFaceFlash.blendMode = 'add';
+    this.cutinLayer.addChild(this.cutinBand, this.cutinFace, this.cutinFaceFlash);
+    this.cutinLayer.visible = false;
     this.bulletLayer.addChild(this.attackerGfx, this.bulletGfx);
     // 层序（镜像原版 GameStage.initFight：gameLayer[map < 角色 < front_fix < front]；
     // bg 在 gameLayer 外）：
-    //   bg(屏幕固定) < map < 角色 < 独立道具/飞行道具 < front_fix < front(视差) < 特效
+    //   bg(屏幕固定) < 黑幕(屏幕固定) < map < 切人横幅/立绘 < 角色 < 独立道具/飞行道具
+    //   < front_fix < front(视差) < 特效
     this.world.addChild(
       this.mapLayer,
+      this.cutinLayer,
       this.fighterLayer,
       this.bulletLayer,
       this.mapFrontFixLayer,
       this.mapFrontLayer,
       this.fxLayer,
     );
-    app.stage.addChild(this.bgFixed, this.world, this.hudLayer);
+    app.stage.addChild(this.bgFixed, this.blackLayer, this.world, this.hudLayer);
     this.onResize();
     app.renderer.on('resize', this.onResize, this);
   }
@@ -169,12 +233,14 @@ export class BattleRenderer {
       const atlas = await atlasFor(f.atlasId, kind);
       const loaded = await loadFighterAtlas(`${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}`, atlas);
       this.sprites.set(f.slot, this.makeSprite(f.atlasId, loaded, f.formIndex ?? 0));
+      this.fighterAtlasById.set(f.slot, f.atlasId);
     }
 
     for (const a of spec.assisters ?? []) {
       const atlas = await atlasFor(a.atlasId, 'assister');
       const loaded = await loadFighterAtlas(`${spec.baseUrl}/assistants`, atlas);
       this.assistSprites.set(a.ownerId, this.makeSprite(a.atlasId, loaded, 0));
+      this.assisterAtlasByOwner.set(a.ownerId, a.atlasId);
     }
 
     // fire 元件图集（切片 14 多角色）：按出场者 atlasId 装载；缺失条目色块回退
@@ -191,6 +257,31 @@ export class BattleRenderer {
           loaded,
         );
       }
+    }
+
+    // 切人插图（切片 22）：mc 流帧全量 + 出场者立绘（仅当前对局涉及的包）
+    if (spec.bisha) {
+      this.bishaMc = spec.bisha.mc;
+      this.bishaBandTex = [];
+      for (let i = 1; i <= spec.bisha.mc.frames; i++) {
+        this.bishaBandTex.push(await Assets.load<Texture>(`${spec.baseUrl}/${spec.bisha.mc.dir}/${i}.webp`));
+      }
+      // 横幅常驻位：PNG (0,0) = mc 空间 canvasOrigin → world 逻辑位 = mcPos + canvasOrigin
+      this.cutinBand.position.set(
+        spec.bisha.mc.mcPos[0] + spec.bisha.mc.canvasOrigin[0],
+        spec.bisha.mc.mcPos[1] + spec.bisha.mc.canvasOrigin[1],
+      );
+      for (const atlasId of new Set([
+        ...spec.fighters.map((f) => f.atlasId),
+        ...(spec.assisters ?? []).map((a) => a.atlasId),
+      ])) {
+        for (const [faceName, path] of Object.entries(spec.bisha.faces[atlasId] ?? {})) {
+          const tex = await Assets.load<Texture>(`${spec.baseUrl}/${path}`);
+          this.bishaFaceTex.set(`${atlasId}:${faceName}`, tex);
+        }
+      }
+    } else {
+      this.bishaMc = null;
     }
   }
 
@@ -255,7 +346,7 @@ export class BattleRenderer {
 
   private consumeEvents(snap: SimSnapshot): void {
     for (const ev of snap.events) {
-      const key = `${ev.tick}:${ev.type}`;
+      const key = `${ev.tick}:${ev.type}:${String(ev.payload['id'] ?? '')}`;
       const last = this.lastEventsTick.get(key);
       if (last === ev.tick) continue; // 去重
       this.lastEventsTick.set(key, ev.tick);
@@ -279,10 +370,123 @@ export class BattleRenderer {
           sp.formIndex = form;
           sp.appliedPng = -1;
         }
+      } else if (ev.type === 'effect' && this.bishaMc) {
+        // 切人演出（切片 22）：bisha/startWanKai 捕获立绘信息（黑幕/横幅显示由
+        // SimState.cutinLock 驱动——事件与锁同 tick 落快照）；end 系交给锁清除。
+        const id = String(ev.payload['id']);
+        if (id === 'bisha' || id === 'wanKai') {
+          this.beginCutin(snap, ev.payload);
+        }
       }
-      // sound/effect/round:* 等事件切片 4 不实现（音效明确不做）
+      // sound/round:* 等事件不实现（音效明确不做）
     }
   }
+
+  /** bisha/startWanKai 事件 → 演出状态（原版 showFace：faceId = 施法者在目标右侧 ? 2 : 1）。 */
+  private beginCutin(snap: SimSnapshot, payload: Record<string, unknown>): void {
+    const params = (payload['params'] ?? {}) as Record<string, unknown>;
+    const face = typeof params['face'] === 'string' ? params['face'] : null;
+    const owner = params['owner'];
+    const ownerKind = params['ownerKind'];
+    // 施法者 x：角色 = fighters[id]；辅助 = assisters[id]
+    let casterX: number | null = null;
+    let atlasId: string | null = null;
+    if (ownerKind === 'fighter' && typeof owner === 'number') {
+      const f = snap.state.fighters.find((x) => x.id === owner);
+      casterX = f?.x ?? null;
+      atlasId = this.fighterAtlasById.get(owner) ?? null;
+    } else if (ownerKind === 'assister' && typeof owner === 'number') {
+      const a = snap.state.assisters.find((x) => x.id === owner);
+      casterX = a?.x ?? null;
+      atlasId = this.assisterAtlasByOwner.get(a?.ownerId ?? -1) ?? null;
+    }
+    if (casterX === null) return;
+    // 目标 = 对面角色（双人对局 fighters[0/1]；辅助侧切人取对面角色位）
+    const target = snap.state.fighters.find((f) => f.id !== owner) ?? snap.state.fighters[0];
+    const slot: 1 | 2 = target && casterX > target.x ? 2 : 1;
+    const faceTex = face && atlasId ? (this.bishaFaceTex.get(`${atlasId}:${face}`) ?? null) : null;
+    this.cutin = { active: true, faceName: face, faceTex, slot, accMs: 0, frame: 0 };
+  }
+
+  /**
+   * 切人演出帧推进（切片 22，原版 BlackBackView/BishaFaceEffectView 语义）：
+   *   - 黑幕：SimState.cutinLock ≠ null 期间全屏覆盖（屏幕空间）；
+   *   - 地图：原版 getMap().setVisible(false) → map/front 层隐藏；
+   *   - 横幅+立绘：bisha_face_mc gotoAndPlay(2)（0-based 帧 1 起，30fps），
+   *     播到 destory（全透明）/stop（空帧）自然消失；黑幕保持到 endBisha 解锁
+     *     （语料缺 end 系时 = 黑幕挂到保护性解锁，原版为软锁，web 端有解锁兜底）。
+   */
+  private updateCutin(next: SimSnapshot, dtMs: number): void {
+    const lock = next.state.cutinLock;
+    const mc = this.bishaMc;
+    const cutinActive = lock !== null && mc !== null;
+    this.blackLayer.visible = cutinActive;
+    if (cutinActive) {
+      // 黑幕盖满当前视口（屏幕空间；resize 后重画）
+      if (this.blackW !== this.viewW || this.blackH !== this.viewH) {
+        this.blackW = this.viewW;
+        this.blackH = this.viewH;
+        this.blackLayer.clear().rect(0, 0, this.viewW, this.viewH).fill(0x000000);
+      }
+    }
+    // 地图隐藏（原版 getMap().setVisible(false)；front 系同属地图视觉层）
+    this.mapLayer.visible = lock === null;
+    this.mapFrontFixLayer.visible = lock === null;
+    this.mapFrontLayer.visible = lock === null;
+    this.cutinLayer.visible = cutinActive;
+    if (!cutinActive) {
+      // 解锁（endBisha/endWanKai/保护性解锁）：演出收场，等待下次事件
+      this.cutin.active = false;
+      return;
+    }
+    // 锁存在但无演出信息（如联机中途入局错过事件）：只显示黑幕+横幅
+    if (!this.cutin.active) {
+      this.cutin = { active: true, faceName: null, faceTex: null, slot: 1, accMs: 0, frame: 0 };
+    }
+    const c = this.cutin;
+    c.accMs += dtMs;
+    c.frame = Math.min(1 + Math.floor(c.accMs / (1000 / mc.fps)), mc.frames - 1);
+    // 横幅流帧（0-based 帧 f ↔ 文件 f+1；帧 0 为 gotoAndPlay(2) 前的白屏态，不显示）
+    const bandTex = this.bishaBandTex[c.frame];
+    if (bandTex) {
+      this.cutinBand.visible = true;
+      this.cutinBand.texture = bandTex;
+    } else this.cutinBand.visible = false;
+    // 立绘槽位（原版 showFace 把 254×180 face 加进 facemc{slot}）
+    const slotArr = mc.slots[`facemc${c.slot}`];
+    const s = slotArr?.[c.frame] ?? null;
+    const tex = c.faceTex;
+    if (!s || !tex) {
+      this.cutinFace.visible = false;
+      this.cutinFaceFlash.visible = false;
+      return;
+    }
+    // 锚 = transformationPoint（缩放绕点）；position = W_T - canvasOrigin + mcPos
+    const [wx = 0, wy = 0, sx = 1, sy = 1, ro = 0, go = 0, bo = 0, al = 1] = s;
+    this.cutinFace.visible = true;
+    this.cutinFace.texture = tex;
+    this.cutinFace.anchor.set(mc.faceAnchor[0] / mc.faceSize[0], mc.faceAnchor[1] / mc.faceSize[1]);
+    this.cutinFace.position.set(
+      mc.mcPos[0] + wx - mc.canvasOrigin[0],
+      mc.mcPos[1] + wy - mc.canvasOrigin[1],
+    );
+    this.cutinFace.scale.set((sx * mc.faceSize[0]) / tex.width, (sy * mc.faceSize[1]) / tex.height);
+    this.cutinFace.alpha = al;
+    // 白闪近似：原版 color offset (255→50→0) = 加色白化 → 白 tint 同变换叠加
+    const flash = Math.max(ro, go, bo);
+    this.cutinFaceFlash.visible = flash > 0 && al > 0;
+    if (this.cutinFaceFlash.visible) {
+      this.cutinFaceFlash.texture = tex;
+      this.cutinFaceFlash.anchor.set(this.cutinFace.anchor.x, this.cutinFace.anchor.y);
+      this.cutinFaceFlash.position.copyFrom(this.cutinFace.position);
+      this.cutinFaceFlash.scale.copyFrom(this.cutinFace.scale);
+      this.cutinFaceFlash.alpha = Math.min(flash / 255, 1) * al;
+    }
+  }
+
+  /** 黑幕重画缓存（视口尺寸变化才重建） */
+  private blackW = 0;
+  private blackH = 0;
 
   /** 每渲染帧调用：插值推进。dtMs 自上次调用以来的毫秒数。 */
   update(dtMs: number): void {
@@ -312,6 +516,7 @@ export class BattleRenderer {
     this.updateAttackers(prev, next, alpha);
     this.updateBullets(prev, next, alpha);
     this.updateAssisters(prev, next, alpha);
+    this.updateCutin(next, dtMs);
     this.updateCamera(next);
     this.updateHud(next);
   }
@@ -639,7 +844,8 @@ export class BattleRenderer {
     this.bulletSprites.clear();
     for (const sp of this.attackerSprites.values()) sp.root.destroy({ children: true });
     this.attackerSprites.clear();
-    this.app.stage.removeChild(this.bgFixed, this.world, this.hudLayer);
+    this.app.stage.removeChild(this.bgFixed, this.blackLayer, this.world, this.hudLayer);
+    this.blackLayer.destroy();
     this.bgFixed.destroy({ children: true });
     this.world.destroy({ children: true });
     this.hudLayer.destroy({ children: true });
