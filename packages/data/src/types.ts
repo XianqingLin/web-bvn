@@ -46,7 +46,7 @@ export interface TriggerDef {
    * 调用目标：mc=自身动作控制 / fighter=战斗逻辑（辅助语境=owner）/
    * effect=表现 / assister=辅助逻辑 / fighterTarget=owner 的当前目标
    */
-  target: 'mc' | 'fighter' | 'effect' | 'assister' | 'fighterTarget';
+  target: 'mc' | 'fighter' | 'effect' | 'assister' | 'fighterTarget' | 'attacker';
   op: string;
   args: TriggerArg[];
 }
@@ -200,6 +200,17 @@ export interface AssistantPackage {
   symbols: Record<string, SymbolData>;
   /** 增益 buff（切片 12：getSelf().buffEffects 赋值提取；仅 orihime/yachiru） */
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
+  /**
+   * attacker 元件脚本（切片 21）：addAttacker 名 → 元件时间轴（绑名规则 =
+   * 时间轴唯一 addAttacker 名 ↔ 唯一含 $attacker_ctrler 脚本的符号）。
+   * labels 1 基（与 fire 元数据同基）；triggers 帧号 0 基（compileAssistant
+   * 统一 +1，与 timeline.triggers 同规则）；target ∈ {attacker, effect}。
+   * 条件语句脚本不提取（madara justHit miss 分支——内层 hitVO 未导出前无真值）。
+   */
+  attackerScripts?: Record<
+    string,
+    { labels: Record<string, number>; triggers: TriggerDef[] }
+  >;
 }
 
 /* =====================================================================

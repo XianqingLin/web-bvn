@@ -110,7 +110,7 @@ export function parseObjectLiteral(t: string): Record<string, AsArg> {
 }
 
 export interface CtrlerCall {
-  target: 'mc' | 'fighter' | 'effect' | 'assister' | 'fighterTarget';
+  target: 'mc' | 'fighter' | 'effect' | 'assister' | 'fighterTarget' | 'attacker';
   op: string;
   args: AsArg[];
 }
@@ -864,4 +864,41 @@ const CTRLER_TARGET: Record<string, CtrlerCall['target']> = {
   fighter_ctrler: 'fighter',
   effect_ctrler: 'effect',
   assisterCtrler: 'assister',
+  attacker_ctrler: 'attacker',
 };
+
+/**
+ * attacker 元件脚本调用提取（切片 21）：$attacker_ctrler.op(...) 简单调用于
+ * 独立道具内层时间轴（FighterAttackerCtrler 转发）。effect 链 → target 'effect'；
+ * 其余（stop/stopFollowTarget/gotoAndPlay/removeSelf/endAct/…）→ target 'attacker'。
+ * 条件语句/带状态脚本由调用方先行排除（宁可不提取，保留 rawScript 审计）。
+ */
+export function extractAttackerCalls(script: string): CtrlerCall[] {
+  const calls: CtrlerCall[] = [];
+  // effect 链：$attacker_ctrler.effect.op(...)
+  const effectRe = /\$attacker_ctrler\.effect\.(\w+)\s*\(/g;
+  let m: RegExpExecArray | null;
+  while ((m = effectRe.exec(script)) !== null) {
+    const openIdx = effectRe.lastIndex - 1;
+    try {
+      const end = matchBracket(script, openIdx);
+      const argsRaw = script.slice(openIdx + 1, end).trim();
+      calls.push({ target: 'effect', op: m[1]!, args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg) });
+    } catch {
+      /* 括号不闭合 → 留给残余 */
+    }
+  }
+  // 基础调用（负向环视排除 effect 链）
+  const baseRe = /\$attacker_ctrler\.(?!effect\.)(\w+)\s*\(/g;
+  while ((m = baseRe.exec(script)) !== null) {
+    const openIdx = m.index + m[0].length - 1;
+    try {
+      const end = matchBracket(script, openIdx);
+      const argsRaw = script.slice(openIdx + 1, end).trim();
+      calls.push({ target: 'attacker', op: m[1]!, args: argsRaw === '' ? [] : splitTopLevel(argsRaw, ',').map(parseArg) });
+    } catch {
+      /* 括号不闭合 → 留给残余 */
+    }
+  }
+  return calls;
+}

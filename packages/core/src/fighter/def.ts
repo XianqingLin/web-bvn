@@ -140,7 +140,39 @@ export interface AssisterDef {
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
   /** fire 元件时间轴元数据（baked fires 包注入；缺元件 = 该 fire 无动画生命周期） */
   fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
+  /**
+   * attacker 元件脚本（切片 21）：addAttacker 名 → 元件时间轴。
+   * labels 1 基（'end' → 跳转落点帧）；triggers 帧号 1 起（与 animFrame 同基，
+   * compileAssistant 已 +1），target ∈ {attacker, effect}。stepAttackerAnim
+   * 逐帧分派（仅 viaAssist 道具）。语料：byakuya/gaara/itachi/madara/
+   * rangiku/sai/shikamaru（stop/gotoAndPlay/stopFollowTarget/removeSelf/
+   * shine/playSoundHit2/endAct；madara justHit miss 分支留 raw——内层
+   * hitVO 未导出前无真值）。
+   */
+  attackerScripts?: Record<
+    string,
+    { labels: Record<string, number>; triggers: FrameTrigger[] }
+  >;
 }
+
+/**
+ * 辅助 customFunc（切片 21，原版 Assister._customFunc 单槽函数的数据化）。
+ * 原版 addCustomFunc 占位即忽略（单函数寄存器）；语料仅 byakuya 抓取链
+ * 三函数，导出器识别为闭集 kind 描述符（attacker 名来自绑名规则）。
+ */
+export type AssisterCustomFunc =
+  | { kind: 'ownerDeadClearAttacker'; attacker: string }
+  | {
+      kind: 'attackerEndOnTargetLeave';
+      attacker: string;
+      /** 目标 actionState 门（byakuya 21 = HURT_ING：被抓保持期） */
+      state: number;
+      /** 目标离开门态后 attacker 跳转的收尾标签（原版 gotoAndPlay("end")） */
+      endLabel: string;
+      /** 链下一环（语料恒 'finishWhenAttackerGone'） */
+      next: 'finishWhenAttackerGone' | null;
+    }
+  | { kind: 'finishWhenAttackerGone'; attacker: string };
 
 /**
  * 动作状态码（原版 FighterActionState，module-map §5.2）。

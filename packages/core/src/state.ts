@@ -1,6 +1,7 @@
 import { createPlayerInput, type PlayerInput } from './input.js';
 import {
   defaultSlots,
+  type AssisterCustomFunc,
   type AssisterDef,
   type FighterDef,
   type FighterSlots,
@@ -269,6 +270,18 @@ export interface AttackerState {
   /** owner 为辅助（切片 13-A6）：命中回气仍归召唤者（原版 getOwnerFighter
    *  回溯），渲染图集走辅助侧 fire 包 */
   viaAssist: boolean;
+  /** 完全冻结（切片 21，原版 FighterAttacker.stop：不推进/不 findHitArea/
+   *  不自动移除；gotoAndPlay 解除） */
+  animHold: boolean;
+  /** 元件帧标签 → 落点帧（1 基；fires 元数据 ∪ def.attackerScripts 标签，
+   *  空 = 元件无标签） */
+  animLabels: Record<string, number>;
+  /** 元件脚本来源辅助 def id（切片 21；null = 无元件脚本。def.attackerScripts
+   *  [name] 寻址；辅助退场后 attacker 仍存活时照常分派） */
+  scriptAssistId: string | null;
+  /** 本动画帧发生过 gotoAndPlay 跳转（外部/元件脚本）：下一动画步分派落点帧
+   *  触发器且不推进（同帧 rewind 用标志传递，值比较无法区分） */
+  frameJumped: boolean;
 }
 
 export interface MatchState {
@@ -320,6 +333,13 @@ export interface AssisterState {
   hitTargetAction: string | null;
   /** 增益 buff 效果（def.buffEffects 拷贝；生效期 = 在场期间） */
   buffEffects: { attrResistance?: number; phyLifesteal?: number };
+  /** customFunc 单槽（切片 21，原版 Assister._customFunc；add 占位即忽略）。
+   *  kind 描述符进 sim 状态 = 快照/回滚自洽 */
+  customFunc: AssisterCustomFunc | null;
+  /** 本动画帧发生过 gotoAndPlay 跳转（含同帧 rewind）。原版 nextFrame 后
+   *  回调 customFunc，同帧可再次跳转（byakuya loop 同帧 rewind 循环保活）——
+   *  值比较无法区分「没跳」与「跳回同帧」，用标志传递 */
+  frameJumped: boolean;
 }
 
 /**

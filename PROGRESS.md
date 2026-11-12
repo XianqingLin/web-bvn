@@ -46,6 +46,7 @@
 | 18 | 实战验收修复批次：跳跃/动作永久锁死（jumpTimes 无恢复路径 + 循环标签吞 endAction 补槽）+ 走/立标签维护门控 + idleLabel 落地回归 + 落地补槽 | ✅ | §三·批次 18 |
 | 19 | 修复批次：重力斜坡换算偏差（下落加速比原版快 2 倍）+ 移动/跳跃参数忠实性全面审计（结论：逐字照搬、换算等价） | ✅ | §三·批次 19 |
 | 20 | 实战验收修复批次：落地滑步（行走物理标签门 + labelLock 清锁）+ 必杀 1 帧桩截断（时间轴顺流，全角色家族性）+ 上+必杀/上+技被跳覆盖（意图分支待机态门）+ 防御接管速度 | ✅ | §三·批次 20 |
+| 21 | 阶段 3 尾巴·B1：byakuya 抓取链 customFunc 三函数数据化 + attacker 元件脚本分派 + finishIfNoAttacker 守卫 + 辅助 loop 同标签 rewind 保活 | ✅ | §三·切片 21；余项见 §4.2 |
 
 ---
 
@@ -143,6 +144,15 @@
 - **验证**：headless 复现全转绿（佩恩 超必杀/普通必杀/上必杀、落地行走、白哉普通必杀）；build + core 102 单测 + replay 5 剧本 + batch:validate 门禁全过；
 - **遗留（转入 §4.2）**：bisha 切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费——必杀判定与动画已正常，切图演出缺位；空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签，纯表现无判定）。
 
+### 切片 21·B1——byakuya 抓取链 customFunc + attacker 元件脚本（✅ 2026-11-12）
+
+> 阶段 3 尾巴最大一笔：辅助 rawScript 审计确认的最高影响偏离项「byakuya checkFunc 链」收编。抓取成功后召唤吸附道具（原版 $attacker_ctrler 独立元件时间轴驱动），owner 死亡清道具、目标脱抓（actionState 离开 21）道具播收尾段、播尽 finish。同时清掉辅助「走到时间轴末自动退场」对 loop 型辅助的误伤。
+
+- **数据管线（exporter + data）**：`extractAttackerCalls` 识别 $attacker_ctrler 调用（effect 表现分流的 target='effect'，基础 op 走 target='attacker'）；assistant.ts 三函数模板识别——finish 守卫惯用语 `if(!judge){finish()}` 改写为 `finishIfNoAttacker(attacker)`、addCustomFunc 三 checkFunc 闭集按 op 特征组合识别（不绑变量名），attacker 名取绑名规则（时间轴唯一 addAttacker 名 ↔ 唯一含 $attacker_ctrler 符号）；`extractAttackerScripts` 提取元件内层脚本进 `AssisterDef.attackerScripts`（labels 1 基，compileAssistant 已 +1）；重导出 7 包变化（byakuya/gaara/itachi/madara/rangiku/sai/shikamaru），其余 30 包 byte-identical；
+- **core（assister/sim/state/def）**：`AssisterState.customFunc`（单槽，原版 addCustomFunc 占位即忽略）+ ops `addCustomFunc/removeCustomFunc/finishIfNoAttacker`；`stepAssisterCustomFunc` 三函数忠实转写（ownerDeadClearAttacker：owner 活着跳过、attacker 不在场跳过、否则 stopFollow+移除+注销自身；attackerEndOnTargetLeave：目标 actionState==21 跳过、否则 gotoAndPlay(end) + 注册 next；finishWhenAttackerGone：attacker 在场跳过、否则注销+finish——gotoAndPlay 受 attackerCtrler 守卫、注销/注册不受，按 raw 原文边界转写）；`AttackerState` 增 `animHold/animLabels/scriptAssistId/frameJumped`，stepAttackerAnim 逐帧分派元件触发器（stop=定格/gotoAndPlay=跳转解除定格/stopFollowTarget/removeSelf/endAct=noop/effect=playSoundHit1/2+shine 事件）；owner 死亡退场判定从循环头移到时间轴末 customFunc 之后（原版 finish 判定在 _customFunc 之后，checkFunc 先清 attacker 再退场）；辅助 `gotoAndPlay` 去同标签守卫（loop 同标签 rewind 保活——原守卫吞掉 rewind，辅助走到时间轴末被自动退场）；
+- **偏离/跳过记录**：① suigetsu isAttacking 仍跳过（唯一读者 AI，阶段 6 AI 转译时一并）；② itachi 动态伤害 `power=targetHpMax×0.008` 与 madara justHit miss 分支跳过（消费方为 attacker 内层 hitVO，B5 逐帧命中矩形前置；madara removeSelf@35 按命中路径近似）；③ attacker 元件第 1 帧触发器不执行（分派发生在推进后，语料最早编译帧 3，无实例）；④ owner 死亡且目标仍处 21 时 attacker stop 定格成孤儿永驻（原版 stop 后元件脚本不推进不播尽移除，同语义，注释登记）；⑤ loop ping-pong 相位（71↔72）与原版（恒 71）逐帧略异，保活语义一致；
+- **验证**：core +4 单测（assist-grab-chain.test.ts：命中全链定格/loop 保活/释放/播尽 finish；checkFunc 窗口 owner 死亡同帧清道具；loop 段 owner 死亡孤儿；miss 路径 CHK_False 无 attacker）；build 全仓过；replay assist-duel 重冻——AssisterState schema 新字段进哈希，stash 旧代码重建 dump 三 checkpoint 剔除新字段后行为逐字节一致（纯 schema 漂移）；batch:validate 重冻——6 辅助 addCustomFunc/removeCustomFunc/finishIfNoAttacker 转已注册覆盖变化，37 辅助 finalHash 全部不变（无行为变化）；
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -160,7 +170,7 @@
 ### 4.2 阶段 3 尾巴（切片 13 余项，纯增量特性，不阻塞阶段 4 推进）
 
 - 独立道具逐帧命中矩形（原版由道具内层时间轴逐帧驱动，未导出——现取发射帧命名子对象判定区/零矩形占位，atmc 抓取伤害的内层 hitVO（atm1，power=50）同源待导；需 capture/dump 桥新导出管线，待语料审计后决策）；
-- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：byakuya checkFunc 链（owner 死亡清道具 / 目标 getTargetState==21 脱抓提前收道具）；itachi 动态伤害 `power = targetHpMax×0.008`；suigetsu `isAttacking=true`；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
+- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；itachi 动态伤害 `power = targetHpMax×0.008`（与逐帧矩形同前置：消费方 attacker 内层 hitVO）；suigetsu `isAttacking=true`（唯一读者 AI）；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
 - 必杀切人插图 effect 事件（id 'bisha'/endBisha，批次 20 发现）未在 app/render 消费——sim 侧已发事件，必杀判定与动画正常，切图演出缺位；
 - 空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）——时间轴顺流已能播放该段，纯表现无判定；
@@ -185,5 +195,5 @@
 ## 五、下一步（按优先级）
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
-2. **阶段 3 尾巴**（§4.2，低影响偏离池：逐帧命中矩形 / checkFunc 链 / itachi 动态伤害 / temari 风场）——或按用户指示切换其他块；
+2. **阶段 3 尾巴**（§4.2，余项：逐帧命中矩形（B5）/ 必杀切人插图（B2）/ 空中必杀 attackId（B3）/ temari 风场（B4）——切片 21 已收编 B1 checkFunc 链）——或按用户指示切换其他块；
 3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

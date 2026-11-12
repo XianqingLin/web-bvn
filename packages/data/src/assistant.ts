@@ -36,6 +36,15 @@ export interface AssisterView {
   buffEffects?: { attrResistance?: number; phyLifesteal?: number };
   /** fire 元件时间轴元数据（baked fires 包注入，切片 13-A3；缺元件 = 无动画生命周期） */
   fires?: Record<string, { totalFrames: number; labels: Record<string, number> }>;
+  /**
+   * attacker 元件脚本（切片 21）：addAttacker 名 → 元件时间轴。
+   * labels 1 基；triggers 帧号已 +1（1 起，与 animFrame 同基）；
+   * target ∈ {attacker, effect}。core stepAttackerAnim 逐帧分派。
+   */
+  attackerScripts?: Record<
+    string,
+    { labels: Record<string, number>; triggers: TriggerDef[] }
+  >;
 }
 
 export function compileAssistant(
@@ -68,5 +77,18 @@ export function compileAssistant(
     })),
     ...(xfl.buffEffects !== undefined ? { buffEffects: xfl.buffEffects } : {}),
     ...(fires ? { fires } : {}),
+    ...(xfl.attackerScripts !== undefined
+      ? {
+          attackerScripts: Object.fromEntries(
+            Object.entries(xfl.attackerScripts).map(([name, s]) => [
+              name,
+              {
+                labels: s.labels,
+                triggers: s.triggers.map((t) => ({ ...t, frame: t.frame + 1 })),
+              },
+            ]),
+          ),
+        }
+      : {}),
   };
 }

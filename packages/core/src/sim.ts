@@ -36,6 +36,7 @@ import {
   evaluateLoopCond,
   isAttributeHit,
   isPhysicalHit,
+  stepAssisterCustomFunc,
   tickBuffs,
   type AssisterContext,
   type AssisterHandler,
@@ -601,22 +602,101 @@ export class Sim {
   }
 
   /**
-   * 独立道具内层时间轴推进（原版 FighterAttacker.renderAnimate）：逐动画帧
-   * nextFrame，currentFrame == totalFrames-1 → removeSelf（off-by-one 原样
-   * 保留）。与 Bullet 不同：类内无标签分派（loop/remove 等是 Bullet 专属
-   * 语义），故纯推进不查标签——语料 32 个 attacker 元件全部多帧且无 loop
-   * 标签，播尽移除全覆盖。发射 tick 在 stepHitResolution 先于本步（同
-   * bullet 节奏）：生成帧 animFrame 已为 2。
+   * 独立道具内层时间轴推进（原版 FighterAttacker.renderAnimate，切片 21 收紧）：
+   * 逐动画帧 nextFrame + 元件触发器分派（def.attackerScripts，target
+   * attacker=道具控制 / effect=表现），stop → animHold 完全冻结（不推进/
+   * 不分派/不播尽移除，gotoAndPlay 解除），removeSelf → 移除，
+   * currentFrame == totalFrames-1 → removeSelf（off-by-one 原样保留）。
+   * 跳转（外部 gotoAndPlay 或元件脚本）用 frameJumped 标志传递：下一动画步
+   * 分派落点帧触发器且不推进（同帧 rewind 值比较不可辨）。
+   * 已知边界：元件第 1 帧触发器不执行（生成 tick 直接推进到 2）——语料
+   * attacker 元件脚本最早帧 3，无实例；endAct 为 no-op（isAttacking 标志
+   * 唯一读者是 AI，port 无观察者）。
    */
   private stepAttackerAnim(): void {
-    const { attackers } = this.state;
     const removed: number[] = [];
-    for (const a of attackers) {
+    for (const a of this.state.attackers) {
       if (a.animTotal <= 0) continue;
-      if (a.animFrame < a.animTotal) a.animFrame += 1;
-      if (a.animFrame === a.animTotal - 1) removed.push(a.id);
+      if (a.animHold) continue;
+      const jumped = a.frameJumped; // 外部跳转落点帧：本步分派不推进
+      a.frameJumped = false;
+      if (!jumped && a.animFrame < a.animTotal) a.animFrame += 1;
+      const scripts =
+        a.scriptAssistId !== null
+          ? this.assisterDefs.get(a.scriptAssistId)?.attackerScripts?.[a.name]
+          : undefined;
+      if (scripts) {
+        let removedSelf = false;
+        for (const t of scripts.triggers) {
+          if (t.frame !== a.animFrame) continue;
+          if (this.dispatchAttackerScript(a, t)) {
+            removedSelf = true;
+            break;
+          }
+        }
+        if (removedSelf) {
+          removed.push(a.id);
+          continue;
+        }
+      }
+      if (a.animHold) continue; // 本步 stop()：定格
+      if (!jumped && a.animFrame === a.animTotal - 1) removed.push(a.id);
     }
     if (removed.length > 0) this.removeAttackers(removed);
+  }
+
+  /**
+   * attacker 元件脚本单条分派（切片 21）。返回 true = removeSelf。
+   * 未注册 op 确定性静默（madara justHit miss 分支留 raw——内层 hitVO 未
+   * 导出前无真值，见 attackerScripts 契约注）。
+   */
+  private dispatchAttackerScript(a: AttackerState, t: FrameTrigger): boolean {
+    if (t.target === 'attacker') {
+      switch (t.op) {
+        case 'stop':
+          a.animHold = true;
+          return false;
+        case 'gotoAndPlay': {
+          const arg = t.args[0];
+          if (typeof arg === 'string') {
+            const f = a.animLabels[arg];
+            if (f === undefined) return false; // 标签缺失静默
+            a.animFrame = f;
+          } else if (typeof arg === 'number') {
+            a.animFrame = arg;
+          } else {
+            return false;
+          }
+          a.animHold = false;
+          a.frameJumped = true;
+          return false;
+        }
+        case 'stopFollowTarget':
+          a.followX = false;
+          a.followY = false;
+          return false;
+        case 'removeSelf':
+          return true;
+        case 'endAct':
+          return false;
+        default:
+          return false;
+      }
+    }
+    // effect 表现系（原版 $attacker_ctrler.effect 转发；坐标取道具实体）
+    switch (t.op) {
+      case 'playSoundHit1':
+        this.emit('sound', { id: 'hit1', x: a.x, y: a.y });
+        return false;
+      case 'playSoundHit2':
+        this.emit('sound', { id: 'hit2', x: a.x, y: a.y });
+        return false;
+      case 'shine':
+        this.emit('effect', { id: 'shine', x: a.x, y: a.y, params: { arg: t.args[0] } });
+        return false;
+      default:
+        return false;
+    }
   }
 
   /**
@@ -715,6 +795,7 @@ export class Sim {
       anim: spec.anim,
       params,
       viaAssist: false,
+      scriptAssistId: null,
     });
   }
 
@@ -725,6 +806,10 @@ export class Sim {
    */
   private spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void {
     const owner = this.state.fighters.find((f) => f.id === spec.ownerId) ?? null;
+    // 元件脚本（切片 21）：def.attackerScripts[name] 存在 → 标签并入
+    // animLabels（fires 元数据同基同值，attackerScripts 优先）+ 记录脚本来源
+    const def = this.assisterDefs.get(spec.self.assistId);
+    const scripts = def?.attackerScripts?.[spec.name];
     this.spawnAttackerEntity({
       anchor: spec.self,
       ownerId: spec.ownerId,
@@ -737,6 +822,9 @@ export class Sim {
       anim: spec.anim,
       params: spec.params,
       viaAssist: true,
+      ...(scripts !== undefined
+        ? { scriptAssistId: spec.self.assistId, scriptLabels: scripts.labels }
+        : { scriptAssistId: null }),
     });
   }
 
@@ -751,6 +839,10 @@ export class Sim {
     anim?: { totalFrames: number; labels: Record<string, number> } | undefined;
     params: AttackerParams;
     viaAssist: boolean;
+    /** 元件脚本来源辅助 def id（切片 21；null = 角色生成/无脚本） */
+    scriptAssistId: string | null;
+    /** 元件脚本标签（def.attackerScripts[name].labels；并入 animLabels） */
+    scriptLabels?: Record<string, number>;
   }): void {
     const { anchor, ownerId, targetOf: t, name, local, hit, hitId, anim, params, viaAssist } = args;
     const centerX = local.x + local.w / 2;
@@ -785,6 +877,10 @@ export class Sim {
       hitId,
       hitAble: true,
       viaAssist,
+      animHold: false,
+      animLabels: { ...(anim?.labels ?? {}), ...(args.scriptLabels ?? {}) },
+      scriptAssistId: args.scriptAssistId,
+      frameJumped: false,
     };
     this.state.nextEntityId += 1;
     this.state.attackers.push(attacker);
@@ -860,6 +956,8 @@ export class Sim {
       hitTargetChecker: null,
       hitTargetAction: null,
       buffEffects: def.buffEffects !== undefined ? { ...def.buffEffects } : {},
+      customFunc: null,
+      frameJumped: false,
     };
     this.state.nextEntityId += 1;
     this.state.assisters.push(assister);
@@ -922,16 +1020,13 @@ export class Sim {
       const def = this.assisterDefs.get(s.assistId);
       if (!def) continue;
       const owner = fighters.find((f) => f.id === s.ownerId) ?? null;
-      // owner 死亡 → 辅助退场（原版 renderAnimate finish 分支）
-      if (owner === null || owner.hp <= 0) {
-        removed.push(s.id);
-        continue;
-      }
+      // owner 死亡退场判定移至 customFunc 步进之后（切片 21：原版 renderAnimate
+      // 的退场判定在 _customFunc 之后——死亡 tick checkFunc 先清 attacker 再退场）
       const ctx: AssisterContext = {
         self: s,
         def,
         owner,
-        ownerDef: this.defOf(owner),
+        ownerDef: owner !== null ? this.defOf(owner) : null,
         fighters,
         stage,
         emit: (type, payload) => this.emit(type, payload),
@@ -939,6 +1034,32 @@ export class Sim {
         spawnAssistAttacker: (spec) => this.spawnAssistAttacker(spec),
         remove: () => {
           if (!removed.includes(s.id)) removed.push(s.id);
+        },
+        // attacker 桥（切片 21）：范围 = viaAssist 且 ownerId === 召唤者
+        //（每 fighter 至多一辅助在场 → 无歧义），name 匹配元件名
+        getAttacker: (name) =>
+          this.state.attackers.find(
+            (a) => a.viaAssist && a.ownerId === s.ownerId && a.name === name,
+          ) ?? null,
+        gotoAndPlayAttacker: (name, label) => {
+          const a = ctx.getAttacker(name);
+          if (a === null) return;
+          const frame = a.animLabels[label];
+          if (frame === undefined) return; // 标签缺失静默
+          a.animFrame = frame;
+          a.animHold = false;
+          a.frameJumped = true;
+        },
+        stopFollowAttacker: (name) => {
+          const a = ctx.getAttacker(name);
+          if (a === null) return;
+          a.followX = false;
+          a.followY = false;
+        },
+        removeAttacker: (name) => {
+          const a = ctx.getAttacker(name);
+          if (a === null) return;
+          this.removeAttackers([a.id]);
         },
       };
       // 帧触发器（同帧按注册顺序；触发器后同帧可能被 gotoAndPlay 改写帧号）
@@ -995,6 +1116,9 @@ export class Sim {
         removed.push(s.id);
         continue;
       }
+      // customFunc 步进（原版 mc.nextFrame 后回调 _customFunc；每动画帧）
+      stepAssisterCustomFunc(ctx);
+      if (removed.includes(s.id)) continue; // checkFunc2 finish
       if (s.animFrame !== frameBefore) continue; // 本步发生过跳转：不推进
       s.animFrame += 1;
       // actLabel 同步（标签数少，线性扫描；渲染寻帧用）
@@ -1004,6 +1128,8 @@ export class Sim {
           break;
         }
       }
+      // owner 死亡退场（原版 finish 判定 || !owner.isAlive；customFunc 已先行清 attacker）
+      if (owner === null || owner.hp <= 0) removed.push(s.id);
     }
     if (removed.length > 0) this.removeAssisters(removed);
   }

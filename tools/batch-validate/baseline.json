@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-12T04:36:13.208Z",
+  "generatedAt": "2026-11-12T07:23:05.132Z",
   "fighters": 58,
   "framesPerFighter": 700,
   "map": "Forest",
@@ -883,28 +883,6 @@
   "assistantSmokeFailures": [],
   "assistantUnregisteredOpAggregate": [
     {
-      "op": "removeCustomFunc",
-      "target": "assister",
-      "instances": 6,
-      "assistants": [
-        "byakuya",
-        "orihime",
-        "suigetsu",
-        "temari",
-        "tsunate",
-        "yamamoto"
-      ]
-    },
-    {
-      "op": "addCustomFunc",
-      "target": "assister",
-      "instances": 3,
-      "assistants": [
-        "byakuya",
-        "temari"
-      ]
-    },
-    {
       "op": "setTouchSide",
       "target": "assister",
       "instances": 3,
@@ -949,18 +927,8 @@
       "buffEffects": [],
       "unregisteredOps": [
         {
-          "op": "addCustomFunc",
-          "target": "assister",
-          "count": 2
-        },
-        {
           "op": "getMcCtrl",
           "target": "fighterTarget",
-          "count": 1
-        },
-        {
-          "op": "removeCustomFunc",
-          "target": "assister",
           "count": 1
         }
       ],
@@ -1283,13 +1251,7 @@
       "buffEffects": [
         "attrResistance"
       ],
-      "unregisteredOps": [
-        {
-          "op": "removeCustomFunc",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "21fa180a",
@@ -1421,13 +1383,7 @@
       "loopTriggers": 1,
       "rawScripts": 1,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "removeCustomFunc",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "8ea963ae",
@@ -1442,18 +1398,7 @@
       "loopTriggers": 0,
       "rawScripts": 3,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "addCustomFunc",
-          "target": "assister",
-          "count": 1
-        },
-        {
-          "op": "removeCustomFunc",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "a12f86dc",
@@ -1498,13 +1443,7 @@
       "loopTriggers": 1,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "removeCustomFunc",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "62e248d6",
@@ -1557,13 +1496,7 @@
       "loopTriggers": 1,
       "rawScripts": 0,
       "buffEffects": [],
-      "unregisteredOps": [
-        {
-          "op": "removeCustomFunc",
-          "target": "assister",
-          "count": 1
-        }
-      ],
+      "unregisteredOps": [],
       "smoke": {
         "ok": true,
         "finalHash": "c8469022",

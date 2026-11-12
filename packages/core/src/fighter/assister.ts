@@ -16,6 +16,7 @@ import {
   SPEED_PLUS,
   worldRect,
   type AreaRect,
+  type AssisterCustomFunc,
   type AssisterDef,
   type BehaviorArg,
   type FighterDef,
@@ -23,7 +24,13 @@ import {
   type LoopTriggerCond,
 } from './def.js';
 import { enterDead } from './machine.js';
-import { BUFF_HOLD_TICKS, type AssisterState, type FighterState, type StageState } from '../state.js';
+import {
+  BUFF_HOLD_TICKS,
+  type AssisterState,
+  type AttackerState,
+  type FighterState,
+  type StageState,
+} from '../state.js';
 import { parseAttackerParams, type AttackerParams, type FireParams } from './behaviors.js';
 
 /** 辅助行为上下文（瞬态，不进 SimState）。 */
@@ -43,6 +50,16 @@ export interface AssisterContext {
   spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void;
   /** finish 原语：辅助退场 */
   remove(): void;
+  // —— attacker 桥（切片 21：customFunc 操作本辅助挂载的道具；
+  //    范围 = viaAssist 且 ownerId === owner.id（每 fighter 至多一辅助 → 无歧义），
+  //    name 匹配元件名） ——
+  getAttacker(name: string): AttackerState | null;
+  /** gotoAndPlay：跳标签落点帧（animLabels 寻址，缺失静默）+ 解除定格 */
+  gotoAndPlayAttacker(name: string, label: string): void;
+  /** stopFollowTarget：解除吸附 */
+  stopFollowAttacker(name: string): void;
+  /** removeSelf：立即移除 */
+  removeAttacker(name: string): void;
 }
 
 /** 辅助 fire 规格（判定区/朝向取自辅助实体；命中归属 owner）。 */
@@ -276,6 +293,25 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
     }
   },
 
+  // —— customFunc 单槽（切片 21，原版 AssisterCtrler.addCustomFunc/
+  //     removeCustomFunc：单函数寄存器，占用即忽略） ——
+  addCustomFunc(ctx, args) {
+    if (ctx.self.customFunc !== null) return;
+    const desc = parseCustomFuncDesc(args[0]);
+    if (desc !== null) ctx.self.customFunc = desc;
+  },
+  removeCustomFunc(ctx) {
+    ctx.self.customFunc = null;
+  },
+
+  // —— finishIfNoAttacker（切片 21）：`if (!judge) finish()` 守卫惯用语的
+  //     语义化改写——judge 系布尔仅在挂载 attacker 的路径置位，守卫 ≡
+  //     「该辅助未挂载 attacker 才 finish」；抓取路径辅助靠 loop 循环保活 ——
+  finishIfNoAttacker(ctx, args) {
+    const name = typeof args[0] === 'string' ? args[0] : null;
+    if (name === null || ctx.getAttacker(name) === null) ctx.remove();
+  },
+
   // —— 有界静默（corpus 实例全在 attacker 系 rawScript，切片 13 审计范围） ——
   // justHit（纯读）/ setTouchSide（版边吸附，corpus 无实例）
 
@@ -344,10 +380,70 @@ function jumpTo(ctx: AssisterContext, args: BehaviorArg[]): void {
   const label = typeof args[0] === 'string' ? args[0] : null;
   const range = label !== null ? ctx.def.labels[label] : undefined;
   if (label === null || !range) return;
-  if (ctx.self.actLabel !== label) {
-    ctx.self.actLabel = label;
-    ctx.self.animFrame = range.index + 1;
+  // 无同标签守卫：原版 gotoAndPlay 忠实 rewind（byakuya 抓取路径 loop 标签
+  // 循环回跳保活——actLabel 同段时照跳）
+  ctx.self.actLabel = label;
+  ctx.self.animFrame = range.index + 1;
+}
+
+/** customFunc 描述符窄化（导出器闭集 kind；未知/畸形 = null → 触发器静默）。 */
+function parseCustomFuncDesc(v: BehaviorArg | undefined): AssisterCustomFunc | null {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
+  const kind = (v as { kind?: unknown }).kind;
+  const attacker = (v as { attacker?: unknown }).attacker;
+  if (typeof attacker !== 'string') return null;
+  if (kind === 'ownerDeadClearAttacker' || kind === 'finishWhenAttackerGone') {
+    return { kind, attacker };
   }
+  if (kind === 'attackerEndOnTargetLeave') {
+    const state = (v as { state?: unknown }).state;
+    const endLabel = (v as { endLabel?: unknown }).endLabel;
+    const next = (v as { next?: unknown }).next;
+    if (typeof state !== 'number' || typeof endLabel !== 'string') return null;
+    if (next !== 'finishWhenAttackerGone' && next !== null) return null;
+    return { kind, attacker, state, endLabel, next };
+  }
+  return null;
+}
+
+/**
+ * customFunc 步进（切片 21，原版 Assister.renderAnimate：mc.nextFrame 后
+ * 回调 _customFunc）。三函数为 byakuya 抓取链语料的忠实转写（rawScript 原文）：
+ *  - checkFunc → ownerDeadClearAttacker：`getOwner().isAlive || !attackerCtrler`
+ *    卫语句 → stopFollowTarget + removeSelf + removeCustomFunc；
+ *  - checkFunc1 → attackerEndOnTargetLeave：targetState == state 即返回；
+ *    `if (attackerCtrler) gotoAndPlay(end)`（gotoAndPlay 受守卫，注销/注册不受）；
+ *  - checkFunc2 → finishWhenAttackerGone：attacker 存在即返回；否则注销 + finish。
+ * 原版 refreshAttackerCtrler 每次调用重取引用 → port 每步实时 getAttacker。
+ */
+export function stepAssisterCustomFunc(ctx: AssisterContext): void {
+  const cf = ctx.self.customFunc;
+  if (cf === null) return;
+  if (cf.kind === 'ownerDeadClearAttacker') {
+    const owner = ctx.owner;
+    if (owner !== null && owner.hp > 0) return;
+    if (ctx.getAttacker(cf.attacker) === null) return;
+    ctx.stopFollowAttacker(cf.attacker);
+    ctx.removeAttacker(cf.attacker);
+    ctx.self.customFunc = null;
+    return;
+  }
+  if (cf.kind === 'attackerEndOnTargetLeave') {
+    const owner = ctx.owner;
+    if (owner === null) return;
+    const t = ctx.fighters.find((f) => f.id !== owner.id) ?? null;
+    if (t !== null && t.actionState === cf.state) return;
+    if (ctx.getAttacker(cf.attacker) !== null) {
+      ctx.gotoAndPlayAttacker(cf.attacker, cf.endLabel);
+    }
+    ctx.self.customFunc =
+      cf.next !== null ? { kind: cf.next, attacker: cf.attacker } : null;
+    return;
+  }
+  // finishWhenAttackerGone
+  if (ctx.getAttacker(cf.attacker) !== null) return;
+  ctx.self.customFunc = null;
+  ctx.remove();
 }
 
 function applyBuff(

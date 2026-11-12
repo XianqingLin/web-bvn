@@ -16,12 +16,14 @@ import {
 } from '@bvn/data';
 import {
   extractAssistTimelineCalls,
+  extractAttackerCalls,
   extractBuffEffects,
   extractConsts,
   extractDefineActions,
   extractFunctionBodies,
   parseLoopTriggerBody,
   scriptResidue,
+  stripComments,
   stripFunctionDefs,
   type AssistBuffEffects,
 } from './asargs.js';
@@ -129,6 +131,17 @@ function datafyCustomFuncs(into: SymbolData): void {
     }
     const parsed = parseLoopTriggerBody(body, extractConsts(scriptAt));
     if (parsed === null) {
+      // 通用解析失败 → 尝试已知函数模板识别（切片 21：byakuya 抓取链）。
+      // 命中则把 addCustomFunc 触发器参数改写为语义描述符（core 按 kind 解释）；
+      // 未命中保持原触发（core 侧未注册 = 确定性静默）。
+      const attacker = resolveAttackerName(into);
+      if (attacker !== null) {
+        const desc = matchKnownCustomFunc(scriptAt, name, attacker);
+        if (desc !== null) {
+          kept.push({ ...t, args: [desc] as unknown as typeof t.args });
+          continue;
+        }
+      }
       kept.push(t);
       continue;
     }
@@ -158,6 +171,137 @@ function datafyCustomFuncs(into: SymbolData): void {
     else delete into.rawScripts;
   }
   if (loops.length > 0) into.loopTriggers = loops;
+}
+
+/**
+ * 时间轴上唯一的 addAttacker 元件名（切片 21 绑名规则：多值/无名 → null）。
+ * 语料 6 个含 attacker 元件脚本的辅助全部单名（atmmc）。
+ */
+function resolveAttackerName(into: SymbolData): string | null {
+  const names = into.triggers
+    .filter((t) => t.op === 'addAttacker' && typeof t.args[0] === 'string')
+    .map((t) => t.args[0] as string);
+  return names.length === 1 ? names[0]! : null;
+}
+
+/**
+ * 已知 customFunc 函数模板识别（切片 21，byakuya 抓取链——语料唯一用户）：
+ *  - ownerDeadClearAttacker：owner 死亡 → 停吸附 + 移除 attacker + 注销
+ *    （checkFunc：`getOwner().isAlive || !attackerCtrler` 卫语句 + stopFollowTarget
+ *    + removeSelf + removeCustomFunc）
+ *  - attackerEndOnTargetLeave：目标离开指定 actionState → attacker 跳收尾标签
+ *    + 自注销 + 注册 next（checkFunc1；next 须可识别为 finishWhenAttackerGone，
+ *    半链不建模）
+ *  - finishWhenAttackerGone：attacker 消失 → 注销 + finish（checkFunc2）
+ * 识别按 op 特征组合（不绑变量名），模板外一律返回 null（宁可静默不误建模）。
+ */
+function matchKnownCustomFunc(
+  corpus: string,
+  funcName: string,
+  attacker: string,
+): Record<string, unknown> | null {
+  const bodies = extractFunctionBodies(stripComments(corpus));
+  const body = bodies.get(funcName);
+  if (body === undefined) return null;
+  const flat = stripComments(body).replace(/\s+/g, ' ');
+  const isFinishWhenGone =
+    /if\s*\(\s*\w+\s*\)\s*\{\s*return\s*;\s*\}/.test(flat) &&
+    /\.removeCustomFunc\(\)/.test(flat) &&
+    /\.finish\(\)/.test(flat) &&
+    !/gotoAndPlay/.test(flat) &&
+    !/getTargetState/.test(flat) &&
+    !/isAlive/.test(flat);
+  if (isFinishWhenGone) {
+    return { kind: 'finishWhenAttackerGone', attacker };
+  }
+  const isOwnerDeadClear =
+    /getOwner\(\)\.isAlive/.test(flat) &&
+    /\.stopFollowTarget\(\)/.test(flat) &&
+    /\.removeSelf\(\)/.test(flat) &&
+    /\.removeCustomFunc\(\)/.test(flat) &&
+    !/gotoAndPlay/.test(flat) &&
+    !/getTargetState/.test(flat);
+  if (isOwnerDeadClear) {
+    return { kind: 'ownerDeadClearAttacker', attacker };
+  }
+  const stateMatch = /getTargetState\(\)[\s\S]{0,120}?==\s*(\d+)/.exec(flat);
+  const endLabelMatch = /\.gotoAndPlay\(\s*(["'])([^"']+)\1\s*\)/.exec(flat);
+  const nextMatch = /\.addCustomFunc\(\s*(\w+)\s*\)/.exec(flat);
+  if (stateMatch && endLabelMatch && nextMatch) {
+    const nextBody = bodies.get(nextMatch[1]!);
+    if (nextBody === undefined) return null;
+    const nextFlat = stripComments(nextBody).replace(/\s+/g, ' ');
+    const nextIsFinish =
+      /if\s*\(\s*\w+\s*\)\s*\{\s*return\s*;\s*\}/.test(nextFlat) &&
+      /\.removeCustomFunc\(\)/.test(nextFlat) &&
+      /\.finish\(\)/.test(nextFlat) &&
+      !/getTargetState/.test(nextFlat) &&
+      !/isAlive/.test(nextFlat);
+    if (!nextIsFinish) return null;
+    return {
+      kind: 'attackerEndOnTargetLeave',
+      attacker,
+      state: Number(stateMatch[1]!),
+      endLabel: endLabelMatch[2]!,
+      next: 'finishWhenAttackerGone',
+    };
+  }
+  return null;
+}
+
+/**
+ * finish 守卫惯用语改写（切片 21）：`if (!judge) { $assisterCtrler.finish(); }`
+ * → finishIfNoAttacker(attacker)。judge 系布尔仅在挂载 attacker 的路径上置位
+ * （frame 51 `judge = true` 与 addAttacker 同路径），故守卫 ≡「attacker 不存在
+ * 才 finish」——抓取路径辅助靠 loop 标签循环保活，非抓取路径照常退场。
+ * 帧号匹配限定（守卫脚本的帧上恰好有一个 finish 触发器）；多 attacker 名
+ * （绑名失败）不改写。
+ */
+function rewriteFinishGuard(into: SymbolData, attacker: string | null): void {
+  if (attacker === null) return;
+  const frames = new Set<number>();
+  for (const r of into.rawScripts ?? []) {
+    const s = stripComments(r.raw).replace(/\s+/g, '');
+    if (/if\(!\w+\)\{\$assisterCtrler\.finish\(\);?\}/.test(s)) frames.add(r.frame);
+  }
+  if (frames.size === 0) return;
+  into.triggers = into.triggers.map((t) =>
+    t.op === 'finish' && frames.has(t.frame)
+      ? { ...t, op: 'finishIfNoAttacker', args: [attacker] }
+      : t,
+  );
+}
+
+/**
+ * attacker 元件脚本提取（切片 21）：绑名规则 = 时间轴唯一 addAttacker 名 ↔
+ * 唯一含 $attacker_ctrler 脚本的符号（语料 6 辅助全部无歧义）。输出
+ * labels（0 基 → 1 基，与 fire 元数据同基）+ 纯调用触发器（帧号 0 基，
+ * compileAssistant 统一 +1）；含条件/带状态语句的脚本整条不提取
+ * （madara justHit miss 分支——attacker 内层 hitVO 未导出前无真值，留 raw）。
+ */
+function extractAttackerScripts(
+  timeline: SymbolData,
+  symbols: Record<string, SymbolData>,
+): AssistantPackage['attackerScripts'] {
+  const attacker = resolveAttackerName(timeline);
+  if (attacker === null) return undefined;
+  const cands = Object.entries(symbols).filter(([, sym]) =>
+    (sym.rawScripts ?? []).some((r) => r.raw.includes('$attacker_ctrler')),
+  );
+  if (cands.length !== 1) return undefined;
+  const [, sym] = cands[0]!;
+  const labels: Record<string, number> = {};
+  for (const [l, r] of Object.entries(sym.labels)) labels[l] = r.index + 1;
+  const triggers: NonNullable<AssistantPackage['attackerScripts']>[string]['triggers'] = [];
+  for (const r of sym.rawScripts ?? []) {
+    const stripped = stripComments(r.raw);
+    if (/\bif\b|\bvar\b|\bfor\b|\bwhile\b|\breturn\b/.test(stripped)) continue;
+    for (const c of extractAttackerCalls(stripped)) {
+      triggers.push({ frame: r.frame, target: c.target, op: c.op, args: c.args });
+    }
+  }
+  if (triggers.length === 0 && Object.keys(labels).length === 0) return undefined;
+  return { [attacker]: { labels, triggers } };
 }
 
 export function extractAssistant(opts: ExtractAssistantOptions): ExtractAssistantResult {
@@ -206,6 +350,10 @@ export function extractAssistant(opts: ExtractAssistantOptions): ExtractAssistan
     }
   }
 
+  // 切片 21：finish 守卫惯用语改写 + attacker 元件脚本提取
+  rewriteFinishGuard(timeline, resolveAttackerName(timeline));
+  const attackerScripts = extractAttackerScripts(timeline, symbols);
+
   const pkg: AssistantPackage = {
     schema: 'bvn/assistant@1',
     id: opts.id,
@@ -218,6 +366,7 @@ export function extractAssistant(opts: ExtractAssistantOptions): ExtractAssistan
     timeline,
     symbols,
     ...(buffEffects !== undefined ? { buffEffects } : {}),
+    ...(attackerScripts !== undefined ? { attackerScripts } : {}),
   };
 
   return { pkg, validation: validateAssistantPackage(pkg) };

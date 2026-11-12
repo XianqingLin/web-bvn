@@ -92,5 +92,28 @@
         }
       ]
     }
+  },
+  "attackerScripts": {
+    "atmmc": {
+      "labels": {},
+      "triggers": [
+        {
+          "frame": 4,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x000000"
+            }
+          ]
+        },
+        {
+          "frame": 20,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
+    }
   }
 }

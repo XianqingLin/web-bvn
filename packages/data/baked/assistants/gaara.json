@@ -77,5 +77,34 @@
         }
       ]
     }
+  },
+  "attackerScripts": {
+    "atmmc": {
+      "labels": {},
+      "triggers": [
+        {
+          "frame": 6,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF9900"
+            }
+          ]
+        },
+        {
+          "frame": 9,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 5,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        }
+      ]
+    }
   }
 }

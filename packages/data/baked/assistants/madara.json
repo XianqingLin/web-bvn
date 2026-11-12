@@ -130,5 +130,60 @@
         }
       ]
     }
+  },
+  "attackerScripts": {
+    "atmmc": {
+      "labels": {
+        "miss": 36
+      },
+      "triggers": [
+        {
+          "frame": 6,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 6,
+          "target": "attacker",
+          "op": "stopFollowTarget",
+          "args": []
+        },
+        {
+          "frame": 26,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF0000"
+            }
+          ]
+        },
+        {
+          "frame": 30,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 34,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        },
+        {
+          "frame": 35,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 4,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        }
+      ]
+    }
   }
 }
