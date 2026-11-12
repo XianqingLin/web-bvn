@@ -4,6 +4,8 @@
 > 读者：项目决策者、需要理解设计背景的协作者。干活的 AI 只需读契约。
 > 前置阅读：[BVN-module-map.md](BVN-module-map.md)（原版逆向）。
 > 决策变更登记在 §10 ADR 表。
+>
+> **与 PROGRESS 的分工**：变动默认只改 PROGRESS（台账）；产生"要永远记住的规则/规格"才改本文档（**就地修改对应规格段，不追加日志**）；决策变更才登记 ADR。任何时刻不维护"待收紧"式欠账清单——欠的活记 PROGRESS §4.2。
 
 ---
 
@@ -69,74 +71,77 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 相机降为纯渲染。已知偏离：极端拉距时版边位置与原版可能有数像素差异——按重构定位接受；若对拍手感受损再复议（回退方案：相机进模拟）。
 
-### 3.5 状态机
+### 3.5 状态机与战斗规格
 
-原版 `FighterMcCtrler`（~2200 行，逻辑与动画混合）是规格书不是抄写对象。移植版用显式状态表：`{ id, 动画, 结束条件, 可取消表, onEnter/onTick/onExit }`。状态码沿用原版枚举（`FighterActionState`）便于对照。受击/防御/钢身结算路径（module-map §5.6）是手感核心，对齐优先级最高。
+> **本节是当前机制规格**（按系统组织，非历史叙事）：写代码/调数值前以此为准。逐切片的实现过程与偏离记录在 git 提交说明；规格变更就地修改本节，**不追加日志**。改动行为语义前另读本节末「机制语义备忘」。
 
-切片 3 已落地最小闭环（`core/fighter/{def,machine,behaviors}.ts`）：
+原版 `FighterMcCtrler`（~2200 行，逻辑与动画混合）是规格书不是抄写对象。移植版用显式状态表：`{ id, 动画, 结束条件, 可取消表, onEnter/onTick/onExit }`。状态码沿用原版枚举 `FighterActionState`（全集见 `core/fighter/def.ts`）。受击/防御/钢身结算路径（module-map §5.6）是手感核心，对齐优先级最高。
 
-- **状态子集**：NORMAL / ATTACK_ING / JUMP_ING / HURT_ING / HURT_FLYING / HURT_DOWN / DEAD。攻击/受击锁定朝向与行动；受击计时结束后回 NORMAL。
-- **动画驱动**：`actLabel` + `animFrame`（内层时间轴绝对帧号，1 起，30Hz）。循环标签集合（站立/走/跳中/落）回绕播放，其余标签播完走 `endAction`（空中回 JUMP_ING，地面回 NORMAL）。`advanceAnimation` 语义为"先采样当前帧（帧触发器/判定区以此帧为准），再推进"。
-- **判定区接线**：`def.areas[animFrame]` 查表（baked 运行时 dump 几何，脚底锚点、direct=1 局部坐标）→ 世界 AABB（朝向镜像）。攻击判定名 = `<actionId>atm`；命中 = 攻击方 atm ∩ 受击方 bdmn（AABB 相交）。
-- **命中结算**（原版 doHurt 子集）：`hitx × 攻击者朝向`、空中 hity 补偿（HURT_Y_ADD_INAIR）、`hurtType==0` → HURT_ING（hurtTime ms→30Hz 帧换算 +3 偏移、下限 4）、否则 HURT_FLYING（水平不衰减，按击退方向翻转朝向）；钢身掉血不掉状态；一次攻击对一目标只结算一次（`attackHit`）；hp≤0 → DEAD + `fighter:ko`。
-- **速度衰减**：`dampX/dampY` 每 tick 双向线性逼近 0（原版 `KyoUtils.num_wake`）；跳跃 `vy=-jumpPower×0.5` + JUMP_DAMPING，上升段重力清零（原版 `applayG` 语义已核对）。
-- **POC 明确偏离**（后续切片收紧）：砍击无连段（attack 固定 k1/跳砍 kj1，映射表 kN→砍N）；无防御/瞬步/必杀/万解状态；无二段跳/快速下落；击飞无弹地/受身；`FighterActionState` 其余状态码待接。
+**通用约定**
 
-切片 5 补全防御/瞬步/技/必杀最小集（照原版 `FighterKeyCtrler`/`doDefenseHit`/`doBreakDefense` 语义）：
+- **动画驱动**：`actLabel` + `animFrame`（内层时间轴绝对帧号，1 起，30Hz）。循环标签集合 `LOOP_LABELS`（站立/走/跳中/落）回绕播放；`advanceAnimation` = 先采样当前帧（帧触发器/判定区以此帧为准），再推进。
+- **判定区**：`def.areas[animFrame]` 查表（运行时 dump 几何，脚底锚点、direct=1 局部坐标）→ 世界 AABB（朝向镜像）；命中 = 攻击方 atm ∩ 受击方 bdmn。攻击判定名 = `<actionId>atm`。
+- **静态数据**：`FighterDef` 经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
+- **动画映射**（动作 id ↔ 标签）：`kjN→砍技N`、`tk→跳砍`、`tz→跳招`、`shN→摔N`、`zhN→招N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`；gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（30Hz 采样下语义无差异）。
 
-- **防御**：按住 ↓（`DEFENCE_ING`），命中削血 5% + 能量损耗 min(50, power/5)（破防技 = 90% 上限）；能量不足 → 破防（HURT_ING 42 tick、额外削血 power/10、击退夹 [5,10]）。背刺判定照原版 checkDefDirect（受击方与攻击方同向 = 挡住，背对 = 硬直）。防御分支允许出手清单照原版 setDefenseAction 槽子集（砍技1/招2/超必杀/瞬步）。
-- **瞬步**：能量 20 可透支（透支 → 过载 0.3/tick 慢回至 >30 解除）；DASH_ING 期间不可被命中，方向取按住的 ←/→。
-- **技/必杀**：attack/±↓/↑ 组合由槽位分流（skill1/zhao1 等槽）；必杀耗气 100（上/超 100/300），气不足不动。SKILL_ING / BISHA_ING / BISHA_SUPER_ING 照 `FighterActionState` 枚举。
-- **能量系统**：上限 100，普回 1/tick、攻击中 0.55、防御 0.4、过载 0.3；花费后 24 tick 冷却（原版 USE_ENERGY_CD）。
-- **连段槽**：帧触发 `setAttack("砍2")` 改写动作槽（对照 ichigo 砍1@134→砍2），同一时间轴内再按攻击接续；`_CHK` 相邻标签自动续播（招2→招2_CHK 等）。attack 槽重填默认于 endAction。
-- **动画映射修正**（切片 3 映射错误此片纠正）：`kjN→砍技N`、`tk→跳砍`、`tz→跳招`、`shN→摔N`、`zhN→招N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`（见 module-map §动作标签）。
-- **本片新偏离**（记录待收紧）：防御硬直无专用动画窗（原版 isDefenseHiting）；防御退出即时（原版 ~6 tick 延迟）；摔技未接（shN 需 moveTarget/抓取）；万解/瞬身步/空中瞬步/二段跳未做。
+**命中与受击**
 
-切片 8 补飞行道具 `fire` 原语 + 行为 op 词表 Tier-1（module-map §5.7，原版 `Bullet.as`/`FighterMcCtrler.fire`）：
+- **逐区命中**：当前帧每个可解析 atm 区独立成命中——区名精确匹配 actions 优先，否则去 `atm` 后缀反查（原版 getHitVOByDisplayName）；多段动作各段独立结算，去重键 = `区动作id:目标id`；判定覆盖全部攻击态（isAttackingState）。
+- **受击分流**（原版 doHurt）：`hitx × 攻击者朝向`、空中 hity 补偿（HURT_Y_ADD_INAIR）；`hurtType==0` → HURT_ING（hurtTime ms→30Hz 帧换算 +3 偏移、下限 4），否则 HURT_FLYING（水平不衰减、按击退方向翻转朝向）；钢身掉血不掉状态；一次攻击对一目标只结算一次（`attackHit`）；hp≤0 → DEAD + `fighter:ko`。
+- **回气**：近战命中攻击方 qi += min(power×0.16, 15)、受击方 min(power×0.085, 20)（被防御命中同样结算）；道具命中发射者 power×0.1、独立道具命中所有者 power×0.15；辅助判定区命中 owner qi +power×15%；必杀判定（actionId 含 "bs"）近战/道具不回气；近战回气只结算角色本人动作命中。
+- **防御**：按住 ↓（DEFENCE_ING），命中削血 5% + 能量损耗 min(50, power/5)（破防技 = 90% 上限）；能量不足 → 破防（HURT_ING 42 tick、额外削血 power/10、击退夹 [5,10]）；背刺照 checkDefDirect（受击方与攻击方同向 = 挡住）；防御分支允许出手清单照原版 setDefenseAction 槽子集（砍技1/招2/超必杀/瞬步）。
+- **摔技/抓取**：地面动作分流允许 catch（attack/skill 缓冲 + 朝目标移动 + 身位间隙 <2px + |dy|<1）→ startSkill 进摔技标签；首帧 `moveTarget({followmc})` 吸附——目标以 `speed×SPEED_PLUS` 逼近锚点区中心×朝向（speed 缺省 0 = 直接吸附；原版锚点为 MC 注册点，取判定区中心等效）；攻击态结束由 sim 巡检释放（释放需恢复目标重力/回拉，状态机层做不了），释放恢复 applyG + HURT_FLYING 回拉 5px。
+- **结算序**（规范化，替代原版 children 插入序，全部 id 升序）：fighter→fighter → 攻击 vs 道具 → 道具 vs 角色 → 道具对撞。
 
-- **Bullet 语义**：速度存发射朝向的局部系（world 位移 = sx×SPEED_PLUS×facing）；addSpeed 净加速度/tick（原版 add×2 预乘）；maxSpeed/minSpeed 局部系 clamp（两朝向一致）；holdFrame = 秒×60；hitTimes=-1 无限；hp/hpMax 道具对撞互扣（hp -= 对方 hpMax）；必杀判定（actionId 含 "bs"）命中不回气。
+**资源**
+
+- **能量**：上限 100；普回 1/tick、攻击中 0.55、防御 0.4、过载 0.3；花费后 24 tick 冷却（USE_ENERGY_CD）。
+- **气**：必杀 100 / 上必杀 100 / 超必杀 300，不足不动。
+- **fzqi**：上限 100、每帧无条件 +0.2；NORMAL/DEFENCE 态且满时 `assist` 位召唤。
+- **hp**：`addHp`/`addHpPercent`/`addHpLosePercent` clamp hpMax（hp≤0 不回）；`loseHp` 自削血归零 → 死亡。
+
+**移动、跳跃与物理**
+
+- **行走**：vx = speed×0.5 直结（与原版 setVelocity→move×0.5 逐 tick 等价）；地面位移受标签门（见备忘），空中 airMove 不受限。
+- **阻尼**：dampX/dampY 每 tick 双向线性逼近 0（原版 num_wake）；跳跃 vy = −jumpPower×0.5 + JUMP_DAMPING（30fps→60Hz ×SPEED_PLUS 折半），上升段重力清零。
+- **重力斜坡**：原版 `_g` 模型（离地预置初值、空中递增、封顶），位移空间步长 +0.3/tick、上限 6——步长不再二次折算（批次 19 修正）。
+- **跳跃家族**：jumpTimes = 2 起始（地面跳/空中跳各耗 1）；起跳延迟 JUMP_DELAY_FRAME 地面 2/空中 1（帧数不折算，置于物理积分后处理——首个上升位移出现在下一 tick；延迟结束才施加速并消耗 jumpTimes）；空中跳可取消空中攻击；`↓+跳` 快速下落 vy 2.5/tick 匀速（阻尼取 0——原版 damping 1 在 60Hz 首 tick 即跌破穿台阈值）、jumpTimes 清零、穿平台、触地续接 落地；快速下落前置于防御检查（原版净效果等价）。
+- **瞬步**：能量 20 可透支（透支 → 过载 0.3/tick 慢回至 >30 解除）；DASH_ING 期间不可被命中，方向取按住的方向键。
+
+**瞬身步家族**（dash+方向；统一成本气 60（不透支）+ 能量 80（可透支），24 tick 免伤 + isCross + 意图封锁）
+
+- dash+↓ 地面步：位移 4/tick、标签 走，受连续冷却门 `ghostCooldown`（自然到期即时恢复、中断按剩余 tick 恢复——原版 `_isContinuousGhostStep`）；
+- dash+↑ 空中瞬跳：vy −6 / dampY 0.05 / jumpTimes−1，结束恢复 damping(−vy/10) + airMove（顺序在回位之后，不被 endAction 清掉）；
+- dash+↓（空中）速降：vy 7.5 触地即结束；
+- 必杀/万解中不可发起；地面分支先于瞬步/跳判定；防御态经输入缓冲下一拍接瞬身步脱离。
+
+**技、必杀与万解**
+
+- **槽位分流**：attack/±↓/↑ 组合由槽位路由（skill1/skill2/zhao1-3/bisha 系/catch 系/dash）；SKILL_ING / BISHA_ING / BISHA_SUPER_ING 照原版枚举。
+- **连段**：动作发起即清空全部动作槽（原版 doAction→clearAction），播放中再按攻击键不重启动作、时间轴不复位；连段 = 帧触发 `setAttack("砍2")` 重填槽后派生；槽重填默认于 endAction。空中槽 attackAIR/skillAIR/bishaAIR（airHitTimes 递减耗尽不再触发）；`setJump(label)` 覆写跳跃标签。
+- **万解**：qi ≥ 300 时 攻击+跳 组合（W→S→普通 优先级，缓冲按下/按住混合——对原版按住电平判定的手感取向偏离，ADR-1）→ 扣 300 气 → WAN_KAI_ING 50 tick 演出（免伤）→ 效果事件 wanKai/endWanKai；`startWanKai` 参数为必杀 FACE 名（语料全体 doWanKai 无参）。
+- **万解形态切换**：`doWanKai(frame)`/`switchForm(frame)` = 根时间轴切换（0 = 下一形态，>0 按 `def.rootFrame` 寻址）——切 `formIndex`（`SimConfig.fighters[].forms` 多形态注册表，data 层 `compileFighterForms` 编译）+ 槽重填 + 播新形态 开场 + `fighter:form` 事件驱动 render 换图集；单形态静默不切。
+
+**飞行道具与独立道具**
+
+- **Bullet**：速度存发射朝向的局部系（world 位移 = sx×SPEED_PLUS×facing）；addSpeed = 净加速度/tick（原版 add×2 预乘）；maxSpeed/minSpeed 局部系 clamp（两朝向一致）；holdFrame = 秒×60；hitTimes = −1 无限；hp/hpMax 道具对撞互扣（hp −= 对方 hpMax）。命中矩形 = 发射帧命名判定区（原版为元件帧 1 视觉 bounds，逐帧矩形未导出——§4.2）。30Hz 生命周期标签分派（loop/remove/hit_over/timeout）；命中残留（killBullet）= 停移动播尽移除。
 - **fire(mcName)**：发射帧上名为 mcName 的判定区 = 道具固定命中框；HitDef 去 atm 后缀查动作表；判定区/动作缺失 = 确定性静默。
-- **本片新偏离**（记录待收紧；render 占位一项 ✅ 切片 13-A3 bullet 精灵接入后已收紧）：道具命中/超时即消散并发 `entity:despawn`（原版命中后残留命中演出子 MC——切片 13-A3 前无图集，render 曾以占位色块表现）；角色攻击摧毁道具不回气（原版 Bullet.beHit 亦无回气，取义一致但结算序规范化为 fighter→fighter → 攻击 vs 道具 → 道具 vs 角色 → 道具对撞，全部 id 升序，替代原版 children 插入序）；`dash` 语义纠正为原版 setVelocity（speed×v×SPEED_PLUS，v 缺省 3，穿越/免受击），切片 5 旧取义废弃。
-- **待补（切片 9 资源系统）**：近战命中不回气——原版命中回气 power×0.1（受击方亦回气），当前仅道具命中回气；replay 剧本因此无法自然攒气验证必杀弹道（合成 def 单测覆盖 fire 全路径）。→ **切片 9 已补**，见下。
+- **独立道具 addAttacker**：生成帧同名判定区 = 命中框；轴 params `x`/`y`（followTarget 每 tick 跟随 / moveToTarget 出场到位 / offset；follow 轴 y = 目标中心 + offset）；`applyG`；命中 HitDef 依元件名反查 owner actions（查不到 = 纯视觉道具）；单次命中即失效（语料无多次命中实例）；寿命 = 播尽移除（`animTotal−1` off-by-one 原样保留；无时间轴回退 holdTicks 120）。viaAssist（辅助召唤）道具回气归召唤者、命中不回气。
+- **目标系 op**（语义细则见契约原语表）：setHitTarget/moveToTarget（版边镜像防穿帮）/justHitToPlay/setHurtAction（携带：触发在攻击方时间轴，本次动作命中 → 受击方播专用受击动画；标签属受击方 def，applyHit 消费时校验存在性）/hurtFly（主动击飞）/setDirectToTarget/setDirectReverse/setTargetVelocity。
 
-切片 9 补目标系/摔技/独立道具/万解/AIR 槽/近战回气资源（module-map §5.3/§5.7，原版 `FighterMcCtrler` moveTarget 系/`FighterAttacker.as`/`EffectCtrler` wanKai/`FighterAction` AIR 槽/`FighterMain.doQiAdd`）：
+**条件触发器**（原版 `if($xx_ctrler.query()){...}else{...}`）
 
-- **回气资源**：近战命中攻击方 qi += min(power×0.16, 15)、受击方 qi += min(power×0.085, 20)（被防御的命中同样结算——偏离：原版结算点在命中监听层）；道具命中发射者 power×0.1、独立道具命中所有者 power×0.15；必杀判定（actionId 含 "bs"）近战/道具不回气。近战回气只结算角色本人动作命中（`viaEntity` 区分独立道具——attacker 参数仅用于投技 hurtAction 携带）。
-- **摔技/抓取**：地面动作分流允许 catch（allowCatch：attack/skill 缓冲 + 朝目标移动 + 身位间隙 <2px + |dy|<1）→ startSkill 进摔技标签；首帧 `moveTarget({followmc})` 吸附——目标以 `speed×SPEED_PLUS` 逼近锚点区中心×朝向（speed 缺省 0 = 直接吸附）；攻击态结束由 sim 巡检释放（machine.endAction 不再清 moveTarget——释放需恢复目标重力/击飞回拉，状态机层做不了），释放时目标 applyG 恢复 + HURT_FLYING 回拉 5px。
-- **目标系 op**：`setHitTarget(checker, label)`（每动画帧检查 checker 区 ∩ 目标身体 → 切续接标签）、`moveToTarget(x, y, setDirect?)`（瞬移到目标旁，目标贴版边时镜像防穿帮）、`justHitToPlay`（最近命中 id 即续接）、`setHurtAction(label)`（携带语义：触发在攻击方时间轴，本次动作命中 → 受击方播专用受击动画而非通用受击态；标签属受击方 def，applyHit 消费时校验存在性；只存标签不改自身状态）、`hurtFly`（主动击飞 HURT_FLYING + 击飞标签）、`setDirectToTarget`/`setDirectReverse`/`setTargetVelocity`。
-- **独立道具 addAttacker(mcName, params?)**：生成帧上同名判定区 = 命中框；轴 params `x`/`y`（`{followTarget|moveToTarget, offset, range?}`——followTarget 每 tick 跟随目标，moveToTarget 出场移动到位，非 follow 轴固定）、`applyG`；命中 HitDef 依元件名反查 owner actions（`'zh3mc'→'zh3'`、`'k1atm'→'k1'`，查不到 = 纯视觉道具）；单次命中即失效（hitAble=false）；寿命 120 tick 占位（✅ 切片 13-A5 改播尽移除）；followTarget 轴的 y = 目标中心 + offset（非锚点）。
-- **万解**：qi ≥ 300 时 攻击+跳 组合（缓冲按下/按住混合；W→S→普通 优先级）→ 扣 300 气 → WAN_KAI_ING 50 tick 演出（isAllowBeHit=false）→ 效果事件 `wanKai`/`endWanKai`（render 消费演出）；`doWanKai(frame)` 帧跳转驱动已就位。
-- **AIR 槽**：空中 attack/skill/superSkill 按槽（attackAIR/skillAIR/bishaAIR，bishaAIR 同耗气规则）分流到跳砍/跳招/空中必杀；airHitTimes 递减，耗尽不再触发；jump 槽默认"起跳"，`setJump(label)` 可覆写。
-- **资源 op**：`addHp`/`addHpPercent`/`addHpLosePercent`（clamp hpMax，hp≤0 不回）、`loseHp`（自削血，归零 → 死亡 + ko）。
-- **命中结算修正**：近战命中判定从仅 `ATTACK_ING` 放宽到全部攻击态（isAttackingState）——此前近战必杀/摔技命中永不结算（切片 5 起的既有 bug，本片接入 BISHA_ING 近战时暴露）。
-- **本片新偏离**（记录待收紧；寿命一项 ✅ 切片 13-A5 播尽移除收编，矩形仍欠 → §4.2 B5）：gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（跳转语义在 30Hz 采样模型下无差异，语料出现分立名仅是原 API 对齐）；万解输入取缓冲按下/按住混合而非原版按住电平判定（手感取向，见 ADR-1）；万解形态切换（`doWanKai` 后续接万解形态 def，多形态注册）归切片 10；独立道具寿命/矩形为占位（原版生命周期由道具内层时间轴驱动，未导出）；moveTarget 锚点 = 判定区中心×朝向（原版为 MC 注册点）；独立道具单次命中（语料无多次命中实例）；`setCatch1/setCatch2` 槽已登记（摔2 分流待接）。
+- 导出器语句级解析（简单调用体）：条件可解析 → `FrameTrigger.cond/then/else`（`evaluateTriggerCondition` 求值后分派，分支体调用仍走原语表）；不可解析条件含调用 → 整段抑制 + rawScript 残留；纯卫语句丢弃。早期"拉平为无条件双分支全执行"是真实行为 bug，已修复。
+- 查询 op（原版 FighterCtrler 对齐）：`justHit(hitId, includeDefense?)`（lastHurtHitId / lastDefHitId）、`targetInRange(rx, ry?)`（朝向相对 x 窗 + y 差窗）、`getTargetState`、`getSelf`、`getTargetSP`（属性链 + cmp）；属性走 `fighterProp` 白名单（`isInAir = !onGround`、hp/qi/energy/x/y/actionState 等，speed/jumpPower/heavy 读 def）。未知查询 op = false、未知属性读 null（AS 真值 = false）——确定性静默。
 
-切片 10 补逐区命中/跳跃家族/瞬身步家族/万解形态切换（module-map §5.2/§5.3，原版 `FighterMC.getCurrentHitSprite` + `HitModel.getHitVOByDisplayName`、`FighterMcCtrler` doJump/doAirJump/doJumpDown/doGhostStep 系、`FighterCtrler.doWanKai`）：
+**辅助系统**（AssisterCtrler 转译）
 
-- **逐区命中结算**：命中判定从「动作单 atm 区」改为「当前帧每个可解析 atm 区独立成命中」——区名精确匹配 actions 优先，否则去 `atm` 后缀反查（原版 getHitVOByDisplayName）。多段动作（摔1 时间轴内 sh1atm 抓取段 + sh12atm 摔地段）由此各段独立结算；去重键从动作 id 升级为 `区动作id:目标id`（`attackHit: string[]`，同动作不同段可分别命中）。
-- **跳跃家族**：`jumpTimes = 2` 起始（地面跳/空中跳各耗 1）；起跳延迟（原版 JUMP_DELAY_FRAME 2 地面 / 1 空中，帧数不折算）——延迟结束才施加跳跃速度并消耗 jumpTimes（applyJumpLaunch）；空中跳（二段跳，可取消空中攻击）走 jump 缓冲；`↓+跳` 快速下落（doJumpDown：vy 2.5/tick、jumpTimes 清零、穿平台、触地续接 落地）。
-- **瞬身步家族**：dash+↓ 地面步 / dash+↑ 空中瞬跳 / dash+↓(空中) 速降——统一成本气 60（不透支）+ 能量 80（可透支），24 tick（0.4s）免伤 + isCross + 意图封锁；地面步位移 4/tick、标签 走，受连续冷却门（`ghostCooldown`，自然到期 0 = 即时恢复，中断按剩余 tick 恢复——原版 `_isContinuousGhostStep` 语义）；空中瞬跳 vy -6/dampY 0.05/jumpTimes-1，结束恢复 damping(-vy/10) + airMove（顺序在回位之后，不被 endAction 清掉）；速降 vy 7.5 触地即结束。必杀/万解中不可发起（allowGhostStep）；地面分支瞬身步先于瞬步/跳，防御态经缓冲下一拍接瞬身步脱离。
-- **万解形态切换**：`doWanKai`/`switchForm(frame)` 真实语义 = 根时间轴切换（frame=0 下一形态，>0 按 `def.rootFrame` 寻址）——切 `FighterState.formIndex`（`SimConfig.fighters[].forms` 多形态注册表，data 层 `compileFighterForms` 编译全部含动画形态），槽按新形态重填，播新形态 开场 演出后回 NORMAL；`fighter:form` 事件驱动 render 换图集形态。单形态（语料缺）静默不切。`startWanKai` 参数确证为必杀 FACE 名而非形态 id（语料 corpus 全体 doWanKai 无参）。
-- **词表 Tier-2 收尾**：`switchForm` 注册为通用形态切换原语（语义同 doWanKai）；`summon`（辅助召唤）原版引擎与语料均无实例，切片 12 落地为输入意图驱动的召唤流程（assist 位 + fzqi），该 op 不注册；`teleport`（移形换位=换人）**不移植**——全语料零实例，真实语义依赖未建模的团队换人模式（`GameRunFighterGroup`），若未来实现应随该模式重新设计。
-- **本片新偏离**（记录待收紧）：快速下落阻尼取 0（匀速 2.5/tick）——原版 damping 1 在 60Hz 语境首 tick 即跌破穿平台阈值 FALL_LAND_SPEED，穿平台语义不保；快速下落前置于防御检查（原版 doJumpDown 代码序在 defense 后但 `_action.clear()` 覆盖防御态，净效果等价）；防御态发起后接瞬身步延迟一拍（经输入缓冲，原版同 tick 不提前 return）；起跳延迟置于物理积分后处理（首个上升位移出现在下一 tick）；空中攻击下修 dampY 语义不变沿用切片 9。replay 四基准全部重冻（跳跃延迟 + 逐区结算均改变哈希，见提交说明）。
-
-切片 11 补全角色批量化验收 + 条件触发器（导出器 §6.3 语句级解析收尾，原版 `FighterCtrler` 查询系 targetInRange/justHit/getTargetState/getSelfSP）：
-
-- **批量化验收门禁 `tools/batch-validate`**（`pnpm batch:validate`）：58 角色（形态变体 fighterId → XFL 基座包解析）逐个 ①编译冒烟（`compileFighterForms` runtime 几何 + XFL 数值/触发合流）；②op 覆盖差（各形态触发 op ∪ vs behaviors 注册表，未注册即「确定性静默」的语义缺口，条件触发 op `if` 单列）；③真实地图自对战冒烟（固定输入剧本覆盖砍/技/招/跳/空中/瞬步/必杀系/防御/万解全路径；hp/qi 放宽防提前 KO 截断动作路径）——双跑哈希一致（隐性非确定性检测）+ 快照恢复续跑一致（序列化路径覆盖）；④`--expect` 对 `tools/batch-validate/baseline.json` 基线门禁（哈希/覆盖变化即失败）。
-- **条件触发器（重大语义修复）**：原版帧脚本 `if($xx_ctrler.query()){...}else{...}` 此前被导出器拉平为**无条件双分支全执行**——真实行为 bug（如 gaara 命中后必杀永远接后跳）。新模型：导出器语句级解析 if/else（简单调用体；条件可解析 → `condTriggers`；不可解析条件含调用 → 整段抑制 + rawScript 残留；纯卫语句丢弃），data 层 `frame+1` 合流进 triggers，core `FrameTrigger.cond/then/else`——`evaluateTriggerCondition` 求值后按 then/else 分派。查询 op 语义（原版 FighterCtrler.as 对齐）：`justHit(hitId, includeDefense?)`（目标 `lastHurtHitId` 匹配，includeDefense 时含 `lastDefHitId`）/`targetInRange(rx, ry?)`（朝向相对 x 窗 + y 差窗）/`getTargetState`/`getSelf`/`getTargetSP`（属性链 + cmp 比较运算；属性走 `fighterProp` 白名单：`isInAir = !onGround`、hp/qi/energy/x/y/actionState 等，speed/jumpPower/heavy 读 def）。未知查询 op = false（确定性静默），未知 op 的分支体不执行。
-- **本片新偏离/已知缺口**（记录待收紧）：不可解析条件的帧脚本整段抑制（224 处 rawScript 残留逐条审计：仅 4 处 gaara `getAttacker` 变量模式行为无差——attacker 内层时间轴本就未导出，前后均为确定性空转）；攻击方 MC 脚本驱动不建模（原版 addAttacker 可被内层脚本控制）；查询属性仅白名单（未知属性读 null → AS 真值 = false）。replay 四基准重冻（条件触发改变命中后行为路径，见提交说明）。
-
-切片 12 辅助系统（AssisterCtrler 转译，module-map §5.1/§5.7）：
-
-- **召唤流程**：fzqi 资源（上限 100、每帧无条件 +0.2）+ `assist` 输入位；NORMAL/DEFENCE 态且 fzqi 满时召唤（单主单辅助），召唤即清零。出生点 `owner.x − 30×direct`，时间轴从 animFrame=2 起播（原版 gotoAndPlay(2)）；`summon` op 无需注册（全语料零实例，召唤由输入意图驱动，见 §3.5 Tier-2 收尾条目更新）。
-- **Assister 实体**：free-running 时间轴（无状态机/动作槽），animFrame ≥ totalFrames−1 退场（原版 `currentFrame == totalFrames-1`）或主亡退场；物理 = 速度终值单位 + wake 阻尼 + 重力 ramp（2 起、步进 0.6、上限 6），仅 groundY 落地，`setTouchFloor` 落地消费一次续接标签。
-- **op 词表** `defaultAssisterBehaviors`：move 系（×SPEED_PLUS）/gotoAndPlay 系/finish/fire/addHp 系/buff 三连/表现系（转发 effect/sound 事件，坐标取辅助实体），target 三分 `self`/`fighter`(owner)/`fighterTarget`(对方)；未注册静默。**loop 触发器**（addCustomFunc 数据化）：注册帧起每动画帧求值 cond（`checkHitOwner` 辅助判定区∩owner bdmn / `actionStateIn`），至 untilFrame（排他）；导出器守卫语义：`if(!X)return` → cond=X，`if(X)return` → cond=¬X。
-- **buff 结算**：speedUp 平加 walkSpeed（值×SPEED_PLUS）/ attackUp 伤害乘区（attackRate=1+value，回气仍按 raw power）/ defenseUp `dr=clamp(2−value, 0.1, 1)`；hold×60 tick，重复施加刷新。`buffEffects`（辅助包携带、命中结算消费）：orihime `attrResistance 0.2`（属性受击先减）、yachiru `phyLifesteal 0.35`（物理命中后吸血=实际伤害×率）。
-- **辅助命中**：辅助判定区命中 → owner qi +power×15%（原版 Assister.hit）；辅助 fire 的弹 `viaAssist=true` 命中不回气（原版 Bullet.as `owner is FighterMain` 守卫不成立）。
-- **验收**：`batch:validate` 扩辅助段（37 包：编译冒烟 + op 覆盖 vs 辅助注册表 + 双辅助同场召唤自对战冒烟 + 基线门禁）；replay 新剧本 `assist-duel`（orihime+kon 召唤+互砍）；全部基线重冻（fzqi/buffs/assisters/viaAssist 进 SimState，见提交说明）。
-- **缺口记录**（多数已随后续切片收编，标注如下）：endAct 辅助语境 no-op（无动作槽，仍成立）；~~justHit/setHitTarget/addAttacker/setTouchSide/removeCustomFunc 静默~~（✅ setHitTarget/addAttacker 切片 13-A6 注册、removeCustomFunc 切片 21 注册；残余静默仅 justHit（纯读）/setTouchSide（语料无实例））；快照恢复 `Sim.fromState` 须回传 `getAssisterDefs()`（ assists 注册表不进 defEntries，仍成立）；~~app 渲染仅 solo 注入辅助~~（✅ 切片 14 联机 pick 交换时关闭）；~~多数辅助缺 sheet PNG~~（✅ 切片 13-A1 图集补齐）。
-
-`FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
+- **召唤流程**：NORMAL/DEFENCE 态且 fzqi 满时 `assist` 位召唤（单主单辅助）；出生点 `owner.x − 30×direct`；时间轴从 animFrame=2 起播（原版 gotoAndPlay(2)）；`summon` op 不注册（全语料零实例，召唤由输入意图驱动）。
+- **实体**：free-running 时间轴（无状态机/动作槽）；物理 = 速度终值单位 + wake 阻尼 + 重力 ramp（2 起、步进 0.3、上限 6），仅 groundY 落地；`setTouchFloor` 落地消费一次续接标签；退场 = 时间轴末或主亡（主亡判定在 customFunc 之后，见备忘）。
+- **op 词表** `defaultAssisterBehaviors`：target 三分 `self`/`fighter`(owner)/`fighterTarget`(对方)；未注册静默（残余仅 justHit（纯读）/setTouchSide（语料无实例））。**loop 触发器**：注册帧起每动画帧求值 cond（checkHitOwner 辅助判定区∩owner bdmn / actionStateIn）至 untilFrame（排他）；导出器守卫语义 `if(!X)return` → cond=X、`if(X)return` → cond=¬X。
+- **buff**：speedUp 平加 walkSpeed（×SPEED_PLUS）/ attackUp 伤害乘区 attackRate=1+value（回气仍按 raw power）/ defenseUp `dr=clamp(2−value, 0.1, 1)`；hold×60 tick，重复施加刷新。辅助包 `buffEffects`：orihime attrResistance 0.2（属性受击先减）、yachiru phyLifesteal 0.35（物理命中吸血）。
+- **customFunc / attacker 元件脚本**：语义见契约原语表与下方备忘。
+- 快照恢复 `Sim.fromState` 须回传 `getAssisterDefs()`（assists 注册表不进 defEntries）。
 
 **机制语义备忘（切片 13 起固化；改动这些语义前先读，出处 commit 见 PROGRESS §三）**：
 
