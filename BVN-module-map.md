@@ -5,6 +5,15 @@
 > 日期：2026-11-08
 > 用途：阶段 1（POC 移植）的设计输入；标注 **已核实 / 推断** 两类结论
 
+### 外部参考仓库（原立项书清单的存留部分，2026-11-12 移入）
+
+- [OpenBleachVsNaruto](https://github.com/5DPLAY-Game-Studio/OpenBleachVsNaruto) —— 3.4 归档版全量源码（**移植底稿**；已克隆在仓库根，gitignore 只读）
+- [BleachVsNaruto_TagAssets](https://github.com/5DPLAY-Game-Studio/BleachVsNaruto_TagAssets) —— 官方素材库（素材提取用）
+- [BleachVsNaruto_FlashSrc](https://github.com/5DPLAY-Game-Studio/BleachVsNaruto_FlashSrc) —— FLA/XFL Flash 源文件（帧动画/素材）
+- [BleachVsNaruto](https://github.com/5DPLAY-Game-Studio/BleachVsNaruto) —— 主线 3.7 Alpha（持续变动，仅参考，不做基底）
+- [bvn-ai-public](https://github.com/lcx03876-hue/bvn-ai-public) —— BVN 游戏内状态桥逆向（已克隆在仓库根；本文档多处交叉验证来源）
+- [assets_lib](https://github.com/qxyk99/assets_lib) —— 社区整理素材库（备用）
+
 ---
 
 ## 0. 一页速览：给转译者的 12 条结论

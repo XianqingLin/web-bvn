@@ -2,7 +2,7 @@
 
 > 本文档回答"为什么这么做"；**"必须怎么做"以 [ARCHITECTURE.md](ARCHITECTURE.md)（引擎契约）为准**。
 > 读者：项目决策者、需要理解设计背景的协作者。干活的 AI 只需读契约。
-> 前置阅读：[BVN-online-port-plan.md](BVN-online-port-plan.md)（立项）、[BVN-module-map.md](BVN-module-map.md)（原版逆向）。
+> 前置阅读：[BVN-module-map.md](BVN-module-map.md)（原版逆向）。
 > 决策变更登记在 §10 ADR 表。
 
 ---
