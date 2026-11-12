@@ -167,7 +167,14 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 ### 3.8 快照与哈希
 
-每个 tick 输出 `SimSnapshot`（ fighters/bullets/attackers/assisters/match/rngState + 确定性序列化哈希）。快照是渲染唯一输入、对拍唯一基准、联机失步检测载体。`SimState` 可整体序列化/恢复，为 rollback（阶段 4）预留。
+每个 tick 输出 `SimSnapshot`（fighters/bullets/attackers/assisters/match/rngState + 确定性序列化哈希）。快照是渲染唯一输入、对拍唯一基准、联机失步检测载体。`SimState` 可整体序列化/恢复，为 rollback（阶段 4）预留。
+
+**双哈希**（2026-11-12，治理"表示漂移反复触发重冻调查"的成本）：
+
+- `hash`（全状态哈希）：整个 SimState 规范序列化（键排序、IEEE754 规范字符串）的 FNV-1a。联机失步检测、对拍、快照恢复、batch:validate 双跑基准用它——任何表示变化都漂移，这正是失步检测想要的。
+- `behaviorHash`（行为哈希）：`behaviorView` 剥除表现/输入派生字段（denylist：`fighters[].input`、bullets/attackers 的 `name`）+ 空容器省略序列化（null/`{}`/`[]` 不进哈希，值非空即参与）。**tools/replay 门禁只冻这个**——新增"恒空"记录字段、坐标重锚定等表示层改动不再漂移基线；行为变了必然漂移（denylist 设计，漏登记只会多漂不漏报）。
+- 登记纪律：新 SimState 字段默认进两个哈希；纯表现/输入派生字段入 `behaviorView` 剥除表须同 commit 更新 `serialize.ts` 注释与本节。
+- 漂移仍发生时的归因：`tools/replay/verify-drift.mjs <script>` 自动对比 当前工作区 vs HEAD 的全量状态逐 tick dump（stash→build→dump→pop），全等 = 纯表示变更（可重冻），不等 = 输出字段级行为差异（禁止重冻）。
 
 ## 4. 数据与素材管线
 
@@ -195,7 +202,8 @@ Node + WebSocket 房间服务器，只做输入中继与房间管理，不跑模
 | 工具 | 作用 | 对应物 |
 |---|---|---|
 | 确定性单测 | 同一输入序列跑两遍，逐帧哈希相等 | —— |
-| `tools/replay` | 输入剧本回放 + 哈希门禁（提交前必跑） | 它的 imagediff.mjs，但我们比对的是逻辑状态，更强更便宜 |
+| `tools/replay` | 输入剧本回放 + 行为哈希门禁（提交前必跑；§3.8 双哈希） | 它的 imagediff.mjs，但我们比对的是逻辑状态，更强更便宜 |
+| `tools/replay/verify-drift` | 哈希漂移归因：工作区 vs HEAD 全量状态逐 tick diff | ——（重冻调查的手工流程工具化） |
 | 对拍 | 原版桥接快照 vs 本地模拟逐帧比对 | 阶段 1 手感对齐用 |
 | 数据校验器 | JSON schema + 引用完整性 | 角色并行转译的验收闸门 |
 

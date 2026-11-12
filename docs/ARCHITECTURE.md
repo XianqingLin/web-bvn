@@ -27,8 +27,10 @@
 8. **完工门禁（自检通过才算完成）**：
    - `pnpm build` 通过；
    - 确定性单测通过（同一输入序列跑两遍，逐帧哈希相等）；
-   - `tools/replay` 回归剧本哈希不变（若改动有意改变行为，必须在提交说明中写明并更新基准）；
+   - `tools/replay` 回归剧本**行为哈希**不变（快照 `behaviorHash`，DESIGN §3.8 双哈希；若改动有意改变行为，必须在提交说明中写明并更新基准）；
    - `pnpm batch:validate` 通过（58 角色 + 37 辅助，基线 `tools/batch-validate/baseline.json`；行为有意变更 → 重冻基线并写明）。
+
+   重冻纪律：门禁报哈希不一致时先跑 `node tools/replay/verify-drift.mjs <剧本>` 归因——全量状态逐 tick 全等（纯表示变更）才允许重冻；有行为差异禁止重冻。
 
 ## 目录结构
 

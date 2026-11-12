@@ -17,18 +17,9 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createDefaultConfig, Sim } from '@bvn/core';
-import { compileAssistant, compileFighterForms, compileMapStage } from '@bvn/data';
-import {
-  loadAssistantPackage,
-  loadFighterPackage,
-  loadFirePackage,
-  loadMapPackage,
-  loadRuntimeFighterPackage,
-} from '@bvn/data/node';
+import { createReplaySim, expandFrames } from './run-script.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const BAKED_DIR = resolve(ROOT, 'packages/data/baked');
 
 function fail(msg) {
   console.error(`replay: ${msg}`);
@@ -59,96 +50,21 @@ try {
 }
 if (!Array.isArray(script.program)) fail('剧本缺少 program 数组。');
 
-// 展开剧本
-const frames = [];
-for (const seg of script.program) {
-  const n = seg.frames ?? 0;
-  for (let i = 0; i < n; i++) frames.push({ p1: seg.p1 ?? 0, p2: seg.p2 ?? 0 });
-}
+// 展开剧本 + 构造 Sim（与 verify-drift.mjs 共用，见 run-script.mjs）
+const frames = expandFrames(script);
 if (frames.length === 0) fail('剧本展开后为空。');
 
 const stride = Number(flags.stride ?? 60);
-// 剧本可指定 "map": "<baked 地图 id>" → 舞台/出生点来自真实地图数据；
-// 缺省用合成空场（createDefaultConfig，行为与切片 1 基准一致）。
-// 剧本可指定 "fighters": [{ "pkg": "<baked 角色包 id>" }, ...] → 注入角色运行时定义
-// （compileFighterRuntime：runtime dump 几何 + XFL 形态数值/触发）。
-// 剧本 fighter 可指定 "assist": "<baked 辅助包 id>" → 注入辅助定义（切片 12），
-// fighters[i].assistId 进配置，召唤剧本位 assist = 1<<9（Btn.assist）。
-function buildFighterDefs() {
-  const list = Array.isArray(script.fighters) ? script.fighters : [];
-  const assistants = {};
-  const defs = list.map((f) => {
-    const runtime = loadRuntimeFighterPackage(BAKED_DIR, f.pkg, 'fighters-runtime');
-    const xfl = loadFighterPackage(BAKED_DIR, f.pkg);
-    // fire 元数据（切片 13-A3）：可选——缺包 = 该角色 bullet 无动画生命周期
-    let fires = null;
-    try {
-      fires = loadFirePackage(BAKED_DIR, 'fighter', f.pkg).fires;
-    } catch {
-      /* 无 fire 包 */
-    }
-    // 多形态（切片 10）：编译全部含动画的形态；[0] 作为 def（与单形态兼容）
-    const forms = compileFighterForms(runtime, xfl, fires ?? undefined);
-    if (f.assist) {
-      const axfl = loadAssistantPackage(BAKED_DIR, f.assist);
-      const art = loadRuntimeFighterPackage(BAKED_DIR, f.assist, 'assistants-runtime');
-      let afires = null;
-      try {
-        afires = loadFirePackage(BAKED_DIR, 'assister', f.assist).fires;
-      } catch {
-        /* 无 fire 包 */
-      }
-      assistants[f.assist] = compileAssistant(axfl, art, afires ?? undefined);
-    }
-    return { def: forms[0], forms, assistId: f.assist ?? null };
-  });
-  return { defs, assistants };
-}
-function buildConfig(seed) {
-  const { defs, assistants } = buildFighterDefs();
-  const hasAssist = Object.keys(assistants).length > 0;
-  if (!script.map) {
-    const cfg = createDefaultConfig(seed);
-    defs.forEach((d, i) => {
-      if (cfg.fighters[i]) {
-        cfg.fighters[i].def = d.def;
-        cfg.fighters[i].forms = d.forms;
-        if (d.assistId) cfg.fighters[i].assistId = d.assistId;
-      }
-    });
-    if (hasAssist) cfg.assistants = assistants;
-    return cfg;
-  }
-  const { stage, p1Spawn, p2Spawn } = compileMapStage(loadMapPackage(BAKED_DIR, script.map));
-  const groundY = stage.groundY;
-  const fallbackSpawn = (i) => (i === 0 ? { x: 300, y: groundY } : { x: 700, y: groundY });
-  const s1 = p1Spawn ?? fallbackSpawn(0);
-  const s2 = p2Spawn ?? fallbackSpawn(1);
-  return {
-    seed,
-    stage,
-    fighters: [
-      {
-        id: 1, x: s1.x, y: s1.y,
-        ...(defs[0] ? { def: defs[0].def, forms: defs[0].forms } : {}),
-        ...(defs[0]?.assistId ? { assistId: defs[0].assistId } : {}),
-      },
-      {
-        id: 2, x: s2.x, y: s2.y,
-        ...(defs[1] ? { def: defs[1].def, forms: defs[1].forms } : {}),
-        ...(defs[1]?.assistId ? { assistId: defs[1].assistId } : {}),
-      },
-    ],
-    ...(hasAssist ? { assistants } : {}),
-  };
-}
-const sim = new Sim(buildConfig(script.seed ?? 1));
+const sim = createReplaySim(script);
 const checkpoints = [];
 let lastHash = '';
 for (let i = 0; i < frames.length; i++) {
   const snap = sim.tick(frames[i]);
-  lastHash = snap.hash;
-  if ((i + 1) % stride === 0) checkpoints.push({ tick: snap.tick, hash: snap.hash });
+  // 门禁用行为哈希（快照 behaviorHash：剥除表现/输入字段 + 空容器省略，
+  // serialize.ts behaviorView 剥除表）——表示层重构不漂移基线；
+  // 全状态哈希（snap.hash）仍是联机失步检测/对拍基准，不进门禁。
+  lastHash = snap.behaviorHash;
+  if ((i + 1) % stride === 0) checkpoints.push({ tick: snap.tick, hash: snap.behaviorHash });
 }
 const result = {
   name: script.name ?? scriptPath,

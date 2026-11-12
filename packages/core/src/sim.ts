@@ -1,5 +1,5 @@
 import { advancePlayerInput, Btn, InputView, type InputFrame } from './input.js';
-import { hashState, stableStringify } from './serialize.js';
+import { behaviorHash, hashState, stableStringify } from './serialize.js';
 import {
   createInitialState,
   DEFAULT_HP,
@@ -156,7 +156,11 @@ export interface SimEvent {
  */
 export interface SimSnapshot {
   tick: number;
+  /** 全状态哈希（含表示字段；联机失步检测/对拍/快照恢复基准） */
   hash: string;
+  /** 行为哈希（剥除表现/输入字段 + 空容器省略；tools/replay 回归门禁基准，
+   *  表示层重构不漂移——见 serialize.ts behaviorView 剥除表与 DESIGN §3.8） */
+  behaviorHash: string;
   state: SimState;
   events: SimEvent[];
 }
@@ -2008,6 +2012,7 @@ export class Sim {
     const snapshot: SimSnapshot = {
       tick: this.state.tick,
       hash: hashState(this.state),
+      behaviorHash: behaviorHash(this.state),
       state: structuredClone(this.state),
       events: this.events,
     };
