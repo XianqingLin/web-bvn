@@ -96,7 +96,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 - **Bullet 语义**：速度存发射朝向的局部系（world 位移 = sx×SPEED_PLUS×facing）；addSpeed 净加速度/tick（原版 add×2 预乘）；maxSpeed/minSpeed 局部系 clamp（两朝向一致）；holdFrame = 秒×60；hitTimes=-1 无限；hp/hpMax 道具对撞互扣（hp -= 对方 hpMax）；必杀判定（actionId 含 "bs"）命中不回气。
 - **fire(mcName)**：发射帧上名为 mcName 的判定区 = 道具固定命中框；HitDef 去 atm 后缀查动作表；判定区/动作缺失 = 确定性静默。
-- **本片新偏离**（记录待收紧）：道具命中/超时即消散并发 `entity:despawn`（原版命中后残留命中演出子 MC——bullet 精灵图集未导出，render 暂以占位色块 + 事件表现，图集管线接入后收紧）；角色攻击摧毁道具不回气（原版 Bullet.beHit 亦无回气，取义一致但结算序规范化为 fighter→fighter → 攻击 vs 道具 → 道具 vs 角色 → 道具对撞，全部 id 升序，替代原版 children 插入序）；`dash` 语义纠正为原版 setVelocity（speed×v×SPEED_PLUS，v 缺省 3，穿越/免受击），切片 5 旧取义废弃。
+- **本片新偏离**（记录待收紧；render 占位一项 ✅ 切片 13-A3 bullet 精灵接入后已收紧）：道具命中/超时即消散并发 `entity:despawn`（原版命中后残留命中演出子 MC——切片 13-A3 前无图集，render 曾以占位色块表现）；角色攻击摧毁道具不回气（原版 Bullet.beHit 亦无回气，取义一致但结算序规范化为 fighter→fighter → 攻击 vs 道具 → 道具 vs 角色 → 道具对撞，全部 id 升序，替代原版 children 插入序）；`dash` 语义纠正为原版 setVelocity（speed×v×SPEED_PLUS，v 缺省 3，穿越/免受击），切片 5 旧取义废弃。
 - **待补（切片 9 资源系统）**：近战命中不回气——原版命中回气 power×0.1（受击方亦回气），当前仅道具命中回气；replay 剧本因此无法自然攒气验证必杀弹道（合成 def 单测覆盖 fire 全路径）。→ **切片 9 已补**，见下。
 
 切片 9 补目标系/摔技/独立道具/万解/AIR 槽/近战回气资源（module-map §5.3/§5.7，原版 `FighterMcCtrler` moveTarget 系/`FighterAttacker.as`/`EffectCtrler` wanKai/`FighterAction` AIR 槽/`FighterMain.doQiAdd`）：
@@ -104,12 +104,12 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **回气资源**：近战命中攻击方 qi += min(power×0.16, 15)、受击方 qi += min(power×0.085, 20)（被防御的命中同样结算——偏离：原版结算点在命中监听层）；道具命中发射者 power×0.1、独立道具命中所有者 power×0.15；必杀判定（actionId 含 "bs"）近战/道具不回气。近战回气只结算角色本人动作命中（`viaEntity` 区分独立道具——attacker 参数仅用于投技 hurtAction 携带）。
 - **摔技/抓取**：地面动作分流允许 catch（allowCatch：attack/skill 缓冲 + 朝目标移动 + 身位间隙 <2px + |dy|<1）→ startSkill 进摔技标签；首帧 `moveTarget({followmc})` 吸附——目标以 `speed×SPEED_PLUS` 逼近锚点区中心×朝向（speed 缺省 0 = 直接吸附）；攻击态结束由 sim 巡检释放（machine.endAction 不再清 moveTarget——释放需恢复目标重力/击飞回拉，状态机层做不了），释放时目标 applyG 恢复 + HURT_FLYING 回拉 5px。
 - **目标系 op**：`setHitTarget(checker, label)`（每动画帧检查 checker 区 ∩ 目标身体 → 切续接标签）、`moveToTarget(x, y, setDirect?)`（瞬移到目标旁，目标贴版边时镜像防穿帮）、`justHitToPlay`（最近命中 id 即续接）、`setHurtAction(label)`（携带语义：触发在攻击方时间轴，本次动作命中 → 受击方播专用受击动画而非通用受击态；标签属受击方 def，applyHit 消费时校验存在性；只存标签不改自身状态）、`hurtFly`（主动击飞 HURT_FLYING + 击飞标签）、`setDirectToTarget`/`setDirectReverse`/`setTargetVelocity`。
-- **独立道具 addAttacker(mcName, params?)**：生成帧上同名判定区 = 命中框；轴 params `x`/`y`（`{followTarget|moveToTarget, offset, range?}`——followTarget 每 tick 跟随目标，moveToTarget 出场移动到位，非 follow 轴固定）、`applyG`；命中 HitDef 依元件名反查 owner actions（`'zh3mc'→'zh3'`、`'k1atm'→'k1'`，查不到 = 纯视觉道具）；单次命中即失效（hitAble=false）；寿命 120 tick 占位；followTarget 轴的 y = 目标中心 + offset（非锚点）。
+- **独立道具 addAttacker(mcName, params?)**：生成帧上同名判定区 = 命中框；轴 params `x`/`y`（`{followTarget|moveToTarget, offset, range?}`——followTarget 每 tick 跟随目标，moveToTarget 出场移动到位，非 follow 轴固定）、`applyG`；命中 HitDef 依元件名反查 owner actions（`'zh3mc'→'zh3'`、`'k1atm'→'k1'`，查不到 = 纯视觉道具）；单次命中即失效（hitAble=false）；寿命 120 tick 占位（✅ 切片 13-A5 改播尽移除）；followTarget 轴的 y = 目标中心 + offset（非锚点）。
 - **万解**：qi ≥ 300 时 攻击+跳 组合（缓冲按下/按住混合；W→S→普通 优先级）→ 扣 300 气 → WAN_KAI_ING 50 tick 演出（isAllowBeHit=false）→ 效果事件 `wanKai`/`endWanKai`（render 消费演出）；`doWanKai(frame)` 帧跳转驱动已就位。
 - **AIR 槽**：空中 attack/skill/superSkill 按槽（attackAIR/skillAIR/bishaAIR，bishaAIR 同耗气规则）分流到跳砍/跳招/空中必杀；airHitTimes 递减，耗尽不再触发；jump 槽默认"起跳"，`setJump(label)` 可覆写。
 - **资源 op**：`addHp`/`addHpPercent`/`addHpLosePercent`（clamp hpMax，hp≤0 不回）、`loseHp`（自削血，归零 → 死亡 + ko）。
 - **命中结算修正**：近战命中判定从仅 `ATTACK_ING` 放宽到全部攻击态（isAttackingState）——此前近战必杀/摔技命中永不结算（切片 5 起的既有 bug，本片接入 BISHA_ING 近战时暴露）。
-- **本片新偏离**（记录待收紧）：gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（跳转语义在 30Hz 采样模型下无差异，语料出现分立名仅是原 API 对齐）；万解输入取缓冲按下/按住混合而非原版按住电平判定（手感取向，见 ADR-1）；万解形态切换（`doWanKai` 后续接万解形态 def，多形态注册）归切片 10；独立道具寿命/矩形为占位（原版生命周期由道具内层时间轴驱动，未导出）；moveTarget 锚点 = 判定区中心×朝向（原版为 MC 注册点）；独立道具单次命中（语料无多次命中实例）；`setCatch1/setCatch2` 槽已登记（摔2 分流待接）。
+- **本片新偏离**（记录待收紧；寿命一项 ✅ 切片 13-A5 播尽移除收编，矩形仍欠 → §4.2 B5）：gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（跳转语义在 30Hz 采样模型下无差异，语料出现分立名仅是原 API 对齐）；万解输入取缓冲按下/按住混合而非原版按住电平判定（手感取向，见 ADR-1）；万解形态切换（`doWanKai` 后续接万解形态 def，多形态注册）归切片 10；独立道具寿命/矩形为占位（原版生命周期由道具内层时间轴驱动，未导出）；moveTarget 锚点 = 判定区中心×朝向（原版为 MC 注册点）；独立道具单次命中（语料无多次命中实例）；`setCatch1/setCatch2` 槽已登记（摔2 分流待接）。
 
 切片 10 补逐区命中/跳跃家族/瞬身步家族/万解形态切换（module-map §5.2/§5.3，原版 `FighterMC.getCurrentHitSprite` + `HitModel.getHitVOByDisplayName`、`FighterMcCtrler` doJump/doAirJump/doJumpDown/doGhostStep 系、`FighterCtrler.doWanKai`）：
 
@@ -134,7 +134,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **buff 结算**：speedUp 平加 walkSpeed（值×SPEED_PLUS）/ attackUp 伤害乘区（attackRate=1+value，回气仍按 raw power）/ defenseUp `dr=clamp(2−value, 0.1, 1)`；hold×60 tick，重复施加刷新。`buffEffects`（辅助包携带、命中结算消费）：orihime `attrResistance 0.2`（属性受击先减）、yachiru `phyLifesteal 0.35`（物理命中后吸血=实际伤害×率）。
 - **辅助命中**：辅助判定区命中 → owner qi +power×15%（原版 Assister.hit）；辅助 fire 的弹 `viaAssist=true` 命中不回气（原版 Bullet.as `owner is FighterMain` 守卫不成立）。
 - **验收**：`batch:validate` 扩辅助段（37 包：编译冒烟 + op 覆盖 vs 辅助注册表 + 双辅助同场召唤自对战冒烟 + 基线门禁）；replay 新剧本 `assist-duel`（orihime+kon 召唤+互砍）；全部基线重冻（fzqi/buffs/assisters/viaAssist 进 SimState，见提交说明）。
-- **缺口记录**：endAct 辅助语境 no-op（无动作槽）；justHit/setHitTarget/addAttacker/setTouchSide/removeCustomFunc 静默（corpus 实例全在 attacker 系 rawScript，切片 13 范围）；快照恢复 `Sim.fromState` 须回传 `getAssisterDefs()`（ assists 注册表不进 defEntries）；app 渲染仅 solo 注入辅助（net 需两端配置指纹同步，接线随联机收尾）；多数辅助缺 sheet PNG（图集管线补齐前 demo 用 orihime）。
+- **缺口记录**（多数已随后续切片收编，标注如下）：endAct 辅助语境 no-op（无动作槽，仍成立）；~~justHit/setHitTarget/addAttacker/setTouchSide/removeCustomFunc 静默~~（✅ setHitTarget/addAttacker 切片 13-A6 注册、removeCustomFunc 切片 21 注册；残余静默仅 justHit（纯读）/setTouchSide（语料无实例））；快照恢复 `Sim.fromState` 须回传 `getAssisterDefs()`（ assists 注册表不进 defEntries，仍成立）；~~app 渲染仅 solo 注入辅助~~（✅ 切片 14 联机 pick 交换时关闭）；~~多数辅助缺 sheet PNG~~（✅ 切片 13-A1 图集补齐）。
 
 `FighterDef` 是静态配置：经 `SimConfig` 注入 Sim 注册表，**不进 SimState**（ADR-11）；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 

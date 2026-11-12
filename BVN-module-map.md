@@ -15,7 +15,7 @@
 4. **角色动作数据不在引擎源码里**：藏在每个角色 XFL 的根时间轴脚本中（38 个角色工程、61 个可用角色 ID、约 18.7 万字节脚本、每个角色 20~156 条 `defineAction`）。辅助还有 37 个工程、约 3.8 万字节。
 5. **判定区是逐帧烘焙的轴对齐矩形**（AABB），角色本身不旋转；可在离线阶段烘焙成 JSON，运行时只做矩形相交。
 6. **输入是轮询式抽象按键**，带 0.1 秒 just-down 延迟窗口；默认经典模式（`keyInputMode=1`）。帧同步只需同步每帧的“按键按住位图”。
-7. **逻辑依赖相机**：版边位置修复读取相机缩放/屏幕矩形（[`GameLogic.fixGameSpritePosition`](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/ctrler/GameLogic.as#L253)）。相机必须进确定性模拟。
+7. **逻辑依赖相机**：版边位置修复读取相机缩放/屏幕矩形（[`GameLogic.fixGameSpritePosition`](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/ctrler/GameLogic.as#L253)）。~~相机必须进确定性模拟~~——移植时被 ADR-4 推翻：改用牵引边界表达同一设计意图，相机降为纯渲染（见 DESIGN §3.4）。
 8. **核心战斗几乎不依赖随机**：`Math.random` 只出现在 AI、音效、UI；PvP 帧同步路径干净。
 9. **还有大量非确定性隐患**：`Dictionary` 迭代顺序、`getTimer`（UI）、帧率相关的计时常量、`sortOn` 稳定性。
 10. **编译产物不在仓库**：人物/辅助/地图 SWF 在 Release 的 `swf_output.rar`（58 MB，tag `RELEASE_20261031`）；仓库内有可用的 XFL 源。

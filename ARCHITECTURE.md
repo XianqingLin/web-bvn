@@ -90,7 +90,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 - 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`
 - 表现原语（core 只发事件）：`playSoundHit1`、`playSoundHit2`、`shine`、`startShake`、`shake`、`endShake`
 - 飞行道具：`fire(mcName, params?)`（切片 8；params 语料字段 x/y/hold/hits/hp，见 DESIGN §3.5）
-- 独立道具：`addAttacker(mcName, params?)`（切片 9；mcName 为当前帧同名判定区；params 轴对象 `x`/`y`（`{followTarget|moveToTarget, offset, range?}`）、`applyG`；命中 actionId 依元件名反查 owner actions，查不到 = 纯视觉道具；单次命中即失效，寿命 120 tick 占位）
+- 独立道具：`addAttacker(mcName, params?)`（切片 9；mcName 为当前帧同名判定区；params 轴对象 `x`/`y`（`{followTarget|moveToTarget, offset, range?}`）、`applyG`；命中 actionId 依元件名反查 owner actions，查不到 = 纯视觉道具；单次命中即失效；寿命 = 播尽移除（切片 13-A5，`animTotal−1` off-by-one 原版 quirk 原样保留；无时间轴回退 holdTicks 120 占位））
 - 目标系（摔技/抓取/贴身连段；target = 另一角色）：`setHitTarget(checker, label)`（checker 判定区与目标身体相交 → 切 label）、`moveToTarget(x, y, setDirect?)`（瞬移到目标旁，版边镜像防穿帮）、`moveTarget({followmc, speed} | null)`（抓取吸附锚点区中心 / 释放恢复重力，动作结束由 sim 巡检释放）、`justHitToPlay(hitid, label, ...)`（最近命中即续接）、`setHurtAction(label)`（携带：本次动作命中 → 受击方播专用受击动画；标签属受击方 def，applyHit 消费时校验）、`setDirectToTarget`/`setDirectReverse`/`setTargetVelocity`、`hurtFly(x, y, ...)`（主动击飞）
 - 标签跳转：`gotoAndPlay`/`gotoAndStop`/`loop`（= setLabelTo）
 - 动作槽（切片 9 扩充）：`setAllAct`（整套重填 defaultSlots）、`setJump(label)`、空中槽 `setAttackAIR`/`setSkillAIR`/`setBishaAIR(qi?)`、摔技槽 `setCatch1`/`setCatch2`、万解槽 `setWankai`/`setWankaiW`/`setWankaiS`
@@ -99,6 +99,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 - 形态切换：`switchForm(frame)`（切片 10 实现注册，语义同 doWanKai；切 `FighterState.formIndex` + 重填槽 + 播新形态 开场 + 发 `fighter:form` 事件，单形态静默）
 - 条件触发（切片 11）：`if` 不是注册表 op——`FrameTrigger.cond/then/else`，`evaluateTriggerCondition` 求值后分派分支体（分支体内调用仍走本表原语）。查询 op：`justHit(hitId, includeDefense?)`、`targetInRange(rx, ry?)`、`getTargetState`、`getSelf`、`getTargetSP`（属性链 + cmp；属性白名单见 `fighterProp`）。未知查询 op 求值 = false（确定性静默）；分支体调用未注册同静默。全角色批量化验收门禁 `pnpm batch:validate`（58 角色编译/op 覆盖/冒烟双跑哈希/快照恢复，基线 `tools/batch-validate/baseline.json`）。
 - 已登记未实现（注册表未注册 → 确定性静默，接入时同 commit 补实现）：`teleport`、`summon`（切片 10 全语料核对：原版引擎与语料均无实例——teleport=移形换位换人、summon=辅助召唤，归辅助系统切片）、`sound`、`effect`（后两者以 playSoundHit*/shine/shake 代替）
+- 辅助 customFunc 系（切片 21，target='assister'）：`addCustomFunc(desc)`（单槽，占位即忽略；desc 为 AssisterCustomFunc 闭集 kind）、`removeCustomFunc`、`finishIfNoAttacker(attackerName)`（attacker 不在场 → finish）
+- attacker 元件脚本（切片 21，target='attacker'，数据进 `AssisterDef.attackerScripts`，仅 viaAssist 道具分派）：`stop`（= animHold 定格冻结）、`gotoAndPlay(label|frame)`（解除定格）、`stopFollowTarget`、`removeSelf`（返回移除标记，同帧不再推进）；`endAct` 元件语境 no-op
 
 ## 并行开发纪律
 
