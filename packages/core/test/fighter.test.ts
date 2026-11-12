@@ -53,7 +53,15 @@ function makeDef(overrides: Partial<FighterDef> = {}): FighterDef {
     labels,
     areas,
     totalFrames: 143,
-    triggers: [],
+    triggers: [
+      // 对齐真实数据（修复批次 20）：动作标签尾部 endAct + idle 重定向——
+      // 时间轴顺流只发生在无收尾脚本的连续标签（必杀桩帧家族），
+      // 真实语料每个动作段尾部都有收尾脚本，fixture 须同构
+      { frame: 69, target: 'mc', op: 'endAct', args: [] },
+      { frame: 70, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 120, target: 'mc', op: 'endAct', args: [] },
+      { frame: 121, target: 'mc', op: 'idle', args: ['站立'] },
+    ],
     attackLabels: { k1: '砍1' },
     ...overrides,
   };
@@ -245,7 +253,11 @@ describe('behaviors 注册表（契约硬规则 7）', () => {
   it('endAct 收招不换播放头：攻击态保持到标签播尽才回 NORMAL（原版 endAct 语义）', () => {
     const def = makeDef({
       attackLabels: { k1: '砍1' },
-      triggers: [{ frame: 56, target: 'mc', op: 'endAct', args: [] }],
+      // 标签尾 idle@70 收尾（真实数据同构）：不拦截 endAct 不动播放头的考察窗（帧 57-68）
+      triggers: [
+        { frame: 56, target: 'mc', op: 'endAct', args: [] },
+        { frame: 70, target: 'mc', op: 'idle', args: ['站立'] },
+      ],
     });
     const sim = new Sim(makeConfig({ p2x: 9999, def1: def }));
     sim.tick({ p1: Btn.attack, p2: 0 });
@@ -255,7 +267,7 @@ describe('behaviors 注册表（契约硬规则 7）', () => {
     expect(afterEndAct.state.fighters[0]!.actionState).not.toBe(ActionState.NORMAL);
     expect(afterEndAct.state.fighters[0]!.attackId).toBeNull();
     expect(afterEndAct.state.fighters[0]!.slots.attack).toBeNull();
-    // 标签播尽（砍1 index54+duration17 → 帧 71）经 endAction 常规路径回 NORMAL
+    // 标签尾 idle@70 重定向（真实数据同构：动作段尾都有收尾脚本）回 NORMAL
     let ended = false;
     for (let i = 0; i < 40; i++) {
       const s = sim.tick({ p1: 0, p2: 0 });

@@ -101,6 +101,24 @@ function makeDef(): FighterDef {
       { frame: 5, target: 'fighter', op: 'setHurtAction', args: ['被打'] },
       // 招1 第 6 帧：投技携带受击方受击动画（攻击方动作时间轴触发）
       { frame: 186, target: 'fighter', op: 'setHurtAction', args: ['被打'] },
+      // 动作标签尾部 endAct + idle 重定向（真实数据同构，修复批次 20）：
+      // 时间轴顺流只发生在无收尾脚本的连续标签；本 fixture 的
+      // 砍1→被打、招1→必杀、必杀→砍2、砍2→万解、跳砍→摔1、摔1→跳招、
+      // 跳招→招2_CHK 帧号全部连续，攻击态须由收尾脚本终止
+      { frame: 69, target: 'mc', op: 'endAct', args: [] },
+      { frame: 70, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 208, target: 'mc', op: 'endAct', args: [] },
+      { frame: 209, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 258, target: 'mc', op: 'endAct', args: [] },
+      { frame: 259, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 275, target: 'mc', op: 'endAct', args: [] },
+      { frame: 276, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 321, target: 'mc', op: 'endAct', args: [] },
+      { frame: 322, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 341, target: 'mc', op: 'endAct', args: [] },
+      { frame: 342, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 351, target: 'mc', op: 'endAct', args: [] },
+      { frame: 352, target: 'mc', op: 'idle', args: ['站立'] },
     ],
     attackLabels: { k1: '砍1', k2: '砍2', zh1: '招1', jk1: '跳砍', sh1: '摔1', bs: '必杀' },
   };

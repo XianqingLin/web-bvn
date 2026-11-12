@@ -434,12 +434,21 @@ export class Sim {
         this.emit('effect', { id: 'endGhostStep', x: g.x, y: g.y, params: {} });
       });
       // 行走：NORMAL 且在地面（原版 renderFloorAction）；airMove（飞行系）空中也可；
-      // 瞬身步期间速度由瞬身步驱动（原版画面冻结期不受输入）
+      // 瞬身步期间速度由瞬身步驱动（原版画面冻结期不受输入）。
+      // 地面行走仅在待机标签族（站立/走）且无标签锁时施加（修复批次 20）：
+      // 原版移动由 moveLeft/moveRight 槽驱动（doMove→goFrame("走")），落地/
+      // 收招等收尾标签期间槽已清空、输入不产生位移；移植版曾只按状态门，
+      // 落地 labelLock 窗口内持续置 vx → 站立姿势原地滑步（实测批 20 之一）。
+      // airMove（飞行系空中）不受标签门约束。
       if (
         f.actionState === ActionState.NORMAL &&
         (f.onGround || f.airMove) &&
         f.hp > 0 &&
-        f.ghostTicks === 0
+        f.ghostTicks === 0 &&
+        (!f.onGround ||
+          def === null ||
+          f.actLabel === null || // 出生首帧未采样（advanceAnimation 首轮才置 站立）
+          (f.labelLock <= 0 && (f.actLabel === '站立' || f.actLabel === '走')))
       ) {
         let dir = 0;
         if (view.held(Btn.left)) dir -= 1;

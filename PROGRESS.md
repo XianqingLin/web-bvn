@@ -45,6 +45,7 @@
 | 17 | 实战验收修复批次：相机垂直 clamp 对齐 fixBorder + endAct 原版语义（不动播放头）+ damping 持久阻尼 + 朝向按状态分流 + 连段清槽 + 防御定格 | ✅ | §三·批次 17 |
 | 18 | 实战验收修复批次：跳跃/动作永久锁死（jumpTimes 无恢复路径 + 循环标签吞 endAction 补槽）+ 走/立标签维护门控 + idleLabel 落地回归 + 落地补槽 | ✅ | §三·批次 18 |
 | 19 | 修复批次：重力斜坡换算偏差（下落加速比原版快 2 倍）+ 移动/跳跃参数忠实性全面审计（结论：逐字照搬、换算等价） | ✅ | §三·批次 19 |
+| 20 | 实战验收修复批次：落地滑步（行走物理标签门 + labelLock 清锁）+ 必杀 1 帧桩截断（时间轴顺流，全角色家族性）+ 上+必杀/上+技被跳覆盖（意图分支待机态门）+ 防御接管速度 | ✅ | §三·批次 20 |
 
 ---
 
@@ -129,6 +130,19 @@
 - **发现并修正一处真实偏差——重力斜坡**：原版 applayG(12) 中 `_g` 在原始空间每帧 +G_ADD×SPEED_PLUS=0.6、上限 12，位移 = `_g×0.5` → 60Hz 位移空间应为**步长 +0.3/tick、14 tick 到满速 6**；本版误将步长也减半成 0.6（位移直接结算、未再乘系数，注释自相矛盾）→ 下落加速期快 2 倍、到满速仅 7 tick（全程下落约快 13%）。修复：`GRAVITY_STEP` 0.6→0.3（GRAVITY_START=2/CAP=6 本就正确）；角色/独立道具/辅助三处物理共用常量，一并生效。
 - **验证**：build + 全部单测过；replay 5 剧本哈希零漂移（剧本不触及长下落段）；batch:validate 基线因跳跃下落轨迹变化重冻（行为有意变更，偏离已在 sim.ts 注释写明）。
 
+### 修复批次 20——落地滑步 + 必杀桩帧截断 + 上修饰键覆盖（✅ 2026-11-12）
+
+> 玩家实测两 bug：① 跳跃落地后移动平移（站立姿势滑步，一会儿才恢复）；② 佩恩大招什么都看不见。
+
+- **① 落地滑步（双因）**：`onLanded` 置 `labelLock=落地全长`（防行走维护劫持收尾标签），但落地内 `idle@帧N` 触发提前切 站立 后锁仍在 → 行走标签维护被压制数十 tick；同时 sim 行走物理只按状态门（NORMAL）施加 vx，落地/收尾窗口内持续位移。修复：sim 行走物理加「地面时需 `actLabel∈{站立,走} && labelLock<=0`」标签门（原版移动由 moveLeft/moveRight 槽驱动、收尾期槽已清空，不可能位移；airMove 空中不受限）；behaviors.idle 触发时清 `labelLock`（时间轴主动回位 = 收尾结束）；
+- **② 必杀桩帧截断（佩恩大招看不见的根因，全角色家族性）**：原版 MC 时间轴在标签边界**不停车**，佩恩的 必杀 是 1 帧桩（真演出在紧随其后的 空中必杀 段：切人插图 Pain_1@894 + 演出 + endAct@943 + idle@946 收尾）；移植版「标签播尽即 endAction」把桩帧截断。全角色扫描确认家族模式：必杀→空中必杀桩（白哉/一护系/黑崎/冬狮郎/佩恩…）、上必杀→上必杀_1、佐助 招1_SP→招1 等 SP/QK 桩全部中招。修复：advanceAnimation 增**时间轴顺流**——非循环攻击标签播尽且 ①攻击态（isAttackingState，排除 起身→开场/胜利→失败 状态相邻误链）②结束标签范围内无重定向触发（idle/setLabelTo，真实数据每个动作段尾都有收尾脚本）③下一标签帧号连续且非循环（防滑入循环标签永锁）→ 滑入续播（不改 actionState/attackId/槽位，命中按帧判定不受影响）；
+- **③ 上+必杀/上+技被跳覆盖（连带修复，全角色）**：发起必杀/技成功后，缓冲的 ↑ 在下一 tick 触发 startJump 覆盖动作（扣气了但大招没放出来，attackId 泄漏）。原版靠 doAction→clearAction 清空含 jump 在内的槽位挡住；移植版 jump 槽 null=缺省 起跳 无法作门——给地面 跳/快速下落/瞬身步/瞬步 意图分支补待机态门（NORMAL），攻击/技/必杀分支保持槽位门（连段 setAttack 重填路径不受影响）；
+- **④ 防御接管速度**：doDefense/exitDefense 显式清 dampX/dampY（行走的 dampX=0 所有权只在待机标签窗口生效，防御冻结期/防御恢复 labelLock 窗口内不再有行走分支兜底）；
+- **偏离记录**：dashStop 残速按 damping 自然衰减（原行走分支在 NORMAL 即时清零 vx——原版 dashStop 置 damping 本为平滑衰减收势，新行为更忠实，dash 滑行略长）；出生首帧 actLabel=null 时行走放行（advanceAnimation 首轮才置 站立，保持首 tick 可动）；落地窗口 immobilize 约 2-6 tick（idle@帧N 提前解锁）；
+- **基线重冻（行为有意变更）**：ichigo-mechanics（dash 残速衰减路径）；ichigo-duel tick 179（**批次 19 遗留**：重力斜坡改变跳跃轨迹、批次 19 提交说明"replay 零漂移"结论有误——该剧本含跳跃必漂移，本次核对发现 tick 179 瞬态分叉后 finalHash 自愈一致）；batch:validate 58 角色+37 辅助全量重冻；core 三个 fixture（fighter/combat/slice9）补真实数据同构的标签尾 endAct+idle 收尾脚本（fixture 简化布局原无收尾脚本，顺流会串播相邻标签）；
+- **验证**：headless 复现全转绿（佩恩 超必杀/普通必杀/上必杀、落地行走、白哉普通必杀）；build + core 102 单测 + replay 5 剧本 + batch:validate 门禁全过；
+- **遗留（转入 §4.2）**：bisha 切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费——必杀判定与动画已正常，切图演出缺位；空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签，纯表现无判定）。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -148,6 +162,8 @@
 - 独立道具逐帧命中矩形（原版由道具内层时间轴逐帧驱动，未导出——现取发射帧命名子对象判定区/零矩形占位，atmc 抓取伤害的内层 hitVO（atm1，power=50）同源待导；需 capture/dump 桥新导出管线，待语料审计后决策）；
 - 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：byakuya checkFunc 链（owner 死亡清道具 / 目标 getTargetState==21 脱抓提前收道具）；itachi 动态伤害 `power = targetHpMax×0.008`；suigetsu `isAttacking=true`；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
+- 必杀切人插图 effect 事件（id 'bisha'/endBisha，批次 20 发现）未在 app/render 消费——sim 侧已发事件，必杀判定与动画正常，切图演出缺位；
+- 空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）——时间轴顺流已能播放该段，纯表现无判定；
 - 验收：门禁全过；行为变更则重冻对应基线。
 
 ### 4.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）

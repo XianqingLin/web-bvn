@@ -338,6 +338,10 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   // idle(frame?)：帧触发让时间轴主动回位（常用于落地/受击恢复后的自定义帧）
   idle(ctx, args) {
     const frame = typeof args[0] === 'string' ? args[0] : '站立';
+    // 时间轴主动回位 = 收尾标签结束，labelLock 不应再压制行走标签维护
+    //（修复批次 20：落地 onLanded 置 labelLock=落地全长，落地内 idle@帧N
+    // 提前切 站立 后锁仍在 → 站立姿势滑步不播走动画数十 tick）。
+    ctx.f.labelLock = 0;
     ctx.f.steelBody = false;
     ctx.f.applyG = true;
     ctx.f.isCross = false;

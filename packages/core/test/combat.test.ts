@@ -63,7 +63,20 @@ function makeDef(): FighterDef {
     areas,
     totalFrames: 280,
     // 砍1 第 57 帧改写攻击槽为 砍2（连段；对照原版 ichigo 砍1@134 帧 setAttack）
-    triggers: [{ frame: 57, target: 'mc', op: 'setAttack', args: ['砍2'] }],
+    // + 动作标签尾部 endAct + idle 重定向（真实数据同构，修复批次 20）：
+    // 时间轴顺流只发生在无收尾脚本的连续标签；fixture 的 砍1/招1/必杀/砍2
+    // 尾部补收尾脚本，防止 SKILL/BISHA/ATTACK 态顺流串入相邻标签
+    triggers: [
+      { frame: 57, target: 'mc', op: 'setAttack', args: ['砍2'] },
+      { frame: 69, target: 'mc', op: 'endAct', args: [] },
+      { frame: 70, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 208, target: 'mc', op: 'endAct', args: [] },
+      { frame: 209, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 258, target: 'mc', op: 'endAct', args: [] },
+      { frame: 259, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 275, target: 'mc', op: 'endAct', args: [] },
+      { frame: 276, target: 'mc', op: 'idle', args: ['站立'] },
+    ],
     attackLabels: { k1: '砍1', k2: '砍2', zh1: '招1', bs: '必杀' },
   };
 }

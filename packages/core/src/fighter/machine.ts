@@ -33,6 +33,7 @@ import {
   type FighterDef,
   type FighterSlots,
   type HitDef,
+  type LabelRange,
 } from './def.js';
 import type { FighterState } from '../state.js';
 
@@ -359,6 +360,10 @@ function doDefense(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.DEFENCE_ING;
   f.vx = 0;
   f.vy = 0;
+  // 防御接管速度（修复批次 20）：行走的 dampX=0 所有权只在待机标签窗口生效，
+  // 瞬步残速的 dampX 在防御冻结期不会衰减路径，须显式清零
+  f.dampX = 0;
+  f.dampY = 0;
   f.attackId = null;
   // 原版 setDefenseAction：清槽后仅保留 砍技1/招2/超必杀 可从防御发起
   const s = defaultSlots(def);
@@ -378,6 +383,9 @@ function doDefense(f: FighterState, def: FighterDef | null): void {
 /** 退出防御（原版 renderDefenseAnimate → 防御恢复 → idle；POC 无 6 tick 延迟）。 */
 function exitDefense(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.NORMAL;
+  // 防御恢复窗口内行走门不生效（labelLock + 非待机标签），残速阻尼在此清零
+  f.vx = 0;
+  f.dampX = 0;
   const land = def?.labels['防御恢复'];
   if (land) {
     f.actLabel = '防御恢复';
@@ -740,47 +748,63 @@ export function stepIntentsFor(
         return;
       }
     }
-    // 必杀系（superSkill ± 上/下；原版 bishaSUPER/bishaUP/bisha 顺序）
+    // 必杀系（superSkill ± 上/下；原版 bishaSUPER/bishaUP/bisha 顺序）。
+    // 发起成功即返回（修复批次 20）：原版 doAction 内 clearAction 清空全部
+    // 槽位（含 jump），后续 renderFloorAction 分支自然失效；移植版槽语义在
+    // startSkill 内等价实现，但意图派发不返回会让缓冲的 ↑ 顺势触发
+    // startJump 覆盖刚发起的必杀（上+必杀 = 起跳扣气，原版无此行为）。
     if (view.buffered(Btn.superSkill)) {
       if (down && f.slots.bishaSuper !== null) {
         view.consume(Btn.superSkill);
-        startSkill(f, def, f.slots.bishaSuper, f.slots.bishaSuperQi, true);
+        if (startSkill(f, def, f.slots.bishaSuper, f.slots.bishaSuperQi, true)) return;
       } else if (up && f.slots.bishaUp !== null) {
         view.consume(Btn.superSkill);
-        startSkill(f, def, f.slots.bishaUp, f.slots.bishaUpQi, false);
+        if (startSkill(f, def, f.slots.bishaUp, f.slots.bishaUpQi, false)) return;
       } else if (!up && !down && f.slots.bisha !== null) {
         view.consume(Btn.superSkill);
-        startSkill(f, def, f.slots.bisha, f.slots.bishaQi, false);
+        if (startSkill(f, def, f.slots.bisha, f.slots.bishaQi, false)) return;
       }
     }
     // 攻击系（attack ± 上/下；原版 skill2/skill1/attack 顺序）。
     // 发起成功才消费缓冲：槽为空（动作播放中，原版 clearAction 语义）时不
     // 重启动作，缓冲留给 setAttack 帧触发重填槽后的连段派生。
+    // 发起成功即返回（同必杀系：防止后续 技/跳 意图同 tick 覆盖）。
     if (view.buffered(Btn.attack)) {
       if (up && f.slots.skill2 !== null) {
-        if (startAttackByLabel(f, def, f.slots.skill2)) view.consume(Btn.attack);
+        if (startAttackByLabel(f, def, f.slots.skill2)) {
+          view.consume(Btn.attack);
+          return;
+        }
       } else if (down && f.slots.skill1 !== null) {
-        if (startAttackByLabel(f, def, f.slots.skill1)) view.consume(Btn.attack);
+        if (startAttackByLabel(f, def, f.slots.skill1)) {
+          view.consume(Btn.attack);
+          return;
+        }
       } else if (!up && !down && !view.held(Btn.jump) && f.slots.attack !== null) {
-        if (startAttackByLabel(f, def, f.slots.attack)) view.consume(Btn.attack);
+        if (startAttackByLabel(f, def, f.slots.attack)) {
+          view.consume(Btn.attack);
+          return;
+        }
       }
     }
-    // 技系（skill ± 上/下；原版 zhao3/zhao2/zhao1 顺序）
+    // 技系（skill ± 上/下；原版 zhao3/zhao2/zhao1 顺序；发起成功即返回）
     if (view.buffered(Btn.skill)) {
       if (up && f.slots.zhao3 !== null) {
         view.consume(Btn.skill);
-        startSkill(f, def, f.slots.zhao3, 0, false);
+        if (startSkill(f, def, f.slots.zhao3, 0, false)) return;
       } else if (down && f.slots.zhao2 !== null) {
         view.consume(Btn.skill);
-        startSkill(f, def, f.slots.zhao2, 0, false);
+        if (startSkill(f, def, f.slots.zhao2, 0, false)) return;
       } else if (!up && !down && f.slots.zhao1 !== null) {
         view.consume(Btn.skill);
-        startSkill(f, def, f.slots.zhao1, 0, false);
+        if (startSkill(f, def, f.slots.zhao1, 0, false)) return;
       }
     }
     // 快速下落（原版 doJumpDown：↓+跳。原版代码序在 defense 之后但 doJumpDown
-    // 以 _action.clear() 覆盖防御态——净效果 = 快速下落优先，故前置检查）
-    if (down && view.buffered(Btn.jump)) {
+    // 以 _action.clear() 覆盖防御态——净效果 = 快速下落优先，故前置检查）。
+    // 仅待机态可发起（修复批次 20：原版 jumpDown 槽被 clearAction 清空，
+    // 动作播放中不可快速下落——否则缓冲的 ↓+跳 会覆盖进行中的动作）。
+    if (down && view.buffered(Btn.jump) && f.actionState === ActionState.NORMAL) {
       view.consume(Btn.up);
       view.consume(Btn.jump);
       startFastFall(f, def);
@@ -791,8 +815,9 @@ export function stepIntentsFor(
       doDefense(f, def);
       return;
     }
-    // 瞬身步（原版 doGhostStep：dash+↓，气 60+能量 80；先于瞬步/跳）
-    if (view.buffered(Btn.dash) && down && ghostReady) {
+    // 瞬身步（原版 doGhostStep：dash+↓，气 60+能量 80；先于瞬步/跳）。
+    // 仅待机态可发起（修复批次 20：原版 ghost 槽被 clearAction 清空，动作中不可瞬身）
+    if (view.buffered(Btn.dash) && down && ghostReady && f.actionState === ActionState.NORMAL) {
       view.consume(Btn.dash);
       if (startGhostStep(f, def, GHOST_GROUND, faceTarget())) return;
     }
@@ -811,14 +836,20 @@ export function stepIntentsFor(
       const moving = view.held(Btn.left) || view.held(Btn.right);
       if (def) setLabel(f, def, moving ? '走' : '站立');
     }
-    // 瞬步（原版在防御检查之后；dash() 门含 !down——↓ 按住时归瞬身步/防御）
-    if (view.buffered(Btn.dash) && !down) {
+    // 瞬步（原版在防御检查之后；dash() 门含 !down——↓ 按住时归瞬身步/防御）。
+    // 仅待机态可发起（修复批次 20：原版 dash 槽被 clearAction 清空，动作中不可瞬步）
+    if (view.buffered(Btn.dash) && !down && f.actionState === ActionState.NORMAL) {
       view.consume(Btn.dash);
       doDash(f, def);
-      if (f.actionState === ActionState.DASH_ING) return;
+      if ((f.actionState as number) === ActionState.DASH_ING) return;
     }
-    // 跳跃（原版在移动之后）
-    if (view.buffered(Btn.up) || view.buffered(Btn.jump)) {
+    // 跳跃（原版在移动之后；原版以 _action.jump 槽为门——槽被 clearAction
+    // 清空后动作播放中不可跳。移植版 jump 槽 null=缺省 起跳，无法作门，
+    // 以待机态门等价：否则缓冲的 ↑ 会在发起必杀/技的下一 tick 覆盖动作）
+    if (
+      (view.buffered(Btn.up) || view.buffered(Btn.jump)) &&
+      f.actionState === ActionState.NORMAL
+    ) {
       view.consume(Btn.up);
       view.consume(Btn.jump);
       startJump(f, def);
@@ -898,6 +929,37 @@ function riseFrames(def: FighterDef | null): number {
 }
 
 /**
+ * 时间轴顺流目标（修复批次 20）：非循环攻击标签播尽时，若下一标签帧号连续
+ * 且本标签范围内没有重定向触发（idle/setLabelTo），返回下一标签——原版 MC
+ * 时间轴连续播放的自然结果。状态门：仅攻击态（isAttackingState）参与，
+ * 站立/落地/起身/胜利/开场等状态标签的相邻关系（起身→开场、胜利→失败）
+ * 不是动作续接，不滑入。防御定格到不了标签末尾，天然排除。
+ */
+function flowTarget(
+  f: FighterState,
+  def: FighterDef,
+  label: string,
+  range: LabelRange,
+): [string, LabelRange] | null {
+  if (!isAttackingState(f.actionState)) return null;
+  const end = range.index + range.duration;
+  for (const t of def.triggers) {
+    if (
+      t.target === 'mc' &&
+      (t.op === 'idle' || t.op === 'setLabelTo') &&
+      t.frame > range.index &&
+      t.frame <= end
+    ) {
+      return null; // 时间轴脚本会在此前重定向，不应自然播尽
+    }
+  }
+  for (const [name, r] of Object.entries(def.labels)) {
+    if (r.index === end && !LOOP_LABELS.has(name)) return [name, r];
+  }
+  return null;
+}
+
+/**
  * 动画帧推进（30Hz，管线第 5 步；无 def 角色只走状态计时）。
  *
  * 语义：f.animFrame 是「当前采样帧」——每次调用先对当前帧触发
@@ -966,7 +1028,26 @@ export function advanceAnimation(
           f.actLabel = chkName;
           f.animFrame = chk.index + 1;
         } else {
-          endAction(f, def);
+          // 时间轴顺流（修复批次 20）：原版 MC 时间轴在标签边界不停车，
+          // 必杀(1帧桩)→空中必杀、上必杀→上必杀_1、招X_SP→招X 等共享段
+          // 靠连续播放串联；曾以「播尽即 endAction」截断 → 佩恩等角色的
+          // 地面必杀/上必杀只播桩帧就消失。顺流门（全部满足，否则回位）：
+          // ① 攻击态（isAttackingState）——站立/落地/起身/胜利等状态标签不
+          //   参与（起身→开场、胜利→失败 相邻误链）；跳跃族由 maintainAirLabel
+          //   管辖；防御定格到不了标签末尾；
+          // ② 结束标签范围内无重定向触发（idle/setLabelTo，target=mc）——
+          //   靠时间轴脚本收尾的标签（如各角色 落地 内 idle@帧N）不滑入；
+          // ③ 下一标签存在、帧号连续且非循环——滑入循环标签会让 endAction
+          //   永不可达（卡死，参照批 18 教训）。
+          // 顺流不改 actionState/attackId/槽位——攻击动作仍在进行，后续标签
+          // 内的 endAct/idle 触发照常收招/回位。
+          const flowed = flowTarget(f, def, label!, range);
+          if (flowed) {
+            f.actLabel = flowed[0];
+            f.animFrame = flowed[1].index + 1;
+          } else {
+            endAction(f, def);
+          }
         }
       }
     }
