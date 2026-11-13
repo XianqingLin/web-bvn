@@ -1,20 +1,23 @@
 /**
  * BVN Web 入口（切片 14 场景化）。
  *
- * 默认进主菜单（单机训练 / 联机对战全 UI 流）；
- * dev 直通参数保留（headless 驱动/快速调试用）：
+ * 默认进 开场徽标（LogoScene）→ 主菜单（单机训练 / 联机对战全 UI 流）；
+ * dev 直通参数保留（headless 驱动/快速调试用，跳过开场徽标）：
  *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura）
  *   ?mode=net&action=create|join&room=&server=&role=p2
  *                                       自动入房 → 选人页自动确认默认选人
+ *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）
  */
 import { Application } from 'pixi.js';
 import { AppHost } from './host.js';
 import { AudioSubsystem } from './audio.js';
 import { SceneHost } from './scenes/scene.js';
+import { LogoScene } from './scenes/logo.js';
 import { MenuScene } from './scenes/menu.js';
 import { NetScene } from './scenes/net.js';
 import { SetupScene } from './scenes/setup.js';
 import { BattleScene } from './scenes/battle.js';
+import { WinnerScene } from './scenes/winner.js';
 import { makeFlow } from './flow.js';
 
 async function boot(): Promise<void> {
@@ -40,7 +43,8 @@ async function boot(): Promise<void> {
   const params = new URLSearchParams(location.search);
   const mode = params.get('mode');
   if (!mode) {
-    scenes.switchTo(new MenuScene(makeFlow()));
+    // 正式入口：开场徽标 → 主菜单（原版 LogoStage → MenuStage 流）
+    scenes.switchTo(new LogoScene(makeFlow()));
     return;
   }
   // dev 直通：沿用旧 URL 语义
@@ -72,6 +76,12 @@ async function boot(): Promise<void> {
       action: params.get('action') === 'join' ? 'join' : 'create',
       room: params.get('room') ?? undefined,
     }));
+  } else if (mode === 'winner') {
+    // dev 直通：结算立绘演出（ichigo 胜；CONTINUE 可重开训练局）
+    flow.mode = 'solo';
+    flow.localPick = { fighter: 'ichigo', assist: 'gaara' };
+    flow.mapId = 'KonohaMura';
+    scenes.switchTo(new WinnerScene(flow, 1, null));
   } else {
     scenes.switchTo(new MenuScene(flow));
   }

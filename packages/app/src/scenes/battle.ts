@@ -103,6 +103,7 @@ export class BattleScene implements Scene {
   private stalledSince = -1;
   private peerLostFlag = false;
   private keys = new Set<string>();
+  private dead = false;
   private ctx: SceneCtx | null = null;
   private rig: BattleRig | null = null;
   private audio: AudioSubsystem | null = null;
@@ -342,7 +343,9 @@ export class BattleScene implements Scene {
     if (stepped || this.acc > 0) this.renderer.update(this.acc);
   }
 
-  /** KO 表现事件 → 结算浮层（每局一次；训练模式回血不会 KO）。 */
+  /** KO 表现事件 → 结算（每局一次；训练模式回血不会 KO）。
+   *  net：KO 演出 1.2s 后进结算立绘（原版 KO → WinnerStage 语义）；
+   *  solo（训练模式）：维持对局浮层——训练语义不打断练习（切片 29 偏离登记）。 */
   private checkKo(events: SimSnapshot['events']): void {
     if (this.koSeen) return;
     for (const ev of events) {
@@ -350,7 +353,17 @@ export class BattleScene implements Scene {
       const fighter = ev.payload['fighter'];
       if (typeof fighter !== 'number') continue;
       this.koSeen = true;
-      this.showResult(fighter === 1 ? 2 : 1);
+      const winner = fighter === 1 ? 2 : 1;
+      if (this.flow.mode === 'solo') {
+        this.showResult(winner);
+      } else {
+        window.setTimeout(() => {
+          if (this.dead) return;
+          void import('./winner.js').then(({ WinnerScene }) => {
+            this.ctx?.switchTo(new WinnerScene(this.flow, winner, this.socket));
+          });
+        }, 1200);
+      }
       break;
     }
   }
@@ -410,6 +423,7 @@ export class BattleScene implements Scene {
   }
 
   exit(): void {
+    this.dead = true;
     for (const fn of this.cleanup) fn();
     this.cleanup = [];
     this.renderer?.destroy();

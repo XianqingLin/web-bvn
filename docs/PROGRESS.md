@@ -58,6 +58,7 @@
 | 21F | 修复批次：形态角色（sasuke_juin 等 12 个可选）选入即 404——swf 基名数据化（select-pack 烘 fighter.xml `file url`）+ app 全链按基名取 XFL/fire/语音/贴帧音（图集仍按形态 id） | ✅ | §三·批次 21F |
 | 22 | 修复批次（实战验收第二批·①）：行走滑步（loop 触发点收编，54/58 走标签）+ 防御解除"卡一下"（防御恢复冻结窗口=原版 goFrame(false)+delay idle）+ verify-drift 假阴性修复（dump 必须子进程）；MC 子元件走段家族（kenshin/ulquiorra/naruto form4）采集重跑遗留 | ✅ | §三·批次 22 |
 | 23 | 修复批次（实战验收第二批·②）：切人插图两处修复——必杀横幅右缘黑区（原版横幅内容恰铺满 800×600 游戏区，移植版可见逻辑区 1000+ → 内容横向拉伸铺满 + 立绘槽位同比外推）+ 立绘定位多减 canvasOrigin（右偏 134/下偏 12、槽 2 出屏）；追补：相机 autoZoom 视口基准常量化（原版 GAME_SIZE 800×600，§4.3 块 11） | ✅ | §三·批次 23 |
+| 29 | 阶段 4·块 5 收尾·菜单流打磨：Logo 开场演出（logo_movie 66 帧流播 + LogoScene）+ 结算立绘（内嵌 loading.swf winner_stg_mc 92 帧舞台 + 胜者立绘/台词气泡 + select-pack 升 @2 烘 win_cls/says）+ 选人格子入场/退场/地图面板动画（buildList/fadOutList/initMap 收编，tween 提取共享 anim.ts + FrameStream 泛化）+ UI 打磨池（长名钳制/DOM 输入样式） | ✅ | §三·切片 29 |
 
 ---
 
@@ -225,6 +226,16 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **归因**：verify-drift 双剧本归因（defense-reentry 自制剧本 + ichigo-mechanics）——首个差异 tick = 防御恢复→站立转换点，字段级差异仅槽位 null→默认值，无其他行为分叉 → 有意漂移。
 - **门禁**：build / core 135 测试（新增防御重入回归用例）/ replay 6 剧本（ichigo-mechanics 有意漂移重冻）/ batch:validate 58 角色 + 37 辅助（18 角色漂移重冻）全过。
 
+### 切片 29——菜单流打磨收尾（✅ 2026-11-13）
+
+§4.3 块 5 余项（Logo 演出/格子动画/结算立绘/开场徽标去除-可选）+ 切片 14 UI 打磨池（长名溢出/DOM 输入样式）全部收编，块 5 收官。
+- **Logo 开场演出**：ui-pack 扩展（common_ui sprite 26 logo_movie 66 帧 WebP）+ LogoScene（原版 LogoStage 语义：gotoAndPlay(2) 播到帧 66 帧脚本 COMPLETE → 进主菜单；无音频无跳过，原版如此，全程 ~2.1s）。正式入口 boot → LogoScene → MenuScene；dev 直通参数（?mode=…）跳过开场（原语义不变）。
+- **结算立绘**：ui-pack 扩展（FighterTester.swf binaryData 内嵌 loading.swf → winner_stg_mc 帧 1..92（帧 93 "destory" 黑帧不烘焙）+ txtmc 气泡帧 2..10；stageOriginInFrame [740,207.5] 像素实测——union bounds 反推 316/208 与导出画布 2013×1168 不符，画布含离台入场元素，以像素配准为准）+ select-pack 升 `bvn/select@2`（face/@win_cls + say_item 台词烘焙，50/53 角色）+ WinnerScene（帧 92 定格 + 胜者立绘 300×250 挂 f0（无立绘隐藏，原版 f0.visible=false）+ 气泡长大 + 台词 `|`→换行 SimHei 18 黑居中 + CONTINUE/EXIT 透明热区（视觉烘焙在帧 PNG 内）+ 音频链 BGM(null)→win 一发→6.5s→winloop）。net KO 1.2s 演出后进结算；训练模式维持对局浮层（训练语义不打断）。
+- **格子动画**：tween 助手从 menu.ts 提取共享 anim.ts + TitleStream 泛化为 FrameStream（scenes/stream.ts，dispose 可保留显示帧防渲染崩溃）；buildList 入场（各格舞台中心 scale 0→1 Back.easeOut 0.3s + 随机 delay 0..0.2s）/ fadOutList 退场（回中心 scale→0 0.2s + 随机 delay 0.1s，0.3s 后换阶段）/ initMap 地图面板中心入场收编；光标与展示框延后 500ms 入场（原版 initSelecter setTimeout(_tweenTime)）。
+- **UI 打磨池**：展示框长名按比例缩字（233px 名字区上限）；domInput 压暗遮罩 + 游戏风格描边/聚焦态。
+- **偏离登记**：开场徽标去除（可选项）**决定保留**——徽标烙进原版帧美术（同切片 16 结论，去除代价大且保留更忠实）；结算页 MORE GAMES（外链）与 scoremc 计分板不挂载（无外链需求/无分数系统）；EXIT 略去二次确认对话框；net 模式 CONTINUE 隐藏（两端无法同步重开，只留 EXIT 回菜单）。
+- **门禁**：build / core 135 / replay 6 剧本 --expect 零漂移（纯 app 层零哈希影响）/ batch:validate 58+37 全过；headless Edge CDP 冒烟（logo 帧播放→菜单流转 / 格子聚心→铺开像素探针 / winner 立绘+台词探针 / solo 回归 sim tick=386）+ 关键帧截图目检全过，控制台零异常。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -253,7 +264,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 2 | 录像回放 | 输入序列 + 种子 + 数据版本戳的存储与播放 UI | 帧同步免费送，core 无需改 |
 | 3 | 观战 | 只收不发输入的观战客户端 | net 层扩展 |
 | 4 | rollback | 可选；视云上延迟体验决策 | 架构接口已预留（DESIGN §6） |
-| 5 | 菜单流打磨 | ✅ 骨架（切片 14）；✅ 选人页原版化（切片 15）；✅ 菜单主页原版化（切片 16）；余 Logo 演出/格子动画/结算立绘/开场徽标去除（可选）+ 切片 14 UI 待打磨池（格子长名溢出/DOM 输入样式） | app 层场景系统 |
+| 5 | 菜单流打磨 | ✅ 收官：骨架（切片 14）+ 选人页原版化（切片 15）+ 菜单主页原版化（切片 16）+ Logo 演出/格子动画/结算立绘/UI 打磨池（切片 29）；开场徽标去除（可选项）决定保留（烙进原版帧美术） | app 层场景系统 |
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
 | 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；✅ 后半·事件驱动（切片 27）：音源五路提取（bgm/se/swc/fx/语音）+ baked/audio.json + AudioSubsystem（SE/BGM/语音防重叠/KO 双段音）+ voice 事件；✅ 余项·时间轴贴帧音（切片 28）：frame-sounds SWF 解析管线 + baked/timeline-sounds.json + handleTimelineFrames 帧进入触发。块 7 收官；遗留池：嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值按需立项） | 音效随机选音源在 app 层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |

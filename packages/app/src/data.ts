@@ -31,6 +31,10 @@ export interface SelectEntry {
   swf: string | null;
   /** 原版进场形态帧（fighter.xml startFrame；缺省 1 = 首含动画形态） */
   startFrame: number;
+  /** 胜者立绘类（fighter.xml face/@win_cls，ui.json faces 寻址；无立绘 null，切片 29） */
+  win: string | null;
+  /** 台词（fighter.xml say_item，`|` 为换行分隔；随机/辅助 []，切片 29） */
+  says: string[];
 }
 
 export interface SelectData {
@@ -44,7 +48,7 @@ export function loadSelect(ctx: Ctx): Promise<SelectData> {
   return ctx.assets.json<SelectData>(`${BAKED}/select.json`);
 }
 
-// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@1，切片 15） ----------
+// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@2，切片 15/29） ----------
 
 export interface UiSelectData {
   elements: Record<string, string>;
@@ -99,6 +103,34 @@ export interface UiData {
     bgOffset: [number, number];
     cnTextPos: [number, number];
     versionPad: [number, number];
+  };
+  /** 切片 29：logo 开场徽标演出（原版 LogoStage：gotoAndPlay(2) 播到帧 66 COMPLETE → 进菜单） */
+  logo: {
+    dir: string;
+    frames: number;
+    fps: number;
+    from: number;
+    stop: number;
+    stageOriginInFrame: [number, number];
+  };
+  /** 切片 29：winner 结算立绘舞台（原版 WinnerStage/winner_stg_mc：播 1..92 定格） */
+  winner: {
+    dir: string;
+    frames: number;
+    fps: number;
+    stageOriginInFrame: [number, number];
+    stop: number;
+    /** 帧 92 定格摆放位（winner mc 空间 = 舞台空间） */
+    placements: {
+      f0: [number, number];
+      f1: [number, number];
+      f2: [number, number];
+      txtmc: [number, number];
+      scoremc: [number, number];
+      btns: [number, number];
+    };
+    /** 台词气泡（txtmc）长大动画：帧 from..stop，画布 size */
+    bubble: { dir: string; from: number; stop: number; fps: number; size: [number, number] };
   };
 }
 

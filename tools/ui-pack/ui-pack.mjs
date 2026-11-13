@@ -11,9 +11,13 @@
  *       "menu" 标签 = 帧 65）→ sharp 转 WebP q80 → assets/ui/title/<帧>.webp（~8.5MB）；
  *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
  *       → assets/ui/menu/；
+ *   2d. common_ui.swf sprite 26（logo_movie）66 帧 → assets/ui/logo/<n>.webp（开场徽标演出）；
+ *   2e. FighterTester.swf binaryData 内嵌 loading.swf → sprite 95（winner_stg_mc）帧 1..92
+ *       → assets/ui/winner/<n>.webp（结算立绘舞台）+ sprite 72（台词气泡）帧 2..10
+ *       → assets/ui/winner-bubble/<n>.webp（切片 29 菜单流打磨）；
  *   3. 地图缩略图 15 张 + random.png 原样拷入 assets/ui/maps/（450×240，与 select_map_mc ct 区同尺寸）；
- *   4. 产出 baked/ui.json（schema bvn/ui@1）：类名→文件映射 + select 元件表 + 原版布局常量
- *       + title 流帧参数 + menu 按钮阶梯布局常量。
+ *   4. 产出 baked/ui.json（schema bvn/ui@2）：类名→文件映射 + select 元件表 + 原版布局常量
+ *       + title/logo/winner 流帧参数 + menu 按钮阶梯布局常量。
  *
  * 坐标语义（FFDec sprite 导出的 PNG 画布原点 = 元件内容 bounds 左上角，注册点偏移已换算）：
  *   - 光标 PNG 放在 格子位 + (-18,-26)（select_item_mc 内层 mc 摆放矩阵 translateX/Y=-360/-520 twips）；
@@ -28,6 +32,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import {
+  copyFileSync,
   cpSync,
   existsSync,
   mkdirSync,
@@ -53,6 +58,9 @@ const FACE_SWF = resolve(
 const SELECT_SWF = resolve(opt('select-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/select.swf'));
 const TITLE_SWF = resolve(opt('title-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/title.swf'));
 const COMMON_SWF = resolve(opt('common-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/common_ui.swf'));
+const FIGHTER_TESTER_SWF = resolve(
+  opt('fighter-tester-swf', 'OpenBleachVsNaruto/_release/extracted/swf_output/FighterTester.swf'),
+);
 const MAP_DIR = resolve(opt('map-dir', 'OpenBleachVsNaruto/swf_output/assets/map'));
 const OUT_ASSETS = resolve(opt('out-assets', 'packages/data/assets/ui'));
 const OUT_BAKED = resolve(opt('out-baked', 'packages/data/baked/ui.json'));
@@ -93,6 +101,47 @@ const TITLE = {
   stageOriginInFrame: [859, 100],
 };
 
+// common_ui.swf sprite 26（logo_movie）开场徽标演出参数（切片 29）：
+// 帧 1 脚本 stop()，帧 66 脚本 stop()+dispatchEvent(COMPLETE) → LogoStage gotoAndPlay(2) 播 2..66
+const LOGO = {
+  spriteId: 26,
+  frames: 66,
+  fps: 30,
+  from: 2,
+  stop: 66,
+  /** 画布 = 舞台 800×600（实测 union），帧 PNG 内舞台 (0,0) 在 (0,0) */
+  stageOriginInFrame: [0, 0],
+};
+
+// loading.swf（内嵌于 FighterTester.swf binaryData）结算舞台参数（切片 29）：
+// winner_stg_mc（sprite 95）93 帧 @30fps；帧 92 脚本 stop()+COMPLETE（帧 93 "destory" 标签黑帧）→ 播 1..92 定格。
+// stageOriginInFrame 由 WINNER 标题像素配准实测 (740, 207.5)（union bounds 反推值 316/208 与
+// 导出画布 2013×1168 不符——画布含离台入场元素，以像素实测为准）。
+const WINNER = {
+  spriteId: 95,
+  frames: 92,
+  fps: 30,
+  stageOriginInFrame: [740, 207.5],
+  /** 帧 92 定格摆放位（winner mc 空间 = 舞台空间，twips→px 实测） */
+  placements: {
+    f0: [244.1, 171.55], // 中央胜者立绘格（黄框内容 340×290 @(−13,−9)，立绘 300×250 @(0,0)）
+    f1: [70.95, 178.65], // 左侧空位格（单人局隐藏）
+    f2: [444.4, 178.65], // 右侧空位格（单人局隐藏）
+    txtmc: [99.05, 50.05], // 台词气泡（文字区 (33,10) 起 548×90）
+    scoremc: [401.1, 472.1], // 原版 SCORE 显示（无分数系统，不挂载）
+    btns: [5.35, 517.9], // 按钮板（视觉烘焙进帧 PNG，仅需热区）
+  },
+};
+
+// 同 loading.swf sprite 72（txtmc 气泡）帧 2..10：帧 92 后 gotoAndPlay(2) 的气泡长大动画；
+// 画布 607×137 = union，txtmc 空间 (0,0) 起。
+const WINNER_BUBBLE = {
+  spriteId: 72,
+  from: 2,
+  stop: 10,
+  fps: 30,
+};
+
 function run(cmd, args_) {
   console.log(`$ ${cmd} ${args_.join(' ')}`);
   execFileSync(cmd, args_, { stdio: ['ignore', 'pipe', 'inherit'] });
@@ -100,6 +149,15 @@ function run(cmd, args_) {
 
 /** FFDec 图片导出文件名 "<symbolId>_<类名>.<ext>" → 类名。 */
 const stripSymbolPrefix = (f) => f.replace(/^\d+_/, '');
+
+/** FFDec sprite 导出目录：DefineSprite_<id>[_...] → 目录路径。 */
+function findSpriteDir(exportDir, spriteId, what) {
+  const dir = readdirSync(exportDir).find(
+    (d) => d === `DefineSprite_${spriteId}` || d.startsWith(`DefineSprite_${spriteId}_`),
+  );
+  if (!dir) throw new Error(`未找到 sprite ${spriteId}（${what}）`);
+  return join(exportDir, dir);
+}
 
 // ---------- 1. FFDec 导出 ----------
 rmSync(SCRATCH, { recursive: true, force: true });
@@ -109,6 +167,15 @@ run(FFDEC, ['-export', 'image', join(SCRATCH, 'face'), FACE_SWF]);
 run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'select'), SELECT_SWF]);
 run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'title'), TITLE_SWF]);
 run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'menu'), COMMON_SWF]);
+// 结算舞台在 loading.swf 内，而 loading.swf 内嵌于 FighterTester.swf 的 binaryData
+// （文件名形如 "1_loading_swf$....bin"）——先导 binaryData 再对挑出的 swf 导 sprite
+run(FFDEC, ['-export', 'binaryData', join(SCRATCH, 'winner-src'), FIGHTER_TESTER_SWF]);
+{
+  const bin = readdirSync(join(SCRATCH, 'winner-src')).find((f) => f.includes('loading_swf') && f.endsWith('.bin'));
+  if (!bin) throw new Error('FighterTester.swf 未找到内嵌 loading.swf binaryData');
+  copyFileSync(join(SCRATCH, 'winner-src', bin), join(SCRATCH, 'loading.swf'));
+}
+run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'winner'), join(SCRATCH, 'loading.swf')]);
 
 // ---------- 2. 头像 → assets/ui/faces/ ----------
 const facesDir = join(OUT_ASSETS, 'faces');
@@ -178,6 +245,47 @@ mkdirSync(menuDir, { recursive: true });
   }
 }
 
+// ---------- 3d. logo 开场徽标流帧 → assets/ui/logo/<n>.webp ----------
+const logoDir = join(OUT_ASSETS, 'logo');
+rmSync(logoDir, { recursive: true, force: true });
+mkdirSync(logoDir, { recursive: true });
+{
+  const spriteDir = findSpriteDir(join(SCRATCH, 'menu'), LOGO.spriteId, 'common_ui.swf logo_movie');
+  const frames = readdirSync(spriteDir).filter((f) => f.endsWith('.png'));
+  if (frames.length !== LOGO.frames) {
+    throw new Error(`logo_movie 帧数变化：${frames.length} ≠ ${LOGO.frames}（规格须同步更新）`);
+  }
+  for (let i = 1; i <= LOGO.frames; i++) {
+    await sharp(join(spriteDir, `${i}.png`)).webp({ quality: 80 }).toFile(join(logoDir, `${i}.webp`));
+  }
+}
+
+// ---------- 3e. winner 结算舞台流帧 → assets/ui/winner(-bubble)/<n>.webp ----------
+const winnerDir = join(OUT_ASSETS, 'winner');
+rmSync(winnerDir, { recursive: true, force: true });
+mkdirSync(winnerDir, { recursive: true });
+const winnerBubbleDir = join(OUT_ASSETS, 'winner-bubble');
+rmSync(winnerBubbleDir, { recursive: true, force: true });
+mkdirSync(winnerBubbleDir, { recursive: true });
+{
+  const winnerExportDir = join(SCRATCH, 'winner');
+  const stgDir = findSpriteDir(winnerExportDir, WINNER.spriteId, 'loading.swf winner_stg_mc');
+  // 帧 1..92（帧 93 为 "destory" 黑帧标签，不烘焙）
+  const frames = readdirSync(stgDir).filter((f) => f.endsWith('.png'));
+  if (frames.length < WINNER.frames) {
+    throw new Error(`winner_stg_mc 帧数不足：${frames.length} < ${WINNER.frames}（规格须同步更新）`);
+  }
+  for (let i = 1; i <= WINNER.frames; i++) {
+    await sharp(join(stgDir, `${i}.png`)).webp({ quality: 80 }).toFile(join(winnerDir, `${i}.webp`));
+  }
+  const bubbleDir = findSpriteDir(winnerExportDir, WINNER_BUBBLE.spriteId, 'loading.swf txtmc');
+  for (let i = WINNER_BUBBLE.from; i <= WINNER_BUBBLE.stop; i++) {
+    const src = join(bubbleDir, `${i}.png`);
+    if (!existsSync(src)) throw new Error(`txtmc 缺帧 ${i}`);
+    await sharp(src).webp({ quality: 80 }).toFile(join(winnerBubbleDir, `${i}.webp`));
+  }
+}
+
 // ---------- 4. 地图缩略图 → assets/ui/maps/ ----------
 const mapsDir = join(OUT_ASSETS, 'maps');
 rmSync(mapsDir, { recursive: true, force: true });
@@ -196,7 +304,7 @@ const LAYOUT = {
 };
 
 const doc = {
-  schema: 'bvn/ui@1',
+  schema: 'bvn/ui@2',
   faces, // 类名 → faces/ 下文件名（266 类 = 67 形态 × grid/_b/_m/_w）
   select: {
     elements: Object.fromEntries(Object.keys(SELECT_ELEMENTS).map((k) => [k, `ui/select/${k}.png`])),
@@ -245,6 +353,27 @@ const doc = {
     cnTextPos: [10, 45],
     /** 版本字位置 = 舞台右下角内缩（MenuStage.afterBuild） */
     versionPad: [15, 10],
+  },
+  // ---- 切片 29：logo 开场徽标演出（原版 LogoStage：gotoAndPlay(2) 播到帧 66 COMPLETE） ----
+  logo: {
+    dir: 'ui/logo',
+    frames: LOGO.frames,
+    fps: LOGO.fps,
+    from: LOGO.from,
+    stop: LOGO.stop,
+    stageOriginInFrame: LOGO.stageOriginInFrame,
+  },
+  // ---- 切片 29：winner 结算立绘舞台（原版 WinnerStage/winner_stg_mc 语义） ----
+  winner: {
+    dir: 'ui/winner',
+    frames: WINNER.frames,
+    fps: WINNER.fps,
+    stageOriginInFrame: WINNER.stageOriginInFrame,
+    stop: WINNER.frames, // 帧 92 脚本 stop()+COMPLETE 语义：播完定格
+    /** 帧 92 定格摆放位（原版 winner mc 空间 = 舞台空间） */
+    placements: WINNER.placements,
+    /** 台词气泡（txtmc）帧 2..10 长大动画 + 画布 607×137（union 即画布，原点 (0,0)） */
+    bubble: { dir: 'ui/winner-bubble', from: WINNER_BUBBLE.from, stop: WINNER_BUBBLE.stop, fps: WINNER_BUBBLE.fps, size: [607, 137] },
   },
 };
 

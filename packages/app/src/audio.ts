@@ -148,8 +148,9 @@ export class AudioSubsystem implements Subsystem {
     return p;
   }
 
-  /** 立即开火一发 SE（原版 SoundCtrler.playAssetSound/playSwcSound：无通道管理）。 */
-  se(name: string, kind: 'se' | 'swc' | 'fx' = 'swc', vol = 1): void {
+  /** 立即开火一发 SE（原版 SoundCtrler.playAssetSound/playSwcSound：无通道管理）。
+   *  kind 'bgm' = 资源表按 bgm 清单寻址、走 SE 通道一发（原版 playAssetSound('win') 语义，切片 29）。 */
+  se(name: string, kind: 'se' | 'swc' | 'fx' | 'bgm' = 'swc', vol = 1): void {
     const url = this.urlOf(kind, name);
     if (!url || !this.ac || this.ac.state !== 'running') return;
     void this.buffer(url).then((buf) => {

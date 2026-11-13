@@ -8,7 +8,11 @@
  *  - 光标（P1 蓝/P2 粉）hover 跟随，PNG 原点 = 格子位 + (-18,-26)；
  *  - 已选展示框（大头像 245×62 + 名字）在底部两角，P2 内容容器镜像；
  *  - 地图选择 = 原版轮盘：select_map 面板 + 左右箭头 + 缩略图 + kuang 框叠顶，
- *    点缩略图即确认（原版语义），random 项确认时解析。
+ *    点缩略图即确认（原版语义），random 项确认时解析；
+ *  - 格子演出（切片 29 菜单流打磨，原版 SelectFighterStage.buildList/fadOutList/initMap）：
+ *    入场 = 各格从舞台中心 scale 0→1 到落位，0.3s Back.easeOut，delay 随机 0..0.2s；
+ *    退场 = 各格回中心 scale→0，0.2s，delay 随机 0..0.1s，0.3s 后换阶段；
+ *    地图面板 = 中心 scale 0→1，0.3s Back.easeOut。
  *
  * 骨架期限制（记录，切片 14 沿用）：
  *  - 随机项（random*）仅单机可用——联机两端各自本地解析会选人分叉；
@@ -19,6 +23,7 @@ import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { sendPick, waitPeerPick, type PickInfo, type WsLike } from '@bvn/net';
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
+import { tweenOf, tickTweens, clearTweens } from '../anim.js';
 import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
 import { loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
 import type { Flow, Pick } from '../flow.js';
@@ -56,6 +61,8 @@ export class SetupScene implements Scene {
   /** 已选展示框上的大头像/名字（换选时替换） */
   private bigFace: Sprite | null = null;
   private bigName: Text | null = null;
+  /** 当前阶段格子（演出退场动画用；含地图面板） */
+  private animCells: { c: Container; x: number; y: number }[] = [];
 
   constructor(
     private readonly flow: Flow,
@@ -171,7 +178,7 @@ export class SetupScene implements Scene {
       if (this.phase !== 'fighter') {
         const backBtn = makeButton('上一步', () => {
           this.phase = this.phase === 'map' ? 'assist' : 'fighter';
-          this.renderPhase(ctx);
+          this.transitionPhase(ctx, () => this.renderPhase(ctx));
         }, { w: 90, h: 34, size: 14 });
         backBtn.position.set(UI_W - 220, 20);
         root.addChild(backBtn);
@@ -202,7 +209,7 @@ export class SetupScene implements Scene {
         return;
       }
       this.phase = 'assist';
-      this.renderPhase(ctx);
+      this.transitionPhase(ctx, () => this.renderPhase(ctx));
     } else if (this.phase === 'assist') {
       if (!this.assist) {
         this.status!.text = '请先选择辅助';
@@ -210,19 +217,37 @@ export class SetupScene implements Scene {
       }
       if (this.flow.mode === 'solo' || this.flow.player === 1) {
         this.phase = 'map';
-        this.renderPhase(ctx);
+        this.transitionPhase(ctx, () => this.renderPhase(ctx));
       } else {
-        this.beginExchange(ctx);
+        this.transitionPhase(ctx, () => this.beginExchange(ctx));
       }
     } else if (this.phase === 'map') {
       if (!this.mapChosen) {
         this.status!.text = '请先选择地图';
         return;
       }
-      if (this.flow.mode === 'net') this.beginExchange(ctx);
-      else this.startSolo(ctx);
+      if (this.flow.mode === 'net') this.transitionPhase(ctx, () => this.beginExchange(ctx));
+      else this.transitionPhase(ctx, () => this.startSolo(ctx));
     }
   }
+
+  /** 阶段切换演出（原版 fadOutList）：格子回舞台中心 scale→0，0.3s 后换阶段。 */
+  private transitionPhase(ctx: SceneCtx, next: () => void): void {
+    const quadOut = (k: number) => k * (2 - k);
+    for (const { c } of this.animCells) {
+      tweenOf(c, { x: OX + 370, y: 270, 'scale.x': 0, 'scale.y': 0 }, 200, {
+        ease: quadOut,
+        delayMs: Math.random() * 100,
+      });
+    }
+    this.animCells = [];
+    this.loadToken++; // 作废在途异步装料（退场中的格子不再挂新纹理）
+    window.setTimeout(() => {
+      if (this.ctxRef === ctx && !this.destroyedFlag) next();
+    }, 300);
+  }
+
+  private destroyedFlag = false;
 
   private mountConfirm(root: Container, label: string, onClick: () => void): void {
     const btn = makeButton(label, onClick, { w: 150, h: 34, size: 15 });
@@ -271,6 +296,7 @@ export class SetupScene implements Scene {
       this.cursor = cursor;
 
       let first: [number, number] | null = null;
+      this.animCells = [];
       for (const [e, faceTex] of loaded) {
         const [x, y] = this.cellPos(e, entries);
         const cell = new Container();
@@ -308,17 +334,31 @@ export class SetupScene implements Scene {
         }
         if (!first && !(isRandom && disableRandom)) first = [x, y];
         root.addChild(cell);
+        this.animCells.push({ c: cell, x, y });
       }
 
-      // 初始光标停在第一个可选格
-      if (first) {
-        cursor.position.set(first[0] + ui.select.cursorOffset[0], first[1] + ui.select.cursorOffset[1]);
-        cursor.visible = true;
+      // 入场演出（原版 buildList：各格从舞台中心 scale 0→1 落位，0.3s Back.easeOut，
+      // delay = 随机 0..0.2s）
+      for (const { c, x, y } of this.animCells) {
+        c.position.set(OX + 400 - 30, 300 - 30);
+        c.scale.set(0, 0);
+        tweenOf(c, { x, y, 'scale.x': 1, 'scale.y': 1 }, 300, { delayMs: Math.random() * 200 });
       }
-      root.addChild(cursor);
-      // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
-      this.mountSelectedBox(root);
-      this.refreshBigFace();
+
+      // 光标与展示框延后入场（原版 initSelecter：setTimeout(_tweenTime=500) 后挂入）
+      const tokenAt = token;
+      window.setTimeout(() => {
+        if (tokenAt !== this.loadToken || this.destroyedFlag) return;
+        // 初始光标停在第一个可选格
+        if (first) {
+          cursor.position.set(first[0] + ui.select.cursorOffset[0], first[1] + ui.select.cursorOffset[1]);
+          cursor.visible = true;
+        }
+        root.addChild(cursor);
+        // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
+        this.mountSelectedBox(root);
+        this.refreshBigFace();
+      }, 500);
     });
   }
 
@@ -370,6 +410,8 @@ export class SetupScene implements Scene {
     if (!this.bigFace || !this.bigName) return;
     if (!entry) return;
     this.bigName.text = entry.name;
+    // 长名钳制（切片 14 UI 打磨池）：名字区 233px，超出按比例缩字
+    this.bigName.scale.set(Math.min(1, 233 / Math.max(this.bigName.width, 1)));
     const url = uiFaceUrl(this.uiData!, entry.id, '_b');
     if (!url) return;
     const token = this.loadToken;
@@ -451,6 +493,12 @@ export class SetupScene implements Scene {
     this.mapNameLabel = name;
 
     root.addChild(panel);
+    // 入场演出（原版 initMap：面板从舞台中心 scale 0→1，0.3s Back.easeOut）
+    this.animCells = [];
+    this.animCells.push({ c: panel, x: OX + px - 78, y: py });
+    panel.position.set(OX + 400 - 321, 300 - 143);
+    panel.scale.set(0, 0);
+    tweenOf(panel, { x: OX + px - 78, y: py, 'scale.x': 1, 'scale.y': 1 }, 300);
     this.showMapPic(pic, entries);
   }
 
@@ -540,6 +588,7 @@ export class SetupScene implements Scene {
   }
 
   update(dtMs: number): void {
+    tickTweens(dtMs);
     // pick 重发（对端未就绪时服务器会丢弃透传，需补发）
     if (this.phase === 'exchange' && this.socket) {
       this.resendTimer += dtMs;
@@ -551,8 +600,10 @@ export class SetupScene implements Scene {
   }
 
   exit(): void {
+    this.destroyedFlag = true;
     this.loadToken++;
     this.ctxRef = null;
+    clearTweens();
     this.phaseRoot?.destroy({ children: true });
     this.ui?.destroy({ children: true });
     this.ui = null;

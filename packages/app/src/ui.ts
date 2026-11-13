@@ -71,27 +71,38 @@ export function makeButton(
 
 /**
  * DOM 文本输入浮层（联机页服务器地址/房间码用）。
- * Pixi 无内建输入框；骨架期直接用绝对定位 <input> 覆盖在画布上。
- * resolve 后自动移除。
+ * Pixi 无内建输入框；用绝对定位 <input> 覆盖在画布上，带压暗遮罩 + 游戏风格描边
+ * （切片 29 UI 打磨池：DOM 输入样式）。resolve 后整组移除。
  */
 export function domInput(
   host: HTMLElement,
   placeholder: string,
   initial: string,
 ): { element: HTMLInputElement; done: Promise<string> } {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:absolute;inset:0;background:rgba(4,8,16,.55);z-index:19;';
   const el = document.createElement('input');
   el.type = 'text';
   el.placeholder = placeholder;
   el.value = initial;
   el.style.cssText =
-    'position:absolute;left:50%;top:46%;transform:translateX(-50%);width:320px;' +
-    'padding:8px 10px;font:15px monospace;background:#101828;color:#d8dce6;' +
-    'border:1px solid #5a7aa6;border-radius:4px;outline:none;z-index:20;';
-  host.appendChild(el);
+    'position:absolute;left:50%;top:46%;transform:translate(-50%,-50%);width:340px;' +
+    'padding:12px 16px;font:16px monospace;color:#e8ecf4;color-scheme:dark;text-align:center;' +
+    'background:#0d1420;border:2px solid #5a7aa6;border-radius:8px;outline:none;z-index:20;' +
+    'box-shadow:0 4px 24px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.05);' +
+    'transition:border-color .15s;';
+  el.addEventListener('focus', () => {
+    el.style.borderColor = '#7ea0d4';
+  });
+  el.addEventListener('blur', () => {
+    el.style.borderColor = '#5a7aa6';
+  });
+  wrap.appendChild(el);
+  host.appendChild(wrap);
   el.focus();
   const done = new Promise<string>((res) => {
     const finish = () => {
-      el.remove();
+      wrap.remove();
       res(el.value.trim());
     };
     el.addEventListener('keydown', (e) => {

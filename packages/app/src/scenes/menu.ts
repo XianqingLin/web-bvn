@@ -15,12 +15,14 @@
  * 流帧播放：单帧解码 ~7MB 显存，全量常驻 ~630MB 不可行 → 常驻小窗口（预取 5 帧、
  * 释放身后帧）；磁盘 WebP 共 ~8.5MB（PNG 的 1/13）。
  */
-import { Assets, Container, Graphics, ImageSource, Sprite, Text, Texture } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { makeLabel, UI_H, UI_W } from '../ui.js';
+import { tickTweens, tweenOf, clearTweens } from '../anim.js';
 import type { Flow } from '../flow.js';
 import { ASSETS, loadUi, type UiData } from '../data.js';
+import { FrameStream } from './stream.js';
 import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
 
@@ -29,149 +31,6 @@ const VERSION = 'BVN Web v0.0.0';
 
 /** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
 const OX = (UI_W - 800) / 2;
-
-// ---------- 极简补间（TweenLite 近似：显示对象数字属性路径 + Back.easeOut） ----------
-
-/** 属性路径（'x' / 'scale.x' / 'alpha' …）读写（pixi 的 scale/position 是 ObservablePoint）。 */
-function getProp(o: Container, path: string): number {
-  let cur: unknown = o;
-  for (const seg of path.split('.')) cur = (cur as Record<string, unknown>)[seg];
-  return cur as number;
-}
-function setProp(o: Container, path: string, v: number): void {
-  const segs = path.split('.');
-  let cur: unknown = o;
-  for (const seg of segs.slice(0, -1)) cur = (cur as Record<string, unknown>)[seg];
-  (cur as Record<string, number>)[segs[segs.length - 1]!] = v;
-}
-
-interface Tween {
-  obj: Container;
-  paths: string[];
-  from: number[];
-  to: number[];
-  t: number;
-  dur: number;
-  ease: (k: number) => number;
-  delay: number;
-  done: (() => void) | undefined;
-}
-const tweens: Tween[] = [];
-const backOut = (k: number) => {
-  const c1 = 1.70158, c3 = c1 + 1;
-  return 1 + c3 * (k - 1) ** 3 + c1 * (k - 1) ** 2;
-};
-function tweenOf(
-  obj: Container,
-  to: Record<string, number>,
-  durMs: number,
-  opts: { ease?: (k: number) => number; delayMs?: number; done?: () => void } = {},
-): void {
-  const paths = Object.keys(to);
-  tweens.push({
-    obj,
-    paths,
-    from: paths.map((p) => getProp(obj, p)),
-    to: paths.map((p) => to[p]!),
-    t: 0,
-    dur: durMs,
-    ease: opts.ease ?? backOut,
-    delay: opts.delayMs ?? 0,
-    done: opts.done,
-  });
-}
-function tickTweens(dtMs: number): void {
-  for (let i = tweens.length - 1; i >= 0; i--) {
-    const tw = tweens[i];
-    if (!tw) continue;
-    if (tw.delay > 0) {
-      tw.delay -= dtMs;
-      continue;
-    }
-    tw.t = Math.min(tw.dur, tw.t + dtMs);
-    const k = tw.dur > 0 ? tw.ease(tw.t / tw.dur) : 1;
-    for (let p = 0; p < tw.paths.length; p++) {
-      const path = tw.paths[p];
-      if (path) setProp(tw.obj, path, (tw.from[p] ?? 0) + ((tw.to[p] ?? 0) - (tw.from[p] ?? 0)) * k);
-    }
-    if (tw.t >= tw.dur) {
-      tweens.splice(i, 1);
-      tw.done?.();
-    }
-  }
-}
-
-// ---------- stg_title 流帧播放（常驻窗口 + 预取） ----------
-
-class TitleStream {
-  private readonly cache = new Map<number, Texture>();
-  private readonly loading = new Map<number, Promise<Texture | null>>();
-  private readonly failedFrames = new Set<number>();
-  private dead = false;
-
-  constructor(private readonly info: UiData['title']) {}
-
-  /** 触发 [i, i+ahead] 加载；返回 i 是否已可用。 */
-  ensure(i: number, ahead = 5): boolean {
-    const to = Math.min(i + ahead, this.info.frames);
-    for (let k = Math.max(1, i); k <= to; k++) this.load(k);
-    return this.cache.has(i);
-  }
-
-  /** 加载失败帧（不重试，播放停在该帧前一位并保持背景）。 */
-  failed(i: number): boolean {
-    return this.failedFrames.has(i);
-  }
-
-  get(i: number): Texture | undefined {
-    return this.cache.get(i);
-  }
-
-  /** 释放窗口外帧（全分辨率解码帧 ~7MB 显存，常驻窗必须小）。 */
-  release(keep: (i: number) => boolean): void {
-    for (const [i, tex] of this.cache) {
-      if (!keep(i) && !this.loading.has(i)) {
-        tex.destroy(true);
-        this.cache.delete(i);
-      }
-    }
-  }
-
-  dispose(): void {
-    this.dead = true;
-    for (const tex of this.cache.values()) tex.destroy(true);
-    this.cache.clear();
-  }
-
-  private load(i: number): Promise<Texture | null> {
-    if (this.failedFrames.has(i)) return Promise.resolve(null);
-    let p = this.loading.get(i);
-    if (!p) {
-      p = fetch(`${ASSETS}/${this.info.dir}/${i}.webp`)
-        .then((r) => {
-          if (!r.ok) throw new Error(`${r.status}`);
-          return r.blob();
-        })
-        .then((b) => createImageBitmap(b))
-        .then((bmp) => {
-          if (this.dead) {
-            bmp.close();
-            return null;
-          }
-          const tex = new Texture({ source: new ImageSource({ resource: bmp }) });
-          this.cache.set(i, tex);
-          return tex;
-        })
-        .catch(() => {
-          this.failedFrames.add(i);
-          return null;
-        })
-        .finally(() => this.loading.delete(i));
-      this.loading.set(i, p);
-    }
-    return p;
-  }
-}
 
 // ---------- 菜单项定义与按钮（MenuBtn 原版语义） ----------
 
@@ -271,7 +130,7 @@ export class MenuScene implements Scene {
   readonly name = 'menu';
 
   private uiData: UiData | null = null;
-  private stream: TitleStream | null = null;
+  private stream: FrameStream | null = null;
   private frameSprite: Sprite | null = null;
   private phase: 'intro' | 'skipping' | 'menu-anim' | 'menu' = 'intro';
   private frame = 0;
@@ -339,7 +198,7 @@ export class MenuScene implements Scene {
     root.addChild(version);
 
     // 流帧：预取头几帧后开播
-    this.stream = new TitleStream(title);
+    this.stream = new FrameStream({ dir: title.dir, frames: title.frames });
     this.stream.ensure(title.introFrom, 5);
     await this.waitFrames(title.introFrom, 4);
     if (this.destroyed) return;
@@ -401,7 +260,7 @@ export class MenuScene implements Scene {
     this.destroyed = true;
     window.removeEventListener('keydown', this.onKey);
     for (const id of this.timers) window.clearTimeout(id);
-    tweens.length = 0;
+    clearTweens();
     this.stream?.dispose();
     this.stream = null;
   }
