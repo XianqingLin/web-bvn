@@ -249,6 +249,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 | 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
 | 10 | MC 子元件采集修复 | `capAdvanceChildren` 对 MovieClip 子元件推进失效（kenshin/ulquiorra/naruto form4 走段、fire 元件 kj2mc/bsmc 类全部受害）——先实验定位机制（Flash 子播放头语义 vs `as MovieClip` 判定）再修 + 重采受影响包；走段家族重采后引擎 LOOP_LABELS 全标签回卷即得正确循环（stop 触发帧 = 循环点近似）| 批次 22 登记；render/数据层，sim 零哈希漂移 |
+| 11 | 相机 autoZoom 视口基准 | 批次 23 查证发现：原版 `GameCamera` autoZoom 用 `_screenSize`=GAME_SIZE **800×600 常量**，移植版用实际可见区 viewW/fitZoom（16:9 下 1066×600）→ 宽屏下 zoom 偏小、聚焦不如原版紧。修法 = zoom 公式改 800×600 设计视口常量（渲染仍铺满屏幕）；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 登记；render 层手感变更，做前先实测对比原版聚焦 |
 
 ---
 
