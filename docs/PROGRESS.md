@@ -57,7 +57,7 @@
 | 28 | 阶段 4·块 7（余项）：逐帧时间轴贴帧音——`tools/sound-pack/frame-sounds.mjs` 自研 SWF 标签解析（StartSound 采集 + formIndex 对齐）+ baked/timeline-sounds.json（56 包 1816 事件）+ app handleTimelineFrames 帧进入触发（纯 app 层零哈希漂移）；嵌套元件音 99 处遗留（§4.3 块 7 遗留池） | ✅ | §三·切片 28 |
 | 21F | 修复批次：形态角色（sasuke_juin 等 12 个可选）选入即 404——swf 基名数据化（select-pack 烘 fighter.xml `file url`）+ app 全链按基名取 XFL/fire/语音/贴帧音（图集仍按形态 id） | ✅ | §三·批次 21F |
 | 22 | 修复批次（实战验收第二批·①）：行走滑步（loop 触发点收编，54/58 走标签）+ 防御解除"卡一下"（防御恢复冻结窗口=原版 goFrame(false)+delay idle）+ verify-drift 假阴性修复（dump 必须子进程）；MC 子元件走段家族（kenshin/ulquiorra/naruto form4）采集重跑遗留 | ✅ | §三·批次 22 |
-| 23 | 修复批次（实战验收第二批·②）：切人插图两处修复——必杀横幅右缘黑区（原版横幅内容恰铺满 800×600 游戏区，移植版可见逻辑区 1000+ → 内容横向拉伸铺满 + 立绘槽位同比外推）+ 立绘定位多减 canvasOrigin（右偏 134/下偏 12、槽 2 出屏） | ✅ | §三·批次 23 |
+| 23 | 修复批次（实战验收第二批·②）：切人插图两处修复——必杀横幅右缘黑区（原版横幅内容恰铺满 800×600 游戏区，移植版可见逻辑区 1000+ → 内容横向拉伸铺满 + 立绘槽位同比外推）+ 立绘定位多减 canvasOrigin（右偏 134/下偏 12、槽 2 出屏）；追补：相机 autoZoom 视口基准常量化（原版 GAME_SIZE 800×600，§4.3 块 11） | ✅ | §三·批次 23 |
 
 ---
 
@@ -214,6 +214,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **立绘定位多减 canvasOrigin**：槽位 wx/wy 即 mc 空间的 W_T，屏幕位应为 `mc 原点 + W_T`；旧代码 `mcPos + W_T − canvasOrigin` 把 canvasOrigin 多减一次 → 整体右偏 134/下偏 12、槽 2 立绘被推出屏右缘。已修（canvasOrigin 只用于 band PNG 定位）。
 - **门禁**：build / core 134 / replay 6 剧本 --expect 零漂移 / batch:validate 58+37 全过（render-only 双哈希零漂移符合预期）；headless Edge CDP 冒烟（1920 视口施放必杀 + 分段截图 + 像素扫描两缘）实测横幅铺满全宽无黑区、立绘贴左端，控制台零新增异常。
 - **冒烟脚本**：`tools/_scratch/cutin-smoke/`（gitignore）。
+- **追补（§4.3 块 11）**：相机 autoZoom 视口基准常量化——原版 `GameCamera` 用 `_screenSize`=GAME_SIZE **800×600 常量**，移植版此前误用实际可见区 viewW/fitZoom（16:9 下 1066×600，宽屏 zx 偏大 → zoom 偏大、贴身推近过狠）。修复 = zoom 公式改 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满、仅 zoom 数值节奏对齐原版。纯渲染层，replay 6 剧本 + batch:validate 零漂移；cutin 冒烟回归（camFocus 3.5 聚焦 + 解锁恢复 autoZoom）正常。
 
 ---
 
@@ -249,7 +250,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 | 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
 | 10 | MC 子元件采集修复 | `capAdvanceChildren` 对 MovieClip 子元件推进失效（kenshin/ulquiorra/naruto form4 走段、fire 元件 kj2mc/bsmc 类全部受害）——先实验定位机制（Flash 子播放头语义 vs `as MovieClip` 判定）再修 + 重采受影响包；走段家族重采后引擎 LOOP_LABELS 全标签回卷即得正确循环（stop 触发帧 = 循环点近似）| 批次 22 登记；render/数据层，sim 零哈希漂移 |
-| 11 | 相机 autoZoom 视口基准 | 批次 23 查证发现：原版 `GameCamera` autoZoom 用 `_screenSize`=GAME_SIZE **800×600 常量**，移植版用实际可见区 viewW/fitZoom（16:9 下 1066×600）→ 宽屏下 zoom 偏小、聚焦不如原版紧。修法 = zoom 公式改 800×600 设计视口常量（渲染仍铺满屏幕）；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 登记；render 层手感变更，做前先实测对比原版聚焦 |
+| 11 | 相机 autoZoom 视口基准 | ✅（批次 23 追补）：zoom 公式改用原版 GAME_SIZE 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 追补收编；render 层，sim 零哈希漂移 |
 
 ---
 

@@ -13,6 +13,11 @@ import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type Loade
 const TICK_MS = 1000 / 60;
 const LOGICAL_W = 1000;
 const LOGICAL_H = 600;
+/** 原版 GameCamera._screenSize = GameConfig.GAME_SIZE 800×600：autoZoom 的设计视口
+ *  常量（批次 23 追补，§4.3 块 11）——原版战斗可视区恒为 800×600（root scrollRect），
+ *  与浏览器纵横比无关；移植版可见区随纵横比更大，但 zoom 数值节奏须对齐原版。 */
+const DESIGN_VIEW_W = 800;
+const DESIGN_VIEW_H = 600;
 
 /** baked/bisha.json 的 mc 块（tools/bisha-pack 产物，schema bvn/bisha@1） */
 export interface BishaMcData {
@@ -908,10 +913,13 @@ export class BattleRenderer {
   }
 
   /**
-   * 相机（切片 26 对齐原版 GameCamera）：
+   * 相机（切片 26 对齐原版 GameCamera；批次 23 追补 autoZoom 视口基准）：
    *   - 双焦点（常态）：中心 = 双方中点；自适应缩放 = 原版 renderTwo autoZoom
-   *     `zoom = min(visW/distX, visH/distY)×0.8` clamp [1, 2.5]（autoZoomMin/Max =
-   *     initCamera 真值）——双方拉开拉远镜头、贴身推近；
+   *     `zoom = min(screenW/distX, screenH/distY)×0.8` clamp [1, 2.5]
+   *     （autoZoomMin/Max = initCamera 真值）——双方拉开拉远镜头、贴身推近。
+   *     视口基准 = 原版 `_screenSize` = GAME_SIZE **800×600 常量**（批次 23 追补：
+   *     此前误用实际可见区 viewW/fitZoom——宽屏下 1066 使 zx 偏大 → zoom 偏大、
+   *     贴身推近过狠；渲染可见区仍随纵横比铺满，仅 zoom 数值节奏对齐原版）；
    *   - 单焦点（super 必杀/万解，原版 cameraFocusOne）：聚焦施法者 + zoom 3.5
    *     （autoZoom 仅双焦点生效），cutinLock 清除由 updateCutin 恢复双焦点；
    *   - 缓动 = 原版 ease：逐帧 delta/5（tweenSpd = CAMERA_TWEEN_SPD/SPEED_PLUS_DEFAULT
@@ -923,8 +931,6 @@ export class BattleRenderer {
     const fs = snap.state.fighters;
     if (fs.length === 0) return;
     const fitZoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
-    const visW = this.viewW / fitZoom;
-    const visH = this.viewH / fitZoom;
 
     let tx: number;
     let ty: number;
@@ -945,8 +951,8 @@ export class BattleRenderer {
       if (fs.length >= 2) {
         const distX = Math.abs(fs[0]!.x - fs[1]!.x);
         const distY = Math.abs(fs[0]!.y - fs[1]!.y);
-        const zx = distX > 0 ? visW / distX : Infinity;
-        const zy = distY > 0 ? visH / distY : Infinity;
+        const zx = distX > 0 ? DESIGN_VIEW_W / distX : Infinity;
+        const zy = distY > 0 ? DESIGN_VIEW_H / distY : Infinity;
         zoomT = Math.min(Math.max(Math.min(zx, zy) * 0.8, 1), 2.5);
       }
     }

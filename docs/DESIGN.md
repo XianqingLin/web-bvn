@@ -196,7 +196,7 @@ PixiJS v8；逻辑坐标 1000×600（y 向下）与原版 FighterTester SWF 舞�
 
 **必杀光效**（切片 26，原版 `EffectCtrler.bisha` doEffectById 分支）：`bisha`（isSuper=false）/ `bisha_super`（isSuper=true；wanKai 恒 super）= XG_bs/XG_cbs 17 帧逐帧序列（bisha-pack 步骤 3b 导出，30fps 加色混合，画布原点 (−123.05,−101.9)/(−147.85,−122.31)，cbs=bs×1.2 精确吻合交叉验证锚定假设），锚在事件 payload (x, y−50) 播尽自移除（原版 EffectView 逐帧播完 remove）。
 
-**相机聚焦与自适应缩放**（切片 26，原版 GameCamera autoZoom）：`bisha`/`wanKai` 事件 isSuper=true → `camFocus` 置施法者（zoomTarget=3.5），`endBisha`/`endWanKai`（cutinLock 解锁）→ 恢复双焦点 autoZoom；autoZoom = `min(visW/distX, visH/distY)×0.8` clamp [1, 2.5]（dist=0 → Infinity）。缓动 = 每帧 `delta/5`（tweenSpd 2.5 ÷ SPEED_PLUS 0.5），位置 snap 0.5 世界px、缩放 snap 0.5/800。保守偏离：clamp 夹在平滑后的当前有效缩放值上（原版夹目标值）——视觉差异仅出现在版边附近数像素级，按重构定位接受。
+**相机聚焦与自适应缩放**（切片 26，原版 GameCamera autoZoom；批次 23 追补视口基准）：`bisha`/`wanKai` 事件 isSuper=true → `camFocus` 置施法者（zoomTarget=3.5），`endBisha`/`endWanKai`（cutinLock 解锁）→ 恢复双焦点 autoZoom；autoZoom = `min(设计视宽W/distX, 设计视高H/distY)×0.8` clamp [1, 2.5]（dist=0 → Infinity），视口基准 = 原版 `_screenSize` = GAME_SIZE **800×600 常量**（批次 23 追补：此前误用实际可见区 viewW/fitZoom——宽屏 1066 使 zx 偏大 → zoom 偏大、贴身推近过狠；渲染可见区仍随纵横比铺满，仅 zoom 数值节奏对齐原版）。缓动 = 每帧 `delta/5`（tweenSpd 2.5 ÷ SPEED_PLUS 0.5），位置 snap 0.5 世界px、缩放 snap 0.5/800。保守偏离：clamp 夹在平滑后的当前有效缩放值上（原版夹目标值）——视觉差异仅出现在版边附近数像素级，按重构定位接受。
 
 ## 6. 联机层（阶段 2，接口现已冻结）
 
