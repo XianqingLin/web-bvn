@@ -163,11 +163,8 @@
 
 ### 4.2 阶段 3 尾巴（切片 13 余项，纯增量特性，不阻塞阶段 4 推进）
 
-- ~~独立道具逐帧命中矩形~~（✅ 切片 23 收编，含 byakuya atm1 抓取伤害 / itachi 动态伤害 / madara miss 分支；遗留：无 replay 剧本覆盖逐帧命中行为变更 + 歧义 6 例抽样核对，见 §三·切片 23）；
-- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；~~itachi 动态伤害~~（✅ 切片 23 收编）；suigetsu `isAttacking=true`（唯一读者 AI）；~~temari 风场系统~~（✅ 切片 25 收编；"owner speedUp 已提取"系误记——expr 首参此前静默 0 值，已改 buffSpeedUpByOwnerSpeed）；
+- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：suigetsu `isAttacking=true`（唯一读者 AI，随 §4.3 块 6 一并处理）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
-- ~~必杀切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费~~（✅ 切片 22 收编，含万解 wanKai/endWanKai 同机制覆盖）；
-- ~~空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）~~（✅ 切片 24 收编：data 层补 `kbs→空中必杀` 映射；"纯表现无判定"系误记——命中按帧逐区解析不依赖 attackId，实测已通）；
 - 验收：门禁全过；行为变更则重冻对应基线。
 
 ### 4.3 阶段 4 体验完善（粒度先按块，开工前细化成切片）
