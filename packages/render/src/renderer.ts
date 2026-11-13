@@ -259,8 +259,32 @@ export class BattleRenderer {
     this.viewH = this.app.renderer.height;
   }
 
-  /** 加载战斗素材（app await）。 */
-  async load(spec: BattleAssetsSpec): Promise<void> {
+  /** 加载战斗素材（app await；onProgress = 分步进度回报 0..1，加载页进度条消费，块 9）。 */
+  async load(spec: BattleAssetsSpec, onProgress?: (fraction: number) => void): Promise<void> {
+    // 分步总数由 spec 预推（与下方 await 序列一一对应；步骤增删须同步）
+    const fireCount = Object.values(spec.fireAtlases ?? {}).reduce(
+      (s, m) => s + Object.keys(m).length,
+      0,
+    );
+    const effectFrames = Object.values(spec.bisha?.effects ?? {}).reduce((s, e) => s + e.frames, 0);
+    const faceCount = spec.bisha
+      ? [
+          ...spec.fighters.map((f) => f.atlasId),
+          ...(spec.assisters ?? []).map((a) => a.atlasId),
+        ].reduce((s, id) => s + Object.keys(spec.bisha!.faces[id] ?? {}).length, 0)
+      : 0;
+    const total =
+      1 /*map*/ +
+      spec.fighters.length +
+      (spec.assisters?.length ?? 0) +
+      fireCount +
+      (spec.bisha ? spec.bisha.mc.frames + effectFrames + faceCount : 0) +
+      (spec.hud ? 1 : 0);
+    let done = 0;
+    const tick = () => {
+      done++;
+      onProgress?.(Math.min(done / total, 1));
+    };
     const atlasFor = async (atlasId: string, kind: 'fighter' | 'assister'): Promise<FighterAtlas> => {
       if (spec.fighterAtlasJson?.[atlasId]) return spec.fighterAtlasJson[atlasId]!;
       const url = `${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}/${atlasId}.atlas.json`;
@@ -275,6 +299,7 @@ export class BattleRenderer {
     this.mapBottomOffset = spec.mapBottomOffset ?? 0;
     this.mapBottom = spec.mapBottom ?? LOGICAL_H;
     this.buildMap();
+    tick();
 
     for (const f of spec.fighters) {
       const kind = f.kind ?? 'fighter';
@@ -282,6 +307,7 @@ export class BattleRenderer {
       const loaded = await loadFighterAtlas(`${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}`, atlas);
       this.sprites.set(f.slot, this.makeSprite(f.atlasId, loaded, f.formIndex ?? 0));
       this.fighterAtlasById.set(f.slot, f.atlasId);
+      tick();
     }
 
     for (const a of spec.assisters ?? []) {
@@ -289,6 +315,7 @@ export class BattleRenderer {
       const loaded = await loadFighterAtlas(`${spec.baseUrl}/assistants`, atlas);
       this.assistSprites.set(a.ownerId, this.makeSprite(a.atlasId, loaded, 0));
       this.assisterAtlasByOwner.set(a.ownerId, a.atlasId);
+      tick();
     }
 
     // fire 元件图集（切片 14 多角色）：按出场者 atlasId 装载；缺失条目色块回退
@@ -304,6 +331,7 @@ export class BattleRenderer {
           ownerAtlasId,
           loaded,
         );
+        tick();
       }
     }
 
@@ -313,6 +341,7 @@ export class BattleRenderer {
       this.bishaBandTex = [];
       for (let i = 1; i <= spec.bisha.mc.frames; i++) {
         this.bishaBandTex.push(await Assets.load<Texture>(`${spec.baseUrl}/${spec.bisha.mc.dir}/${i}.webp`));
+        tick();
       }
       // 必杀光效流帧（切片 26）：bisha(XG_bs) / bisha_super(XG_cbs)
       this.bishaEffects = {};
@@ -321,6 +350,7 @@ export class BattleRenderer {
         const texs: Texture[] = [];
         for (let i = 1; i <= eff.frames; i++) {
           texs.push(await Assets.load<Texture>(`${spec.baseUrl}/${eff.dir}/${i}.webp`));
+          tick();
         }
         this.bishaEffects[id] = eff;
         this.effectTex.set(id, texs);
@@ -340,6 +370,7 @@ export class BattleRenderer {
         for (const [faceName, path] of Object.entries(spec.bisha.faces[atlasId] ?? {})) {
           const tex = await Assets.load<Texture>(`${spec.baseUrl}/${path}`);
           this.bishaFaceTex.set(`${atlasId}:${faceName}`, tex);
+          tick();
         }
       }
     } else {
@@ -351,6 +382,7 @@ export class BattleRenderer {
       this.hud?.destroy();
       this.hud = new FightHud(this.hudLayer, spec.hud);
       await this.hud.load(spec.baseUrl);
+      tick();
     } else {
       this.hud?.destroy();
       this.hud = null;
@@ -1002,6 +1034,21 @@ export class BattleRenderer {
     const loY = halfH;
     const hiY = st.bottomY - halfH;
     const cy = loY > hiY ? st.bottomY / 2 : Math.min(Math.max(this.camY, loY), hiY);
+    this.applyCameraTransform(cx, cy, zoom);
+    // front 层视差（镜像原版 MapMain.render，scrollRect 语义换算为本相机）：
+    //   front.x = defaultX - 0.1·camLeft（camLeft = 视口左缘世界 x）
+    //   front.y = defaultY + max(0, (bottom - camTop)·0.1)
+    // front 在屏幕上比世界移动更快（近景语义）；front_fix 无视差、随地图固定。
+    const camLeft = cx - halfW;
+    const camTop = cy - halfH;
+    this.mapFrontLayer.position.set(
+      this.frontBaseX - camLeft * 0.1,
+      this.frontBaseY + Math.max(0, (this.mapBottom - camTop) * 0.1),
+    );
+  }
+
+  /** 相机变换应用（updateCamera 尾段共用；屏幕空间 bg cover 不随相机平移）。 */
+  private applyCameraTransform(cx: number, cy: number, zoom: number): void {
     this.world.scale.set(zoom);
     this.world.position.set(this.viewW / 2 - cx * zoom, this.viewH / 2 - cy * zoom);
     // bg：随视口缩放、不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外）；
@@ -1014,16 +1061,32 @@ export class BattleRenderer {
       this.bgSprite.scale.set(bk);
       this.bgSprite.position.set((bw - this.bgSize.w * bk) / 2, (bh - this.bgSize.h * bk) / 2);
     }
-    // front 层视差（镜像原版 MapMain.render，scrollRect 语义换算为本相机）：
-    //   front.x = defaultX - 0.1·camLeft（camLeft = 视口左缘世界 x）
-    //   front.y = defaultY + max(0, (bottom - camTop)·0.1)
-    // front 在屏幕上比世界移动更快（近景语义）；front_fix 无视差、随地图固定。
-    const camLeft = cx - halfW;
-    const camTop = cy - halfH;
-    this.mapFrontLayer.position.set(
-      this.frontBaseX - camLeft * 0.1,
-      this.frontBaseY + Math.max(0, (this.mapBottom - camTop) * 0.1),
-    );
+  }
+
+  /** 首帧定位（块 9）：装载完成、首快照前按默认相机（逻辑屏中心，zoom=1 基准）摆好
+   *  world/bg/HUD。此前换场景首帧 world@原点、bg 未 cover → "进场黑边"；首个真实
+   *  快照到达后 updateCamera 即接管（舞台边界未知，按默认 0..LOGICAL 夹取）。 */
+  prime(): void {
+    const fitZoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
+    const zoom = fitZoom * this.zoomFactor;
+    const halfW = this.viewW / zoom / 2;
+    const halfH = this.viewH / zoom / 2;
+    const loX = halfW;
+    const hiX = LOGICAL_W - halfW;
+    const cx = loX > hiX ? LOGICAL_W / 2 : Math.min(Math.max(LOGICAL_W / 2, loX), hiX);
+    const loY = halfH;
+    const hiY = LOGICAL_H - halfH;
+    const cy = loY > hiY ? LOGICAL_H / 2 : Math.min(Math.max(LOGICAL_H / 2, loY), hiY);
+    this.applyCameraTransform(cx, cy, zoom);
+    this.hud?.layout(this.viewW, this.viewH, fitZoom);
+  }
+
+  /** 舞台五层显隐（块 9）：装载期隐藏（加载画面之下不露地图/HUD），战斗 enter 时开启。
+   *  blackLayer/cutinLayer 的内层显隐由 update 流程自管，开关只作用于本层容器。 */
+  setStageVisible(v: boolean): void {
+    for (const c of [this.bgFixed, this.blackLayer, this.cutinScreen, this.world, this.hudLayer]) {
+      c.visible = v;
+    }
   }
 
   private hudGfx: Graphics | null = null;

@@ -13,23 +13,10 @@ import {
   type LockstepClient,
   type WsLike,
 } from '@bvn/net';
-import { BattleRenderer } from '@bvn/render';
+import type { BattleRenderer } from '@bvn/render';
 import type { Scene, SceneCtx } from './scene.js';
 import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
-import {
-  ASSETS,
-  loadAssistPack,
-  loadBisha,
-  loadFighterPack,
-  loadHud,
-  loadMapPack,
-  loadSelect,
-  loadUi,
-  uiFaceUrl,
-  type AssistPack,
-  type FighterPack,
-  type MapPack,
-} from '../data.js';
+import type { AssistPack, FighterPack, MapPack } from '../data.js';
 import {
   audioOf,
   voiceBindingOf,
@@ -82,12 +69,18 @@ class KeyboardSource implements InputSource {
   }
 }
 
-/** 一场对局的静态装配（enter 时一次装载，重开同包走 assets 缓存）。 */
+/** 一场对局的静态装配（切片 31：LoadingScene 分帧装载产物，进战斗零装载）。 */
 interface BattleRig {
   map: MapPack;
   p1: FighterPack;
   p2: FighterPack;
   assists: Record<string, AssistPack>;
+}
+
+/** 装载产物交接（LoadingScene → BattleScene；renderer 已 load + prime）。 */
+export interface BattleLoadout {
+  rig: BattleRig;
+  renderer: BattleRenderer;
 }
 
 export class BattleScene implements Scene {
@@ -108,7 +101,6 @@ export class BattleScene implements Scene {
   private keys = new Set<string>();
   private dead = false;
   private ctx: SceneCtx | null = null;
-  private rig: BattleRig | null = null;
   private audio: AudioSubsystem | null = null;
   private audioBinding: BattleAudioBinding | null = null;
   private timelineBinding: TimelineAudioBinding | null = null;
@@ -118,40 +110,18 @@ export class BattleScene implements Scene {
     private readonly flow: Flow,
     /** 联机 socket（net；solo 为 null） */
     private readonly socket: WsLike | null,
+    /** 装载产物（切片 31：LoadingScene 分帧装载 + renderer load/prime） */
+    private readonly loadout: BattleLoadout,
   ) {}
 
   async enter(ctx: SceneCtx): Promise<void> {
     this.ctx = ctx;
-    const { p1, p2 } = picksOf(this.flow);
-
-    // —— 数据装配（assets 缓存，重开同包零开销） ——
-    // swf 基名换算（形态角色 ≠ id：XFL/fire/语音/贴帧音按基名，图集按 id）
-    // + startFrame 进场形态（fighter.xml 实证：缺省形态 = 含动画形态第 N 个）
-    const select = await loadSelect(ctx.ctx);
-    const ui = await loadUi(ctx.ctx);
-    const entryOf = (id: string) => select.chars.find((c) => c.id === id);
-    const [p1Pack, p2Pack] = await Promise.all([
-      loadFighterPack(
-        ctx.ctx,
-        p1.fighter,
-        entryOf(p1.fighter)?.swf ?? p1.fighter,
-        entryOf(p1.fighter)?.startFrame ?? 1,
-      ),
-      loadFighterPack(
-        ctx.ctx,
-        p2.fighter,
-        entryOf(p2.fighter)?.swf ?? p2.fighter,
-        entryOf(p2.fighter)?.startFrame ?? 1,
-      ),
-    ]);
-    const assistList = await Promise.all(
-      [...new Set([p1.assist, p2.assist])].map((id) => loadAssistPack(ctx.ctx, id)),
-    );
-    const assists: Record<string, AssistPack> = {};
-    for (const a of assistList) assists[a.id] = a;
-    const map = await loadMapPack(ctx.ctx, this.flow.mapId);
-    this.rig = { map, p1: p1Pack, p2: p2Pack, assists };
-    const bisha = await loadBisha(ctx.ctx);
+    const { p1 } = picksOf(this.flow);
+    const rig = this.loadout.rig;
+    const map = rig.map;
+    // 渲染器由 LoadingScene 装载并 prime（块 9）：进场零装载、首帧无黑边
+    this.renderer = this.loadout.renderer;
+    this.renderer.setStageVisible(true);
 
     // —— 音频装配（切片 27）：语音绑定 + 对局 BGM（原版 GameStartCtrler playFightBGM 语义） ——
     const audio = audioOf(ctx.ctx);
@@ -162,58 +132,17 @@ export class BattleScene implements Scene {
         resolve: (cls: string) => audio.voiceUrl(pack.swf, cls),
       });
       this.audioBinding = {
-        fighters: { 1: mkSlot(p1Pack), 2: mkSlot(p2Pack) },
+        fighters: { 1: mkSlot(rig.p1), 2: mkSlot(rig.p2) },
       };
       // 贴帧音绑定（切片 28）：swf 基名寻址（形态角色共用基础包）；辅助缺包 = 无音安全跳过
       this.timelineBinding = {
-        fighters: { 1: p1Pack.swf, 2: p2Pack.swf },
-        assists: Object.fromEntries(assistList.map((a) => [a.id, a.id])),
+        fighters: { 1: rig.p1.swf, 2: rig.p2.swf },
+        assists: Object.fromEntries(
+          Object.keys(rig.assists).map((id) => [id, id]),
+        ),
       };
       audio.fightBgm(p1.fighter, this.flow.mapId);
     }
-
-    // —— 渲染装配 ——
-    const renderer = new BattleRenderer(ctx.pixi);
-    this.renderer = renderer;
-    await renderer.load({
-      baseUrl: ASSETS,
-      fighters: [
-        { slot: 1, atlasId: p1Pack.id, formIndex: p1Pack.def.formIndex },
-        { slot: 2, atlasId: p2Pack.id, formIndex: p2Pack.def.formIndex },
-      ],
-      assisters: [
-        { ownerId: 1, atlasId: p1.assist },
-        { ownerId: 2, atlasId: p2.assist },
-      ],
-      mapAtlasId: map.id,
-      mapBottomOffset: map.pkg.bottomOffset,
-      mapBottom: map.pkg.bottom,
-      fireAtlases: {
-        // 键 = 出场者 atlasId（render 侧按精灵 atlasId 查），值 = fire 图集 id（swf 基名）
-        fighter: Object.fromEntries(
-          [p1Pack, p2Pack].filter((p) => p.hasFires).map((p) => [p.id, p.swf]),
-        ),
-        assister: Object.fromEntries(assistList.filter((a) => a.hasFires).map((a) => [a.id, a.id])),
-      },
-      bisha: { mc: bisha.mc, faces: bisha.faces, effects: bisha.effects },
-      hud: {
-        data: await loadHud(ctx.ctx),
-        // 血条大脸 = select id+'_m'（102×64）；辅助脸 = 辅助 id 50×50 网格脸
-        //（原版 getFighterFace 缺省 size）；能量标签帧 = comicType（0=死神 1=火影）
-        fighters: {
-          p1: {
-            faceUrl: uiFaceUrl(ui, p1.fighter, '_m'),
-            assistFaceUrl: uiFaceUrl(ui, p1.assist, ''),
-            comicType: entryOf(p1.fighter)?.comicType ?? 0,
-          },
-          p2: {
-            faceUrl: uiFaceUrl(ui, p2.fighter, '_m'),
-            assistFaceUrl: uiFaceUrl(ui, p2.assist, ''),
-            comicType: entryOf(p2.fighter)?.comicType ?? 0,
-          },
-        },
-      },
-    });
 
     // —— 键盘 ——
     const onKeyDown = (e: KeyboardEvent) => {
@@ -259,7 +188,7 @@ export class BattleScene implements Scene {
 
   /** sim 装配：选人 → 双角色 + 双辅助注册表（solo 双方同配）。 */
   private spawnSim(training: boolean): void {
-    const rig = this.rig!;
+    const rig = this.loadout.rig;
     const { p1, p2 } = picksOf(this.flow);
     const st = rig.map.stage;
     this.sim = new Sim({

@@ -27,7 +27,7 @@ import { tweenOf, tickTweens, clearTweens } from '../anim.js';
 import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
 import { loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
 import type { Flow, Pick } from '../flow.js';
-import { BattleScene } from './battle.js';
+import { LoadingScene } from './loading.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
@@ -555,7 +555,7 @@ export class SetupScene implements Scene {
     const { pick, mapId } = this.resolvePick();
     this.flow.localPick = pick;
     this.flow.mapId = mapId!;
-    ctx.switchTo(new BattleScene(this.flow, null));
+    ctx.switchTo(new LoadingScene(this.flow, null));
   }
 
   /** 联机：发本端 pick（3s 重发）+ 等对端 pick → 双方就位开打。 */
@@ -573,7 +573,7 @@ export class SetupScene implements Scene {
       // 地图以 P1 选择为准
       const p1Map = isP1 ? mapId! : peer.map;
       if (p1Map) this.flow.mapId = p1Map;
-      ctx.switchTo(new BattleScene(this.flow, socket));
+      ctx.switchTo(new LoadingScene(this.flow, socket));
     });
   }
 

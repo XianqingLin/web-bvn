@@ -264,9 +264,9 @@ export class WinnerScene implements Scene {
   private onContinue(): void {
     if (this.destroyed) return;
     this.destroyed = true;
-    // net 不显示 CONTINUE（onStopped 已隐藏）；dev/solo 重开同一 flow
-    void import('./battle.js').then(({ BattleScene }) => {
-      if (this.ctx) this.ctx.switchTo(new BattleScene(this.flow, this.socket));
+    // net 不显示 CONTINUE（onStopped 已隐藏）；dev/solo 重开同一 flow（经加载画面重装载）
+    void import('./loading.js').then(({ LoadingScene }) => {
+      if (this.ctx) this.ctx.switchTo(new LoadingScene(this.flow, this.socket));
     });
   }
 

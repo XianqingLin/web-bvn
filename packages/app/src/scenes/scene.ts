@@ -97,7 +97,9 @@ export class SceneHost implements Subsystem {
   }
 
   update(dtMs: number): void {
-    this.current?.update?.(dtMs);
+    // 异步 enter 期间场景尚未装配完成；尤其 Logo 不能提前累计播放时间，
+    // 否则首帧加载较慢时会先触发下一场景，撞上 switching 保护。
+    if (!this.switching) this.current?.update?.(dtMs);
   }
 
   dispose(): void {

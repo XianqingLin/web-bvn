@@ -16,7 +16,7 @@ import { LogoScene } from './scenes/logo.js';
 import { MenuScene } from './scenes/menu.js';
 import { NetScene } from './scenes/net.js';
 import { SetupScene } from './scenes/setup.js';
-import { BattleScene } from './scenes/battle.js';
+import { LoadingScene } from './scenes/loading.js';
 import { WinnerScene } from './scenes/winner.js';
 import { makeFlow } from './flow.js';
 
@@ -55,7 +55,7 @@ async function boot(): Promise<void> {
     flow.mode = 'solo';
     flow.localPick = { fighter: 'ichigo', assist: 'gaara' };
     flow.mapId = 'KonohaMura';
-    scenes.switchTo(new BattleScene(flow, null));
+    scenes.switchTo(new LoadingScene(flow, null));
   } else if (mode === 'setup') {
     // dev 直通：只开选人页（不自动确认；切片 15 目检/驱动用）
     flow.mode = 'solo';

@@ -285,26 +285,32 @@ export class AudioSubsystem implements Subsystem {
 
   /** 对局 BGM（原版 playFightBGM：角色曲按 rate 概率，否则地图曲）。 */
   fightBgm(fighterId: string, mapId: string): void {
+    this.bgmUrl(this.pickFightBgmUrl(fighterId, mapId));
+  }
+
+  /** 对局 BGM 选择（原版 playFightBGM 曲目决定逻辑；加载页预解码与开打共用）。 */
+  private pickFightBgmUrl(fighterId: string, mapId: string): string | null {
     const mf = this.mf;
-    if (!mf) return;
+    if (!mf) return null;
     const charBgm = mf.fighterBgm[fighterId];
     if (charBgm && Math.random() * 100 <= charBgm.rate) {
       const id = Object.entries(mf.bgm).find(([, url]) => url === charBgm.url)?.[0];
-      if (id) {
-        this.bgm(id);
-        return;
-      }
+      if (id) return mf.bgm[id]!;
     }
     const mapUrl = mf.mapBgm[mapId];
     if (mapUrl) {
       const id = Object.entries(mf.bgm).find(([, url]) => url === mapUrl)?.[0];
-      if (id) {
-        this.bgm(id);
-        return;
-      }
+      if (id) return mf.bgm[id]!;
     }
     // 曲名不在 bgm 清单（char_*/stg_* 直接以 url 为键挂播放）
-    this.bgmUrl(charBgm?.url ?? mapUrl ?? null);
+    return charBgm?.url ?? mapUrl ?? null;
+  }
+
+  /** 预解码对局 BGM（原版 SoundCtrler.loadFightBGM 装载队列语义：加载页把战斗曲
+   *  先行解码进缓存，KO 后重开/进图不卡解码）。 */
+  async preloadFightBgm(fighterId: string, mapId: string): Promise<void> {
+    const url = this.pickFightBgmUrl(fighterId, mapId);
+    if (url) await this.buffer(url);
   }
 
   private bgmUrl(url: string | null): void {

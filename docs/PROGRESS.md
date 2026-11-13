@@ -16,7 +16,7 @@
 | 1 | POC：单机对战闭环 + 训练模式 | ✅（切片 1~5） |
 | 2 | 联机：lockstep + 房间服务器 | ✅（切片 6~7；真机验收待做，见 §4.1） |
 | 3 | 批量化：全角色机制 + 验收门禁 | ✅ 主线（切片 8~12）；尾巴见 §4.2 |
-| 4 | 体验完善：菜单流/原版化/实战修复等 | 🔄（切片 14/15/16/26/27/28 + 修复批次 17/18/21F ✅；余断线/录像/观战/rollback/街机/本地双人/加载画面，见 §4.3） |
+| 4 | 体验完善：菜单流/原版化/实战修复等 | 🔄（切片 14/15/16/26/27/28/29/30/31 + 修复批次 17/18/21F/22/23/24/30 ✅；余断线/录像/观战/rollback/街机/本地双人，见 §4.3） |
 
 门禁速记（每次收尾全过才算完成）：`pnpm build` + 确定性单测 + `tools/replay` 五剧本哈希（含 assist-duel）+ `pnpm batch:validate`（58 角色 + 37 辅助，基线 `tools/batch-validate/baseline.json`）。行为有意变更 → 重冻全部基线并在提交说明写明。
 
@@ -60,6 +60,7 @@
 | 23 | 修复批次（实战验收第二批·②）：切人插图两处修复——必杀横幅右缘黑区（原版横幅内容恰铺满 800×600 游戏区，移植版可见逻辑区 1000+ → 内容横向拉伸铺满 + 立绘槽位同比外推）+ 立绘定位多减 canvasOrigin（右偏 134/下偏 12、槽 2 出屏）；追补：相机 autoZoom 视口基准常量化（原版 GAME_SIZE 800×600，§4.3 块 11） | ✅ | §三·批次 23 |
 | 29 | 阶段 4·块 5 收尾·菜单流打磨：Logo 开场演出（logo_movie 66 帧流播 + LogoScene）+ 结算立绘（内嵌 loading.swf winner_stg_mc 92 帧舞台 + 胜者立绘/台词气泡 + select-pack 升 @2 烘 win_cls/says）+ 选人格子入场/退场/地图面板动画（buildList/fadOutList/initMap 收编，tween 提取共享 anim.ts + FrameStream 泛化）+ UI 打磨池（长名钳制/DOM 输入样式） | ✅ | §三·切片 29 |
 | 30 | 阶段 4·对局 HUD 原版化（用户目检发现占位 UI，立项收编）：fight.swf XFL 全 HUD 装配逆向（血条/大脸/能量条/计时板/气条/READY/辅助格/连击数）+ `tools/ui-pack/hud-pack.mjs` 27 元素烘焙（FFDec sprite 帧序 + shape SVG 光栅化）+ `baked/hud.json` + render FightHud 屏幕空间钉边组件 + app 接线（select `comicType`/`_m` 大脸/50×50 辅助脸）；原版血条红条延迟/能量溢出闪烁/气条 4 段+幽灵步/连击数算法逐条收编 | ✅ | §三·切片 30 |
+| 31 | 阶段 4·块 9·进战斗加载画面：`tools/ui-pack/loading-pack.mjs` 烘焙（loading.swf loading_fight_mc 舞台画裁切 + 进度条槽/填充/美术字/spinner 30 帧）+ `baked/loading.json`（schema bvn/loading@1）+ app LoadingScene（原版 LoadingStage 装载队列语义：角色→辅助→场景→BGM 预解码→渲染纹理，msg+计数/条形 scaleX/spinner 30fps）+ 装载分帧化（步间让帧，不再整段卡主线程）+ renderer.load 分步进度回报 + renderer.prime() 首帧定位（修"进场黑边"）+ 装载期舞台层隐藏 + BattleScene 改装载产物交接（setup/winner/main 三处入口改经 LoadingScene） | ✅ | §三·切片 31 |
 
 ---
 
@@ -248,6 +249,17 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **遗留池（§4.3 块 12 登记）**：startKOmc 开场 KO 字样、win 胜场星（p1Wins/p2Wins 恒 0）、scoremc 计分板、被动条 sp、picture_063 顶部装饰、shape_007 圆底数字"2"（回合指示）——均为无对应语义的展示件，按需另立项。
 - **门禁**：build / core 186 / replay 6 剧本零漂移（纯 render+app 层零哈希影响）/ batch:validate 58+37 全过；有头 Edge Playwright 目检（初始态/近身连击/瞬步耗能）全过——qi 命中回气 25.6、瞬步能量 100→72→63、"3 HITS" 连击计数显示实证。headless rAF 节流致 sim 仅 ~3 tick/s，战斗态目检须有头驱动（`keyboard.press` 边沿陷阱同前：down/up 显式按住 60ms+）。
 
+### 切片 31——进战斗加载画面（✅ 2026-11-13）
+
+§4.3 块 9 收官（原版场景链 选人 → Loading → GameStage 的最后一段）。
+- **烘焙**：`tools/ui-pack/loading-pack.mjs`（FFDec binaryData 提取 loading.swf → sprite/shape 导出 + sharp 光栅化）→ `packages/data/assets/ui/loading/`（bg.webp 800×600 舞台画裁切——sprite 47 导出画 1400×1050、舞台原点 (316,208)、stage (0,0) 处裁 800×600；track/fill/label 三张 shape PNG + spinner 30 帧 20×20）+ `baked/loading.json`（schema `bvn/loading@1`：bg/bar 各件原版装配坐标——bar 容器 @(17,555.1)、fill 填充锚左 scaleX、txt 右缘 761.95/14px 青 #00daf8）。
+- **app LoadingScene**（`scenes/loading.ts`，原版 LoadingStage 语义）：装载队列照 build() 顺序——角色×2 → 辅助（去重）→ 场景 → BGM 预解码（新 `AudioSubsystem.preloadFightBgm`，原版 SoundCtrler.loadFightBGM 语义）→ 渲染纹理；消息 = `消息(n/总数)` 右对齐青色，进度 = fill scaleX（分步计数下插值逼近连续走动），spinner 30fps 循环，BGM('loading')。装载完成定场 600ms 后 `switchTo(BattleScene)`。
+- **装载分帧化**：装载步间 `requestAnimationFrame` 让帧 + `renderer.load` 分步 onProgress（map→每角色/辅助/fire 图集→必杀逐帧→光效逐帧→大脸→hud 各计一步）——装载不再整段卡死主线程，进度条/spinner 持续走动。
+- **renderer 首帧定位**：新 `prime()`（fitZoom×zoomFactor 相机摆位 + bgFixed cover + hud.layout）修换场景首帧 world@原点/bg 未 cover 的"进场黑边"；新 `setStageVisible()` 装载期隐藏世界/HUD 层（渲染层直挂 pixi.stage 晚于 uiRoot，创建后重提 uiRoot 到顶）。
+- **交接协议**：`BattleLoadout { rig, renderer }`——LoadingScene 创建/装载/prime/隐藏 BattleRenderer 后移交 BattleScene（enter 只装配零装载、setStageVisible(true)；exit 销毁；未交接时归 LoadingScene 销毁）。三处入口改经 LoadingScene：setup（solo/net）、winner（再战）、main（dev ?mode=solo）。
+- **偏离登记**：① 原版 `setTimeout(loadNext,1000)` 起步延帧对本地资源纯增延迟，省去；定场保留但 1000→600ms；② 原版 loadProcess 为单文件下载字节进度，web fetch 无字节回调，改分步计数进度；③ 原版加载页 ESC 呼出确认框返回主菜单，此处 ESC 直接返回；④ 渲染纹理装载原版并入 loadFighter 一步，此处单列分步回报进度。
+- **门禁**：build / core 186 / replay 7 剧本 `--expect` 零漂移（sim 未触碰，免重冻）/ batch:validate 58+37 全过；headless Edge CDP 冒烟（loading 画面渲染 → 进战斗 `__bvnSim` 置位，控制台零异常）+ 截图目检（VS 舞台画/条形/转圈/右对齐青色消息、战斗首帧无黑边）全过。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -280,7 +292,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
 | 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；✅ 后半·事件驱动（切片 27）：音源五路提取（bgm/se/swc/fx/语音）+ baked/audio.json + AudioSubsystem（SE/BGM/语音防重叠/KO 双段音）+ voice 事件；✅ 余项·时间轴贴帧音（切片 28）：frame-sounds SWF 解析管线 + baked/timeline-sounds.json + handleTimelineFrames 帧进入触发。块 7 收官；遗留池：嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值按需立项） | 音效随机选音源在 app 层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
-| 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
+| 9 | 进战斗加载画面 | ✅ 收官（切片 31）：LoadingScene 原版 loading_fight_mc 演出 + 装载队列分帧化 + renderer.load 分步进度 + prime() 首帧定位（修"进场黑边"）+ BattleLoadout 交接 | 原版场景链：选人 → Loading → GameStage |
 | 10 | MC 子元件采集修复 | `capAdvanceChildren` 对 MovieClip 子元件推进失效（kenshin/ulquiorra/naruto form4 走段、fire 元件 kj2mc/bsmc 类全部受害）——先实验定位机制（Flash 子播放头语义 vs `as MovieClip` 判定）再修 + 重采受影响包；走段家族重采后引擎 LOOP_LABELS 全标签回卷即得正确循环（stop 触发帧 = 循环点近似）| 批次 22 登记；render/数据层，sim 零哈希漂移 |
 | 11 | 相机 autoZoom 视口基准 | ✅（批次 23 追补）：zoom 公式改用原版 GAME_SIZE 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 追补收编；render 层，sim 零哈希漂移 |
 | 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；余展示件：startKOmc 开场 KO 字样 / win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / picture_063 顶部装饰 / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项 | 切片 30 遗留池；render+数据层 |

@@ -1,0 +1,72 @@
+{
+  "schema": "bvn/loading@1",
+  "bg": {
+    "url": "ui/loading/bg.webp",
+    "size": [
+      800,
+      600
+    ]
+  },
+  "bar": {
+    "pos": [
+      17,
+      555.1
+    ],
+    "track": {
+      "url": "ui/loading/track.png",
+      "pos": [
+        0,
+        0
+      ],
+      "size": [
+        764,
+        15
+      ]
+    },
+    "fill": {
+      "url": "ui/loading/fill.png",
+      "pos": [
+        2,
+        5
+      ],
+      "size": [
+        760,
+        5
+      ]
+    },
+    "spin": {
+      "dir": "ui/loading/spin",
+      "pos": [
+        1.95,
+        -22.95
+      ],
+      "size": [
+        20,
+        20
+      ],
+      "center": [
+        10,
+        10
+      ],
+      "frames": 30,
+      "fps": 30
+    },
+    "label": {
+      "url": "ui/loading/label.png",
+      "pos": [
+        24,
+        -21.45
+      ],
+      "size": [
+        66,
+        18
+      ]
+    },
+    "txt": {
+      "rightEdge": 761.95,
+      "centerY": 28.7,
+      "size": 14,
+      "color": "#00daf8"
+    }
+  }
+}
