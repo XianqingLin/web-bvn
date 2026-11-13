@@ -22,6 +22,9 @@ export interface BishaMcData {
   destoryFrame: number;
   canvasOrigin: [number, number];
   canvasSize: [number, number];
+  /** 原版 mc 在 effect.swf 里的 authored 摆放 (0,200)。x 不再直接使用（横幅内容按
+   *  可见逻辑区拉伸铺满，见 cutinScaleX——批次 29）；y 仅作演出前 band 初值，
+   *  演出期被 mcPosY 联动取代。 */
   mcPos: [number, number];
   faceSize: [number, number];
   faceAnchor: [number, number];
@@ -314,10 +317,12 @@ export class BattleRenderer {
         this.bishaEffects[id] = eff;
         this.effectTex.set(id, texs);
       }
-      // 横幅常驻位：PNG (0,0) = mc 空间 canvasOrigin → 屏幕逻辑位 = mcPos + canvasOrigin
-      //（y 向 mcPosY 随演出更新——原版 100 + 100/zoom 联动，切片 26）
+      // 横幅常驻位：内容（PNG 减对称出血）横向拉伸铺满可见逻辑区（见 cutinScaleX），
+      // x = canvasOrigin×sx 使内容左缘贴视口 0；y 为烘焙初值（演出期由 mcPosY 联动接管，切片 26）
+      const mcSx0 = this.cutinScaleX(spec.bisha.mc);
+      this.cutinBand.scale.set(mcSx0, 1);
       this.cutinBand.position.set(
-        spec.bisha.mc.mcPos[0] + spec.bisha.mc.canvasOrigin[0],
+        spec.bisha.mc.canvasOrigin[0] * mcSx0,
         spec.bisha.mc.mcPos[1] + spec.bisha.mc.canvasOrigin[1],
       );
       for (const atlasId of new Set([
@@ -486,10 +491,23 @@ export class BattleRenderer {
     // 横幅 y 联动（原版 showBishaFace：100 + 100/zoom，zoom = 演出开始时的相机目标因子）
     const mcPosY = 100 + 100 / this.zoomTarget;
     this.cutin = { active: true, faceName: face, faceTex, slot, mcPosY, accMs: 0, frame: 0 };
+    const mcSx = this.cutinScaleX(this.bishaMc!);
+    this.cutinBand.scale.set(mcSx, 1);
     this.cutinBand.position.set(
-      this.bishaMc!.mcPos[0] + this.bishaMc!.canvasOrigin[0],
+      this.bishaMc!.canvasOrigin[0] * mcSx,
       mcPosY + this.bishaMc!.canvasOrigin[1],
     );
+  }
+
+  /** 切人 mc 横向布局因子（批次 29）：横幅内容宽 = 1066 画布减去两侧对称透明出血
+   *  |canvasOrigin.x| ≈ 798px，在原版恰好铺满 800×600 游戏区（原版 mc 挂
+   *  scrollRect(0,0,800,600) 的 root、mc.x=0，BlackBackView 实测）。
+   *  移植版可见逻辑区 = viewW/fitZoom（1000+，随纵横比），800 宽内容不可能盖满
+   *  → 内容横向拉伸铺满 visW（速度线横幅，横向拉伸不可感知；与 bgFixed cover 同款
+   *  适配），立绘槽位 wx 同比例外推，保持"贴 band 两端"的原版构图。 */
+  private cutinScaleX(mc: BishaMcData): number {
+    const visW = this.viewW / Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
+    return visW / Math.max(mc.canvasSize[0] + 2 * mc.canvasOrigin[0], 1);
   }
 
   /** mc 流帧特效（切片 26，原版 EffectView）：加色混合，30fps 播尽自移除；
@@ -574,8 +592,10 @@ export class BattleRenderer {
         accMs: 0,
         frame: 0,
       };
+      const mcSx = this.cutinScaleX(mc);
+      this.cutinBand.scale.set(mcSx, 1);
       this.cutinBand.position.set(
-        mc.mcPos[0] + mc.canvasOrigin[0],
+        mc.canvasOrigin[0] * mcSx,
         this.cutin.mcPosY + mc.canvasOrigin[1],
       );
     }
@@ -597,15 +617,16 @@ export class BattleRenderer {
       this.cutinFaceFlash.visible = false;
       return;
     }
-    // 锚 = transformationPoint（缩放绕点）；position = W_T - canvasOrigin + mcPos
+    // 锚 = transformationPoint（缩放绕点）；槽位 wx/wy 即 mc 空间的 W_T →
+    // 屏幕位 x = wx × 内容拉伸因子（band 铺满 visW，槽位同比例外推保持贴端构图）、
+    // y = mcPosY + wy。canvasOrigin 只用于 band PNG 定位，不参与立绘定位
+    //（多减一次 = 整体右偏 134/下偏 12，槽 2 被推出屏右缘——批次 29 修复）
     const [wx = 0, wy = 0, sx = 1, sy = 1, ro = 0, go = 0, bo = 0, al = 1] = s;
+    const mcSx = this.cutinScaleX(mc);
     this.cutinFace.visible = true;
     this.cutinFace.texture = tex;
     this.cutinFace.anchor.set(mc.faceAnchor[0] / mc.faceSize[0], mc.faceAnchor[1] / mc.faceSize[1]);
-    this.cutinFace.position.set(
-      mc.mcPos[0] + wx - mc.canvasOrigin[0],
-      c.mcPosY + wy - mc.canvasOrigin[1],
-    );
+    this.cutinFace.position.set(wx * mcSx, c.mcPosY + wy);
     this.cutinFace.scale.set((sx * mc.faceSize[0]) / tex.width, (sy * mc.faceSize[1]) / tex.height);
     this.cutinFace.alpha = al;
     // 白闪近似：原版 color offset (255→50→0) = 加色白化 → 白 tint 同变换叠加

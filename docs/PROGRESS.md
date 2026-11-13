@@ -57,6 +57,7 @@
 | 28 | 阶段 4·块 7（余项）：逐帧时间轴贴帧音——`tools/sound-pack/frame-sounds.mjs` 自研 SWF 标签解析（StartSound 采集 + formIndex 对齐）+ baked/timeline-sounds.json（56 包 1816 事件）+ app handleTimelineFrames 帧进入触发（纯 app 层零哈希漂移）；嵌套元件音 99 处遗留（§4.3 块 7 遗留池） | ✅ | §三·切片 28 |
 | 21F | 修复批次：形态角色（sasuke_juin 等 12 个可选）选入即 404——swf 基名数据化（select-pack 烘 fighter.xml `file url`）+ app 全链按基名取 XFL/fire/语音/贴帧音（图集仍按形态 id） | ✅ | §三·批次 21F |
 | 22 | 修复批次（实战验收第二批·①）：行走滑步（loop 触发点收编，54/58 走标签）+ 防御解除"卡一下"（防御恢复冻结窗口=原版 goFrame(false)+delay idle）+ verify-drift 假阴性修复（dump 必须子进程）；MC 子元件走段家族（kenshin/ulquiorra/naruto form4）采集重跑遗留 | ✅ | §三·批次 22 |
+| 23 | 修复批次（实战验收第二批·②）：切人插图两处修复——必杀横幅右缘黑区（原版横幅内容恰铺满 800×600 游戏区，移植版可见逻辑区 1000+ → 内容横向拉伸铺满 + 立绘槽位同比外推）+ 立绘定位多减 canvasOrigin（右偏 134/下偏 12、槽 2 出屏） | ✅ | §三·批次 23 |
 
 ---
 
@@ -204,6 +205,15 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **verify-drift 假阴性修复（门禁工具缺陷）**：两次 dump 原在同进程运行，ESM import 缓存使 HEAD dump 沿用首次加载的 dist → 恒报"零行为差异"（本批实测：手动对比 tick 33 有真差异，工具报零）。修复：dump 抽到子进程 `dump-states.mjs`；stash 加 pathspec 排除工具自身（未跟踪新文件会被 -u 收进 stash）。批次 19 的"verify-drift 归因"规程此前对代码改动完全失效，重冻结论需按新工具复核。
 - **门禁**：core 134 测试全过；replay 6 剧本单独跑（ichigo-mechanics 有意漂移，verify-drift 归因 = walk 循环点 animFrame 26→10，重冻）；batch:validate 20 角色基线漂移重冻（走循环/防御恢复全角色路径）。
 - **遗留 → §4.3**：MC 子元件走段家族——kenshin×2 / ulquiorra / naruto form4 的走段无 loop 触发，原版语义 = `stop` 冻结父播放头 + MovieClip 子元件（mc_010/mc_038/mc_0141）自循环（renderChildren 在 if 外每 tick 照跑）；烘焙整段静止（MovieClip 子元件推进采集失效，与 fire 元件静态化同族）→ 需采集桥子元件推进修复 + 重采，引擎侧 LOOP_LABELS 全标签回卷暂维持近似。
+
+### 修复批次 23——切人插图两处修复（实战验收第二批·②，✅ 2026-11-13）
+
+批次 29 实测问题 4（必杀横幅两个独立缺陷）收编，逆向定案 + renderer 修复（纯表现层，core 零改动）：
+
+- **横幅右缘黑区（原"待对照原版挂载"定案）**：原版 `BlackBackView`（盖 GAME_SIZE 800×600）挂 scrollRect(0,0,800,600) 的 root、`_bishaFace.mc` x=0/y=100+100/zoom；横幅内容经页面内解码逐帧实测 = PNG (133,12)..(933,196) ≈ mc 空间 [0,800]——**恰铺满原版 800 游戏区**（1066 画布为两侧对称透明出血，canvasOrigin −134 即出血宽）。移植版可见逻辑区 = viewW/fitZoom（1000+，随纵横比），800 宽内容怎么摆都盖不满 → 修复 = 内容**横向拉伸铺满 visW**（速度线横幅拉伸不可感知，与 bgFixed cover 同款适配）+ 立绘槽位 wx 同比外推保持"贴 band 两端"构图。附带修正 DESIGN 两处规格误记（"PNG 画布=内容 union bounds"不成立；逻辑坐标 1000×600 对应的是 SWF 舞台，游戏内容区 800×600）。
+- **立绘定位多减 canvasOrigin**：槽位 wx/wy 即 mc 空间的 W_T，屏幕位应为 `mc 原点 + W_T`；旧代码 `mcPos + W_T − canvasOrigin` 把 canvasOrigin 多减一次 → 整体右偏 134/下偏 12、槽 2 立绘被推出屏右缘。已修（canvasOrigin 只用于 band PNG 定位）。
+- **门禁**：build / core 134 / replay 6 剧本 --expect 零漂移 / batch:validate 58+37 全过（render-only 双哈希零漂移符合预期）；headless Edge CDP 冒烟（1920 视口施放必杀 + 分段截图 + 像素扫描两缘）实测横幅铺满全宽无黑区、立绘贴左端，控制台零新增异常。
+- **冒烟脚本**：`tools/_scratch/cutin-smoke/`（gitignore）。
 
 ---
 
