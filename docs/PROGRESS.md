@@ -52,6 +52,7 @@
 | 23 | 阶段 3 尾巴·B5：独立道具逐帧命中矩形——attacker 原点锚定语义 + fires org/hits 逐帧命中数据（dump 桥扩展采集 86 元件 + `tools/b5-pack` 合并）+ madara justHit 卫语句 cond 触发器 + itachi 动态伤害 setHitPowerByTargetHpMax | ✅ | §三·切片 23 |
 | 24 | 阶段 3 尾巴·B3：空中必杀 attackId——data 层补 `kbs→空中必杀` 动作 id 映射（批次 20 遗留）；顺带核实空中必杀判定/演出/道具链全角色已通，修正"纯表现无判定"误记 | ✅ | §三·切片 24 |
 | 25 | 阶段 3 尾巴·B4：temari 风场——windField customFunc 数据化（LEVEL 表采样/拉扯/HURT_DOWN 门）+ 派生弹速级（stepBullets 实时求值不进 SimState）+ `buffSpeedUpByOwnerSpeed`（expr 跨期不可求值修正）+ 导出器特征识别两模板 | ✅ | §三·切片 25 |
+| 26 | 阶段 4·块 7（前半）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（原版 GameCamera autoZoom 收编）——bisha-pack 步骤 3b 光效导出 + render 效果逐帧播放器 + camFocus/zoomTarget 相机模型 + 横幅/立绘迁屏幕空间层（修正切片 22 world 内偏差） | ✅ | §三·切片 26 |
 
 ---
 
@@ -140,6 +141,15 @@
 - **导出器**：`matchOwnerSpeedBuff`（var 捕获 owner speed + speedUp(var×R, H)）+ `matchWindFieldCustomFunc`（getTargetState==23 门 + targetSP.x 拉扯 + 唯一弹速级特征函数 + 唯一数值数组常量；特征组合不绑名，模板外 null）——temari.json 重导出仅两个预期触发改写，rawScripts 不变。
 - **门禁**：core 134 测试（新增 wind-field 8 项：弹速级减速/加速/同队免疫/heavy 采样/拉扯/HURT_DOWN 门/注销恢复/buff）；replay 5 剧本 + 新增 temari-wind 剧本（双方召唤 temari 对拉，基线已冻）全过；batch:validate 仅 temari 冒烟 finalHash 变化（85fe355b→c7dc05de，风场生效的预期行为变化，基线已更新）。
 
+### 切片 26·块 7 前半——必杀相机聚焦 + 光效 + 相机自适应缩放（✅ 2026-11-13）
+
+PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCamera.renderTwo` autoZoom。逆向规格：`EffectCtrler.bisha(target, isSuper, face)`——isSuper → `cameraFocusOne`（单焦点 + zoom 3.5）+ `doEffectById("bisha_super")`，否则 `doEffectById("bisha")`；wanKai 无条件 super；`endBisha`/`endWanKai` → `cameraResume`（双焦点 autoZoom 接管，zoom 缓动回落）。autoZoom = `min(视宽/distX, 视高/distY)×0.8` clamp [1,2.5]，缓动每帧 delta/5（tweenSpd 2.5÷SPEED_PLUS 0.5）。
+- **bisha-pack 步骤 3b**：XG_bs（sprite 568 / mc_020，画布 244×210）/ XG_cbs（sprite 567 / mc_021，293×252）17 帧逐帧 WebP；断言画布尺寸，cbs=bs×1.2 精确吻合验证"外层矩阵 + shape 位图锚"origin 推导（(−123.05,−101.9)/(−147.85,−122.31)）。baked schema 升 `bvn/bisha@2`（新增 `effects`）。
+- **render**：`spawnMcEffect` 逐帧播放器（30fps、加色混合、锚事件 (x, y−50)、播尽自移除 = 原版 EffectView）；相机改 `zoomFactor/zoomTarget` 模型——camFocus（施法者/辅助，assister 从快照找）→ zoomT 3.5，双焦点 → autoZoom；缓动 `k = 1−(1−1/5)^min(dtMs/16.67, 4)`，位置 snap 0.5 世界px、缩放 snap 0.5/800；横幅 y = `100 + 100/zoomTarget`（原版 showBishaFace 用演出开始时的相机目标因子）。
+- **层序修正（切片 22 偏差）**：横幅/立绘从 world 迁入屏幕空间 `cutinScreen` 层（原版 BlackBackView 挂 stage、scrollRect 之外）——聚焦相机会放大 world 内横幅造成漂移。
+- **core 零改动**：bisha 事件 payload 早已带 isSuper/owner/ownerKind（切片 9/12 埋好），纯表现层 + baked 数据 → 门禁零漂移符合预期。
+- **门禁**：build / core 134 / replay 6 剧本 --expect 零漂移 / batch:validate（58 角色 + 37 辅助）全过；headless Edge 冒烟（CDP 诊断钩子读 qi + 攒气施放）目检两轮施放：黑幕/横幅/立绘/光效/3.5 倍聚焦/解锁回落全部到位，控制台零异常。
+
 ### 工具治理——双哈希 + 漂移归因工具（✅ 2026-11-12）
 
 哈希门禁的漂移调查（证明"纯表示变更"）在切片 9/13/23 反复消耗手工流程，治理如下（DESIGN §3.8 双哈希）：
@@ -177,7 +187,7 @@
 | 4 | rollback | 可选；视云上延迟体验决策 | 架构接口已预留（DESIGN §6） |
 | 5 | 菜单流打磨 | ✅ 骨架（切片 14）；✅ 选人页原版化（切片 15）；✅ 菜单主页原版化（切片 16）；余 Logo 演出/格子动画/结算立绘/开场徽标去除（可选）+ 切片 14 UI 待打磨池（格子长名溢出/DOM 输入样式） | app 层场景系统 |
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
-| 7 | 音效/特效接线 | 音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好）；effect.swf 已定位；切片 22 遗留：isSuper 必杀相机聚焦 + bisha_super 光效（原版 EffectCtrler.bisha 的 doEffectById 分支，事件 payload isSuper 已带） | 音效随机选音源在渲染层做，不进 sim |
+| 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；余音效：音源从 embed SWF 提取 + 表现事件消费完善（事件队列已留好；effect.swf 已定位） | 音效随机选音源在渲染层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 | 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
 

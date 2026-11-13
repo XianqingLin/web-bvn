@@ -29,10 +29,21 @@ export interface BishaMcData {
   slots: { facemc1: (number[] | null)[]; facemc2: (number[] | null)[] };
 }
 
+/** mc 流帧特效规格（切片 26：XG_bs/XG_cbs；tools/bisha-pack EFFECTS 产物） */
+export interface EffectMcData {
+  dir: string;
+  frames: number;
+  fps: number;
+  /** 画布原点（mc 空间）：PNG (0,0) 对应的世界偏移，display 位 = org + origin */
+  origin: [number, number];
+}
+
 /** 切人插图资源（切片 22）：mc 流帧 + 立绘映射（pkgId → faceName → baseUrl 相对路径） */
 export interface BishaAssets {
   mc: BishaMcData;
   faces: Record<string, Record<string, string>>;
+  /** 必杀光效 mc 流帧（切片 26；缺省 = 不播光效） */
+  effects?: { bisha?: EffectMcData; bisha_super?: EffectMcData };
 }
 
 /** 战斗资源清单（app 装配后传入） */
@@ -102,8 +113,10 @@ export class BattleRenderer {
   /** 切人黑幕（切片 22）：屏幕空间，覆盖全屏；原版 BlackBackView 800×600 挂
    *  gameStage 底层（角色之下、bg 之上），web 端等价 = stage 上 bgFixed 与 world 之间 */
   private blackLayer: Graphics;
-  /** 切人横幅+立绘（切片 22）：world 内 mapLayer 之上、fighterLayer 之下
-   *  （原版 blackback index 0、角色其上；横幅随黑幕出现） */
+  /** 切人横幅+立绘屏幕空间容器（切片 26 移入屏幕空间：原版横幅挂在 BlackBackView
+   *  ——stage 子级、scrollRect 之外，不随相机平移/缩放；切片 22 误放 world 内会随
+   *  聚焦相机漂移）。层序 = 黑幕之上、world（角色）之下 */
+  private cutinScreen: Container;
   private cutinLayer: Container;
   private cutinBand: Sprite;
   private cutinFace: Sprite;
@@ -140,31 +153,55 @@ export class BattleRenderer {
   private bishaMc: BishaMcData | null = null;
   private bishaBandTex: Texture[] = [];
   private bishaFaceTex = new Map<string, Texture>(); // key = `${atlasId}:${faceName}`
-  /** 当前演出：事件捕获（face/owner/槽位），锁清除即收场 */
+  /** 当前演出：事件捕获（face/owner/槽位），锁清除即收场。
+   *  mcPosY = 原版 BlackBackView.showBishaFace 的 `mc.y = 100 + 100/zoom`
+   * （zoom = 演出开始时相机目标缩放因子；切片 22 为常数 200，切片 26 补上联动）。 */
   private cutin: {
     active: boolean;
     faceName: string | null;
     faceTex: Texture | null;
     slot: 1 | 2;
+    mcPosY: number;
     accMs: number;
     frame: number;
-  } = { active: false, faceName: null, faceTex: null, slot: 1, accMs: 0, frame: 0 };
+  } = { active: false, faceName: null, faceTex: null, slot: 1, mcPosY: 200, accMs: 0, frame: 0 };
+
+  /** 必杀光效 mc 流帧（切片 26）：spec + 预载纹理（key = bisha / bisha_super） */
+  private bishaEffects: Record<string, EffectMcData> = {};
+  private effectTex = new Map<string, Texture[]>();
+  /** 在播 mc 特效视图（原版 EffectView：direct 恒 1、加色混合、30fps 播尽自移除） */
+  private mcEffects: {
+    root: Container;
+    body: Sprite;
+    texs: Texture[];
+    fps: number;
+    accMs: number;
+    frame: number;
+  }[] = [];
+
+  /** 相机聚焦（切片 26，原版 GameStage.cameraFocusOne/cameraResume）：super 必杀/
+   *  万解聚焦施法者，cutinLock 清除即恢复双焦点（null = 双焦点，autoZoom 接管） */
+  private camFocus: { kind: 'fighter' | 'assister'; id: number } | null = null;
 
   private prev: SimSnapshot | null = null;
   private next: SimSnapshot | null = null;
   private accMs = 0;
   private lastEventsTick = new Map<string, number>();
 
-  /** 相机（逻辑坐标）：中心点，指数平滑 */
+  /** 相机（逻辑坐标）：中心点 + 缩放因子（原版 GameCamera 语义：
+   *  factor = 原版 zoom，1 = 满屏逻辑区；有效缩放 = fitZoom × factor）。
+   *  缓动 = 原版 ease：逐帧 delta/5（tweenSpd = CAMERA_TWEEN_SPD/SPEED_PLUS_DEFAULT） */
   private camX = LOGICAL_W / 2;
   private camY = LOGICAL_H / 2;
-  private zoom = 1;
+  private zoomFactor = 1;
+  private zoomTarget = 1;
   /** 世界容器宽（屏幕像素）：缩放 = worldW / LOGICAL_W */
   private viewW = LOGICAL_W;
   private viewH = LOGICAL_H;
 
   constructor(private app: Application) {
     this.bgFixed = new Container();
+    this.cutinScreen = new Container();
     this.world = new Container();
     this.mapLayer = new Container();
     this.mapFrontFixLayer = new Container();
@@ -188,20 +225,20 @@ export class BattleRenderer {
     this.cutinLayer.addChild(this.cutinBand, this.cutinFace, this.cutinFaceFlash);
     this.cutinLayer.visible = false;
     this.bulletLayer.addChild(this.attackerGfx, this.bulletGfx);
-    // 层序（镜像原版 GameStage.initFight：gameLayer[map < 角色 < front_fix < front]；
-    // bg 在 gameLayer 外）：
-    //   bg(屏幕固定) < 黑幕(屏幕固定) < map < 切人横幅/立绘 < 角色 < 独立道具/飞行道具
-    //   < front_fix < front(视差) < 特效
+    // 层序（镜像原版：GameStage[_blackBack < bgLayer < gameLayer[map < player < …]]]；
+    // web 端 bg/黑幕/切人横幅均在屏幕空间）：
+    //   bg(屏幕固定) < 黑幕(屏幕固定) < 切人横幅/立绘(屏幕固定) <
+    //   world[ map < 角色 < 独立道具/飞行道具 < front_fix < front(视差) < 特效 ]
     this.world.addChild(
       this.mapLayer,
-      this.cutinLayer,
       this.fighterLayer,
       this.bulletLayer,
       this.mapFrontFixLayer,
       this.mapFrontLayer,
       this.fxLayer,
     );
-    app.stage.addChild(this.bgFixed, this.blackLayer, this.world, this.hudLayer);
+    this.cutinScreen.addChild(this.cutinLayer);
+    app.stage.addChild(this.bgFixed, this.blackLayer, this.cutinScreen, this.world, this.hudLayer);
     this.onResize();
     app.renderer.on('resize', this.onResize, this);
   }
@@ -266,7 +303,19 @@ export class BattleRenderer {
       for (let i = 1; i <= spec.bisha.mc.frames; i++) {
         this.bishaBandTex.push(await Assets.load<Texture>(`${spec.baseUrl}/${spec.bisha.mc.dir}/${i}.webp`));
       }
-      // 横幅常驻位：PNG (0,0) = mc 空间 canvasOrigin → world 逻辑位 = mcPos + canvasOrigin
+      // 必杀光效流帧（切片 26）：bisha(XG_bs) / bisha_super(XG_cbs)
+      this.bishaEffects = {};
+      this.effectTex.clear();
+      for (const [id, eff] of Object.entries(spec.bisha.effects ?? {})) {
+        const texs: Texture[] = [];
+        for (let i = 1; i <= eff.frames; i++) {
+          texs.push(await Assets.load<Texture>(`${spec.baseUrl}/${eff.dir}/${i}.webp`));
+        }
+        this.bishaEffects[id] = eff;
+        this.effectTex.set(id, texs);
+      }
+      // 横幅常驻位：PNG (0,0) = mc 空间 canvasOrigin → 屏幕逻辑位 = mcPos + canvasOrigin
+      //（y 向 mcPosY 随演出更新——原版 100 + 100/zoom 联动，切片 26）
       this.cutinBand.position.set(
         spec.bisha.mc.mcPos[0] + spec.bisha.mc.canvasOrigin[0],
         spec.bisha.mc.mcPos[1] + spec.bisha.mc.canvasOrigin[1],
@@ -370,12 +419,28 @@ export class BattleRenderer {
           sp.formIndex = form;
           sp.appliedPng = -1;
         }
-      } else if (ev.type === 'effect' && this.bishaMc) {
-        // 切人演出（切片 22）：bisha/startWanKai 捕获立绘信息（黑幕/横幅显示由
-        // SimState.cutinLock 驱动——事件与锁同 tick 落快照）；end 系交给锁清除。
+      } else if (ev.type === 'effect') {
         const id = String(ev.payload['id']);
+        // 必杀/万解开场（切片 22/26）：黑幕/横幅/立绘显示由 SimState.cutinLock 驱动
+        //（事件与锁同 tick 落快照）；end 系交给锁清除。原版 EffectCtrler.bisha/wanKai：
+        // 光效 isSuper ? bisha_super : bisha，wanKai 恒 super；位置 (施法者.x, y-50)；
+        // isSuper 分支 cameraFocusOne（聚焦 + zoom 3.5）。
         if (id === 'bisha' || id === 'wanKai') {
-          this.beginCutin(snap, ev.payload);
+          const params = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const isSuper = id === 'wanKai' || params['isSuper'] === true;
+          this.spawnMcEffect(
+            isSuper ? 'bisha_super' : 'bisha',
+            Number(ev.payload['x'] ?? 0),
+            Number(ev.payload['y'] ?? 0) - 50,
+          );
+          if (isSuper) {
+            const owner = ev.payload['owner'];
+            const ownerKind = ev.payload['ownerKind'];
+            if (typeof owner === 'number' && (ownerKind === 'fighter' || ownerKind === 'assister')) {
+              this.camFocus = { kind: ownerKind, id: owner };
+            }
+          }
+          if (this.bishaMc) this.beginCutin(snap, ev.payload, isSuper);
         }
       }
       // sound/round:* 等事件不实现（音效明确不做）
@@ -383,7 +448,7 @@ export class BattleRenderer {
   }
 
   /** bisha/startWanKai 事件 → 演出状态（原版 showFace：faceId = 施法者在目标右侧 ? 2 : 1）。 */
-  private beginCutin(snap: SimSnapshot, payload: Record<string, unknown>): void {
+  private beginCutin(snap: SimSnapshot, payload: Record<string, unknown>, isSuper: boolean): void {
     const params = (payload['params'] ?? {}) as Record<string, unknown>;
     const face = typeof params['face'] === 'string' ? params['face'] : null;
     const owner = params['owner'];
@@ -405,7 +470,47 @@ export class BattleRenderer {
     const target = snap.state.fighters.find((f) => f.id !== owner) ?? snap.state.fighters[0];
     const slot: 1 | 2 = target && casterX > target.x ? 2 : 1;
     const faceTex = face && atlasId ? (this.bishaFaceTex.get(`${atlasId}:${face}`) ?? null) : null;
-    this.cutin = { active: true, faceName: face, faceTex, slot, accMs: 0, frame: 0 };
+    // 横幅 y 联动（原版 showBishaFace：100 + 100/zoom，zoom = 演出开始时的相机目标因子）
+    const mcPosY = 100 + 100 / this.zoomTarget;
+    this.cutin = { active: true, faceName: face, faceTex, slot, mcPosY, accMs: 0, frame: 0 };
+    this.cutinBand.position.set(
+      this.bishaMc!.mcPos[0] + this.bishaMc!.canvasOrigin[0],
+      mcPosY + this.bishaMc!.canvasOrigin[1],
+    );
+  }
+
+  /** mc 流帧特效（切片 26，原版 EffectView）：加色混合，30fps 播尽自移除；
+   *  direct 恒 1（doEffectById 缺省参，XG_bs/XG_cbs 不镜像）。 */
+  private spawnMcEffect(id: string, x: number, y: number): void {
+    const spec = this.bishaEffects[id];
+    const texs = this.effectTex.get(id);
+    if (!spec || !texs || texs.length === 0) return;
+    const root = new Container();
+    const body = new Sprite(texs[0]);
+    body.blendMode = 'add';
+    root.addChild(body);
+    root.position.set(x + spec.origin[0], y + spec.origin[1]);
+    this.fxLayer.addChild(root);
+    this.mcEffects.push({ root, body, texs, fps: spec.fps, accMs: 0, frame: 0 });
+  }
+
+  /** mc 特效帧推进（30fps）+ 播尽移除。 */
+  private updateMcEffects(dtMs: number): void {
+    for (const e of this.mcEffects) {
+      e.accMs += dtMs;
+      const f = Math.floor(e.accMs / (1000 / e.fps));
+      if (f >= e.texs.length) continue;
+      if (f !== e.frame) {
+        e.frame = f;
+        e.body.texture = e.texs[f]!;
+      }
+    }
+    const done = this.mcEffects.filter((e) => Math.floor(e.accMs / (1000 / e.fps)) >= e.texs.length);
+    for (const e of done) {
+      this.fxLayer.removeChild(e.root);
+      e.root.destroy({ children: true });
+    }
+    if (done.length > 0) this.mcEffects = this.mcEffects.filter((e) => !done.includes(e));
   }
 
   /**
@@ -429,10 +534,16 @@ export class BattleRenderer {
         this.blackLayer.clear().rect(0, 0, this.viewW, this.viewH).fill(0x000000);
       }
     }
+    // 相机聚焦收场（原版 endBisha/endWanKai → cameraResume：双焦点 + autoZoom 接管）
+    if (lock === null) this.camFocus = null;
     // 地图隐藏（原版 getMap().setVisible(false)；front 系同属地图视觉层）
     this.mapLayer.visible = lock === null;
     this.mapFrontFixLayer.visible = lock === null;
     this.mapFrontLayer.visible = lock === null;
+    // 横幅/立绘 = 屏幕空间（scale = fitZoom：800×600 舞台规格 → 视口像素，
+    // 不随相机平移/缩放——切片 26 移出 world）
+    this.cutinScreen.visible = cutinActive;
+    this.cutinScreen.scale.set(Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H));
     this.cutinLayer.visible = cutinActive;
     if (!cutinActive) {
       // 解锁（endBisha/endWanKai/保护性解锁）：演出收场，等待下次事件
@@ -441,7 +552,19 @@ export class BattleRenderer {
     }
     // 锁存在但无演出信息（如联机中途入局错过事件）：只显示黑幕+横幅
     if (!this.cutin.active) {
-      this.cutin = { active: true, faceName: null, faceTex: null, slot: 1, accMs: 0, frame: 0 };
+      this.cutin = {
+        active: true,
+        faceName: null,
+        faceTex: null,
+        slot: 1,
+        mcPosY: 100 + 100 / this.zoomTarget,
+        accMs: 0,
+        frame: 0,
+      };
+      this.cutinBand.position.set(
+        mc.mcPos[0] + mc.canvasOrigin[0],
+        this.cutin.mcPosY + mc.canvasOrigin[1],
+      );
     }
     const c = this.cutin;
     c.accMs += dtMs;
@@ -468,7 +591,7 @@ export class BattleRenderer {
     this.cutinFace.anchor.set(mc.faceAnchor[0] / mc.faceSize[0], mc.faceAnchor[1] / mc.faceSize[1]);
     this.cutinFace.position.set(
       mc.mcPos[0] + wx - mc.canvasOrigin[0],
-      mc.mcPos[1] + wy - mc.canvasOrigin[1],
+      c.mcPosY + wy - mc.canvasOrigin[1],
     );
     this.cutinFace.scale.set((sx * mc.faceSize[0]) / tex.width, (sy * mc.faceSize[1]) / tex.height);
     this.cutinFace.alpha = al;
@@ -516,8 +639,9 @@ export class BattleRenderer {
     this.updateAttackers(prev, next, alpha);
     this.updateBullets(prev, next, alpha);
     this.updateAssisters(prev, next, alpha);
+    this.updateMcEffects(dtMs);
     this.updateCutin(next, dtMs);
-    this.updateCamera(next);
+    this.updateCamera(next, dtMs);
     this.updateHud(next);
   }
 
@@ -749,21 +873,65 @@ export class BattleRenderer {
     sp.body.position.set(frame.x ?? 0, frame.y ?? 0);
   }
 
-  private updateCamera(snap: SimSnapshot): void {
+  /**
+   * 相机（切片 26 对齐原版 GameCamera）：
+   *   - 双焦点（常态）：中心 = 双方中点；自适应缩放 = 原版 renderTwo autoZoom
+   *     `zoom = min(visW/distX, visH/distY)×0.8` clamp [1, 2.5]（autoZoomMin/Max =
+   *     initCamera 真值）——双方拉开拉远镜头、贴身推近；
+   *   - 单焦点（super 必杀/万解，原版 cameraFocusOne）：聚焦施法者 + zoom 3.5
+   *     （autoZoom 仅双焦点生效），cutinLock 清除由 updateCutin 恢复双焦点；
+   *   - 缓动 = 原版 ease：逐帧 delta/5（tweenSpd = CAMERA_TWEEN_SPD/SPEED_PLUS_DEFAULT
+   *     = 5），位置 snap 0.5 世界 px、缩放 snap 0.5/800；按 dt 折算帧衰减；
+   *   - clamp 保持批次 17 语义：平滑值按当前有效 zoom 夹取（原版夹目标值，
+   *     此处防缩放过渡期越界露底，保守偏离）。
+   */
+  private updateCamera(snap: SimSnapshot, dtMs: number): void {
     const fs = snap.state.fighters;
     if (fs.length === 0) return;
-    const midX = fs.reduce((s, f) => s + f.x, 0) / fs.length;
-    const midY = fs.reduce((s, f) => s + f.y, 0) / fs.length;
-    // 指数平滑（帧率无关）
-    const k = 1 - Math.exp(-8 * (1 / 60));
-    this.camX += (midX - this.camX) * k;
-    this.camY += (midY - this.camY) * k;
-    this.zoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
+    const fitZoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
+    const visW = this.viewW / fitZoom;
+    const visH = this.viewH / fitZoom;
 
+    let tx: number;
+    let ty: number;
+    let zoomT: number;
+    const focus = this.camFocus;
+    if (focus) {
+      const caster =
+        focus.kind === 'fighter'
+          ? fs.find((f) => f.id === focus.id)
+          : snap.state.assisters.find((a) => a.id === focus.id);
+      tx = caster?.x ?? this.camX;
+      ty = caster?.y ?? this.camY;
+      zoomT = 3.5;
+    } else {
+      tx = fs.reduce((s, f) => s + f.x, 0) / fs.length;
+      ty = fs.reduce((s, f) => s + f.y, 0) / fs.length;
+      zoomT = this.zoomTarget;
+      if (fs.length >= 2) {
+        const distX = Math.abs(fs[0]!.x - fs[1]!.x);
+        const distY = Math.abs(fs[0]!.y - fs[1]!.y);
+        const zx = distX > 0 ? visW / distX : Infinity;
+        const zy = distY > 0 ? visH / distY : Infinity;
+        zoomT = Math.min(Math.max(Math.min(zx, zy) * 0.8, 1), 2.5);
+      }
+    }
+
+    // 缓动（原版 ease(current, target, snap)：delta ≥ snap 时 current += delta/tweenSpd）
+    const k = 1 - Math.pow(1 - 1 / 5, Math.min(dtMs / (1000 / 60), 4));
+    this.camX = Math.abs(tx - this.camX) < 0.5 ? tx : this.camX + (tx - this.camX) * k;
+    this.camY = Math.abs(ty - this.camY) < 0.5 ? ty : this.camY + (ty - this.camY) * k;
+    this.zoomTarget = zoomT;
+    this.zoomFactor =
+      Math.abs(zoomT - this.zoomFactor) < 0.5 / 800
+        ? zoomT
+        : this.zoomFactor + (zoomT - this.zoomFactor) * k;
+
+    const zoom = fitZoom * this.zoomFactor;
     // 相机不进模拟：纯渲染变换。按快照舞台边界 clamp（版边牵引的渲染面）。
     const st = snap.state.stage;
-    const halfW = this.viewW / this.zoom / 2;
-    const halfH = this.viewH / this.zoom / 2;
+    const halfW = this.viewW / zoom / 2;
+    const halfH = this.viewH / zoom / 2;
     const loX = st.leftBound + halfW;
     const hiX = st.rightBound - halfW;
     const cx = loX > hiX ? (st.leftBound + st.rightBound) / 2 : Math.min(Math.max(this.camX, loX), hiX);
@@ -774,20 +942,17 @@ export class BattleRenderer {
     const loY = halfH;
     const hiY = st.bottomY - halfH;
     const cy = loY > hiY ? st.bottomY / 2 : Math.min(Math.max(this.camY, loY), hiY);
-    this.world.scale.set(this.zoom);
-    this.world.position.set(this.viewW / 2 - cx * this.zoom, this.viewH / 2 - cy * this.zoom);
+    this.world.scale.set(zoom);
+    this.world.position.set(this.viewW / 2 - cx * zoom, this.viewH / 2 - cy * zoom);
     // bg：随视口缩放、不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外）；
     // cover 铺满可见逻辑区并居中（可见区 = viewW/zoom × viewH/zoom）
-    this.bgFixed.scale.set(this.zoom);
+    this.bgFixed.scale.set(zoom);
     if (this.bgSprite && this.bgSize.w > 0) {
-      const visW = this.viewW / this.zoom;
-      const visH = this.viewH / this.zoom;
-      const k = Math.max(visW / this.bgSize.w, visH / this.bgSize.h);
-      this.bgSprite.scale.set(k);
-      this.bgSprite.position.set(
-        (visW - this.bgSize.w * k) / 2,
-        (visH - this.bgSize.h * k) / 2,
-      );
+      const bw = this.viewW / zoom;
+      const bh = this.viewH / zoom;
+      const bk = Math.max(bw / this.bgSize.w, bh / this.bgSize.h);
+      this.bgSprite.scale.set(bk);
+      this.bgSprite.position.set((bw - this.bgSize.w * bk) / 2, (bh - this.bgSize.h * bk) / 2);
     }
     // front 层视差（镜像原版 MapMain.render，scrollRect 语义换算为本相机）：
     //   front.x = defaultX - 0.1·camLeft（camLeft = 视口左缘世界 x）
@@ -856,9 +1021,18 @@ export class BattleRenderer {
     this.bulletSprites.clear();
     for (const sp of this.attackerSprites.values()) sp.root.destroy({ children: true });
     this.attackerSprites.clear();
-    this.app.stage.removeChild(this.bgFixed, this.blackLayer, this.world, this.hudLayer);
+    for (const e of this.mcEffects) e.root.destroy({ children: true });
+    this.mcEffects = [];
+    this.app.stage.removeChild(
+      this.bgFixed,
+      this.blackLayer,
+      this.cutinScreen,
+      this.world,
+      this.hudLayer,
+    );
     this.blackLayer.destroy();
     this.bgFixed.destroy({ children: true });
+    this.cutinScreen.destroy({ children: true });
     this.world.destroy({ children: true });
     this.hudLayer.destroy({ children: true });
   }

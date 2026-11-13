@@ -8,7 +8,9 @@
  *      （画布 1066×209 = 内容 union bounds；PNG 只含背景横幅——立绘槽 mc_001 是
  *      guide 空容器，FFDec 帧不含立绘，运行时按槽位矩阵合成）→ sharp WebP q80
  *      → assets/bisha/mc/<n>.webp；
- *   2. 各角色 SWF（38 包，含 forms[].sounds.bishaFaces 映射者）-export image →
+ *   2. effect.swf 必杀光效 mc_020（XG_bs）/ mc_021（XG_cbs）17 帧流帧（切片 26）→
+ *      assets/bisha/effects/<id>/<n>.webp；
+ *   3. 各角色 SWF（38 包，含 forms[].sounds.bishaFaces 映射者）-export image →
  *      按类名挑立绘（文件名 "<symbolId>_<类名>.png"）→ 剥前缀后按
  *      assets/bisha/faces/<pkgId>_<faceName>.png 落盘（faceName = 语料 bisha()
  *      第二参，如 "Ichigo_1"）。
@@ -70,6 +72,19 @@ const MC = {
   /** destory 标签帧（0-based；此后元素 alpha 全 0，运行时可提前收场） */
   destoryFrame: 69,
 };
+
+// ---------- 必杀光效 mc 规格（切片 26；EffectModel.I：bisha→XG_bs / bisha_super→XG_cbs） ----------
+// mc_020（XG_bs）/ mc_021（XG_cbs）：单层 17 帧，唯一元素 shape_011（graphic，play once）
+// 全帧静止于矩阵 tx=0.95, ty=0.15（cbs 另有 a=d=1.2）；shape_011 逐帧位图全部锚在
+// 自身空间 (-124, -102.05)（DOM XML 全帧同矩阵）。FFDec 画布 = 内容 union bounds：
+//   bs  原点 = (0.95-124, 0.15-102.05) = (-123.05, -101.9)，画布 = max 位图 244×210；
+//   cbs 原点 = (0.95+1.2×-124, 0.15+1.2×-102.05) = (-147.85, -122.31)，
+//         画布 = 244×1.2=292.8→293 × 210×1.2=252（实测吻合）。
+// 断言：画布尺寸精确匹配（含 cbs=bs×1.2 比例）即锚定验证。
+const EFFECTS = [
+  { id: 'bisha', className: 'XG_bs', spriteId: 568, frames: 17, canvas: [244, 210], origin: [-123.05, -101.9] },
+  { id: 'bisha_super', className: 'XG_cbs', spriteId: 567, frames: 17, canvas: [293, 252], origin: [-147.85, -122.31] },
+];
 
 // 立绘槽关键帧（0-based 帧 → [W_Tx, W_Ty, a(scaleX), d(scaleY), rOff, gOff, bOff, alphaMul]）。
 // W_T = centerPoint3D（= 矩阵 scale×TP + tx/ty，逐帧核对一致）；无颜色项 = 0 偏移。
@@ -159,6 +174,36 @@ mkdirSync(mcDir, { recursive: true });
   }
 }
 
+// ---------- 3b. 必杀光效 17 帧 → assets/bisha/effects/<id>/<n>.webp（切片 26） ----------
+const bakedEffects = {}; // id → { dir, frames, fps, origin }
+for (const eff of EFFECTS) {
+  const dirs = readdirSync(join(SCRATCH, 'effect'));
+  const spriteDir =
+    dirs.find((d) => d.startsWith(`DefineSprite_${eff.spriteId}_`) && d.endsWith(`_${eff.className}`)) ??
+    dirs.find((d) => d === `DefineSprite_${eff.spriteId}`);
+  if (!spriteDir) throw new Error(`effect.swf 未找到 sprite ${eff.spriteId}（${eff.className}）`);
+  const frames = readdirSync(join(SCRATCH, 'effect', spriteDir)).filter((f) => f.endsWith('.png'));
+  if (frames.length !== eff.frames) {
+    throw new Error(`${eff.className} 帧数变化：${frames.length} ≠ ${eff.frames}（规格须同步更新）`);
+  }
+  const outDir = join(OUT_ASSETS, 'effects', eff.id);
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  for (let i = 1; i <= eff.frames; i++) {
+    const src = join(SCRATCH, 'effect', spriteDir, `${i}.png`);
+    const meta = await sharp(src).metadata();
+    // 画布断言即锚定验证：union = 同锚位图 rect 的 max 尺寸，且 cbs = bs×1.2
+    //（244×1.2=293、210×1.2=252 精确吻合 → XML 推导的 origin 成立）
+    if (meta.width !== eff.canvas[0] || meta.height !== eff.canvas[1]) {
+      throw new Error(
+        `${eff.className} 画布 ${meta.width}×${meta.height} ≠ 规格 ${eff.canvas.join('×')}（origin 须重推）`,
+      );
+    }
+    await sharp(src).webp({ quality: 80 }).toFile(join(outDir, `${i}.webp`));
+  }
+  bakedEffects[eff.id] = { dir: `bisha/effects/${eff.id}`, frames: eff.frames, fps: MC.fps, origin: eff.origin };
+}
+
 // ---------- 4. 立绘 → assets/bisha/faces/<pkgId>_<faceName>.png ----------
 const facesDir = join(OUT_ASSETS, 'faces');
 rmSync(facesDir, { recursive: true, force: true });
@@ -187,7 +232,7 @@ for (const [pkgId, names] of Object.entries(faceMap)) {
 
 // ---------- 5. baked/bisha.json ----------
 const doc = {
-  schema: 'bvn/bisha@1',
+  schema: 'bvn/bisha@2',
   mc: {
     dir: 'bisha/mc',
     frames: MC.frames,
@@ -204,6 +249,9 @@ const doc = {
   },
   /** pkgId → faceName → 立绘文件（语料 bisha(face) 第二参 → 纹理） */
   faces: bakedFaces,
+  /** 必杀光效 mc 流帧（切片 26：EffectModel.I bisha→XG_bs / bisha_super→XG_cbs）。
+   *  运行时：display 位 = (orgX+origin[0], orgY+origin[1])，org = (caster.x, caster.y-50)，加色混合。 */
+  effects: bakedEffects,
 };
 
 mkdirSync(dirname(OUT_BAKED), { recursive: true });

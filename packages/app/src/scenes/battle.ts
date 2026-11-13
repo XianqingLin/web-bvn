@@ -145,7 +145,7 @@ export class BattleScene implements Scene {
         ),
         assister: Object.fromEntries(assistList.filter((a) => a.hasFires).map((a) => [a.id, a.id])),
       },
-      bisha: { mc: bisha.mc, faces: bisha.faces },
+      bisha: { mc: bisha.mc, faces: bisha.faces, effects: bisha.effects },
     });
 
     // —— 键盘 ——
@@ -171,6 +171,8 @@ export class BattleScene implements Scene {
 
   private enterSolo(): void {
     this.keyboard = new KeyboardSource(this.keys, KEYMAP_P1);
+    // dev 诊断钩子（headless 冒烟驱动用；只读引用，不影响 sim 确定性）
+    (window as unknown as { __bvnSim?: () => Sim | null }).__bvnSim = () => this.sim;
     this.renderer!.setHint(
       'A/D 移动  W跳  S防御  J攻击  L瞬步  U技  I必杀  O召唤辅助  R重置  ESC返回菜单',
     );

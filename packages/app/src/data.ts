@@ -115,6 +115,8 @@ export interface BishaData {
   mc: import('@bvn/render').BishaMcData;
   /** pkgId → faceName → baseUrl 相对路径 */
   faces: Record<string, Record<string, string>>;
+  /** 必杀光效 mc 流帧（切片 26；renderer EffectMcData 结构一致） */
+  effects: { bisha: import('@bvn/render').EffectMcData; bisha_super: import('@bvn/render').EffectMcData };
 }
 
 export function loadBisha(ctx: Ctx): Promise<BishaData> {

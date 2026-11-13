@@ -182,13 +182,17 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **导出**：FFDec 反编译主 SWF + 注入导出脚本（参考 bvn-ai-public 的状态桥），运行时遍历 dump 帧标签、`getBounds` 判定几何、`defineAction` 表、帧触发点、地图边界/地板/出生点。输出带源 SWF 哈希版本戳。
 - **图集**（切片 4 定案）：原版角色/辅助图形是矢量符号（XFL 库几乎无位图），必须运行时栅格化——`tools/atlas-capture`（AIR capture 桥，范式同 dump 桥）。**关键语义**：姿势美术画在内层子剪辑自身的时间轴里，引擎每 tick 手动驱动（`FighterMC.renderAnimate`：主时间轴 `nextFrame()` + `renderChildren()` 把每个姿势子剪辑推进 1 格）——单纯 `gotoAndStop(f)` 子剪辑停在初始帧截不到姿势。capture 逐标签镜像引擎时序（`gotoAndStop(标签起始)` → 推进子剪辑 → 截图 → `nextFrame`+推进 → 截图），输出帧号 = 绝对内层帧（与 core `animFrame` 一致）→ `BitmapData.draw(root)` → 手写 PNG 编码（SWF ver17 无 `BitmapData.encode`）→ **像素哈希去重**（166k 帧引用 → 46k 唯一帧）；`tools/atlas-pack`（Node + pngjs）shelf 装包 2048² sheet，排序固定可复现。锚点契约：每帧记内容相对**角色 root 原点**的 bounds 偏移——原版 `BaseGameSprite` 直接 `_mainMc.x=_x; scaleX=direct`，即角色坐标 = root 局部原点、翻转绕原点，render 端 `translate(x,y) → scaleX(direct) → draw(bounds 偏移)` 复现。地图背景走同一 capture 桥（逐子图层 PNG + 偏移）。产物 `packages/data/assets/`（gitignore，管线可再生）。
 - **配置**：原版 fighter/select/map/mission XML → JSON。
-- **切人插图管线**（`tools/bisha-pack`，切片 22）：effect.swf `-export sprite` → `bisha_face_mc`（DefineSprite_633）71 帧 WebP + 各角色 SWF `-export image` 按类名挑必杀立绘位图（映射源 = baked fighters `forms[].sounds.bishaFaces`）→ `assets/bisha/`；槽位矩阵/画布原点等规格烘焙进 `baked/bisha.json`（schema `bvn/bisha@1`）。画布原点推导：PNG 画布 = 内容 union bounds，mc 空间原点 (−134,−12) 由 mc_017 照片带（自身 bounds 原点 (0,0)：5 张 picture 全部 a=2/d=2 原点摆放）在帧画布上的实测位 (133,12) 反推；打包时断言画布 1066×209，规格漂移即报错。
+- **切人插图管线**（`tools/bisha-pack`，切片 22 / 26）：effect.swf `-export sprite` → `bisha_face_mc`（DefineSprite_633）71 帧 WebP + 各角色 SWF `-export image` 按类名挑必杀立绘位图（映射源 = baked fighters `forms[].sounds.bishaFaces`）→ `assets/bisha/`；切片 26 补步骤 3b：XG_bs/XG_cbs 17 帧光效逐帧 WebP（断言画布尺寸，cbs=bs×1.2 比例验证锚定假设）；槽位矩阵/画布原点/光效规格烘焙进 `baked/bisha.json`（schema `bvn/bisha@2`）。画布原点推导：PNG 画布 = 内容 union bounds，mc 空间原点 (−134,−12) 由 mc_017 照片带（自身 bounds 原点 (0,0)：5 张 picture 全部 a=2/d=2 原点摆放）在帧画布上的实测位 (133,12) 反推；打包时断言画布 1066×209，规格漂移即报错。
 
 ## 5. 渲染层
 
 PixiJS v8；逻辑坐标 1000×600（y 向下）与原版一致，渲染层负责屏幕适配。渲染帧率与逻辑解耦：位置在最近两个快照间线性插值，动画帧/朝向取最新。相机平滑跟随 + 缩放自由实现。HUD 读快照绘制；音效/特效消费表现事件队列（事件带 tick 号，自行去重）。
 
-**切人插图**（切片 22）：黑幕 = 屏幕空间层（bgFixed 与 world 之间），`SimState.cutinLock ≠ null` 期间盖满视口；横幅+立绘 = world 内 mapLayer 与 fighterLayer 之间的容器（角色仍在黑幕之上，原版层序）。横幅 = `bisha_face_mc` 71 帧流帧（30fps，0-based 帧 1 起播，destory/stop 帧自然消失），立绘按逐帧槽位矩阵合成（`bisha.json` slots：W_T/缩放绕 transformationPoint 线性补间烘焙）；faceId = 施法者在目标右侧 ? 右槽(镜像) : 左槽（原版 showFace）。白闪（原版 color offset 255→50→0）以白色加色叠层近似（偏离记录）。地图/map front 层锁定期隐藏；isSuper 相机聚焦与 bisha_super 光效未做（归特效块）。
+**切人插图**（切片 22 / 26）：黑幕 + 横幅 + 立绘 = 屏幕空间层（`cutinScreen`，bgFixed 与 world 之间；切片 26 修正切片 22 的偏差——横幅原在 world 内会随聚焦相机漂移，原版 BlackBackView 挂 stage/scrollRect 之外，本应屏幕空间），`SimState.cutinLock ≠ null` 期间盖满视口并按 `min(viewW/1000, viewH/600)` 等比缩放。横幅 = `bisha_face_mc` 71 帧流帧（30fps，0-based 帧 1 起播，destory/stop 帧自然消失），y = `100 + 100/zoomTarget`（原版 showBishaFace：zoom 取演出开始时的相机目标因子，showFace 在 cameraFocusOne 之前调用）；立绘按逐帧槽位矩阵合成（`bisha.json` slots：W_T/缩放绕 transformationPoint 线性补间烘焙）；faceId = 施法者在目标右侧 ? 右槽(镜像) : 左槽（原版 showFace）。白闪（原版 color offset 255→50→0）以白色加色叠层近似（偏离记录）。地图/map front 层锁定期隐藏。
+
+**必杀光效**（切片 26，原版 `EffectCtrler.bisha` doEffectById 分支）：`bisha`（isSuper=false）/ `bisha_super`（isSuper=true；wanKai 恒 super）= XG_bs/XG_cbs 17 帧逐帧序列（bisha-pack 步骤 3b 导出，30fps 加色混合，画布原点 (−123.05,−101.9)/(−147.85,−122.31)，cbs=bs×1.2 精确吻合交叉验证锚定假设），锚在事件 payload (x, y−50) 播尽自移除（原版 EffectView 逐帧播完 remove）。
+
+**相机聚焦与自适应缩放**（切片 26，原版 GameCamera autoZoom）：`bisha`/`wanKai` 事件 isSuper=true → `camFocus` 置施法者（zoomTarget=3.5），`endBisha`/`endWanKai`（cutinLock 解锁）→ 恢复双焦点 autoZoom；autoZoom = `min(visW/distX, visH/distY)×0.8` clamp [1, 2.5]（dist=0 → Infinity）。缓动 = 每帧 `delta/5`（tweenSpd 2.5 ÷ SPEED_PLUS 0.5），位置 snap 0.5 世界px、缩放 snap 0.5/800。保守偏离：clamp 夹在平滑后的当前有效缩放值上（原版夹目标值）——视觉差异仅出现在版边附近数像素级，按重构定位接受。
 
 ## 6. 联机层（阶段 2，接口现已冻结）
 
