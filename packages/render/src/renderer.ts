@@ -410,14 +410,27 @@ export class BattleRenderer {
           }, 90);
         }
       } else if (ev.type === 'fighter:form') {
-        // 万解形态切换：切图集 forms 下标，强制重应用贴图
+        // 万解形态切换：切图集 forms 下标，强制重应用贴图。
+        // 事件 form = sim 侧下标（过滤空根帧后的紧凑数组），图集 forms 是
+        // 含空根帧的全数组——按 rootFrame 换算全数组下标（21F 修复差一位；
+        // rootFrame 缺失时回退原下标行为，兼容旧事件源）。
         const fighter = ev.payload['fighter'];
         const form = ev.payload['form'];
+        const rootFrame = ev.payload['rootFrame'];
         if (typeof fighter !== 'number' || typeof form !== 'number') continue;
         const sp = this.sprites.get(fighter);
-        if (sp && form !== sp.formIndex) {
-          sp.formIndex = form;
-          sp.appliedPng = -1;
+        if (sp && sp.loaded) {
+          let idx = form;
+          if (typeof rootFrame === 'number') {
+            const byRoot = sp.loaded.atlas.forms.findIndex(
+              (f) => f.rootFrame === rootFrame,
+            );
+            if (byRoot >= 0) idx = byRoot;
+          }
+          if (idx !== sp.formIndex) {
+            sp.formIndex = idx;
+            sp.appliedPng = -1;
+          }
         }
       } else if (ev.type === 'effect') {
         const id = String(ev.payload['id']);

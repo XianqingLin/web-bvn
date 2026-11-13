@@ -311,13 +311,20 @@ export class Sim {
   }
 
   /** doWanKai/switchForm 桥：形态切换 + 表现事件（render 换图集形态用）。
-   *  切换后保持 WAN_KAI_ING，由新形态 开场 播完经 endAction 回位。 */
+   *  切换后保持 WAN_KAI_ING，由新形态 开场 播完经 endAction 回位。
+   *  事件带 rootFrame（绝对帧寻址）：sim forms 数组是过滤空根帧后的紧凑数组、
+   *  formIndex 是其下标；render 图集 forms 是含空根帧的全数组，两者差一位——
+   *  render 按 rootFrame 换算，避免切形态显示回上一形态（21F 顺带修复）。 */
   private doSwitchForm(f: FighterState, frame: number): void {
     const forms = this.formsById.get(f.id);
     if (!forms) return;
     const next = switchForm(f, forms, frame);
     if (next) {
-      this.emit('fighter:form', { fighter: f.id, form: next.formIndex });
+      this.emit('fighter:form', {
+        fighter: f.id,
+        form: next.formIndex,
+        rootFrame: next.rootFrame,
+      });
     }
   }
 

@@ -122,12 +122,22 @@ export class BattleScene implements Scene {
 
     // —— 数据装配（assets 缓存，重开同包零开销） ——
     // swf 基名换算（形态角色 ≠ id：XFL/fire/语音/贴帧音按基名，图集按 id）
+    // + startFrame 进场形态（fighter.xml 实证：缺省形态 = 含动画形态第 N 个）
     const select = await loadSelect(ctx.ctx);
-    const swfOf = (id: string): string =>
-      select.chars.find((c) => c.id === id)?.swf ?? id;
+    const entryOf = (id: string) => select.chars.find((c) => c.id === id);
     const [p1Pack, p2Pack] = await Promise.all([
-      loadFighterPack(ctx.ctx, p1.fighter, swfOf(p1.fighter)),
-      loadFighterPack(ctx.ctx, p2.fighter, swfOf(p2.fighter)),
+      loadFighterPack(
+        ctx.ctx,
+        p1.fighter,
+        entryOf(p1.fighter)?.swf ?? p1.fighter,
+        entryOf(p1.fighter)?.startFrame ?? 1,
+      ),
+      loadFighterPack(
+        ctx.ctx,
+        p2.fighter,
+        entryOf(p2.fighter)?.swf ?? p2.fighter,
+        entryOf(p2.fighter)?.startFrame ?? 1,
+      ),
     ]);
     const assistList = await Promise.all(
       [...new Set([p1.assist, p2.assist])].map((id) => loadAssistPack(ctx.ctx, id)),
@@ -241,6 +251,7 @@ export class BattleScene implements Scene {
           y: rig.map.p1Spawn?.y ?? st.groundY,
           def: rig.p1.def,
           forms: rig.p1.forms,
+          formIndex: rig.p1.forms.indexOf(rig.p1.def),
           assistId: p1.assist,
         },
         {
@@ -249,6 +260,7 @@ export class BattleScene implements Scene {
           y: rig.map.p2Spawn?.y ?? st.groundY,
           def: rig.p2.def,
           forms: rig.p2.forms,
+          formIndex: rig.p2.forms.indexOf(rig.p2.def),
           assistId: p2.assist,
         },
       ],

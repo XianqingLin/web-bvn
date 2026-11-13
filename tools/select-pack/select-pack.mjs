@@ -53,15 +53,16 @@ function parseNames(xml) {
 }
 
 /**
- * fighter.xml → id → swf 基名（`<file url="assets/fighter/X.swf">`）。
- * 形态角色（sasuke_juin 等）与基础角色共用同一 swf（startFrame 区分形态），
+ * fighter.xml → id → { swf 基名, startFrame }（`<file url="assets/fighter/X.swf" startFrame="N">`）。
+ * 形态角色（sasuke_juin 等）与基础角色共用同一 swf，startFrame 指定进场形态
+ * （实证 58 角色零例外：缺省形态 = 含动画形态中第 startFrame 个）；
  * XFL 包 / fire 包 / 语音 / 贴帧音均按 swf 基名索引，app 取包时按此换算。
  */
 function parseSwfBase(xml) {
   const map = new Map();
-  const re = /<fighter id="([^"]*)"[^>]*><file url="assets\/fighter\/([^"/]+)\.swf"/g;
+  const re = /<fighter id="([^"]*)"[^>]*><file url="assets\/fighter\/([^"/]+)\.swf"(?: startFrame="(\d+)")?/g;
   let m;
-  while ((m = re.exec(xml))) map.set(m[1], m[2]);
+  while ((m = re.exec(xml))) map.set(m[1], { swf: m[2], startFrame: Number(m[3] ?? 1) });
   return map;
 }
 
@@ -108,7 +109,9 @@ function flatten(listRows, names, kind, swfMap) {
         offset: item.offset,
         more: item.more,
         /** 共用 swf 基名（fighter.xml file url；形态角色 ≠ id，随机项 null） */
-        swf: swfMap?.get(item.id) ?? null,
+        swf: swfMap?.get(item.id)?.swf ?? null,
+        /** 原版进场形态帧（fighter.xml startFrame；缺省 1 = 首含动画形态） */
+        startFrame: swfMap?.get(item.id)?.startFrame ?? 1,
       });
     });
   });

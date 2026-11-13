@@ -187,8 +187,10 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **`tools/select-pack`**：解析 fighter.xml `<file url="assets/fighter/X.swf">` → 每个选人条目烘 `swf` 基名字段（形态角色 ≠ id，如 ogihci → ichigo；辅助各用自己 swf 不需换算），select.json 重烘。
 - **app**（`data.ts`/`battle.ts`）：`loadFighterPack(id, swf)` —— runtime/图集按形态 id，XFL（改 jsonOptional）/fire 按基名；语音 voiceUrl、贴帧音 TimelineAudioBinding、fire 图集寻址值全部换用 `pack.swf`；FighterPack 增 `swf` 字段。核心对照：`sasuke_juin` 装配后 triggers 0 → 182、fires 挂上，sim 冒烟连招正常。
 
-- **遗留 ①（默认形态对位）**：形态角色的缺省形态取"第一个含动画形态"，与原版 fighter.xml `startFrame` 不完全对位（如 naruto_sennin start=4、ogihci start=6、ichigo_vizored_half start=3）——原版是同 swf 跳 startFrame，形态间 rootFrame 映射关系未逆向确认，逐角色验收时核对修正。
+- **遗留 ①（默认形态对位）**：~~形态角色的缺省形态取"第一个含动画形态"，与原版 fighter.xml `startFrame` 不完全对位~~ → **实测证实（2026-11-13 用户验收：咒怨佐助/一尾鸣人以原形态进场），同批追补修复**：select-pack 烘 `startFrame`（fighter.xml），core `FighterConfig.formIndex` 初始形态支持，app 按 startFrame 取进场形态。**58 角色实证零例外：缺省形态 = 含动画形态中第 startFrame 个（rootFrame = startFrame+1，基础角色恒 1）**。
+- **顺带修复（万解切形态渲染差一位）**：formIndex 有两套下标空间——sim forms 数组是过滤空根帧后的紧凑数组、render 图集 forms 是含空根帧的全数组，`fighter:form` 事件下标直接喂图集恒差一位（切形态显示回上一形态）。core 事件补发 `rootFrame`（绝对帧寻址），render 优先按 rootFrame 换算图集下标（缺省回退旧下标行为）。基础角色 formIndex 恒 0 起步 → 双哈希零漂移，门禁全绿未重冻。
 - **遗留 ②（门禁覆盖差）**：batch:validate 基线里形态角色仍是**无 XFL** 编译（58 角色基线含 20 个 runtime 形态角色），与本批后 app 装配（挂基名 XFL）不一致；基线反映门禁自身管线暂不改，日后若把 XFL 兜底纳入门禁需整体重冻并 verify-drift 归因。
+- **用户验收新发现 → 遗留池登记**：① 鸣人 W+J（砍技2）影分身出现但不动——fire 元件采集系统性静态化（`capAdvanceChildren` 只步进一层嵌套且遇 stop 标签跳过；原版 Flash 嵌套 mc 自动播放；实证 naruto/sasuke 各 6 元件多帧同图，kj2mc/sbsmc/cbsmc/kj1mc 等），采集管线需 ghost 时间轴式递归步进 + 重跑 capture 桥（与切片 28 嵌套元件时间轴音 99 处同族，render-only 零哈希漂移）；② 佐助防御时人物模糊——待复测定位（疑点：相机 autoZoom 近身放大至 2.5× 位图上采样变糊，全角色共有，原版矢量渲染无损）。
 
 ---
 

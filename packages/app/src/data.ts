@@ -29,6 +29,8 @@ export interface SelectEntry {
   /** 共用 swf 基名（fighter.xml file url；形态角色如 sasuke_juin → sasuke，
    *  XFL/fire/语音/贴帧音按此寻址，图集按 id 自寻；随机项 null） */
   swf: string | null;
+  /** 原版进场形态帧（fighter.xml startFrame；缺省 1 = 首含动画形态） */
+  startFrame: number;
 }
 
 export interface SelectData {
@@ -192,8 +194,15 @@ export interface FighterPack {
  * runtime/图集按形态 id，XFL/fire 按 swf 基名（原版形态角色与基础角色共用同一
  * swf，baked/fighters 与 baked/fires/fighter 只按基名烘焙）。基础角色 swf=id，
  * XFL 包必在；未知 id（无 select 元数据）按 id 兜底。
+ * startFrame = 原版进场形态（fighter.xml，58 角色实证：缺省形态 = 含动画
+ * 形态中第 startFrame 个；基础角色恒 1，形态角色 >1 决定直接选入时的形态）。
  */
-export async function loadFighterPack(ctx: Ctx, id: string, swf = id): Promise<FighterPack> {
+export async function loadFighterPack(
+  ctx: Ctx,
+  id: string,
+  swf = id,
+  startFrame = 1,
+): Promise<FighterPack> {
   const runtime = await ctx.assets.json<import('@bvn/data').RuntimeFighterPackage>(
     `${BAKED}/fighters-runtime/${id}.json`,
   );
@@ -204,15 +213,16 @@ export async function loadFighterPack(ctx: Ctx, id: string, swf = id): Promise<F
     `${BAKED}/fires/fighter/${swf}.json`,
   );
   const xflDef = xfl ?? undefined;
-  const def = compileFighterRuntime(runtime, xflDef, undefined, fires?.fires);
   const forms = compileFighterForms(runtime, xflDef, fires?.fires);
-  const formIndex = def.formIndex ?? 0;
+  // 进场形态：含动画形态数组第 startFrame 个（clamp 越界）；sim 侧初始
+  // formIndex 用该数组下标，render 初始用 def.formIndex（全数组下标，与图集对齐）
+  const def = forms[Math.min(Math.max(startFrame - 1, 0), forms.length - 1)]!;
   return {
     id,
     swf,
     def,
     forms,
-    sounds: xfl?.forms[formIndex]?.sounds ?? {},
+    sounds: xfl?.forms[def.formIndex ?? 0]?.sounds ?? {},
     hasFires: fires !== null,
   };
 }

@@ -404,10 +404,16 @@ export interface FighterConfig {
   /** 角色运行时定义（缺省 = 合成骨架角色：无判定区/动作，仅物理） */
   def?: FighterDef;
   /**
-   * 多形态定义表（切片 10 万解形态切换；按形态顺序排列，forms[0] 应与 def 一致）。
+   * 多形态定义表（切片 10 万解形态切换；按形态顺序排列——含动画形态、
+   * 过滤空根帧后的数组，下标即 FighterState.formIndex 寻址空间）。
    * 缺省 = 单形态 [def]。切换（doWanKai/switchForm）只改 FighterState.formIndex。
    */
   forms?: FighterDef[];
+  /**
+   * 初始形态（forms 数组寻址，缺省 0 = 首形态）。形态角色按原版 fighter.xml
+   * startFrame 进场（批次 21F：缺省形态 = 含动画形态中第 startFrame 个），
+   * 基础角色 startFrame=1 恒等缺省。 */
+  formIndex?: number;
   /** 辅助 id（SimConfig.assistants 注册表寻址；缺省 = 无辅助） */
   assistId?: string;
 }
@@ -486,7 +492,7 @@ export function createInitialState(config: SimConfig): SimState {
       hitTargetChecker: null,
       hitTarget: null,
       moveTarget: null,
-      formIndex: 0,
+      formIndex: fc.formIndex ?? 0,
       jumpTimes: JUMP_TIMES_START,
       jumpDelay: 0,
       ghostTicks: 0,
