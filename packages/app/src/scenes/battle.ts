@@ -22,6 +22,7 @@ import {
   loadBisha,
   loadFighterPack,
   loadMapPack,
+  loadSelect,
   type AssistPack,
   type FighterPack,
   type MapPack,
@@ -120,9 +121,13 @@ export class BattleScene implements Scene {
     const { p1, p2 } = picksOf(this.flow);
 
     // —— 数据装配（assets 缓存，重开同包零开销） ——
+    // swf 基名换算（形态角色 ≠ id：XFL/fire/语音/贴帧音按基名，图集按 id）
+    const select = await loadSelect(ctx.ctx);
+    const swfOf = (id: string): string =>
+      select.chars.find((c) => c.id === id)?.swf ?? id;
     const [p1Pack, p2Pack] = await Promise.all([
-      loadFighterPack(ctx.ctx, p1.fighter),
-      loadFighterPack(ctx.ctx, p2.fighter),
+      loadFighterPack(ctx.ctx, p1.fighter, swfOf(p1.fighter)),
+      loadFighterPack(ctx.ctx, p2.fighter, swfOf(p2.fighter)),
     ]);
     const assistList = await Promise.all(
       [...new Set([p1.assist, p2.assist])].map((id) => loadAssistPack(ctx.ctx, id)),
@@ -139,14 +144,14 @@ export class BattleScene implements Scene {
     if (audio) {
       const mkSlot = (pack: FighterPack) => ({
         binding: voiceBindingOf(pack.sounds),
-        resolve: (cls: string) => audio.voiceUrl(pack.id, cls),
+        resolve: (cls: string) => audio.voiceUrl(pack.swf, cls),
       });
       this.audioBinding = {
         fighters: { 1: mkSlot(p1Pack), 2: mkSlot(p2Pack) },
       };
-      // 贴帧音绑定（切片 28）：swf 基名 = 包 id；辅助缺包 = 无音安全跳过
+      // 贴帧音绑定（切片 28）：swf 基名寻址（形态角色共用基础包）；辅助缺包 = 无音安全跳过
       this.timelineBinding = {
-        fighters: { 1: p1Pack.id, 2: p2Pack.id },
+        fighters: { 1: p1Pack.swf, 2: p2Pack.swf },
         assists: Object.fromEntries(assistList.map((a) => [a.id, a.id])),
       };
       audio.fightBgm(p1.fighter, this.flow.mapId);
@@ -169,8 +174,9 @@ export class BattleScene implements Scene {
       mapBottomOffset: map.pkg.bottomOffset,
       mapBottom: map.pkg.bottom,
       fireAtlases: {
+        // 键 = 出场者 atlasId（render 侧按精灵 atlasId 查），值 = fire 图集 id（swf 基名）
         fighter: Object.fromEntries(
-          [p1Pack, p2Pack].filter((p) => p.hasFires).map((p) => [p.id, p.id]),
+          [p1Pack, p2Pack].filter((p) => p.hasFires).map((p) => [p.id, p.swf]),
         ),
         assister: Object.fromEntries(assistList.filter((a) => a.hasFires).map((a) => [a.id, a.id])),
       },

@@ -26,6 +26,9 @@ export interface SelectEntry {
   offset: string | null;
   /** 形态切换目标 id（原版 more=；选人页未实现切换，仅保留） */
   more: string | null;
+  /** 共用 swf 基名（fighter.xml file url；形态角色如 sasuke_juin → sasuke，
+   *  XFL/fire/语音/贴帧音按此寻址，图集按 id 自寻；随机项 null） */
+  swf: string | null;
 }
 
 export interface SelectData {
@@ -173,6 +176,8 @@ export function loadTimelineSounds(ctx: Ctx): Promise<TimelineSoundsManifest> {
 
 export interface FighterPack {
   id: string;
+  /** 共用 swf 基名（XFL/fire/语音/贴帧音寻址用；基础角色 = id） */
+  swf: string;
   /** def = forms[formIndex]（切片 10 多形态） */
   def: import('@bvn/core').FighterDef;
   forms: import('@bvn/core').FighterDef[];
@@ -182,24 +187,32 @@ export interface FighterPack {
   hasFires: boolean;
 }
 
-export async function loadFighterPack(ctx: Ctx, id: string): Promise<FighterPack> {
+/**
+ * 角色包装配。swf = 共用 swf 基名（select.json chars[].swf，形态角色 ≠ id）：
+ * runtime/图集按形态 id，XFL/fire 按 swf 基名（原版形态角色与基础角色共用同一
+ * swf，baked/fighters 与 baked/fires/fighter 只按基名烘焙）。基础角色 swf=id，
+ * XFL 包必在；未知 id（无 select 元数据）按 id 兜底。
+ */
+export async function loadFighterPack(ctx: Ctx, id: string, swf = id): Promise<FighterPack> {
   const runtime = await ctx.assets.json<import('@bvn/data').RuntimeFighterPackage>(
     `${BAKED}/fighters-runtime/${id}.json`,
   );
-  const xfl = await ctx.assets.json<import('@bvn/data').FighterPackage>(
-    `${BAKED}/fighters/${id}.json`,
+  const xfl = await ctx.assets.jsonOptional<import('@bvn/data').FighterPackage>(
+    `${BAKED}/fighters/${swf}.json`,
   );
   const fires = await ctx.assets.jsonOptional<import('@bvn/data').FirePackage>(
-    `${BAKED}/fires/fighter/${id}.json`,
+    `${BAKED}/fires/fighter/${swf}.json`,
   );
-  const def = compileFighterRuntime(runtime, xfl, undefined, fires?.fires);
-  const forms = compileFighterForms(runtime, xfl, fires?.fires);
+  const xflDef = xfl ?? undefined;
+  const def = compileFighterRuntime(runtime, xflDef, undefined, fires?.fires);
+  const forms = compileFighterForms(runtime, xflDef, fires?.fires);
   const formIndex = def.formIndex ?? 0;
   return {
     id,
+    swf,
     def,
     forms,
-    sounds: xfl.forms[formIndex]?.sounds ?? {},
+    sounds: xfl?.forms[formIndex]?.sounds ?? {},
     hasFires: fires !== null,
   };
 }

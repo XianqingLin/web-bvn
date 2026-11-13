@@ -16,7 +16,7 @@
 | 1 | POC：单机对战闭环 + 训练模式 | ✅（切片 1~5） |
 | 2 | 联机：lockstep + 房间服务器 | ✅（切片 6~7；真机验收待做，见 §4.1） |
 | 3 | 批量化：全角色机制 + 验收门禁 | ✅ 主线（切片 8~12）；尾巴见 §4.2 |
-| 4 | 体验完善：菜单流/原版化/实战修复等 | 🔄（切片 14/15/16/26/27/28 + 修复批次 17/18 ✅；余断线/录像/观战/rollback/街机/本地双人/加载画面，见 §4.3） |
+| 4 | 体验完善：菜单流/原版化/实战修复等 | 🔄（切片 14/15/16/26/27/28 + 修复批次 17/18/21F ✅；余断线/录像/观战/rollback/街机/本地双人/加载画面，见 §4.3） |
 
 门禁速记（每次收尾全过才算完成）：`pnpm build` + 确定性单测 + `tools/replay` 五剧本哈希（含 assist-duel）+ `pnpm batch:validate`（58 角色 + 37 辅助，基线 `tools/batch-validate/baseline.json`）。行为有意变更 → 重冻全部基线并在提交说明写明。
 
@@ -55,6 +55,7 @@
 | 26 | 阶段 4·块 7（前半）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（原版 GameCamera autoZoom 收编）——bisha-pack 步骤 3b 光效导出 + render 效果逐帧播放器 + camFocus/zoomTarget 相机模型 + 横幅/立绘迁屏幕空间层（修正切片 22 world 内偏差） | ✅ | §三·切片 26 |
 | 27 | 阶段 4·块 7（后半·事件驱动半）：音效接线——`tools/sound-pack` 音源管线（bgm/se/swc/fx/语音 5 路）+ baked/audio.json 清单 + app AudioSubsystem（WebAudio SE 池/BGM 通道/语音防重叠）+ core `voice` 事件 + 场景 BGM/UI 音接线；余逐帧时间轴音（§4.3 块 7） | ✅ | §三·切片 27 |
 | 28 | 阶段 4·块 7（余项）：逐帧时间轴贴帧音——`tools/sound-pack/frame-sounds.mjs` 自研 SWF 标签解析（StartSound 采集 + formIndex 对齐）+ baked/timeline-sounds.json（56 包 1816 事件）+ app handleTimelineFrames 帧进入触发（纯 app 层零哈希漂移）；嵌套元件音 99 处遗留（§4.3 块 7 遗留池） | ✅ | §三·切片 28 |
+| 21F | 修复批次：形态角色（sasuke_juin 等 12 个可选）选入即 404——swf 基名数据化（select-pack 烘 fighter.xml `file url`）+ app 全链按基名取 XFL/fire/语音/贴帧音（图集仍按形态 id） | ✅ | §三·批次 21F |
 
 ---
 
@@ -177,6 +178,17 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **replay 门禁改冻行为哈希**：`SimSnapshot` 新增 `behaviorHash` = `behaviorView`（剥除 `fighters[].input` 与实体 `name` 表现字段，denylist 设计漏登记只会多漂不漏报）+ 空容器省略序列化（null/`{}`/`[]` 不进哈希）——新增"恒空"记录字段/坐标重锚定等表示层改动不再漂移基线。全状态 `hash` 原样保留（联机失步/对拍/batch:validate 用）。5 剧本基线重冻，重冻前以"新 core 全状态哈希与旧基线逐字节一致"证明零行为差异。
 - **`tools/replay/verify-drift.mjs`**：漂移归因自动化——stash→build→dump HEAD→pop，工作区 vs HEAD 全量状态逐 tick 深diff，全等 = 可重冻、不等 = 字段级行为差异报告。`replay.mjs` 剧本展开/Sim 构造抽到 `run-script.mjs` 共用。
 - batch:validate 基线原样通过（全状态哈希未动）。
+
+### 修复批次 21F——形态角色选入 404（✅ 2026-11-13）
+
+实测选 sasuke_juin 即 `fetch baked/fighters/sasuke_juin.json → 404`。根因：选人池 53 个 id 中 12 个是**形态角色**（sasuke_juin/ogihci/ichigo_bankai…），原版 fighter.xml 里它们与基础角色**共用同一 swf**（`<file url>` + startFrame 区分形态），而 `baked/fighters`（XFL 包）、`baked/fires/fighter`、audio voices、timeline-sounds 全部只按 **swf 基名**烘焙（38 基名）；app 的 loadFighterPack 却一律按角色 id 取包 → 形态角色全 404（XFL/fire/语音/贴帧音四路全断，triggers 恒空）。
+
+修复（数据驱动，不进引擎分支）：
+- **`tools/select-pack`**：解析 fighter.xml `<file url="assets/fighter/X.swf">` → 每个选人条目烘 `swf` 基名字段（形态角色 ≠ id，如 ogihci → ichigo；辅助各用自己 swf 不需换算），select.json 重烘。
+- **app**（`data.ts`/`battle.ts`）：`loadFighterPack(id, swf)` —— runtime/图集按形态 id，XFL（改 jsonOptional）/fire 按基名；语音 voiceUrl、贴帧音 TimelineAudioBinding、fire 图集寻址值全部换用 `pack.swf`；FighterPack 增 `swf` 字段。核心对照：`sasuke_juin` 装配后 triggers 0 → 182、fires 挂上，sim 冒烟连招正常。
+
+- **遗留 ①（默认形态对位）**：形态角色的缺省形态取"第一个含动画形态"，与原版 fighter.xml `startFrame` 不完全对位（如 naruto_sennin start=4、ogihci start=6、ichigo_vizored_half start=3）——原版是同 swf 跳 startFrame，形态间 rootFrame 映射关系未逆向确认，逐角色验收时核对修正。
+- **遗留 ②（门禁覆盖差）**：batch:validate 基线里形态角色仍是**无 XFL** 编译（58 角色基线含 20 个 runtime 形态角色），与本批后 app 装配（挂基名 XFL）不一致；基线反映门禁自身管线暂不改，日后若把 XFL 兜底纳入门禁需整体重冻并 verify-drift 归因。
 
 ---
 

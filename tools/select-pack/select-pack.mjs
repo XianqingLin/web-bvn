@@ -52,6 +52,19 @@ function parseNames(xml) {
   return map;
 }
 
+/**
+ * fighter.xml → id → swf 基名（`<file url="assets/fighter/X.swf">`）。
+ * 形态角色（sasuke_juin 等）与基础角色共用同一 swf（startFrame 区分形态），
+ * XFL 包 / fire 包 / 语音 / 贴帧音均按 swf 基名索引，app 取包时按此换算。
+ */
+function parseSwfBase(xml) {
+  const map = new Map();
+  const re = /<fighter id="([^"]*)"[^>]*><file url="assets\/fighter\/([^"/]+)\.swf"/g;
+  let m;
+  while ((m = re.exec(xml))) map.set(m[1], m[2]);
+  return map;
+}
+
 function parseMaps(xml) {
   const maps = [];
   const re = /<map id="([^"]*)" name="([^"]*)"/g;
@@ -79,7 +92,7 @@ const RANDOM_META = new Map([
 ]);
 
 /** char_list / assist_list 行展开为平铺条目（row/col 保留布局，offset 保留像素偏移）。 */
-function flatten(listRows, names, kind) {
+function flatten(listRows, names, kind, swfMap) {
   const out = [];
   listRows.forEach((row, r) => {
     row.items.forEach((item, c) => {
@@ -94,6 +107,8 @@ function flatten(listRows, names, kind) {
         col: c,
         offset: item.offset,
         more: item.more,
+        /** 共用 swf 基名（fighter.xml file url；形态角色 ≠ id，随机项 null） */
+        swf: swfMap?.get(item.id) ?? null,
       });
     });
   });
@@ -102,7 +117,12 @@ function flatten(listRows, names, kind) {
 
 const doc = {
   schema: 'bvn/select@1',
-  chars: flatten(parseRoster(/<char_list>(.*?)<\/char_list>/.exec(selectXml)[1]), fighterNames, 'char'),
+  chars: flatten(
+    parseRoster(/<char_list>(.*?)<\/char_list>/.exec(selectXml)[1]),
+    fighterNames,
+    'char',
+    parseSwfBase(fighterXml),
+  ),
   assists: flatten(parseRoster(/<assist_list>(.*?)<\/assist_list>/.exec(selectXml)[1]), assistantNames, 'assist'),
   maps: parseMaps(mapXml),
 };
