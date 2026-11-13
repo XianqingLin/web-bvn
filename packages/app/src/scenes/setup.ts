@@ -157,6 +157,7 @@ export class SetupScene implements Scene {
     this.cursor = null;
     this.bigFace = null;
     this.bigName = null;
+    clearTweens(); // 旧阶段格子的退场补间随 phaseRoot 销毁一并作废
     this.phaseRoot?.destroy({ children: true });
     const root = new Container();
     this.phaseRoot = root;

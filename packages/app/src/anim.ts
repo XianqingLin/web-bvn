@@ -62,6 +62,12 @@ export function tickTweens(dtMs: number): void {
   for (let i = tweens.length - 1; i >= 0; i--) {
     const tw = tweens[i];
     if (!tw) continue;
+    if (tw.obj.destroyed) {
+      // 显示对象已销毁（如阶段切换 destroy 先于末帧补间）：丢弃，防 setProp 打在
+      // null _position 上（pixi destroy 后 transform 置空，`.x` setter 即崩）
+      tweens.splice(i, 1);
+      continue;
+    }
     if (tw.delay > 0) {
       tw.delay -= dtMs;
       continue;
