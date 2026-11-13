@@ -1401,10 +1401,10 @@
       "unregisteredOps": [],
       "smoke": {
         "ok": true,
-        "finalHash": "85fe355b",
-        "resumeHash": "85fe355b",
+        "finalHash": "c7dc05de",
+        "resumeHash": "c7dc05de",
         "resumeFrames": 300,
-        "rerunHash": "85fe355b"
+        "rerunHash": "c7dc05de"
       }
     },
     {

@@ -4,7 +4,7 @@
   "source": {
     "kind": "xfl",
     "path": "temari",
-    "hash": "8b196fdb22b9fa2c9d44fdb7f2549f937b5332f8"
+    "hash": "4440789950697aa394056f46d8f95ba5da891733"
   },
   "actions": {
     "atm1": {
@@ -44,11 +44,9 @@
       {
         "frame": 33,
         "target": "fighter",
-        "op": "buffSpeedUp",
+        "op": "buffSpeedUpByOwnerSpeed",
         "args": [
-          {
-            "$expr": "ownerSpeed * 0.25"
-          },
+          0.25,
           6
         ]
       },
@@ -58,7 +56,14 @@
         "op": "addCustomFunc",
         "args": [
           {
-            "$ref": "fuutonFunc"
+            "kind": "windField",
+            "levels": [
+              0.8,
+              0.65,
+              0.5,
+              0.35,
+              0.2
+            ]
           }
         ]
       },

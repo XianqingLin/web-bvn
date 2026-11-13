@@ -23,6 +23,8 @@ import {
   extractFunctionBodies,
   extractHitPowerSet,
   matchJustHitGuard,
+  matchOwnerSpeedBuff,
+  matchWindFieldCustomFunc,
   parseLoopTriggerBody,
   scriptResidue,
   stripComments,
@@ -144,9 +146,10 @@ function datafyCustomFuncs(into: SymbolData): void {
     }
     const parsed = parseLoopTriggerBody(body, extractConsts(scriptAt));
     if (parsed === null) {
-      // 通用解析失败 → 尝试已知函数模板识别（切片 21：byakuya 抓取链）。
-      // 命中则把 addCustomFunc 触发器参数改写为语义描述符（core 按 kind 解释）；
-      // 未命中保持原触发（core 侧未注册 = 确定性静默）。
+      // 通用解析失败 → 尝试已知函数模板识别（切片 21：byakuya 抓取链；
+      // B4：temari 风场）。命中则把 addCustomFunc 触发器参数改写为语义
+      // 描述符（core 按 kind 解释）；未命中保持原触发（core 侧未注册 =
+      // 确定性静默）。
       const attacker = resolveAttackerName(into);
       if (attacker !== null) {
         const desc = matchKnownCustomFunc(scriptAt, name, attacker);
@@ -154,6 +157,11 @@ function datafyCustomFuncs(into: SymbolData): void {
           kept.push({ ...t, args: [desc] as unknown as typeof t.args });
           continue;
         }
+      }
+      const wind = matchWindFieldCustomFunc(scriptAt, name);
+      if (wind !== null) {
+        kept.push({ ...t, args: [wind] as unknown as typeof t.args });
+        continue;
       }
       kept.push(t);
       continue;
@@ -286,6 +294,36 @@ function rewriteFinishGuard(into: SymbolData, attacker: string | null): void {
 }
 
 /**
+ * owner 基速 buff 惯用语改写（B4，temari 风场）：时间轴脚本
+ * `var ownerSpeed = getOwner().speed; ...getBuffCtrl().speedUp(ownerSpeed * R, H)`
+ * 已被 extractAssistTimelineCalls 提取为 buffSpeedUp(expr, H) 触发器——expr 是
+ * 跨期变量（core 不可求值），改写为 buffSpeedUpByOwnerSpeed(R, H)（core 按召唤者
+ * def 基速 × R 求值）。帧号匹配限定 = 匹配帧上恰有一个带 $expr 首参的 buffSpeedUp。
+ */
+function rewriteOwnerSpeedBuff(into: SymbolData): void {
+  const frames = new Map<number, { rate: number; hold: number }>();
+  for (const r of into.rawScripts ?? []) {
+    const m = matchOwnerSpeedBuff(r.raw);
+    if (m !== null) frames.set(r.frame, m);
+  }
+  if (frames.size === 0) return;
+  into.triggers = into.triggers.map((t) => {
+    if (t.op !== 'buffSpeedUp' || t.target !== 'fighter') return t;
+    const m = frames.get(t.frame);
+    if (m === undefined) return t;
+    const first = t.args[0];
+    if (first === null || typeof first !== 'object' || Array.isArray(first) || !('$expr' in first)) {
+      return t;
+    }
+    return {
+      ...t,
+      op: 'buffSpeedUpByOwnerSpeed',
+      args: [m.rate, m.hold] as unknown as typeof t.args,
+    };
+  });
+}
+
+/**
  * attacker 元件脚本提取（切片 21）：绑名规则 = 时间轴唯一 addAttacker 名 ↔
  * 唯一含 $attacker_ctrler 脚本的符号（语料 6 辅助全部无歧义）。输出
  * labels（0 基 → 1 基，与 fire 元数据同基）+ 纯调用触发器（帧号 0 基，
@@ -380,6 +418,8 @@ export function extractAssistant(opts: ExtractAssistantOptions): ExtractAssistan
 
   // 切片 21：finish 守卫惯用语改写 + attacker 元件脚本提取
   rewriteFinishGuard(timeline, resolveAttackerName(timeline));
+  // B4：owner 基速 buff 惯用语改写（temari 风场 speedUp(ownerSpeed×rate)）
+  rewriteOwnerSpeedBuff(timeline);
   const attackerScripts = extractAttackerScripts(timeline, symbols);
 
   const pkg: AssistantPackage = {

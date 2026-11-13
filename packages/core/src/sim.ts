@@ -303,6 +303,13 @@ export class Sim {
     return forms[Math.min(f.formIndex, forms.length - 1)] ?? null;
   }
 
+  /** 召唤者当前目标的 def（辅助语境 fighterTarget；owner 空/无目标 = null）。 */
+  private ownerTargetDefOf(owner: FighterState | null): FighterDef | null {
+    if (owner === null) return null;
+    const t = this.state.fighters.find((f) => f.id !== owner.id) ?? null;
+    return t !== null ? this.defOf(t) : null;
+  }
+
   /** doWanKai/switchForm 桥：形态切换 + 表现事件（render 换图集形态用）。
    *  切换后保持 WAN_KAI_ING，由新形态 开场 播完经 endAction 回位。 */
   private doSwitchForm(f: FighterState, frame: number): void {
@@ -586,15 +593,33 @@ export class Sim {
     this.clampPlayfield();
   }
 
-  /** 飞行道具每 tick 推进（原版 Bullet.render；speedLevel 命中减速原版未接，略）。 */
+  /**
+   * 飞行道具每 tick 推进（原版 Bullet.render）。
+   * 风场弹速级（B4 temari）：原版 fuutonFunc 每动画帧对所有敌方弹写
+   * sp.speedLevel = level × direct（direct = sp.direct==selfDirect ? -1:1，
+   * 即同向 -level 加速、逆风 level 减速），位移乘 (1−speedLevel)。
+   * 移植为**派生值**：步进时按在场风场辅助求值，不逐弹存储——多辅助同场
+   * 按 id 序后者覆盖（= 原版单槽函数的寄存器覆写序）；偏离记录：风场期间
+   * 生成的弹体即刻受风（原版 ≤2 动画帧延迟），辅助提前退场（owner 死亡）
+   * 时弹体立即恢复常速（原版最后一次覆写值泄漏至弹体消失——视为原版缺陷
+   * 修正，见 DESIGN §3.5 风场段）。
+   */
   private stepBullets(): void {
-    const { stage, bullets } = this.state;
+    const { stage, bullets, assisters } = this.state;
     const removed: number[] = [];
     for (const b of bullets) {
       // 命中残留段（原版 _isHit → render 早退）：停移动，仅时间轴推进
       if (b.hitAnim) continue;
-      // 位移（局部空间速度；x 沿发射朝向）+ 加速（add×2×SPEED_PLUS = add/tick）
-      b.x += b.sx * SPEED_PLUS * b.facing;
+      // 风场弹速级求值（同队跳过 = 原版 isSelfTeam 守卫；2P 模型 team id = fighter id）
+      let speedLevel = 0;
+      for (const a of assisters) {
+        const cf = a.customFunc;
+        if (cf === null || cf.kind !== 'windField') continue;
+        if (b.ownerId === a.ownerId) continue;
+        speedLevel = cf.level * (b.facing === cf.direct ? -1 : 1);
+      }
+      // 位移（局部空间速度；x 沿发射朝向，乘风场弹速级系数）+ 加速（add×2×SPEED_PLUS = add/tick）
+      b.x += b.sx * SPEED_PLUS * b.facing * (1 - speedLevel);
       b.y += b.sy * SPEED_PLUS;
       b.sx += b.addX;
       b.sy += b.addY;
@@ -1156,6 +1181,7 @@ export class Sim {
       def,
       owner,
       ownerDef: this.defOf(owner),
+      ownerTargetDef: this.ownerTargetDefOf(owner),
       fighters: this.state.fighters,
       stage: this.state.stage,
       emit: (type, payload) => this.emit(type, payload),
@@ -1236,6 +1262,7 @@ export class Sim {
         def,
         owner,
         ownerDef: owner !== null ? this.defOf(owner) : null,
+        ownerTargetDef: this.ownerTargetDefOf(owner),
         fighters,
         stage,
         emit: (type, payload) => this.emit(type, payload),

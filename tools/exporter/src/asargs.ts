@@ -962,3 +962,63 @@ export function extractHitPowerSet(
   stripped = stripped.replace(/var\s+targetHpMax:Number\s*=[^;]*;\s*/g, '');
   return { hitId: vm[2]!, rate, stripped };
 }
+
+/**
+ * owner 基速 buff 识别（B4，temari 风场；assister 时间轴脚本）：
+ *   var ownerSpeed:Number = $assisterCtrler.getOwner().speed;
+ *   ... getBuffCtrl().speedUp(ownerSpeed * 0.25, 6);
+ * → buffSpeedUpByOwnerSpeed(rate, hold)。ownerSpeed 是跨期变量（速度随对局
+ * 而变），port 语义 = 召唤者 def 基速 × rate（激活帧采样）。
+ */
+export function matchOwnerSpeedBuff(script: string): { rate: number; hold: number } | null {
+  const s = stripComments(script);
+  const vm = /var\s+(\w+):Number\s*=\s*\$assisterCtrler\.getOwner\(\)\.speed\s*;/.exec(s);
+  if (!vm) return null;
+  const varName = vm[1]!;
+  const bm = new RegExp(
+    `\\.getBuffCtrl\\(\\)\\.speedUp\\(\\s*${varName}\\s*\\*\\s*(-?([\\d.]+))\\s*,\\s*(-?[\\d.]+)\\s*\\)`,
+  ).exec(s);
+  if (!bm) return null;
+  return { rate: Number(bm[1]), hold: Number(bm[3]) };
+}
+
+/**
+ * 风场 customFunc 识别（B4，temari 风场）：函数体含 目标状态门（getTargetState
+ * == 23 = HURT_DOWN）+ targetSP.x 拉扯 + 调用同语料内的弹速级辅助函数
+ * （特征：getGameSprites + isBullet + sp.speedLevel 赋值循环）；LEVEL 表 =
+ * 语料内唯一数值数组常量。识别按特征组合（不绑函数名），模板外返回 null。
+ */
+export function matchWindFieldCustomFunc(
+  corpus: string,
+  funcName: string,
+): { kind: 'windField'; levels: number[] } | null {
+  const stripped = stripComments(corpus);
+  const bodies = extractFunctionBodies(stripped);
+  const body = bodies.get(funcName);
+  if (body === undefined) return null;
+  const flat = stripComments(body).replace(/\s+/g, ' ');
+  if (!/getTargetState\(\)/.test(flat)) return null;
+  if (!/==\s*23/.test(flat)) return null;
+  if (!/targetSP\s*\.\s*x\s*\+=/.test(flat)) return null;
+  if (!/getTargetSP\(\)/.test(stripped)) return null;
+  // 弹速级辅助函数（corpus 内唯一特征函数；fuutonFunc 体内必须调用它）
+  let helperName: string | null = null;
+  for (const [n, b] of bodies) {
+    const bf = stripComments(b).replace(/\s+/g, ' ');
+    if (
+      /getGameSprites\(\)/.test(bf) &&
+      /isBullet\(/.test(bf) &&
+      /\.speedLevel\s*=/.test(bf)
+    ) {
+      if (helperName !== null) return null;
+      helperName = n;
+    }
+  }
+  if (helperName === null || !new RegExp(`\\b${helperName}\\s*\\(`).test(flat)) return null;
+  // LEVEL 表 = corpus 内唯一数值数组常量
+  const arrays = Object.values(extractConsts(stripped)).filter(
+    (v): v is number[] => Array.isArray(v) && v.length > 0,
+  );
+  if (arrays.length !== 1) return null;
+  return { kind: 'windField', levels: arrays[0]! };
+}

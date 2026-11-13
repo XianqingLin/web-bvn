@@ -51,6 +51,7 @@
 | 22 | 阶段 3 尾巴·B2：必杀/万解切人插图——core 冻结锁（cutinLock 全场停走/锁主 30Hz/保护性解锁）+ `tools/bisha-pack` 素材管线（71 帧横幅 + 92 张立绘）+ render 黑幕/横幅/立绘接线 | ✅ | §三·切片 22 |
 | 23 | 阶段 3 尾巴·B5：独立道具逐帧命中矩形——attacker 原点锚定语义 + fires org/hits 逐帧命中数据（dump 桥扩展采集 86 元件 + `tools/b5-pack` 合并）+ madara justHit 卫语句 cond 触发器 + itachi 动态伤害 setHitPowerByTargetHpMax | ✅ | §三·切片 23 |
 | 24 | 阶段 3 尾巴·B3：空中必杀 attackId——data 层补 `kbs→空中必杀` 动作 id 映射（批次 20 遗留）；顺带核实空中必杀判定/演出/道具链全角色已通，修正"纯表现无判定"误记 | ✅ | §三·切片 24 |
+| 25 | 阶段 3 尾巴·B4：temari 风场——windField customFunc 数据化（LEVEL 表采样/拉扯/HURT_DOWN 门）+ 派生弹速级（stepBullets 实时求值不进 SimState）+ `buffSpeedUpByOwnerSpeed`（expr 跨期不可求值修正）+ 导出器特征识别两模板 | ✅ | §三·切片 25 |
 
 ---
 
@@ -131,6 +132,14 @@
 - **已知边界（维持现状）**：原版 setAirAllAct 无条件填 bishaAIR 槽（无 checkFrame），无该标签的角色空中按必杀 = 原版 goFrame 未定义行为；移植版槽按标签存在性填写（defaultSlots 既有偏离，按钮无效但不扣气不黑屏）。
 - **门禁**：data 17 测试（新增 kbs 映射 1 项）；core 126 / replay 5 剧本 / batch:validate 全过零漂移（基线剧本不含空中必杀输入）。
 
+### 切片 25·B4——temari 风场（✅ 2026-11-13）
+
+13-A6 审计最后一个未建模项收编。逆向规格（f_assistant/temari DOMDocument.xml）：帧 2 `level = LEVEL[int(min(targetHeavy,5))−1]`（LEVEL=[0.8,0.65,0.5,0.35,0.2]）、`finalSpeed = targetSpeed × level`；帧 34 注册 fuutonFunc——每渲染帧对所有敌方弹 `sp.speedLevel = level × direct`（direct = 弹朝向==自身朝向 ? −1 : 1）、目标非 HURT_DOWN(23) 时 `targetSP.x += finalSpeed × selfDirect`、一次性 owner `speedUp(ownerSpeed × 0.25, 6)`；帧 145 注销并把弹速级复位。
+- **core**：`AssisterCustomFunc` 增 `windField` kind（注册帧采样 levels 折算 level/finalSpeed/direct，采样帧偏离见 DESIGN §3.5）；`stepAssisterCustomFunc` 拉扯分支（30Hz ×SPEED_PLUS）；弹速级为**派生值**——`stepBullets` 按在场风场辅助实时求值（仅敌方弹、id 序后者覆盖 = 原版单槽覆写序），零新增状态字段 → 除 temari 外全语料零漂移。
+- **`buffSpeedUpByOwnerSpeed(rate, hold)`**：核查发现"owner speedUp 已提取"是误记——temari 该触发首参是 `{$expr: "ownerSpeed * 0.25"}`，core `num()` 求值 0（静默 no-op）。惯用语数据化：值 = 召唤者 def 基速 × rate。
+- **导出器**：`matchOwnerSpeedBuff`（var 捕获 owner speed + speedUp(var×R, H)）+ `matchWindFieldCustomFunc`（getTargetState==23 门 + targetSP.x 拉扯 + 唯一弹速级特征函数 + 唯一数值数组常量；特征组合不绑名，模板外 null）——temari.json 重导出仅两个预期触发改写，rawScripts 不变。
+- **门禁**：core 134 测试（新增 wind-field 8 项：弹速级减速/加速/同队免疫/heavy 采样/拉扯/HURT_DOWN 门/注销恢复/buff）；replay 5 剧本 + 新增 temari-wind 剧本（双方召唤 temari 对拉，基线已冻）全过；batch:validate 仅 temari 冒烟 finalHash 变化（85fe355b→c7dc05de，风场生效的预期行为变化，基线已更新）。
+
 ### 工具治理——双哈希 + 漂移归因工具（✅ 2026-11-12）
 
 哈希门禁的漂移调查（证明"纯表示变更"）在切片 9/13/23 反复消耗手工流程，治理如下（DESIGN §3.8 双哈希）：
@@ -155,7 +164,7 @@
 ### 4.2 阶段 3 尾巴（切片 13 余项，纯增量特性，不阻塞阶段 4 推进）
 
 - ~~独立道具逐帧命中矩形~~（✅ 切片 23 收编，含 byakuya atm1 抓取伤害 / itachi 动态伤害 / madara miss 分支；遗留：无 replay 剧本覆盖逐帧命中行为变更 + 歧义 6 例抽样核对，见 §三·切片 23）；
-- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；~~itachi 动态伤害~~（✅ 切片 23 收编）；suigetsu `isAttacking=true`（唯一读者 AI）；temari 风场系统（敌方弹速级 targetBulletSpeedLevel + targetSP.x 拉扯；owner speedUp 已提取）；
+- 辅助 rawScript 审计确认的未建模项（13-A6 定级，低影响偏离）：~~byakuya checkFunc 链~~（✅ 切片 21 收编）；~~itachi 动态伤害~~（✅ 切片 23 收编）；suigetsu `isAttacking=true`（唯一读者 AI）；~~temari 风场系统~~（✅ 切片 25 收编；"owner speedUp 已提取"系误记——expr 首参此前静默 0 值，已改 buffSpeedUpByOwnerSpeed）；
 - 辅助残余静默 op：justHit（纯读）/ setTouchSide（语料无实例）——确定性静默，无行为差；
 - ~~必杀切人插图 effect 事件（id 'bisha'/endBisha）未在 app/render 消费~~（✅ 切片 22 收编，含万解 wanKai/endWanKai 同机制覆盖）；
 - ~~空中必杀 attackId=null（无动作 id 映射到 空中必杀 标签）~~（✅ 切片 24 收编：data 层补 `kbs→空中必杀` 映射；"纯表现无判定"系误记——命中按帧逐区解析不依赖 attackId，实测已通）；
@@ -180,5 +189,5 @@
 ## 五、下一步（按优先级）
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
-2. **阶段 3 尾巴**（§4.2，余项：temari 风场（B4）——切片 21 已收编 B1、切片 22 已收编 B2、切片 23 已收编 B5 逐帧命中矩形、切片 24 已收编 B3 空中必杀 attackId）——或按用户指示切换其他块；
+2. **阶段 3 尾巴已收编完毕**（切片 21 收编 B1、切片 22 收编 B2、切片 23 收编 B5、切片 24 收编 B3、切片 25 收编 B4；余项仅 suigetsu isAttacking——唯一读者 AI，随 §4.3 块 6 一并处理）；
 3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。

@@ -5,6 +5,8 @@ import {
   extractNamedDefine,
   extractStatAssignments,
   matchBracket,
+  matchOwnerSpeedBuff,
+  matchWindFieldCustomFunc,
   parseArg,
   parseObjectLiteral,
   splitTopLevel,
@@ -89,5 +91,92 @@ $fighter_ctrler.defineDieSound(snd_die);
     ]);
     expect(defs[0]!.args).toEqual(['Ichigo_1', { $ref: 'bsface1' }]);
     expect(defs[1]!.args).toEqual([{ $ref: 'snd_hurt1' }, { $ref: 'snd_hurt2' }]);
+  });
+});
+
+describe('B4 惯用语识别', () => {
+  it('matchOwnerSpeedBuff：var 捕获 owner speed + speedUp(var*R, H)', () => {
+    const script = `
+var ownerSpeed:Number = $assisterCtrler.getOwner().speed;
+$assisterCtrler.getBuffCtrl().speedUp(ownerSpeed * 0.25, 6);
+`;
+    expect(matchOwnerSpeedBuff(script)).toEqual({ rate: 0.25, hold: 6 });
+  });
+
+  it('matchOwnerSpeedBuff：变量名不绑定', () => {
+    const script = `
+var sp:Number = $assisterCtrler.getOwner().speed;
+$assisterCtrler.getBuffCtrl().speedUp(sp * 1.5, 30);
+`;
+    expect(matchOwnerSpeedBuff(script)).toEqual({ rate: 1.5, hold: 30 });
+  });
+
+  it('matchOwnerSpeedBuff：缺 speedUp 调用 → null', () => {
+    const script = 'var ownerSpeed:Number = $assisterCtrler.getOwner().speed;';
+    expect(matchOwnerSpeedBuff(script)).toBe(null);
+  });
+
+  it('matchOwnerSpeedBuff：speedUp 参数非 var*R 形态 → null', () => {
+    const script = `
+var ownerSpeed:Number = $assisterCtrler.getOwner().speed;
+$assisterCtrler.getBuffCtrl().speedUp(3, 6);
+`;
+    expect(matchOwnerSpeedBuff(script)).toBe(null);
+  });
+
+  const WIND_CORPUS = `
+const LEVEL:Array = [0.8, 0.65, 0.5, 0.35, 0.2];
+function setBulletSpeedLevel(level:Number, direct:int):void {
+  var sprites:Array = getGameSprites();
+  for (var i:int = 0; i < sprites.length; i++) {
+    var sp = sprites[i] as Bullet;
+    if (sp != null && sp.isBullet()) {
+      sp.speedLevel = level * direct;
+    }
+  }
+}
+function fuutonFunc():void {
+  setBulletSpeedLevel(level, selfDirect);
+  if (getTargetState() == 23) {
+    return;
+  }
+  var targetSP = getTargetSP();
+  targetSP.x += finalSpeed * selfDirect;
+}
+`;
+
+  it('matchWindFieldCustomFunc：风场函数体特征 → levels', () => {
+    expect(matchWindFieldCustomFunc(WIND_CORPUS, 'fuutonFunc')).toEqual({
+      kind: 'windField',
+      levels: [0.8, 0.65, 0.5, 0.35, 0.2],
+    });
+  });
+
+  it('matchWindFieldCustomFunc：缺 HURT_DOWN 门 → null', () => {
+    const noGate = WIND_CORPUS.replace('== 23', '== 99');
+    expect(matchWindFieldCustomFunc(noGate, 'fuutonFunc')).toBe(null);
+  });
+
+  it('matchWindFieldCustomFunc：缺 targetSP.x 拉扯 → null', () => {
+    const noPull = WIND_CORPUS.replace('targetSP.x +=', 'targetSP.y -=');
+    expect(matchWindFieldCustomFunc(noPull, 'fuutonFunc')).toBe(null);
+  });
+
+  it('matchWindFieldCustomFunc：函数体未调用弹速级辅助 → null', () => {
+    const noCall = WIND_CORPUS.replace('setBulletSpeedLevel(level, selfDirect);', '');
+    expect(matchWindFieldCustomFunc(noCall, 'fuutonFunc')).toBe(null);
+  });
+
+  it('matchWindFieldCustomFunc：两个弹速级特征函数（歧义）→ null', () => {
+    const twoHelpers = WIND_CORPUS.replace(
+      'const LEVEL:Array',
+      'function setBulletSpeedLevel2(level:Number, direct:int):void {\n  var gs:Array = getGameSprites();\n  for each (var s in gs) { if (s.isBullet()) { s.speedLevel = 0; } }\n}\nconst LEVEL:Array',
+    );
+    expect(matchWindFieldCustomFunc(twoHelpers, 'fuutonFunc')).toBe(null);
+  });
+
+  it('matchWindFieldCustomFunc：无数值数组常量（LEVEL 缺失）→ null', () => {
+    const noLevels = WIND_CORPUS.replace('const LEVEL:Array = [0.8, 0.65, 0.5, 0.35, 0.2];', '');
+    expect(matchWindFieldCustomFunc(noLevels, 'fuutonFunc')).toBe(null);
   });
 });

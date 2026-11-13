@@ -1,0 +1,34 @@
+{
+  "name": "temari-wind",
+  "seed": 1,
+  "map": "Forest",
+  "ticks": 396,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "dd2a1e8a"
+    },
+    {
+      "tick": 119,
+      "hash": "955e067d"
+    },
+    {
+      "tick": 179,
+      "hash": "9c4f346b"
+    },
+    {
+      "tick": 239,
+      "hash": "b0d166da"
+    },
+    {
+      "tick": 299,
+      "hash": "037dfd18"
+    },
+    {
+      "tick": 359,
+      "hash": "a4ea07d5"
+    }
+  ],
+  "finalHash": "43094fc4"
+}

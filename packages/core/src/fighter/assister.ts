@@ -12,6 +12,7 @@
  * 帧执行（原版 renderCheckTargetHit 语义）。
  */
 import {
+  ActionState,
   rectsOverlap,
   SPEED_PLUS,
   worldRect,
@@ -45,6 +46,8 @@ export interface AssisterContext {
   /** 召唤者（死亡中/已死亡仍可达——退场判定由 sim 处理） */
   owner: FighterState | null;
   ownerDef: FighterDef | null;
+  /** 召唤者当前目标的 def（heavy/speed 等 def 数值采样；owner 空时 null） */
+  ownerTargetDef: FighterDef | null;
   /** 全体角色（id 升序；fighterTarget = owner 以外的角色） */
   fighters: readonly FighterState[];
   stage: StageState;
@@ -289,6 +292,16 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
   buffSpeedUp(ctx, args, target) {
     applyBuff(ctx, target, 'speedUp', num(args[0]), num(args[1]));
   },
+  // buffSpeedUpByOwnerSpeed（B4 temari 风场）：原版
+  // `var ownerSpeed = getOwner().speed; getBuffCtrl().speedUp(ownerSpeed × rate, hold)`
+  // 的数据化——值 = 召唤者 def 基速 × rate（存原值，消费时 ×SPEED_PLUS）。
+  // 偏离记录：原版读的 .speed 属性可能含既有 speed buff 加值（激活帧采样），
+  // 语料窗口不可区分，port 取 def 基速。
+  buffSpeedUpByOwnerSpeed(ctx, args, target) {
+    const ownerDef = ctx.ownerDef;
+    if (ownerDef === null) return;
+    applyBuff(ctx, target, 'speedUp', ownerDef.speed * num(args[0]), num(args[1]));
+  },
   buffAttackUp(ctx, args, target) {
     applyBuff(ctx, target, 'attackUp', num(args[0]), num(args[1]));
   },
@@ -315,7 +328,7 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
   //     removeCustomFunc：单函数寄存器，占用即忽略） ——
   addCustomFunc(ctx, args) {
     if (ctx.self.customFunc !== null) return;
-    const desc = parseCustomFuncDesc(args[0]);
+    const desc = parseCustomFuncDesc(ctx, args[0]);
     if (desc !== null) ctx.self.customFunc = desc;
   },
   removeCustomFunc(ctx) {
@@ -411,10 +424,36 @@ function jumpTo(ctx: AssisterContext, args: BehaviorArg[]): void {
   ctx.self.animFrame = range.index + 1;
 }
 
-/** customFunc 描述符窄化（导出器闭集 kind；未知/畸形 = null → 触发器静默）。 */
-function parseCustomFuncDesc(v: BehaviorArg | undefined): AssisterCustomFunc | null {
+/**
+ * customFunc 描述符窄化（导出器闭集 kind；未知/畸形 = null → 触发器静默）。
+ * windField 在注册帧采样目标数值（B4）：LEVEL 折算 index = int(min(heavy, len))−1
+ * （原版 `int(targetHeavy>5 ? 5:targetHeavy)-1`，len 即数据层表长）；heavy<1
+ * 语料不可达（corpus heavy∈[1,5]），防御性降级 level=0。
+ */
+function parseCustomFuncDesc(ctx: AssisterContext, v: BehaviorArg | undefined): AssisterCustomFunc | null {
   if (v === null || typeof v !== 'object' || Array.isArray(v)) return null;
   const kind = (v as { kind?: unknown }).kind;
+  if (kind === 'windField') {
+    const levels = (v as { levels?: unknown }).levels;
+    if (
+      !Array.isArray(levels) ||
+      levels.length === 0 ||
+      !levels.every((n) => typeof n === 'number' && Number.isFinite(n))
+    ) {
+      return null;
+    }
+    const owner = ctx.owner;
+    const tDef = ctx.ownerTargetDef;
+    if (owner === null || tDef === null) return null;
+    const idx = Math.trunc(Math.min(tDef.heavy, levels.length)) - 1;
+    const level = idx >= 0 ? ((levels[idx] as number) ?? 0) : 0;
+    return {
+      kind,
+      level,
+      finalSpeed: tDef.speed * level,
+      direct: ctx.self.facing,
+    };
+  }
   const attacker = (v as { attacker?: unknown }).attacker;
   if (typeof attacker !== 'string') return null;
   if (kind === 'ownerDeadClearAttacker' || kind === 'finishWhenAttackerGone') {
@@ -433,7 +472,7 @@ function parseCustomFuncDesc(v: BehaviorArg | undefined): AssisterCustomFunc | n
 
 /**
  * customFunc 步进（切片 21，原版 Assister.renderAnimate：mc.nextFrame 后
- * 回调 _customFunc）。三函数为 byakuya 抓取链语料的忠实转写（rawScript 原文）：
+ * 回调 _customFunc）。byakuya 抓取链三函数为语料的忠实转写（rawScript 原文）：
  *  - checkFunc → ownerDeadClearAttacker：`getOwner().isAlive || !attackerCtrler`
  *    卫语句 → stopFollowTarget + removeSelf + removeCustomFunc；
  *  - checkFunc1 → attackerEndOnTargetLeave：targetState == state 即返回；
@@ -444,6 +483,19 @@ function parseCustomFuncDesc(v: BehaviorArg | undefined): AssisterCustomFunc | n
 export function stepAssisterCustomFunc(ctx: AssisterContext): void {
   const cf = ctx.self.customFunc;
   if (cf === null) return;
+  if (cf.kind === 'windField') {
+    // 风场拉扯（B4 temari，原版 fuutonFunc 的 targetSP.x += finalSpeed × selfDirect）：
+    // 目标倒地（HURT_DOWN=23，原版 getTargetState()==23 卫语句）不拉扯；每动画帧
+    // 位移 = finalSpeed × 注册朝向 × SPEED_PLUS（30Hz 帧率换算，与 moveOnce 同标定）。
+    // 弹速级部分（setTargetBulletSpeedLevel）不在此步进——为派生值，stepBullets
+    // 步进弹体时按在场风场辅助实时求值（不逐弹存储，避免新增状态字段）。
+    const owner = ctx.owner;
+    if (owner === null) return;
+    const t = ctx.fighters.find((f) => f.id !== owner.id) ?? null;
+    if (t === null || t.actionState === ActionState.HURT_DOWN) return;
+    t.x += cf.finalSpeed * cf.direct * SPEED_PLUS;
+    return;
+  }
   if (cf.kind === 'ownerDeadClearAttacker') {
     const owner = ctx.owner;
     if (owner !== null && owner.hp > 0) return;

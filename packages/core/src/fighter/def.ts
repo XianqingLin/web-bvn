@@ -171,7 +171,7 @@ export interface AssisterDef {
 /**
  * 辅助 customFunc（切片 21，原版 Assister._customFunc 单槽函数的数据化）。
  * 原版 addCustomFunc 占位即忽略（单函数寄存器）；语料仅 byakuya 抓取链
- * 三函数，导出器识别为闭集 kind 描述符（attacker 名来自绑名规则）。
+ * 三函数 + temari 风场（B4），导出器识别为闭集 kind 描述符。
  */
 export type AssisterCustomFunc =
   | { kind: 'ownerDeadClearAttacker'; attacker: string }
@@ -185,7 +185,18 @@ export type AssisterCustomFunc =
       /** 链下一环（语料恒 'finishWhenAttackerGone'） */
       next: 'finishWhenAttackerGone' | null;
     }
-  | { kind: 'finishWhenAttackerGone'; attacker: string };
+  | { kind: 'finishWhenAttackerGone'; attacker: string }
+  | {
+      /** 风场（B4，temari）：注册期采样目标 heavy/speed（LEVEL 表按数据层
+       *  desc.levels 折算，见 assister.ts addCustomFunc）与自身朝向。 */
+      kind: 'windField';
+      /** 弹速级（LEVEL[min(heavy, len)-1]；0 = 无效降级，语料 heavy∈[1,5] 不可达） */
+      level: number;
+      /** 目标每动画帧拉扯位移（原版 targetSpeed × level，×SPEED_PLUS 消费） */
+      finalSpeed: number;
+      /** 注册时自身朝向（原版闭包捕获 selfDirect，注册后不随转向变化） */
+      direct: 1 | -1;
+    };
 
 /**
  * 动作状态码（原版 FighterActionState，module-map §5.2）。

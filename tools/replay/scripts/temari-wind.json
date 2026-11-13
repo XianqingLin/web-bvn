@@ -1,0 +1,23 @@
+{
+  "name": "temari-wind",
+  "seed": 1,
+  "map": "Forest",
+  "_comment": "切片 24·B4 风场门禁剧本：双方开局召唤 temari（assist=512），双方 windField 互相作用——拉扯对称（各拉对方）+ 弹速级互写（派生值，id 序后者覆盖）；贴身互砍 + 招1 覆盖拉扯与 buffSpeedUpByOwnerSpeed(owner 基速×0.25)。位定义见 packages/core/src/input.ts。",
+  "fighters": [
+    { "pkg": "ichigo", "assist": "temari" },
+    { "pkg": "ichigo", "assist": "temari" }
+  ],
+  "program": [
+    { "frames": 2, "p1": 512, "p2": 512 },
+    { "frames": 10, "p1": 0, "p2": 0 },
+    { "frames": 30, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 16 },
+    { "frames": 30, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 128, "p2": 128 },
+    { "frames": 40, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 40, "p1": 0, "p2": 8 },
+    { "frames": 1, "p1": 0, "p2": 16 },
+    { "frames": 240, "p1": 0, "p2": 0 }
+  ]
+}
