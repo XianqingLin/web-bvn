@@ -1034,6 +1034,13 @@ export function advanceAnimation(
     // POC 曾放完整段 防御恢复（labelLock=duration）→ 实测"卡一下"才回站立。
     if (label === '防御恢复') {
       if (f.labelLock > 0) return;
+      // 转 站立 = 原版 goFrame delay 计满的 idle("站立") 回调：setAllAct 重填槽
+      // + 恢复跳跃/空中攻击次数（修复批次 31：doDefense 清槽后无人重填——
+      // 防御恢复→站立 走 setLabel 直转，站立为循环标签 endAction 不可达，
+      // 槽永久为空 → 再按 ↓ 无法防御/普攻失效，与批 18 受击恢复同类缺陷）
+      f.slots = defaultSlots(def);
+      f.jumpTimes = JUMP_TIMES_START;
+      f.airHitTimes = 1;
       setLabel(f, def, '站立');
       return;
     }

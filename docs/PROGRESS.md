@@ -216,6 +216,15 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **冒烟脚本**：`tools/_scratch/cutin-smoke/`（gitignore）。
 - **追补（§4.3 块 11）**：相机 autoZoom 视口基准常量化——原版 `GameCamera` 用 `_screenSize`=GAME_SIZE **800×600 常量**，移植版此前误用实际可见区 viewW/fitZoom（16:9 下 1066×600，宽屏 zx 偏大 → zoom 偏大、贴身推近过狠）。修复 = zoom 公式改 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满、仅 zoom 数值节奏对齐原版。纯渲染层，replay 6 剧本 + batch:validate 零漂移；cutin 冒烟回归（camFocus 3.5 聚焦 + 解锁恢复 autoZoom）正常。
 
+### 修复批次 24——防御后攻击/防御永久失效（实战验收第三批·①，✅ 2026-11-13）
+
+实测问题：按一次 ↓ 防御、松开回站立后，再按 ↓ 无法再进入防御（普攻同样失效）。
+
+- **根因**：`doDefense` 清槽（attack=null 等）后无人重填。退出路径 `exitDefense → 防御恢复冻结 2 tick → T2 setLabel("站立")` 直转——站立是循环标签（endAction 不可达）且时间轴无 idle 触发 → 槽永久为空 → 防御门（`slots.attack !== null`）与普攻门恒失败。与批 18 受击恢复"不重填槽→攻击/防御永久失效"同类缺陷，当时只修了受击路径。
+- **修复**：`advanceAnimation` 防御恢复转换分支补原版语义——T2 转站立 = 原版 `goFrame("防御恢复",false,{call:idle,delay:1})` 的 idle 回调（`idle("站立") → setAllAct 重填槽 + jumpTimes/airHitTimes 恢复`）。重填放在转换点而非 `exitDefense`（对齐原版 idle 回调时序，冻结窗口内不提前可防御）。
+- **归因**：verify-drift 双剧本归因（defense-reentry 自制剧本 + ichigo-mechanics）——首个差异 tick = 防御恢复→站立转换点，字段级差异仅槽位 null→默认值，无其他行为分叉 → 有意漂移。
+- **门禁**：build / core 135 测试（新增防御重入回归用例）/ replay 6 剧本（ichigo-mechanics 有意漂移重冻）/ batch:validate 58 角色 + 37 辅助（18 角色漂移重冻）全过。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）

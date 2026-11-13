@@ -1,0 +1,14 @@
+{
+  "name": "defense-reentry-drift",
+  "map": "KonohaMura",
+  "seed": 1,
+  "_comment": "哈希漂移归因：防御 30 tick → 松开（防御恢复→站立）→ 再按 ↓。位：down=2 attack=16。",
+  "fighters": [{ "pkg": "naruto" }, { "pkg": "naruto" }],
+  "program": [
+    { "frames": 40, "p1": 0, "p2": 0 },
+    { "frames": 30, "p1": 2, "p2": 0 },
+    { "frames": 40, "p1": 0, "p2": 0 },
+    { "frames": 20, "p1": 2, "p2": 0 },
+    { "frames": 30, "p1": 0, "p2": 0 }
+  ]
+}

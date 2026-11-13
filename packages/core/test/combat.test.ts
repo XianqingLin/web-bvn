@@ -183,6 +183,23 @@ describe('防御', () => {
     expect(p2.actionState).toBe(ActionState.NORMAL);
     expect(p2.actLabel).toBe('防御恢复');
   });
+
+  it('防御一次松开回站立后，再按 ↓ 能再次进入防御（修复批次 31：槽重填）', () => {
+    const res = play(new Sim(makeConfig()), [
+      [5, 0, 0],
+      [10, Btn.down, 0], // 第一次防御
+      [15, 0, 0], // 松开 → 防御恢复（冻结 2 tick）→ 站立
+      [10, Btn.down, 0], // 第二次按住 ↓
+    ]);
+    const during1 = res.snaps.find((s) => s.tick >= 10 && s.state.fighters[0]!.actLabel === '防御');
+    expect(during1).toBeDefined();
+    expect(during1!.state.fighters[0]!.actionState).toBe(ActionState.DEFENCE_ING);
+    const afterRelease = res.snaps.find((s) => s.tick >= 26 && s.state.fighters[0]!.actLabel === '站立');
+    expect(afterRelease).toBeDefined();
+    const p1 = res.snaps.at(-1)!.state.fighters[0]!;
+    expect(p1.actLabel).toBe('防御');
+    expect(p1.actionState).toBe(ActionState.DEFENCE_ING);
+  });
 });
 
 describe('瞬步', () => {
