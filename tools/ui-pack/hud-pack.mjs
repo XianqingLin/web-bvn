@@ -149,8 +149,7 @@ await putShape('qi-slot', 57, 159, 19);
 await putFrames('qi-ghost', spriteDir(65, '幽步箭头'), 2, 2);
 await putFrames('qi-txt', spriteDir(84, '气条段字'), 4, 4);
 // 辅助格：底 shape 97 = picture_072 (66×47)；填充 sprite 95 (64×45)；顶层 shape 89/94
-// 中不等于填充的 64×45；红点 sprite 92 (11×11)；辅助头像底 shape 103 = picture_070
-// (55×37) / 顶 shape 100 = picture_075 (55×39)
+// 中不等于填充的 64×45；红点 sprite 92 (11×11)
 await putShape('fz-bg', 97, 66, 47);
 {
   const fillPng = join(spriteDir(95, '辅助格填充'), '1.png');
@@ -165,8 +164,14 @@ await putShape('fz-bg', 97, 66, 47);
   el['fz-top'] = 'ui/hud/fz-top.png';
 }
 await put('fz-dot', join(spriteDir(92, '辅助格红点'), '1.png'));
-await putShape('face-assist-bg', 103, 55, 37);
-await putShape('face-assist-top', 100, 55, 39);
+// 辅助头像（mc_025 facemc，SWF 深度序——批次 33 修正）：底 黑底 shape 100 =
+// picture_075 (55×39，bounds Xmin 11tw=0.55px/Ymin 0) → 裁剪 shape 101 (clipDepth 5，
+// 54×37，bounds Xmin 10tw=0.5px/Ymin 20tw=1px) → ct 脸槽（空容器，QiBar 加 50×50 脸，
+// 被 101 裁剪）→ 顶 六边形框 shape 103 = picture_070 (55×37，bounds Ymin 20tw=1px)。
+// 曾按 shape id 大小误判 103 为底/100 为顶 → 黑块盖住头像。
+await putShape('face-assist-shade', 100, 55, 39);
+await putShape('face-assist-mask', 101, 54, 37);
+await putShape('face-assist-frame', 103, 55, 37);
 // READY 闪字 sprite 108 (20帧，f1-13 显 / f14-19 空)；时间板 shape 162 = picture_045
 // (75×54) + ∞ sprite 165
 await putFrames('ready-anim', spriteDir(108, 'READY 动画'), 20, 20);

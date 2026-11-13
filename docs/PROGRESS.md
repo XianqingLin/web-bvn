@@ -272,6 +272,13 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **偏离登记**：stop 冻结后原版 `renderChildren` 每 tick 照跑（子元件在冻结帧内继续动画），web 烘焙 PNG 为静态合成——属全引擎既有烘焙局限的时长放大，不处理。naruto mc_0134 走段原版 2.5 步后滑行、web 曾全标签循环（观感更好但非忠实），按用户决定忠实优先收编。
 - **门禁**：core 135 测试全过；verify-drift 六剧本剔除 mcHold 后零真实差异（结构性字段新增）；batch 冒烟探针 4/58 角色（kenshin/ulquiorra 族）真实触发且冻结跨度有界（攻击即解冻）；新增 replay 剧本 `kenshin-stopwalk`（走停/松键解冻/攻击解冻/二次冻结四覆盖，探针验证 t30 冻结@走f20）+ 7 剧本全部重冻基线；batch:validate 58+37 重冻后全过。
 
+### 修复批次 33——辅助头像黑块遮盖（✅ 2026-11-13）
+
+用户验收发现辅助头像被黑色遮盖。根因：切片 30 hud-pack 误把 mc_025 facemc 的 SWF 深度序判反——按 shape id 大小认定 103（六边形框）为底、100（黑底）为顶，实际 SWF 深度序 = 黑底 shape 100（depth1）→ 裁剪 shape 101（clipDepth 5）→ ct 脸槽（QiBar 加 50×50 脸，被 101 裁剪）→ 六边形框 shape 103（depth6 顶层）。修复：hud-pack 三件改名为 face-assist-shade/mask/frame 重出资产（落位按各 shape bounds 补回 Xmin/Ymin：100→(0.55,0)、101→(0.5,1)、103→(0,1)）；hud.ts 按 SWF 深度序重装配，脸槽以 PIXI sprite mask（faceSlot.mask = faceMask）实现 shape 101 裁剪。sim 零触碰，门禁免重冻。
+
+- **方法论**：FFDec shape SVG 画布裁到 shape bounds，PNG 落位必须按 bounds (Xmin,Ymin)（twips÷20）补回原点；shape id 序 ≠ 深度序，层级以 SWF PlaceObject 深度/clipDepth 为准。
+- **门禁**：build 过；replay 4 剧本抽检 + batch:validate 58+37 全过（fires 工作区曾出现一批来历不明且剥掉 hits 的退化改动，已证实与基线无关并还原，见批次 32 段后注）；headless Edge CDP 冒烟截图目检——两侧头像立绘在六边形框内正常显示、裁剪正确。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）

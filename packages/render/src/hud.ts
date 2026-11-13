@@ -386,12 +386,18 @@ export class FightHud {
     fz.addChild(fzClip, fzTop, dot);
     g.addChild(fz);
 
-    // —— facemc（mc_025）：辅助底图 + 50×50 辅助脸 + 顶层 ——
+    // —— facemc（mc_025）：SWF 深度序 = 黑底(shape 100) → 裁剪(shape 101) →
+    // ct 脸槽（QiBar.setFighter 加 50×50 脸，被 101 裁剪）→ 六边形框(shape 103)。
+    // 修复批次 33：曾按 shape id 大小误判层级（103 垫底/100 盖顶）→ 黑块遮住头像；
+    // 落位按各 shape bounds（PNG 画布已裁到 bounds，需补回 Xmin/Ymin）：
+    // 100 Xmin 11tw=0.55px/Ymin 0 → (0.55,0)；101 Xmin 10tw=0.5px/Ymin 20tw=1px →
+    // (0.5,1)；103 Xmin 0/Ymin 20tw=1px → (0,1)。
     const face = new Container();
     face.position.set(d.qi.facePos[0], d.qi.facePos[1]);
-    const faceBg = this.sprite('face-assist-bg');
-    faceBg.position.set(1, 1); // picture_070 落位
-    face.addChild(faceBg);
+    const shade = this.sprite('face-assist-shade');
+    shade.position.set(0.55, 0);
+    face.addChild(shade);
+    const faceSlot = new Container();
     const faceUrl = this.spec.fighters[direct === 1 ? 'p1' : 'p2'].assistFaceUrl;
     if (faceUrl) {
       const sp = new Sprite(Texture.EMPTY);
@@ -401,11 +407,15 @@ export class FightHud {
         sp.width = ASSIST_FACE_SIZE;
         sp.height = ASSIST_FACE_SIZE;
       });
-      face.addChild(sp);
+      faceSlot.addChild(sp);
     }
-    const faceTop = this.sprite('face-assist-top');
-    faceTop.position.set(0.55, 1); // picture_075 落位
-    face.addChild(faceTop);
+    const faceMask = this.sprite('face-assist-mask');
+    faceMask.position.set(0.5, 1);
+    face.addChild(faceSlot, faceMask);
+    faceSlot.mask = faceMask;
+    const frame = this.sprite('face-assist-frame');
+    frame.position.set(0, 1);
+    face.addChild(frame);
     g.addChild(face);
 
     // —— readymc（mc_014）：READY 20 帧 @30fps 循环；P2 双翻 ——
