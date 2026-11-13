@@ -1918,11 +1918,15 @@ export class Sim {
       hitType: hit.hitType,
       power: hit.power,
       blocked: blocking,
+      steel: target.steelBody,
       x: hitArea.x + hitArea.w / 2,
       y: hitArea.y + hitArea.h / 2,
     });
     if (target.hp <= 0) {
       enterDead(target, targetDef);
+      // 死亡语音（原版 DIE voice：击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播；
+      // 移植版统一提前到 KO 时刻——偏离记录）
+      this.emit('voice', { fighter: target.id, kind: 'die' });
       this.emit('fighter:ko', { fighter: target.id });
       return;
     }
@@ -1975,7 +1979,14 @@ export class Sim {
     target.lastHurtHitId = hitId;
     // 受击回气（原版 FighterMain.doQiAdd：power×0.085 封顶 20）
     target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
-    enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
+    const hurtResult = enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
+    // 受击语音（原版 doHurt：硬直 + 重击类型 → HURT voice（rate 0.5 由渲染层掷）、
+    // 击飞 → HURT_FLY；isHeavy 类型集 = KAN/KAN_HEAVY/DA/DA_HEAVY = isPhysicalHit 同集）
+    if (hurtResult === 'fly') {
+      this.emit('voice', { fighter: target.id, kind: 'hurtFly' });
+    } else if (isPhysicalHit(hit.hitType)) {
+      this.emit('voice', { fighter: target.id, kind: 'hurt' });
+    }
   }
 
   /** 背刺判定（原版 checkDefDirect）：防御者背对攻击来源 → 防御无效。 */

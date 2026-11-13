@@ -71,7 +71,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 | event | payload | 说明 |
 |---|---|---|
-| `hit:connect` | `{ attacker, target, hitType, power, blocked, x, y }` | 命中成立（blocked = 被防御，削血 5%） |
+| `hit:connect` | `{ attacker, target, hitType, power, blocked, steel, x, y }` | 命中成立（blocked = 被防御，削血 5%；steel = 命中钢身，命中音改钢身音） |
+| `voice` | `{ fighter, kind }` | 受击语音信号（kind `hurt`=重击硬直 / `hurtFly`=击飞 / `die`=死亡；随机选音源与 rate 门在渲染层，音源按角色 forms.sounds 绑定） |
 | `fighter:guard` / `fighter:guardBreak` | `{ fighter }` | 防御成功 / 破防 |
 | `fighter:form` | `{ fighter, form }` | 万解/通用形态切换（切片 10；render 换图集 forms 下标） |
 | `fighter:ko` | `{ fighter }` | 击倒 |

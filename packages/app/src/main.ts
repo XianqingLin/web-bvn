@@ -9,6 +9,7 @@
  */
 import { Application } from 'pixi.js';
 import { AppHost } from './host.js';
+import { AudioSubsystem } from './audio.js';
 import { SceneHost } from './scenes/scene.js';
 import { MenuScene } from './scenes/menu.js';
 import { NetScene } from './scenes/net.js';
@@ -27,6 +28,7 @@ async function boot(): Promise<void> {
 
   const appHost = new AppHost();
   const scenes = new SceneHost(app);
+  appHost.use(new AudioSubsystem());
   appHost.use(scenes);
   await appHost.init();
   scenes.setDomHost(host);

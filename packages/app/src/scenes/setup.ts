@@ -18,6 +18,7 @@
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import { sendPick, waitPeerPick, type PickInfo, type WsLike } from '@bvn/net';
 import type { Scene, SceneCtx } from './scene.js';
+import { audioOf } from '../audio.js';
 import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
 import { loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
 import type { Flow, Pick } from '../flow.js';
@@ -64,6 +65,8 @@ export class SetupScene implements Scene {
 
   async enter(ctx: SceneCtx): Promise<void> {
     this.ctxRef = ctx;
+    // 对局音频（切片 27）：选人页 BGM（原版 SelectFighterStage BGM(select)）
+    audioOf(ctx.ctx)?.bgm('select');
     const ui = new Container();
     this.ui = ui;
     ctx.root.addChild(ui);
@@ -290,13 +293,15 @@ export class SetupScene implements Scene {
           cell.eventMode = 'static';
           cell.cursor = 'pointer';
           cell.on('pointerover', () => {
-            // 原版 doHover：光标跟随悬停
+            // 原版 doHover：光标跟随悬停 + select 音
             cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
             cursor.visible = true;
+            audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc');
           });
           cell.on('pointertap', () => {
             cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
             cursor.visible = true;
+            audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
             onPick(e);
             this.refreshBigFace();
           });
@@ -424,6 +429,7 @@ export class SetupScene implements Scene {
       hit.addChild(g);
       hit.on('pointertap', () => {
         this.mapIndex = (this.mapIndex + dir + entries.length) % entries.length;
+        audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版地图轮盘翻页音
         this.showMapPic(pic, entries);
       });
       panel.addChild(hit);
@@ -452,6 +458,7 @@ export class SetupScene implements Scene {
 
   /** 选定当前轮盘地图并推进确认流程（随机项 mapId=null，resolvePick 解析）。 */
   private confirmMap(e: { id: string | null; name: string }): void {
+    audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
     this.mapId = e.id;
     this.mapChosen = true;
     this.status!.text = `地图：${e.name}`;

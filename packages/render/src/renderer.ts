@@ -443,7 +443,7 @@ export class BattleRenderer {
           if (this.bishaMc) this.beginCutin(snap, ev.payload, isSuper);
         }
       }
-      // sound/round:* 等事件不实现（音效明确不做）
+      // sound/voice/hit:connect 等音频事件由 app 层 AudioSubsystem 消费（切片 27），render 不处理
     }
   }
 

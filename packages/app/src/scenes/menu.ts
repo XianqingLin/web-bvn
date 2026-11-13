@@ -17,6 +17,7 @@
  */
 import { Assets, Container, Graphics, ImageSource, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
+import { audioOf } from '../audio.js';
 import { makeLabel, UI_H, UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
 import { ASSETS, loadUi, type UiData } from '../data.js';
@@ -287,12 +288,18 @@ export class MenuScene implements Scene {
   private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
   private readonly timers: number[] = [];
   private switchTo: ((s: Scene) => void) | null = null;
+  private ctx: SceneCtx | null = null;
+  private hoveredBtn: MenuBtn | null = null;
 
   constructor(private readonly flow: Flow) {}
 
   async enter(ctx: SceneCtx): Promise<void> {
     const root = ctx.root;
     this.switchTo = ctx.switchTo;
+    this.ctx = ctx;
+
+    // 对局音频（切片 27）：主页 BGM（原版 MenuStage BGM(op)）
+    audioOf(ctx.ctx)?.bgm('op');
 
     // 黑底（帧 PNG 未就绪时）
     const bg = new Graphics();
@@ -416,6 +423,7 @@ export class MenuScene implements Scene {
     // 按钮组入场（原版 showBtns：btnGroup 挂入 + fadIn(0.2, 0.04)，400ms 后可操作）
     const group = this.menuGroup;
     if (group) {
+      audioOf(this.ctx?.ctx!)?.se('menu5', 'swc'); // 原版 showBtns 音
       group.visible = true;
       this.btns.forEach((b, i) => {
         b.ui.scale.set(0.01, 1);
@@ -532,6 +540,9 @@ export class MenuScene implements Scene {
     const list = this.currentList();
     const idx = list.indexOf(btn);
     if (idx >= 0) this.navIndex = idx;
+    // 原版 MenuBtn.hover：bg 未显示才播 select 音（变更沿触发）
+    if (this.hoveredBtn !== btn) audioOf(this.ctx?.ctx!)?.se('menu1', 'swc');
+    this.hoveredBtn = btn;
     for (const b of this.btns) (b === btn ? b.hover() : b.normal());
     if (this.childOpen) {
       for (const cb of this.childOpen.children!) (cb === btn ? cb.hover() : cb.normal());
@@ -540,6 +551,8 @@ export class MenuScene implements Scene {
 
   private selectBtn(btn: MenuBtn): void {
     if (!this.menuEnabled) return;
+    // 原版 MenuBtn.select：确认音（含展开子菜单）
+    audioOf(this.ctx?.ctx!)?.se('menu2', 'swc');
     if (btn.children) {
       this.toggleChildren(btn);
       return;

@@ -123,6 +123,26 @@ export function loadBisha(ctx: Ctx): Promise<BishaData> {
   return ctx.assets.json<BishaData>(`${BAKED}/bisha.json`);
 }
 
+// ---------- audio.json（tools/sound-pack 产物，schema bvn/audio@1，切片 27） ----------
+
+export interface AudioManifest {
+  schema: string;
+  se: { hit1: string; hit2: string; step: string[] };
+  swc: Record<string, string>;
+  fx: Record<string, string>;
+  bgm: Record<string, string>;
+  fighterBgm: Record<string, { url: string; rate: number }>;
+  mapBgm: Record<string, string>;
+  hit: { byType: Record<string, string>; blocked: Record<string, string>; steel: string; guardBreak: string };
+  effectSound: Record<string, string>;
+  /** swf 基名 → 命名音类 → 文件（forms.sounds 引用按此解析） */
+  voices: Record<string, Record<string, string>>;
+}
+
+export function loadAudio(ctx: Ctx): Promise<AudioManifest> {
+  return ctx.assets.json<AudioManifest>(`${BAKED}/audio.json`);
+}
+
 // ---------- 角色包 ----------
 
 export interface FighterPack {
@@ -130,6 +150,8 @@ export interface FighterPack {
   /** def = forms[formIndex]（切片 10 多形态） */
   def: import('@bvn/core').FighterDef;
   forms: import('@bvn/core').FighterDef[];
+  /** 当前形态语音绑定（forms[formIndex].sounds 原样引用，切片 27 语音消费用） */
+  sounds: import('@bvn/data').SoundDefines;
   /** fire 包是否存在（renderer fireAtlases 装配用） */
   hasFires: boolean;
 }
@@ -146,7 +168,14 @@ export async function loadFighterPack(ctx: Ctx, id: string): Promise<FighterPack
   );
   const def = compileFighterRuntime(runtime, xfl, undefined, fires?.fires);
   const forms = compileFighterForms(runtime, xfl, fires?.fires);
-  return { id, def, forms, hasFires: fires !== null };
+  const formIndex = def.formIndex ?? 0;
+  return {
+    id,
+    def,
+    forms,
+    sounds: xfl.forms[formIndex]?.sounds ?? {},
+    hasFires: fires !== null,
+  };
 }
 
 // ---------- 辅助包 ----------

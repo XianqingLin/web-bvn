@@ -1,0 +1,244 @@
+#!/usr/bin/env node
+/**
+ * sound-pack：切片 27 音效资产管线。
+ *
+ * 音源盘点（逆向结论见切片 27 摘要）：
+ *   1. _release/extracted/.../assets/bgm/*.mp3   → assets/audio/bgm/（21 首：场景/角色专属 BGM）
+ *   2. 同 assets/sound/*.mp3                     → assets/audio/se/（se_hit1/2 + se_step1~3 通用 SE）
+ *   3. swf_source/embed/_sounds/LIBRARY/*.mp3    → assets/audio/swc/（主 SWF swc 音：菜单/KO/gameover）
+ *   4. effect.swf -export sound                  → assets/audio/fx/<类名>.mp3（28 个命名音类，
+ *                                                  EffectVO.sound 命中/光效音：snd_kan1/snd_bs/...）
+ *   5. fighter/*.swf + fighter/assistant/*.swf   → assets/audio/voices/<swfId>/<类名>.mp3
+ *                                                  （角色/辅助语音：snd_hurt1~3/snd_die 等命名类；
+ *                                                  匿名 chid 音 = 时间轴贴帧音，另立切片不采）
+ *   产出 baked/audio.json（schema bvn/audio@1）：SE/swc/fx/bgm 清单 + fighter.xml/map.xml
+ *   BGM 配置 + 命中音映射（原版 EffectModel addHitEffect/addDefenseEffect/steel 烘焙）
+ *   + effect 事件 → fx 音映射 + 语音类绑定（voices）。
+ *
+ * 用法：node tools/sound-pack/sound-pack.mjs [--ffdec PATH] [--out-assets DIR] [--out-baked FILE]
+ */
+import { execFileSync } from 'node:child_process';
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { join, resolve } from 'node:path';
+
+const args = process.argv.slice(2);
+const opt = (name, dflt) => {
+  const i = args.indexOf(`--${name}`);
+  return i >= 0 ? args[i + 1] : dflt;
+};
+
+const ROOT = resolve(import.meta.dirname, '../..');
+const FFDEC = resolve(opt('ffdec', 'C:/Program Files (x86)/FFDec/ffdec-cli.exe'));
+const GAME_ASSETS = resolve(
+  opt('game-assets', 'OpenBleachVsNaruto/_release/extracted/swf_output/assets'),
+);
+const SWC_DIR = resolve(opt('swc-dir', 'OpenBleachVsNaruto/swf_source/embed/_sounds/LIBRARY'));
+const FIGHTER_DIR = resolve(opt('fighter-dir', `${GAME_ASSETS}/fighter`));
+const EFFECT_SWF = resolve(opt('effect-swf', `${GAME_ASSETS}/effect.swf`));
+const FIGHTER_XML = resolve(opt('fighter-xml', `${GAME_ASSETS}/config/fighter.xml`));
+const MAP_XML = resolve(opt('map-xml', `${GAME_ASSETS}/config/map.xml`));
+const BAKED_FIGHTERS = resolve(ROOT, 'packages/data/baked/fighters');
+const BAKED_ASSISTANTS = resolve(ROOT, 'packages/data/baked/assistants');
+const OUT_ASSETS = resolve(opt('out-assets', 'packages/data/assets/audio'));
+const OUT_BAKED = resolve(opt('out-baked', 'packages/data/baked/audio.json'));
+const SCRATCH = resolve(import.meta.dirname, '_scratch/sound-pack');
+
+function run(cmd, args_) {
+  console.log(`$ ${cmd} ${args_.join(' ')}`);
+  execFileSync(cmd, args_, { stdio: ['ignore', 'pipe', 'inherit'] });
+}
+
+/** FFDec sound 导出文件名 "<chid>_<类名>.<ext>"（匿名 = "<chid>.<ext>"，"-1.wav" = 流头）。 */
+const namedSound = (f) => {
+  const m = /^-?\d+_(.+)\.(mp3|wav)$/i.exec(f);
+  return m ? { cls: m[1], ext: m[2].toLowerCase() } : null;
+};
+
+// ---------- 1. 静态 mp3 拷贝（bgm / se / swc） ----------
+
+const copyMp3s = (srcDir, destName) => {
+  const dest = join(OUT_ASSETS, destName);
+  rmSync(dest, { recursive: true, force: true });
+  mkdirSync(dest, { recursive: true });
+  const files = readdirSync(srcDir).filter((f) => f.toLowerCase().endsWith('.mp3'));
+  if (files.length === 0) throw new Error(`音源目录无 mp3：${srcDir}`);
+  for (const f of files) cpSync(join(srcDir, f), join(dest, f));
+  return files.map((f) => `${destName}/${f}`);
+};
+
+const bgmFiles = copyMp3s(join(GAME_ASSETS, 'bgm'), 'bgm');
+const seFiles = copyMp3s(join(GAME_ASSETS, 'sound'), 'se');
+const swcFiles = copyMp3s(SWC_DIR, 'swc');
+console.log(
+  `sound-pack: bgm ${bgmFiles.length} / se ${seFiles.length} / swc ${swcFiles.length} 首`,
+);
+
+// ---------- 2. FFDec 导出（effect.swf + 角色/辅助 SWF 命名音类） ----------
+
+rmSync(SCRATCH, { recursive: true, force: true });
+mkdirSync(SCRATCH, { recursive: true });
+if (!existsSync(FFDEC)) throw new Error(`FFDec CLI 不存在：${FFDEC}`);
+
+const exportNamedSounds = (swfPath, scratchName) => {
+  const out = join(SCRATCH, scratchName);
+  run(FFDEC, ['-export', 'sound', out, swfPath]);
+  // 全无声 SWF：FFDec 不建输出目录
+  if (!existsSync(out)) return {};
+  const map = {};
+  for (const f of readdirSync(out)) {
+    const named = namedSound(f);
+    if (named) map[named.cls] = f;
+  }
+  return map;
+};
+
+// effect.swf：28 个命名音类（EffectVO.sound 命中/光效音）
+run(FFDEC, ['-export', 'sound', join(SCRATCH, 'fx'), EFFECT_SWF]);
+const fxDir = join(OUT_ASSETS, 'fx');
+rmSync(fxDir, { recursive: true, force: true });
+mkdirSync(fxDir, { recursive: true });
+const fx = {};
+for (const f of readdirSync(join(SCRATCH, 'fx'))) {
+  const named = namedSound(f);
+  if (!named) continue;
+  cpSync(join(SCRATCH, 'fx', f), join(fxDir, f));
+  fx[named.cls] = `fx/${f}`;
+}
+console.log(`sound-pack: effect.swf 命名音 ${Object.keys(fx).length}`);
+
+// 角色/辅助 SWF：命名音类（snd_hurt*/snd_die 语音等），按 swf 基名归档
+const swfDirs = [
+  { dir: FIGHTER_DIR, kind: 'fighter' },
+  { dir: join(FIGHTER_DIR, 'assistant'), kind: 'assister' },
+];
+const voices = {};
+let voiceCount = 0;
+for (const { dir } of swfDirs) {
+  if (!existsSync(dir)) throw new Error(`音源目录缺失：${dir}`);
+  for (const f of readdirSync(dir)) {
+    if (!f.toLowerCase().endsWith('.swf')) continue;
+    const id = f.replace(/\.swf$/i, '');
+    const named = exportNamedSounds(join(dir, f), `v_${id}`);
+    if (Object.keys(named).length === 0) continue;
+    const dest = join(OUT_ASSETS, 'voices', id);
+    rmSync(dest, { recursive: true, force: true });
+    mkdirSync(dest, { recursive: true });
+    voices[id] = {};
+    for (const [cls, file] of Object.entries(named)) {
+      cpSync(join(SCRATCH, `v_${id}`, file), join(dest, file));
+      voices[id][cls] = `voices/${id}/${file}`;
+      voiceCount++;
+    }
+  }
+}
+console.log(`sound-pack: 语音 swf ${Object.keys(voices).length} 包 / ${voiceCount} 音`);
+
+// ---------- 3. BGM 配置（fighter.xml / map.xml） ----------
+
+// fighter.xml：<fighter id="..">…<bgm url="assets/bgm/char_x.mp3" rate="70"/>…</fighter>
+// map.xml：<map id="..">…<bgm url="assets/bgm/stg_x.mp3"/>…（random 无 bgm）
+// 按元素整体扫描（非贪婪跨元素会把无 bgm 元素错绑到下一个元素的 bgm）
+const scanElements = (xml, tag) => {
+  const out = [];
+  const re = new RegExp(`<${tag} id="([^"]+)"[\\s\\S]*?(?=<${tag} id="|</\\w+_config>)`, 'g');
+  for (const m of xml.matchAll(re)) out.push(m);
+  return out;
+};
+const fighterBgm = {};
+for (const m of scanElements(readFileSync(FIGHTER_XML, 'utf8'), 'fighter')) {
+  const bgm = /<bgm url="([^"]+)" rate="([^"]+)"/.exec(m[0]);
+  if (bgm) fighterBgm[m[1]] = { url: `bgm/${bgm[1].split('/').pop()}`, rate: Number(bgm[2]) };
+}
+const mapBgm = {};
+for (const m of scanElements(readFileSync(MAP_XML, 'utf8'), 'map')) {
+  const bgm = /<bgm url="([^"]+)"/.exec(m[0]);
+  if (bgm) mapBgm[m[1]] = `bgm/${bgm[1].split('/').pop()}`;
+}
+console.log(`sound-pack: fighterBgm ${Object.keys(fighterBgm).length} / mapBgm ${Object.keys(mapBgm).length}`);
+
+// ---------- 4. 语音引用校验（baked sounds 引用 → voices 必须可解析） ----------
+
+const missing = [];
+for (const dir of [BAKED_FIGHTERS, BAKED_ASSISTANTS]) {
+  for (const f of readdirSync(dir)) {
+    const pkg = JSON.parse(readFileSync(join(dir, f), 'utf8'));
+    const pkgId = pkg.id;
+    for (const form of pkg.forms ?? []) {
+      const s = form.sounds ?? {};
+      for (const ref of [...(s.hurtSounds ?? []), s.hurtFlySound, s.dieSound]) {
+        if (!ref || ref === 'null') continue;
+        if (!voices[pkgId]?.[ref]) missing.push(`${pkgId}:${ref}`);
+      }
+    }
+  }
+}
+if (missing.length > 0) {
+  throw new Error(`sound-pack: baked 语音引用无音源（swf 无该命名类）：\n  ${[...new Set(missing)].join('\n  ')}`);
+}
+
+// ---------- 5. baked/audio.json ----------
+
+// 命中音映射（原版 EffectModel.addHitEffect / addDefenseEffect / steel_hit_*，键 = hitType）：
+// 砍 1→snd_kan1 重砍 6→snd_kan2；打 2→snd_hit2 重打 3→snd_hit_heavy；
+// 魔法 4→snd_hit2 重魔法 5→snd_mfdjx；火 7/冰 8/雷 9；摔 11→snd_hit_cache；石化 10 无音。
+const HIT_SOUND = {
+  byType: { 1: 'snd_kan1', 2: 'snd_hit2', 3: 'snd_hit_heavy', 4: 'snd_hit2', 5: 'snd_mfdjx', 6: 'snd_kan2', 7: 'snd_hit_fire', 8: 'snd_hit_ice', 9: 'snd_hit_dian', 11: 'snd_hit_cache' },
+  // 被防御（addDefenseEffect）：砍系 fykan、打系 def、魔法/属性系 defx
+  blocked: { 1: 'snd_fykan', 2: 'snd_def', 3: 'snd_defx', 4: 'snd_def', 5: 'snd_defx', 6: 'snd_fykanx', 7: 'snd_defx', 8: 'snd_defx', 9: 'snd_defx' },
+  steel: 'snd_hit_steel',
+  guardBreak: 'snd_mfdjx', // 原版 break_def 效果音（XG_mfdjx）
+};
+// effect 事件 → fx 音（原版 EffectVO.sound：jump/touch_floor/dash/bisha/bisha_super）
+const EFFECT_SOUND = {
+  jump: 'snd_jump',
+  touchFloor: 'snd_luodi',
+  dash: 'snd_dash_air',
+  bisha: 'snd_bs',
+  bisha_super: 'snd_cbs',
+};
+
+const doc = {
+  schema: 'bvn/audio@1',
+  /** 通用 SE：hit1/2 = playSoundHit1/2（攻击挥砍 whoosh）；step = 走路脚步（渲染层随机选一） */
+  se: { hit1: 'se/se_hit1.mp3', hit2: 'se/se_hit2.mp3', step: ['se/se_step1.mp3', 'se/se_step2.mp3', 'se/se_step3.mp3'] },
+  /** 主 SWF swc 音（swf_source/embed/_sounds）：逻辑名 → 文件 */
+  swc: {
+    menu1: 'swc/snd_menu1.mp3',
+    menu2: 'swc/snd_menu2.mp3',
+    menu5: 'swc/snd_menu5.mp3',
+    ko: 'swc/snd_ko.mp3',
+    koBs: 'swc/snd_ko_bs.mp3',
+    gameover: 'swc/snd_gameover.mp3',
+    ghostJump: 'swc/snd_ghost_jump.mp3',
+    overHit: 'swc/snd_over_hit.mp3',
+  },
+  fx,
+  /** 场景 BGM（preload.xml 预载集 + 胜利曲） */
+  bgm: {
+    op: 'bgm/op.mp3',
+    select: 'bgm/select.mp3',
+    loading: 'bgm/loading.mp3',
+    back: 'bgm/back.mp3',
+    congratulation: 'bgm/congratulation.mp3',
+    win: 'bgm/win.mp3',
+    winloop: 'bgm/winloop.mp3',
+    continue: 'bgm/continue.mp3',
+  },
+  /** fighter.xml 角色专属 BGM（rate = 播角色曲的百分概率，否则落地图曲） */
+  fighterBgm,
+  mapBgm,
+  hit: HIT_SOUND,
+  effectSound: EFFECT_SOUND,
+  voices,
+};
+
+writeFileSync(OUT_BAKED, JSON.stringify(doc));
+console.log(`sound-pack: 完成 → ${OUT_BAKED}`);

@@ -158,11 +158,18 @@ describe('命中判定与结算', () => {
     // 攻击持续到判定帧（anim 帧 58-59，30Hz），命中发生在动画帧管线
     let hitEvent = null;
     let hurt: ActionState | null = null;
+    let voiceHurt = false;
     let last;
     for (let i = 0; i < 40; i++) {
       last = sim.tick({ p1: 0, p2: 0 });
       const ev = last.events.find((e) => e.type === 'hit:connect');
-      if (ev) hitEvent = ev;
+      if (ev) {
+        hitEvent = ev;
+        expect(ev.payload.steel).toBe(false); // 命中音/钢身音分流键（切片 27）
+      }
+      if (last.events.some((e) => e.type === 'voice' && e.payload.kind === 'hurt')) {
+        voiceHurt = true; // 重击类型（hitType 1 KAN）→ 受击语音信号
+      }
       if (last.state.fighters[1]!.actionState === ActionState.HURT_ING) hurt = ActionState.HURT_ING;
     }
     expect(hitEvent).not.toBeNull();
@@ -170,6 +177,7 @@ describe('命中判定与结算', () => {
     expect(hitEvent!.payload.target).toBe(2);
     expect(hitEvent!.payload.power).toBe(30);
     expect(hurt).toBe(ActionState.HURT_ING);
+    expect(voiceHurt).toBe(true);
     expect(last!.state.fighters[1]!.hp).toBe(970);
   });
 
@@ -198,12 +206,15 @@ describe('命中判定与结算', () => {
     const sim = new Sim(makeConfig({ p2x: 130, def1: def }));
     sim.tick({ p1: Btn.attack, p2: 0 });
     let ko = false;
+    let voiceDie = false;
     let end;
     for (let i = 0; i < 40; i++) {
       end = sim.tick({ p1: 0, p2: 0 });
       if (end.events.some((e) => e.type === 'fighter:ko')) ko = true;
+      if (end.events.some((e) => e.type === 'voice' && e.payload.kind === 'die')) voiceDie = true;
     }
     expect(ko).toBe(true);
+    expect(voiceDie).toBe(true); // KO 同 tick 发死亡语音信号（切片 27）
     expect(end!.state.fighters[1]!.actionState).toBe(ActionState.DEAD);
     expect(end!.state.fighters[1]!.hp).toBe(0);
   });

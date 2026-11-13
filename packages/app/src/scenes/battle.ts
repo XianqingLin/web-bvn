@@ -26,6 +26,7 @@ import {
   type FighterPack,
   type MapPack,
 } from '../data.js';
+import { audioOf, voiceBindingOf, type AudioSubsystem, type BattleAudioBinding } from '../audio.js';
 import { picksOf, type Flow } from '../flow.js';
 
 const TICK_MS = 1000 / 60;
@@ -97,6 +98,8 @@ export class BattleScene implements Scene {
   private keys = new Set<string>();
   private ctx: SceneCtx | null = null;
   private rig: BattleRig | null = null;
+  private audio: AudioSubsystem | null = null;
+  private audioBinding: BattleAudioBinding | null = null;
   private cleanup: (() => void)[] = [];
 
   constructor(
@@ -122,6 +125,20 @@ export class BattleScene implements Scene {
     const map = await loadMapPack(ctx.ctx, this.flow.mapId);
     this.rig = { map, p1: p1Pack, p2: p2Pack, assists };
     const bisha = await loadBisha(ctx.ctx);
+
+    // —— 音频装配（切片 27）：语音绑定 + 对局 BGM（原版 GameStartCtrler playFightBGM 语义） ——
+    const audio = audioOf(ctx.ctx);
+    this.audio = audio;
+    if (audio) {
+      const mkSlot = (pack: FighterPack) => ({
+        binding: voiceBindingOf(pack.sounds),
+        resolve: (cls: string) => audio.voiceUrl(pack.id, cls),
+      });
+      this.audioBinding = {
+        fighters: { 1: mkSlot(p1Pack), 2: mkSlot(p2Pack) },
+      };
+      audio.fightBgm(p1.fighter, this.flow.mapId);
+    }
 
     // —— 渲染装配 ——
     const renderer = new BattleRenderer(ctx.pixi);
@@ -271,6 +288,7 @@ export class BattleScene implements Scene {
         snap = this.sim.tick(f);
       }
       this.renderer.onSnapshot(snap);
+      this.audio?.handleSimEvents(snap.events, this.audioBinding);
       this.simTick++;
       this.acc -= TICK_MS;
       stepped = true;
