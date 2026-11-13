@@ -138,10 +138,16 @@ export function loadUi(ctx: Ctx): Promise<UiData> {
   return ctx.assets.json<UiData>(`${BAKED}/ui.json`);
 }
 
-/** 头像纹理 URL（kind：'' = 50×50 格子头像 / '_b' = 245×62 大头像）。 */
-export function uiFaceUrl(ui: UiData, id: string, kind: '' | '_b'): string | null {
+/** 头像纹理 URL（kind：'' = 50×50 格子头像 / '_b' = 245×62 大头像 / '_m' = 102×64 对局血条脸）。 */
+export function uiFaceUrl(ui: UiData, id: string, kind: '' | '_b' | '_m'): string | null {
   const file = ui.faces[id + kind];
   return file ? `${ASSETS}/ui/faces/${file}` : null;
+}
+
+// ---------- hud.json（tools/ui-pack/hud-pack 产物，schema bvn/hud@1，切片 30） ----------
+
+export function loadHud(ctx: Ctx): Promise<import('@bvn/render').HudData> {
+  return ctx.assets.json<import('@bvn/render').HudData>(`${BAKED}/hud.json`);
 }
 
 // ---------- bisha.json（tools/bisha-pack 产物，schema bvn/bisha@1，切片 22） ----------

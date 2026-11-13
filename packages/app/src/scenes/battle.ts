@@ -21,8 +21,11 @@ import {
   loadAssistPack,
   loadBisha,
   loadFighterPack,
+  loadHud,
   loadMapPack,
   loadSelect,
+  loadUi,
+  uiFaceUrl,
   type AssistPack,
   type FighterPack,
   type MapPack,
@@ -125,6 +128,7 @@ export class BattleScene implements Scene {
     // swf 基名换算（形态角色 ≠ id：XFL/fire/语音/贴帧音按基名，图集按 id）
     // + startFrame 进场形态（fighter.xml 实证：缺省形态 = 含动画形态第 N 个）
     const select = await loadSelect(ctx.ctx);
+    const ui = await loadUi(ctx.ctx);
     const entryOf = (id: string) => select.chars.find((c) => c.id === id);
     const [p1Pack, p2Pack] = await Promise.all([
       loadFighterPack(
@@ -192,6 +196,23 @@ export class BattleScene implements Scene {
         assister: Object.fromEntries(assistList.filter((a) => a.hasFires).map((a) => [a.id, a.id])),
       },
       bisha: { mc: bisha.mc, faces: bisha.faces, effects: bisha.effects },
+      hud: {
+        data: await loadHud(ctx.ctx),
+        // 血条大脸 = select id+'_m'（102×64）；辅助脸 = 辅助 id 50×50 网格脸
+        //（原版 getFighterFace 缺省 size）；能量标签帧 = comicType（0=死神 1=火影）
+        fighters: {
+          p1: {
+            faceUrl: uiFaceUrl(ui, p1.fighter, '_m'),
+            assistFaceUrl: uiFaceUrl(ui, p1.assist, ''),
+            comicType: entryOf(p1.fighter)?.comicType ?? 0,
+          },
+          p2: {
+            faceUrl: uiFaceUrl(ui, p2.fighter, '_m'),
+            assistFaceUrl: uiFaceUrl(ui, p2.assist, ''),
+            comicType: entryOf(p2.fighter)?.comicType ?? 0,
+          },
+        },
+      },
     });
 
     // —— 键盘 ——

@@ -9,6 +9,7 @@ import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 
 import type { SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
 import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedFireAtlas, type LoadedMapAtlas } from './atlas.js';
+import { FightHud, type HudSpec } from './hud.js';
 
 const TICK_MS = 1000 / 60;
 const LOGICAL_W = 1000;
@@ -80,6 +81,8 @@ export interface BattleAssetsSpec {
   fireAtlasJson?: Record<string, FireAtlas>;
   /** 必杀/万解切人插图（切片 22）：缺省 = 不渲染切人（黑幕/横幅/立绘全缺） */
   bisha?: BishaAssets;
+  /** 对局 HUD（切片 30）：缺省 = 不渲染 HUD */
+  hud?: HudSpec;
 }
 
 interface FighterSprite {
@@ -342,6 +345,16 @@ export class BattleRenderer {
     } else {
       this.bishaMc = null;
     }
+
+    // 对局 HUD（切片 30）：纹理装载 + 静态树（重建对局时先拆旧树）
+    if (spec.hud) {
+      this.hud?.destroy();
+      this.hud = new FightHud(this.hudLayer, spec.hud);
+      await this.hud.load(spec.baseUrl);
+    } else {
+      this.hud?.destroy();
+      this.hud = null;
+    }
   }
 
   private async fetchJson(url: string): Promise<unknown> {
@@ -410,8 +423,10 @@ export class BattleRenderer {
       if (last === ev.tick) continue; // 去重
       this.lastEventsTick.set(key, ev.tick);
       if (ev.type === 'hit:connect') {
-        // 最小表现：受击者闪红
+        // 最小表现：受击者闪红；HUD 连击计数（切片 30，原版 addHits 近似）
+        const attacker = ev.payload['attacker'];
         const target = ev.payload['target'];
+        if (typeof attacker === 'number') this.hud?.onHit(attacker);
         const sp = typeof target === 'number' ? this.sprites.get(target) : undefined;
         if (sp) {
           sp.body.tint = 0xff4444;
@@ -681,7 +696,12 @@ export class BattleRenderer {
     this.updateMcEffects(dtMs);
     this.updateCutin(next, dtMs);
     this.updateCamera(next, dtMs);
-    this.updateHud(next);
+    // HUD（切片 30）：屏幕空间钉扎重摆 + 快照驱动（血/气/能量/辅助格/连击）
+    const fitZoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
+    if (this.hud) {
+      this.hud.layout(this.viewW, this.viewH, fitZoom);
+      this.hud.update(next, dtMs);
+    }
   }
 
   /** 辅助实体（切片 12）：位置插值 + 时间轴帧，退场隐藏。 */
@@ -1008,40 +1028,8 @@ export class BattleRenderer {
 
   private hudGfx: Graphics | null = null;
 
-  private updateHud(snap: SimSnapshot): void {
-    if (!this.hudGfx) {
-      this.hudGfx = new Graphics();
-      this.hudLayer.addChild(this.hudGfx);
-    }
-    const g = this.hudGfx;
-    g.clear();
-    // 屏幕空间固定 HUD：血条 + 气 + 回合计数
-    const pad = 24;
-    const barW = 340;
-    const fs = snap.state.fighters;
-    fs.forEach((f, idx) => {
-      const left = idx === 0;
-      const x0 = left ? pad : this.viewW - pad - barW;
-      const y0 = pad + idx * 44;
-      const hpRatio = Math.max(0, f.hp / 1000);
-      const qiRatio = Math.min(1, f.qi / 300);
-      // 底
-      g.rect(x0, y0, barW, 14).fill(0x000000, 0.45);
-      g.rect(x0 + 2, y0 + 2, (barW - 4) * hpRatio, 10).fill(left ? 0x4fc3f7 : 0xff7043, 1);
-      g.rect(x0, y0 + 18, barW * 0.6, 6).fill(0x000000, 0.45);
-      g.rect(x0 + 1, y0 + 19, (barW * 0.6 - 2) * qiRatio, 4).fill(0xffd54f, 1);
-    });
-    const m = snap.state.match;
-    g.rect(this.viewW / 2 - 60, pad, 120, 26).fill(0x000000, 0.5);
-    if (!this.roundText) {
-      this.roundText = new Text('', { fontFamily: 'monospace', fontSize: 18, fill: 0xffffff });
-      this.roundText.anchor.set(0.5);
-      this.roundText.position.set(this.viewW / 2, pad + 13);
-      this.hudLayer.addChild(this.roundText);
-    }
-    this.roundText.text = `R${m.round}  ${m.p1Wins} - ${m.p2Wins}`;
-    this.roundText.visible = true;
-  }
+  /** 对局 HUD（切片 30）：FightHud 实例（load 装配，update 驱动） */
+  private hud: FightHud | null = null;
 
   /** 装配方（app）可选：屏幕底部按键提示。 */
   setHint(text: string): void {
@@ -1057,6 +1045,8 @@ export class BattleRenderer {
   /** 场景退出清理（切片 14）：卸显示对象与监听，复用同一 Application。 */
   destroy(): void {
     this.app.renderer.off('resize', this.onResize, this);
+    this.hud?.destroy();
+    this.hud = null;
     for (const sp of this.bulletSprites.values()) sp.root.destroy({ children: true });
     this.bulletSprites.clear();
     for (const sp of this.attackerSprites.values()) sp.root.destroy({ children: true });

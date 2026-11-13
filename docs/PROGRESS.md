@@ -59,6 +59,7 @@
 | 22 | 修复批次（实战验收第二批·①）：行走滑步（loop 触发点收编，54/58 走标签）+ 防御解除"卡一下"（防御恢复冻结窗口=原版 goFrame(false)+delay idle）+ verify-drift 假阴性修复（dump 必须子进程）；MC 子元件走段家族（kenshin/ulquiorra/naruto form4）采集重跑遗留 | ✅ | §三·批次 22 |
 | 23 | 修复批次（实战验收第二批·②）：切人插图两处修复——必杀横幅右缘黑区（原版横幅内容恰铺满 800×600 游戏区，移植版可见逻辑区 1000+ → 内容横向拉伸铺满 + 立绘槽位同比外推）+ 立绘定位多减 canvasOrigin（右偏 134/下偏 12、槽 2 出屏）；追补：相机 autoZoom 视口基准常量化（原版 GAME_SIZE 800×600，§4.3 块 11） | ✅ | §三·批次 23 |
 | 29 | 阶段 4·块 5 收尾·菜单流打磨：Logo 开场演出（logo_movie 66 帧流播 + LogoScene）+ 结算立绘（内嵌 loading.swf winner_stg_mc 92 帧舞台 + 胜者立绘/台词气泡 + select-pack 升 @2 烘 win_cls/says）+ 选人格子入场/退场/地图面板动画（buildList/fadOutList/initMap 收编，tween 提取共享 anim.ts + FrameStream 泛化）+ UI 打磨池（长名钳制/DOM 输入样式） | ✅ | §三·切片 29 |
+| 30 | 阶段 4·对局 HUD 原版化（用户目检发现占位 UI，立项收编）：fight.swf XFL 全 HUD 装配逆向（血条/大脸/能量条/计时板/气条/READY/辅助格/连击数）+ `tools/ui-pack/hud-pack.mjs` 27 元素烘焙（FFDec sprite 帧序 + shape SVG 光栅化）+ `baked/hud.json` + render FightHud 屏幕空间钉边组件 + app 接线（select `comicType`/`_m` 大脸/50×50 辅助脸）；原版血条红条延迟/能量溢出闪烁/气条 4 段+幽灵步/连击数算法逐条收编 | ✅ | §三·切片 30 |
 
 ---
 
@@ -236,6 +237,17 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **偏离登记**：开场徽标去除（可选项）**决定保留**——徽标烙进原版帧美术（同切片 16 结论，去除代价大且保留更忠实）；结算页 MORE GAMES（外链）与 scoremc 计分板不挂载（无外链需求/无分数系统）；EXIT 略去二次确认对话框；net 模式 CONTINUE 隐藏（两端无法同步重开，只留 EXIT 回菜单）。
 - **门禁**：build / core 135 / replay 6 剧本 --expect 零漂移（纯 app 层零哈希影响）/ batch:validate 58+37 全过；headless Edge CDP 冒烟（logo 帧播放→菜单流转 / 格子聚心→铺开像素探针 / winner 立绘+台词探针 / solo 回归 sim tick=386）+ 关键帧截图目检全过，控制台零异常。
 
+### 切片 30——对局 HUD 原版化（✅ 2026-11-13）
+
+用户目检发现对局内血条/气条仍是切片 5 的 PixiJS Graphics 占位件，立项收编 fight.swf 全 HUD（血条/大脸/能量条/计时板/气条/READY/辅助格/连击数）。
+- **烘焙**：`tools/ui-pack/hud-pack.mjs`（FFDec sprite 帧序导出动件 + shape SVG 光栅化静件——JPEG3 直导 Alpha 损坏，同切片 15 技法）→ `packages/data/baked/hud.json`（27 元素：schema 含各件原版装配坐标/锚点/镜像标记/XFL 逆向坐标）；静件血条槽内 deco/红/绿填充按 mc_033 内部位移 (263.95,4.35)、内容 x[-260,0] 右锚语义定锚。
+- **render FightHud**（`packages/render/src/hud.ts`，屏幕空间层）：设计空间 800×600、`fitZoom=min(viewW/1000,viewH/600)`，**逐元素钉边**——血条/大脸按左/右视口边钉、计时板居中、气条/READY/辅助格钉底、P2 侧容器 scale.x=-1 镜像（文字件双翻转保持可读、hits 不镜像）；XFL a=-1 与钉边数学对位逐件核验。
+- **原版算法逐条收编**（AS3 FighterHpBar/QiBar/InsFzBar/EnergyBar/ActionState 语义）：绿条 scaleX=rate 直挂；**红条延迟**——HURT_ING/HURT_FLYING 置 delay=100、HURT_DOWN 首帧 90+justHurtFly 递减、差值 lerp（0.1/0.02 两档）+ 新伤害瞬间 snap；**气条** v=qi/100 clamp 3、4 段亮法 + 幽灵步标识（v<1 显、帧随 0.6 阈值）+ 段数 txt；**fzqi 条** scrollRect 底锚翻转揭示（Pixi Graphics mask 复刻 scale.y=-1）；**能量条** scaleX=energy/100 + 溢出满帧粘滞 + rate<0.3 每 3 渲染帧闪烁；**连击数** hit:connect 事件计数、>1 才显示、目标回位/倒地隐藏（位图数字左起 35px 步进）。
+- **app 接线**：`loadHud`（baked/hud.json）+ 大脸 = select id+'_m'（102×64，getFighterFaceBar 语义）+ 辅助脸 = 辅助 id 50×50（getFighterFace 缺省尺寸语义）+ 能量标签帧 = comicType（0=死神 SPIRITUAL / 1=火影）。
+- **偏离登记**：① 连击计数 = render 侧按 hit:connect + 目标 actionState 近似（原版 FighterEventCtrler.addHits 精确链不进 sim）；② fadin/fadout 进出场 tween 跳过，改 ~0.4s alpha 渐显；③ 能量条闪烁 = alpha 闪烁近似原版 fill 帧 1/2 交替；④ fzqi 满点闪烁点 = fzqi==满 近似原版 isCanHurtBreak；⑤ 计时恒 ∞（无回合时限语义）。
+- **遗留池（§4.3 块 12 登记）**：startKOmc 开场 KO 字样、win 胜场星（p1Wins/p2Wins 恒 0）、scoremc 计分板、被动条 sp、picture_063 顶部装饰、shape_007 圆底数字"2"（回合指示）——均为无对应语义的展示件，按需另立项。
+- **门禁**：build / core 186 / replay 6 剧本零漂移（纯 render+app 层零哈希影响）/ batch:validate 58+37 全过；有头 Edge Playwright 目检（初始态/近身连击/瞬步耗能）全过——qi 命中回气 25.6、瞬步能量 100→72→63、"3 HITS" 连击计数显示实证。headless rAF 节流致 sim 仅 ~3 tick/s，战斗态目检须有头驱动（`keyboard.press` 边沿陷阱同前：down/up 显式按住 60ms+）。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -271,6 +283,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
 | 10 | MC 子元件采集修复 | `capAdvanceChildren` 对 MovieClip 子元件推进失效（kenshin/ulquiorra/naruto form4 走段、fire 元件 kj2mc/bsmc 类全部受害）——先实验定位机制（Flash 子播放头语义 vs `as MovieClip` 判定）再修 + 重采受影响包；走段家族重采后引擎 LOOP_LABELS 全标签回卷即得正确循环（stop 触发帧 = 循环点近似）| 批次 22 登记；render/数据层，sim 零哈希漂移 |
 | 11 | 相机 autoZoom 视口基准 | ✅（批次 23 追补）：zoom 公式改用原版 GAME_SIZE 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 追补收编；render 层，sim 零哈希漂移 |
+| 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；余展示件：startKOmc 开场 KO 字样 / win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / picture_063 顶部装饰 / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项 | 切片 30 遗留池；render+数据层 |
 
 ---
 
