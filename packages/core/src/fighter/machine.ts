@@ -380,7 +380,12 @@ function doDefense(f: FighterState, def: FighterDef | null): void {
   setLabel(f, def, '防御');
 }
 
-/** 退出防御（原版 renderDefenseAnimate → 防御恢复 → idle；POC 无 6 tick 延迟）。 */
+/** 退出防御（原版 renderDefenseAnimate → goFrame("防御恢复",false,{call:idle,
+ *  delay:1})：isPlay=false 播放头钉首帧，goFrameDelay 两 tick 后 idle 回站立）。
+ *  labelLock=3 = T0/T1 两个冻结 tick + T2 转 站立（推进侧按 actLabel 分支处理）。
+ *  偏离记录：解除前的 6 tick _defenseFrameDelay 计数仍按 POC 约定省略
+ *  （响应性优先，有意偏离）；原版 站立 为 goFrame("站立",false) 静态单帧，
+ *  移植版站立循环播放（待定项，见 docs/DESIGN）。 */
 function exitDefense(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.NORMAL;
   // 防御恢复窗口内行走门不生效（labelLock + 非待机标签），残速阻尼在此清零
@@ -390,7 +395,7 @@ function exitDefense(f: FighterState, def: FighterDef | null): void {
   if (land) {
     f.actLabel = '防御恢复';
     f.animFrame = land.index + 1;
-    f.labelLock = land.duration;
+    f.labelLock = 3;
   }
 }
 
@@ -929,6 +934,22 @@ function riseFrames(def: FighterDef | null): number {
 }
 
 /**
+ * loop 触发点查表（修复批次 30）：帧号恰好落在 target='mc' op='loop' 触发帧上
+ * → 返回目标标签名（goFrame 无条件回卷语义）。数据侧审计（58 角色全量）：
+ * 79 处 loop 触发无一与其它触发同帧、无一处于任何标签首帧 → 落点帧消费即可，
+ * behaviors.loop 的采样分派路径实际不可达（触发帧永不采样）。
+ */
+function loopRedirectTarget(def: FighterDef, frame: number): string | null {
+  for (const t of def.triggers) {
+    if (t.target === 'mc' && t.op === 'loop' && t.frame === frame) {
+      const name = t.args[0];
+      if (typeof name === 'string' && def.labels[name]) return name;
+    }
+  }
+  return null;
+}
+
+/**
  * 时间轴顺流目标（修复批次 20）：非循环攻击标签播尽时，若下一标签帧号连续
  * 且本标签范围内没有重定向触发（idle/setLabelTo），返回下一标签——原版 MC
  * 时间轴连续播放的自然结果。状态门：仅攻击态（isAttackingState）参与，
@@ -946,7 +967,7 @@ function flowTarget(
   for (const t of def.triggers) {
     if (
       t.target === 'mc' &&
-      (t.op === 'idle' || t.op === 'setLabelTo') &&
+      (t.op === 'idle' || t.op === 'setLabelTo' || t.op === 'loop') &&
       t.frame > range.index &&
       t.frame <= end
     ) {
@@ -1005,7 +1026,17 @@ export function advanceAnimation(
   // 3. 推进
   const label = f.actLabel;
   const range = label !== null ? def.labels[label] : undefined;
+  let looped = false;
   if (range) {
+    // 防御恢复冻结窗口（修复批次 30）：原版 goFrame("防御恢复",false,...,{call:idle,
+    // delay:1})——isPlay=false 播放头钉在首帧不推进，goFrameDelay 两个动画 tick 后
+    // 回调 idle → 站立。labelLock=3：T0/T1 两个冻结 tick 显示首帧，T2 转 站立。
+    // POC 曾放完整段 防御恢复（labelLock=duration）→ 实测"卡一下"才回站立。
+    if (label === '防御恢复') {
+      if (f.labelLock > 0) return;
+      setLabel(f, def, '站立');
+      return;
+    }
     // 防御定格（原版 goFrame("防御", true, 3) + FighterMC.renderAnimate：
     // 手动推进 3 帧后 _renderMainAnimate=false，时间轴停住，按住多久都静止；
     // 转向重播由 sim 的防御朝向分支重置 animFrame 实现）。防御不进 LOOP——
@@ -1018,8 +1049,22 @@ export function advanceAnimation(
       f.animFrame = range.index + Math.min(DEFENSE_FREEZE_FRAMES, range.duration);
     } else {
       f.animFrame += 1;
+      // loop 触发点收编（修复批次 30）：原版时间轴脚本 loop(name) 在播放头进入
+      // 触发帧时执行（FighterMcCtrler.loop → goFrame 无条件回卷），本 tick 显示的
+      // 就是回卷落点帧（帧脚本在 nextFrame 期间执行，findBodyArea 用回卷后的帧）。
+      // 移植版曾只靠 LOOP_LABELS 标签尾回卷 + behaviors.loop 走 setLabelTo
+      // （同名不跳）→ 脚本循环点之后的死区帧被照常播放（鸣人形态1 走 24 帧里
+      // 后 10 帧定格同一 png）→ 实测行走滑步。此处按落点帧消费 loop 触发；
+      // 触发帧本身永不采样/显示（与原版一致：死区帧内容不被使用）。
+      const loopTo = loopRedirectTarget(def, f.animFrame);
+      if (loopTo !== null) {
+        f.actLabel = loopTo;
+        f.animFrame = def.labels[loopTo]!.index + 1;
+        looped = true;
+      }
     }
-    if (f.animFrame > range.index + range.duration) {
+    // loop 重定向后不再做标签尾解析（落点帧属于目标标签，旧 range 已失效）
+    if (!looped && f.animFrame > range.index + range.duration) {
       if (LOOP_LABELS.has(label!)) f.animFrame = range.index + 1;
       else {
         const chkName = `${label}_CHK`;

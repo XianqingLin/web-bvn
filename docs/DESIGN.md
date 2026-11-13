@@ -80,6 +80,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 **通用约定**
 
 - **动画驱动**：`actLabel` + `animFrame`（内层时间轴绝对帧号，1 起，30Hz）。循环标签集合 `LOOP_LABELS`（站立/走/跳中/落）回绕播放；`advanceAnimation` = 先采样当前帧（帧触发器/判定区以此帧为准），再推进。
+- **loop 触发点**（批次 22）：原版时间轴脚本 `loop(name)` 在播放头进入触发帧时执行 `goFrame` 无条件回卷，该 tick 显示的就是落点帧；移植版按落点帧在推进后消费 `target='mc' op='loop'` 触发（`loopRedirectTarget`），触发帧本身永不采样/显示。此前只靠 LOOP_LABELS 标签尾回卷 → 脚本循环点后的死区帧被照常播放（鸣人形态1 走 24 帧里后 10 帧定格）→ 实测行走滑步。数据审计：79 处 loop 触发无一与其它触发同帧、无一处于标签首帧；`flowTarget` 顺流门同步加 loop 重定向检查。loop/gotoAndPlay/gotoAndStop 三 op 合并 setLabelTo 的旧结论作废——loop 需无条件回卷语义，其余两 op 保留同名守卫。
 - **判定区**：`def.areas[animFrame]` 查表（运行时 dump 几何，脚底锚点、direct=1 局部坐标）→ 世界 AABB（朝向镜像）；命中 = 攻击方 atm ∩ 受击方 bdmn。攻击判定名 = `<actionId>atm`。
 - **静态数据**：`FighterDef` 经 `SimConfig` 注入 Sim 注册表，**不进 SimState**；快照恢复经 `Sim.fromState(state, defs)` 回注（`getDefEntries()` 回传）。
 - **动画映射**（动作 id ↔ 标签）：`kjN→砍技N`、`tk→跳砍`、`tz→跳招`、`shN→摔N`、`zhN→招N`、`bs→必杀`、`sbs→上必杀`、`cbs→超必杀`；gotoAndPlay/gotoAndStop/loop 三 op 合并为 setLabelTo 单实现（30Hz 采样下语义无差异）。
@@ -152,6 +153,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **damping = 持久阻尼**：安装后每 tick 线性衰减，非一次性乘法；move 系附带清阻尼（批次 17）。
 - **行走物理标签门**：地面位移需 `actLabel∈{站立,走} && labelLock<=0`；idle 触发清 labelLock（批次 20）。
 - **防御定格**：抬手段播 3 帧后停住；`防御` 不在 LOOP_LABELS（批次 17）。
+- **防御恢复冻结窗口**（批次 22）：原版解除防御 = `goFrame("防御恢复",false,{call:idle,delay:1})`——isPlay=false 播放头钉首帧不推进，goFrameDelay 两 tick 后 idle 回站立（原版站立本身是 goFrame("站立",false) 静态单帧）。移植版 labelLock=3：T0/T1 冻结显示首帧、T2 转 站立。此前放完整段 防御恢复（labelLock=duration）→ 实测"卡一下"才回站立。偏离保留：解除前 6 tick `_defenseFrameDelay` 计数仍按 POC 约定省略（响应性优先）；站立循环播放（原版静态单帧）待定。
 - **资源恢复**：落地与回待机都要补槽（defaultSlots）并恢复 jumpTimes，否则永久锁死（批次 18）；空中动作成功置 jumpTimes=0（对齐原版）。
 - **重力斜坡**：位移空间步长 +0.3/tick（GRAVITY_STEP）、上限 6——步长不再二次减半（批次 19 修正）。
 - **辅助 gotoAndPlay 无同标签守卫**：loop 靠同标签 rewind 保活（切片 21）；**步内跳转落点不再 +1 推进**，落点帧触发器下一步照常执行（13-A6 修复）。
@@ -175,7 +177,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - `hash`（全状态哈希）：整个 SimState 规范序列化（键排序、IEEE754 规范字符串）的 FNV-1a。联机失步检测、对拍、快照恢复、batch:validate 双跑基准用它——任何表示变化都漂移，这正是失步检测想要的。
 - `behaviorHash`（行为哈希）：`behaviorView` 剥除表现/输入派生字段（denylist：`fighters[].input`、bullets/attackers 的 `name`）+ 空容器省略序列化（null/`{}`/`[]` 不进哈希，值非空即参与）。**tools/replay 门禁只冻这个**——新增"恒空"记录字段、坐标重锚定等表示层改动不再漂移基线；行为变了必然漂移（denylist 设计，漏登记只会多漂不漏报）。
 - 登记纪律：新 SimState 字段默认进两个哈希；纯表现/输入派生字段入 `behaviorView` 剥除表须同 commit 更新 `serialize.ts` 注释与本节。
-- 漂移仍发生时的归因：`tools/replay/verify-drift.mjs <script>` 自动对比 当前工作区 vs HEAD 的全量状态逐 tick dump（stash→build→dump→pop），全等 = 纯表示变更（可重冻），不等 = 输出字段级行为差异（禁止重冻）。
+- 漂移仍发生时的归因：`tools/replay/verify-drift.mjs <script>` 自动对比 当前工作区 vs HEAD 的全量状态逐 tick dump（stash→build→dump→pop），全等 = 纯表示变更（可重冻），不等 = 输出字段级行为差异（禁止重冻）。**两次 dump 必须子进程运行**（`dump-states.mjs`）：同进程 ESM import 缓存会让 HEAD dump 沿用首次加载的 dist → 恒「零差异」假阴性（批次 22 发现修复——此前该工具只对数据改动有效，对代码改动结构性失效）。
 
 ## 4. 数据与素材管线
 

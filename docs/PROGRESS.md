@@ -56,6 +56,7 @@
 | 27 | 阶段 4·块 7（后半·事件驱动半）：音效接线——`tools/sound-pack` 音源管线（bgm/se/swc/fx/语音 5 路）+ baked/audio.json 清单 + app AudioSubsystem（WebAudio SE 池/BGM 通道/语音防重叠）+ core `voice` 事件 + 场景 BGM/UI 音接线；余逐帧时间轴音（§4.3 块 7） | ✅ | §三·切片 27 |
 | 28 | 阶段 4·块 7（余项）：逐帧时间轴贴帧音——`tools/sound-pack/frame-sounds.mjs` 自研 SWF 标签解析（StartSound 采集 + formIndex 对齐）+ baked/timeline-sounds.json（56 包 1816 事件）+ app handleTimelineFrames 帧进入触发（纯 app 层零哈希漂移）；嵌套元件音 99 处遗留（§4.3 块 7 遗留池） | ✅ | §三·切片 28 |
 | 21F | 修复批次：形态角色（sasuke_juin 等 12 个可选）选入即 404——swf 基名数据化（select-pack 烘 fighter.xml `file url`）+ app 全链按基名取 XFL/fire/语音/贴帧音（图集仍按形态 id） | ✅ | §三·批次 21F |
+| 22 | 修复批次（实战验收第二批·①）：行走滑步（loop 触发点收编，54/58 走标签）+ 防御解除"卡一下"（防御恢复冻结窗口=原版 goFrame(false)+delay idle）+ verify-drift 假阴性修复（dump 必须子进程）；MC 子元件走段家族（kenshin/ulquiorra/naruto form4）采集重跑遗留 | ✅ | §三·批次 22 |
 
 ---
 
@@ -192,6 +193,18 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **遗留 ②（门禁覆盖差）**：batch:validate 基线里形态角色仍是**无 XFL** 编译（58 角色基线含 20 个 runtime 形态角色），与本批后 app 装配（挂基名 XFL）不一致；基线反映门禁自身管线暂不改，日后若把 XFL 兜底纳入门禁需整体重冻并 verify-drift 归因。
 - **用户验收新发现 → 遗留池登记**：① 鸣人 W+J（砍技2）影分身出现但不动——fire 元件采集系统性静态化（`capAdvanceChildren` 只步进一层嵌套且遇 stop 标签跳过；原版 Flash 嵌套 mc 自动播放；实证 naruto/sasuke 各 6 元件多帧同图，kj2mc/sbsmc/cbsmc/kj1mc 等），采集管线需 ghost 时间轴式递归步进 + 重跑 capture 桥（与切片 28 嵌套元件时间轴音 99 处同族，render-only 零哈希漂移）；② 佐助防御时人物模糊——待复测定位（疑点：相机 autoZoom 近身放大至 2.5× 位图上采样变糊，全角色共有，原版矢量渲染无损）。
 
+### 修复批次 22——走循环点 + 防御恢复冻结（实战验收第二批·①，✅ 2026-11-13）
+
+实测 5 问题中的 1（防御解除"卡一下"）与 5（行走滑步）收编。逆向定案（推翻此前"采集桥嵌套失真"的假设）：
+
+- **行走滑步 = 引擎未消费 loop 触发点**，采集无辜。原版走段动画由时间轴脚本 `loop("走")` 在触发帧无条件回卷（`FighterMcCtrler.loop → goFrame`，goFrame 恒 `gotoAndStop`+renderChildren），鸣人形态1 走 24 帧里真循环只有前 14 帧（7 姿 ×2），后 10 帧是永不显示的死区。移植版 behaviors.loop 走 setLabelTo（同名不跳）→ 死区帧照常播放（后半 12 帧定格同一 png）→ 平移感。图集烘焙逐帧核对：前半 2 帧一换姿 + 死区定格，**采集本身忠实**（graphic 实例子元件由 gotoAndStop 自动同步）。
+- **修复**：`advanceAnimation` 推进后按落点帧消费 `target='mc' op='loop'` 触发（`loopRedirectTarget`，回卷落点 = 该 tick 显示帧，帧脚本在 nextFrame 期间执行的同款语义）；`flowTarget` 顺流门加 loop 检查。数据审计：79 处 loop 触发（54 走 + 25 跳招/超必杀/空中必杀链）无一与其它触发同帧、无一处于标签首帧。批次 19 教训落实：逐剧本单独跑 --expect。
+- **防御解除 = 原版冻结两帧不是播完整段**：原版 `renderDefenseAnimate → goFrame("防御恢复",false,{call:idle,delay:1})`——播放头钉首帧（12 帧素材不播放）、两 tick 后 idle 回站立。移植版放完整段（labelLock=duration）= 用户看到的"卡一下"。修复：labelLock=3（T0/T1 冻结 + T2 转站立）。6 tick `_defenseFrameDelay` 解除延迟维持 POC 偏离（响应性优先）。
+- **顺带发现（未改，待定项）**：原版站立 = `idle("站立") → goFrame("站立",false)` 静态单帧，移植版站立循环播放 9 帧——全角色可见的忠实性偏差，改不改待用户定（影响 body 判定框时序 + 全量基线）。
+- **verify-drift 假阴性修复（门禁工具缺陷）**：两次 dump 原在同进程运行，ESM import 缓存使 HEAD dump 沿用首次加载的 dist → 恒报"零行为差异"（本批实测：手动对比 tick 33 有真差异，工具报零）。修复：dump 抽到子进程 `dump-states.mjs`；stash 加 pathspec 排除工具自身（未跟踪新文件会被 -u 收进 stash）。批次 19 的"verify-drift 归因"规程此前对代码改动完全失效，重冻结论需按新工具复核。
+- **门禁**：core 134 测试全过；replay 6 剧本单独跑（ichigo-mechanics 有意漂移，verify-drift 归因 = walk 循环点 animFrame 26→10，重冻）；batch:validate 20 角色基线漂移重冻（走循环/防御恢复全角色路径）。
+- **遗留 → §4.3**：MC 子元件走段家族——kenshin×2 / ulquiorra / naruto form4 的走段无 loop 触发，原版语义 = `stop` 冻结父播放头 + MovieClip 子元件（mc_010/mc_038/mc_0141）自循环（renderChildren 在 if 外每 tick 照跑）；烘焙整段静止（MovieClip 子元件推进采集失效，与 fire 元件静态化同族）→ 需采集桥子元件推进修复 + 重采，引擎侧 LOOP_LABELS 全标签回卷暂维持近似。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -225,6 +238,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；✅ 后半·事件驱动（切片 27）：音源五路提取（bgm/se/swc/fx/语音）+ baked/audio.json + AudioSubsystem（SE/BGM/语音防重叠/KO 双段音）+ voice 事件；✅ 余项·时间轴贴帧音（切片 28）：frame-sounds SWF 解析管线 + baked/timeline-sounds.json + handleTimelineFrames 帧进入触发。块 7 收官；遗留池：嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值按需立项） | 音效随机选音源在 app 层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 | 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
+| 10 | MC 子元件采集修复 | `capAdvanceChildren` 对 MovieClip 子元件推进失效（kenshin/ulquiorra/naruto form4 走段、fire 元件 kj2mc/bsmc 类全部受害）——先实验定位机制（Flash 子播放头语义 vs `as MovieClip` 判定）再修 + 重采受影响包；走段家族重采后引擎 LOOP_LABELS 全标签回卷即得正确循环（stop 触发帧 = 循环点近似）| 批次 22 登记；render/数据层，sim 零哈希漂移 |
 
 ---
 

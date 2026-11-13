@@ -15,14 +15,16 @@
  *   2. git stash push -u → pnpm build → dump HEAD 状态 → git stash pop → pnpm build；
  *   3. 逐 tick 对比 dump（stableStringify 全量状态），差异做结构化深diff。
  * 注意：暂存区改动会被 stash 并以未暂存形式恢复；dump 文件写系统临时目录。
+ * 两次 dump 均以**子进程**运行（dump-states.mjs）：ESM import 缓存按进程生效，
+ * 同进程先后 dump 会让 HEAD 沿用首次加载的 dist → 恒「零差异」假阴性
+ * （修复批次 30 发现并修复）。
  * 退出码：0 零行为差异；1 存在行为差异；2 用法/流程错误。
  */
 import { execSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createReplaySim, expandFrames } from './run-script.mjs';
-import { stableStringify } from '@bvn/core';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const STASH_MSG = 'bvn-verify-drift';
 
@@ -43,18 +45,19 @@ if (!Array.isArray(script.program)) fail('剧本缺少 program 数组。');
 const dirty = git('status --porcelain');
 if (!dirty) fail('工作区干净（当前代码 == HEAD），无可对比差异。先复现漂移：改动代码后运行本工具。');
 
-// —— dump：跑剧本，逐 tick 记全量状态字符串 ——
+const DUMP_SCRIPT = resolve(dirname(fileURLToPath(import.meta.url)), 'dump-states.mjs');
+let dumpSeq = 0;
+
+// —— dump：子进程跑剧本，逐 tick 记全量状态字符串（见文件头注释） ——
 function dumpStates() {
-  const frames = expandFrames(script);
-  if (frames.length === 0) fail('剧本展开后为空。');
-  const sim = createReplaySim(script);
-  const states = [];
-  for (const f of frames) {
-    const snap = sim.tick(f);
-    // stableStringify：键序规范化，两版本间只有内容差异进字符串
-    states.push(stableStringify({ tick: snap.tick, state: snap.state }));
-  }
-  return { ticks: frames.length, states };
+  const outPath = join(tmpdir(), `bvn-verify-drift-dump-${process.pid}-${dumpSeq++}.json`);
+  execSync(`node ${JSON.stringify(DUMP_SCRIPT)} ${JSON.stringify(scriptPath)} ${JSON.stringify(outPath)}`, {
+    stdio: 'inherit',
+    cwd: process.cwd(),
+  });
+  const parsed = JSON.parse(readFileSync(outPath, 'utf8'));
+  rmSync(outPath);
+  return { ticks: parsed.ticks, states: parsed.states };
 }
 
 let tmpDir = null;
@@ -66,7 +69,10 @@ try {
   const workDump = dumpStates();
 
   console.log('verify-drift: [2/3] stash → build + dump HEAD…');
-  git(`stash push -u -m ${STASH_MSG}`);
+  // 排除本工具自身（未跟踪的新文件也会被 -u 收进 stash，子进程就找不到了）
+  git(
+    `stash push -u -m ${STASH_MSG} -- . ":(exclude)tools/replay/verify-drift.mjs" ":(exclude)tools/replay/dump-states.mjs"`,
+  );
   stashed = true;
   let headDump;
   try {
