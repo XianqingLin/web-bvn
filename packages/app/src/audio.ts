@@ -8,8 +8,8 @@
  * - 浏览器自动播放策略：首次用户手势（keydown/pointerdown）解锁 AudioContext。
  */
 import type { Ctx, Subsystem } from './host.js';
-import type { AudioManifest } from './data.js';
-import { ASSETS, loadAudio } from './data.js';
+import type { AudioManifest, TimelineSoundsManifest } from './data.js';
+import { ASSETS, loadAudio, loadTimelineSounds } from './data.js';
 import type { SimSnapshot } from '@bvn/core';
 
 /** 受击语音绑定（原版 FighterVoiceCtrler.setVoice：kind → 音类候选集）。 */
@@ -25,6 +25,14 @@ export type VoiceResolver = (cls: string) => string | null;
 /** 对局音频上下文：每个 fighter 槽位的语音绑定（battle enter 时装配）。 */
 export interface BattleAudioBinding {
   fighters: { 1: { binding: VoiceBinding; resolve: VoiceResolver }; 2: { binding: VoiceBinding; resolve: VoiceResolver } };
+}
+
+/** 对局贴帧音绑定（切片 28，battle enter 时装配）：槽位/辅助 id → swf 包名。 */
+export interface TimelineAudioBinding {
+  /** fighter 槽位 → swf 基名（timeline-sounds.packages 寻址） */
+  fighters: { 1: string; 2: string };
+  /** 辅助 def id → swf 基名 */
+  assists: Record<string, string>;
 }
 
 /** 场景侧音频访问（未注册/未解锁时安全降级为 no-op 返回 null）。 */
@@ -61,9 +69,15 @@ export class AudioSubsystem implements Subsystem {
   private voiceUntil = new Map<string, number>();
   /** KO 在必杀演出窗口内 → snd_ko_bs（原版 FightUI bsKO） */
   private cutinOpen = false;
+  /** 贴帧音清单（baked/timeline-sounds.json，切片 28） */
+  private tlm: TimelineSoundsManifest | null = null;
+  /** 贴帧音帧变化检测：实体键（f1/f2/a<id>）→ 上次签名（swf#form:frame）。
+   *  首见 = 基线不触发（进场不补播）；签名变 = 播放头进入新帧（含跳转落点）。 */
+  private lastFrames = new Map<string, string>();
 
   async init(ctx: Ctx): Promise<void> {
     this.mf = await loadAudio(ctx);
+    this.tlm = await loadTimelineSounds(ctx);
     this.ac = new AudioContext();
     this.sfxGain = this.ac.createGain();
     this.sfxGain.connect(this.ac.destination);
@@ -73,12 +87,16 @@ export class AudioSubsystem implements Subsystem {
     window.addEventListener('keydown', unlock, { once: false });
     window.addEventListener('pointerdown', unlock, { once: false });
     // 解锁监听器与页面同生命周期（AppHost 不 dispose AudioSubsystem 场景流转外的宿主）
-    // dev 诊断钩子（headless 冒烟用；只读）
-    (window as unknown as { __bvnAudio?: () => unknown }).__bvnAudio = () => ({
+    // dev 诊断钩子（headless 冒烟用；只读 + timeline 试播）
+    (window as unknown as { __bvnAudio?: () => unknown; __bvnTimelineTest?: () => void }).__bvnAudio = () => ({
       state: this.ac?.state ?? null,
       decoded: [...this.buffers.keys()],
       bgm: this.bgmCurrent,
+      tlm: this.tlm ? { packages: Object.keys(this.tlm.packages).length, files: Object.keys(this.tlm.files).length } : null,
+      lastFrames: [...this.lastFrames.entries()],
     });
+    (window as unknown as { __bvnTimelineTest?: () => void }).__bvnTimelineTest = () =>
+      this.timeline('ichigo', 81);
   }
 
   dispose(): void {
@@ -89,6 +107,8 @@ export class AudioSubsystem implements Subsystem {
     this.bgmSource = null;
     this.bgmCurrent = null;
     this.mf = null;
+    this.tlm = null;
+    this.lastFrames.clear();
   }
 
   // ---------- SE / 语音 ----------
@@ -175,6 +195,68 @@ export class AudioSubsystem implements Subsystem {
       src.start();
       this.voiceUntil.set(slot, this.ac!.currentTime + buf.duration);
     });
+  }
+
+  // ---------- 贴帧音（切片 28：SWF 时间轴匿名音，原版播放头进帧自动触发） ----------
+
+  /**
+   * 播一发贴帧音。原版语义 = StartSound 帧被显示时开火（含 gotoAndPlay 落点帧，
+   * 跳过的帧不触发）；loops = SoundInfo LoopCount（顺序排 N 遍）。
+   */
+  private timeline(swfId: string, sid: number, loops = 1): void {
+    const url = this.tlm?.files[`${swfId}/${sid}`];
+    if (!url || !this.ac || this.ac.state !== 'running') return;
+    void this.buffer(url).then((buf) => {
+      if (!buf || !this.ac || !this.sfxGain) return;
+      for (let i = 0; i < loops; i++) {
+        const src = this.ac.createBufferSource();
+        src.buffer = buf;
+        src.connect(this.sfxGain);
+        src.start(this.ac.currentTime + i * buf.duration);
+      }
+    });
+  }
+
+  /**
+   * 帧变化检测（battle 每 tick 转发快照）：实体播放头进帧 → 播该帧贴帧音。
+   * 角色 = forms[formIndex] 映射，辅助 = root 映射；首个快照只建基线不触发。
+   */
+  handleTimelineFrames(snap: SimSnapshot, binding: TimelineAudioBinding | null): void {
+    const tlm = this.tlm;
+    if (!tlm || !binding) return;
+    const seen = new Set<string>();
+    // 角色（state.fighters 恒按 id 升序；slot = fighter id）
+    for (const f of snap.state.fighters) {
+      const swfId = binding.fighters[f.id as 1 | 2];
+      if (!swfId) continue;
+      const key = `f${f.id}`;
+      seen.add(key);
+      const sig = `${swfId}#${f.formIndex}:${f.animFrame}`;
+      if (this.lastFrames.get(key) === sig) continue;
+      const prev = this.lastFrames.get(key);
+      this.lastFrames.set(key, sig);
+      if (prev === undefined) continue; // 进场基线
+      const frame = tlm.packages[swfId]?.forms?.[String(f.formIndex)]?.[String(f.animFrame)];
+      if (frame) for (const s of frame) this.timeline(swfId, s.sid, s.loops ?? 1);
+    }
+    // 辅助（单 root 时间轴，出场帧起播）
+    for (const a of snap.state.assisters) {
+      const swfId = binding.assists[a.assistId];
+      if (!swfId) continue;
+      const key = `a${a.id}`;
+      seen.add(key);
+      const sig = `${swfId}:root:${a.animFrame}`;
+      if (this.lastFrames.get(key) === sig) continue;
+      const prev = this.lastFrames.get(key);
+      this.lastFrames.set(key, sig);
+      if (prev === undefined) continue;
+      const frame = tlm.packages[swfId]?.root?.[String(a.animFrame)];
+      if (frame) for (const s of frame) this.timeline(swfId, s.sid, s.loops ?? 1);
+    }
+    // 退场实体清理（辅助播尽移除 / 重开换人）
+    for (const key of [...this.lastFrames.keys()]) {
+      if (!seen.has(key)) this.lastFrames.delete(key);
+    }
   }
 
   // ---------- BGM（原版 SoundCtrler.BGM：同曲 no-op，异曲切换） ----------

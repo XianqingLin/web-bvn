@@ -26,7 +26,13 @@ import {
   type FighterPack,
   type MapPack,
 } from '../data.js';
-import { audioOf, voiceBindingOf, type AudioSubsystem, type BattleAudioBinding } from '../audio.js';
+import {
+  audioOf,
+  voiceBindingOf,
+  type AudioSubsystem,
+  type BattleAudioBinding,
+  type TimelineAudioBinding,
+} from '../audio.js';
 import { picksOf, type Flow } from '../flow.js';
 
 const TICK_MS = 1000 / 60;
@@ -100,6 +106,7 @@ export class BattleScene implements Scene {
   private rig: BattleRig | null = null;
   private audio: AudioSubsystem | null = null;
   private audioBinding: BattleAudioBinding | null = null;
+  private timelineBinding: TimelineAudioBinding | null = null;
   private cleanup: (() => void)[] = [];
 
   constructor(
@@ -136,6 +143,11 @@ export class BattleScene implements Scene {
       });
       this.audioBinding = {
         fighters: { 1: mkSlot(p1Pack), 2: mkSlot(p2Pack) },
+      };
+      // 贴帧音绑定（切片 28）：swf 基名 = 包 id；辅助缺包 = 无音安全跳过
+      this.timelineBinding = {
+        fighters: { 1: p1Pack.id, 2: p2Pack.id },
+        assists: Object.fromEntries(assistList.map((a) => [a.id, a.id])),
       };
       audio.fightBgm(p1.fighter, this.flow.mapId);
     }
@@ -289,6 +301,7 @@ export class BattleScene implements Scene {
       }
       this.renderer.onSnapshot(snap);
       this.audio?.handleSimEvents(snap.events, this.audioBinding);
+      this.audio?.handleTimelineFrames(snap, this.timelineBinding);
       this.simTick++;
       this.acc -= TICK_MS;
       stepped = true;

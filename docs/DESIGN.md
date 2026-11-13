@@ -188,6 +188,8 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 PixiJS v8；逻辑坐标 1000×600（y 向下）与原版一致，渲染层负责屏幕适配。渲染帧率与逻辑解耦：位置在最近两个快照间线性插值，动画帧/朝向取最新。相机平滑跟随 + 缩放自由实现。HUD 读快照绘制；音效/特效消费表现事件队列（事件带 tick 号，自行去重）。
 
+**逐帧时间轴贴帧音**（切片 28）：角色/辅助 SWF 时间轴上的匿名 StartSound 音（挥砍/呐喊等）——Flash 语义 = 播放头**进入帧**时触发（含 gotoAndPlay 跳转落点帧；跳过的帧不触发；冻结播放头不重触发）。采集管线 `tools/sound-pack/frame-sounds.mjs`（自研最小 SWF 标签解析 + FFDec `-export sound`；formIndex = root `mc` 放置序，与 compileFighterForms 过滤空形态后对齐）→ `baked/timeline-sounds.json`（schema `bvn/timeline-sounds@1`）。播放接线纯 app 层：`handleTimelineFrames` 每 tick 对比快照 animFrame 变化触发，首次 sighting 作静音基线——core 零改动、双哈希零漂移。偏离：音量包络（Envelope）忽略，全音量播放；嵌套演出件时间轴音（99 处）遗留池。
+
 **切人插图**（切片 22 / 26）：黑幕 + 横幅 + 立绘 = 屏幕空间层（`cutinScreen`，bgFixed 与 world 之间；切片 26 修正切片 22 的偏差——横幅原在 world 内会随聚焦相机漂移，原版 BlackBackView 挂 stage/scrollRect 之外，本应屏幕空间），`SimState.cutinLock ≠ null` 期间盖满视口并按 `min(viewW/1000, viewH/600)` 等比缩放。横幅 = `bisha_face_mc` 71 帧流帧（30fps，0-based 帧 1 起播，destory/stop 帧自然消失），y = `100 + 100/zoomTarget`（原版 showBishaFace：zoom 取演出开始时的相机目标因子，showFace 在 cameraFocusOne 之前调用）；立绘按逐帧槽位矩阵合成（`bisha.json` slots：W_T/缩放绕 transformationPoint 线性补间烘焙）；faceId = 施法者在目标右侧 ? 右槽(镜像) : 左槽（原版 showFace）。白闪（原版 color offset 255→50→0）以白色加色叠层近似（偏离记录）。地图/map front 层锁定期隐藏。
 
 **必杀光效**（切片 26，原版 `EffectCtrler.bisha` doEffectById 分支）：`bisha`（isSuper=false）/ `bisha_super`（isSuper=true；wanKai 恒 super）= XG_bs/XG_cbs 17 帧逐帧序列（bisha-pack 步骤 3b 导出，30fps 加色混合，画布原点 (−123.05,−101.9)/(−147.85,−122.31)，cbs=bs×1.2 精确吻合交叉验证锚定假设），锚在事件 payload (x, y−50) 播尽自移除（原版 EffectView 逐帧播完 remove）。

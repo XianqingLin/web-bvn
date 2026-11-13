@@ -16,7 +16,7 @@
 | 1 | POC：单机对战闭环 + 训练模式 | ✅（切片 1~5） |
 | 2 | 联机：lockstep + 房间服务器 | ✅（切片 6~7；真机验收待做，见 §4.1） |
 | 3 | 批量化：全角色机制 + 验收门禁 | ✅ 主线（切片 8~12）；尾巴见 §4.2 |
-| 4 | 体验完善：菜单流/原版化/实战修复等 | 🔄（切片 14/15/16/26/27 + 修复批次 17/18 ✅；余断线/录像/观战/rollback/街机/时间轴音/本地双人/加载画面，见 §4.3） |
+| 4 | 体验完善：菜单流/原版化/实战修复等 | 🔄（切片 14/15/16/26/27/28 + 修复批次 17/18 ✅；余断线/录像/观战/rollback/街机/本地双人/加载画面，见 §4.3） |
 
 门禁速记（每次收尾全过才算完成）：`pnpm build` + 确定性单测 + `tools/replay` 五剧本哈希（含 assist-duel）+ `pnpm batch:validate`（58 角色 + 37 辅助，基线 `tools/batch-validate/baseline.json`）。行为有意变更 → 重冻全部基线并在提交说明写明。
 
@@ -54,6 +54,7 @@
 | 25 | 阶段 3 尾巴·B4：temari 风场——windField customFunc 数据化（LEVEL 表采样/拉扯/HURT_DOWN 门）+ 派生弹速级（stepBullets 实时求值不进 SimState）+ `buffSpeedUpByOwnerSpeed`（expr 跨期不可求值修正）+ 导出器特征识别两模板 | ✅ | §三·切片 25 |
 | 26 | 阶段 4·块 7（前半）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（原版 GameCamera autoZoom 收编）——bisha-pack 步骤 3b 光效导出 + render 效果逐帧播放器 + camFocus/zoomTarget 相机模型 + 横幅/立绘迁屏幕空间层（修正切片 22 world 内偏差） | ✅ | §三·切片 26 |
 | 27 | 阶段 4·块 7（后半·事件驱动半）：音效接线——`tools/sound-pack` 音源管线（bgm/se/swc/fx/语音 5 路）+ baked/audio.json 清单 + app AudioSubsystem（WebAudio SE 池/BGM 通道/语音防重叠）+ core `voice` 事件 + 场景 BGM/UI 音接线；余逐帧时间轴音（§4.3 块 7） | ✅ | §三·切片 27 |
+| 28 | 阶段 4·块 7（余项）：逐帧时间轴贴帧音——`tools/sound-pack/frame-sounds.mjs` 自研 SWF 标签解析（StartSound 采集 + formIndex 对齐）+ baked/timeline-sounds.json（56 包 1816 事件）+ app handleTimelineFrames 帧进入触发（纯 app 层零哈希漂移）；嵌套元件音 99 处遗留（§4.3 块 7 遗留池） | ✅ | §三·切片 28 |
 
 ---
 
@@ -160,6 +161,16 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **core**：`voice` 事件（受击/死亡语音信号；随机选音与 rate 门在 app 层，事件不进哈希零漂移）+ hit:connect payload 补 `steel`（钢身命中音分流键）。偏离记录：① 原版死亡语音"击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播"，移植版统一提前到 KO 时刻；② NetScene 无对局 BGM（原版 net 流程同样静音）；③ 形态切换语音重绑定未接（more= 变身暂未实现）。
 - **门禁**：build / core 134 测试（新增 steel payload + voiceHurt/voiceDie 断言）/ replay 6 剧本 --expect 零漂移（voice 事件不进哈希证明成立）/ batch:validate 58+37 全过；headless Edge CDP 冒烟（`tools/_scratch/audio-smoke/`，gitignore）验证音频全链路：AudioContext running、BGM char_ichigo 播放中、走近+攻击后 decoded 含 bgm/se_hit1/24_snd_kan1/3_snd_hurt2——SE/命中音/语音真实解码播放，控制台零异常。
 
+### 切片 28·块 7 余项——逐帧时间轴贴帧音（✅ 2026-11-13）
+
+角色/辅助动画时间轴上的匿名音（StartSound 标签，无 SymbolClass）——攻击挥砍、必杀呐喊等"帧被显示即播"的音效。逆向规格：Flash 语义 = 播放头**进入帧**时触发（含 gotoAndPlay 跳转落点帧，跳过的帧不触发，冻结播放头不重触发）；角色 SWF root 每根帧放一个 `mc` 形态元件、贴帧音在其时间轴上（formIndex = `mc` 放置序，与 data 层 compileFighterForms 过滤空形态后对齐——注意**不是** root 帧-1）；辅助 SWF root 本身即动画时间轴（与 dump 桥语义同源）。
+
+- **`tools/sound-pack/frame-sounds.mjs`**：自研最小 SWF 标签解析器（FWS 解压后标签流：ShowFrame/DefineSound/StartSound/PlaceObject2/DefineSprite，其余整块跳过；与 FFDec `-swf2xml` 交叉验证）+ FFDec `-export sound` 匿名音导出拷贝。SoundInfo 完整解析（SyncNoMultiple/SyncStop/In/Out/Loops/Envelope），**偏离：音量包络忽略**（移植版全音量）。产出 `packages/data/baked/timeline-sounds.json`（schema `bvn/timeline-sounds@1`，56 包 / 1816 事件 / 966 音 7.5MB）。
+- **app 层接线**（`audio.ts` handleTimelineFrames）：每 tick 对比 sim 快照 animFrame 变化触发对应包帧音（首次 sighting 作静音基线，消散实体清 key）；战斗 enter 装配 TimelineAudioBinding（fighter id→swfId，assistId→swfId）。**纯 app 层，core 零改动 → 双哈希零漂移**（门禁全绿无需重冻）。
+- **遗留池登记**：嵌套元件（zh2mc/hitmc 类演出件）时间轴音 99 处未采——需要 ghost 时间轴模拟内层播放头，价值低（hitmc 命中火花类），随需求另立项；流音全语料为空流头（零 SoundStreamBlock）确认可忽略；rukia sid 1 FFDec 导出失败剔除（唯一 1 例）。
+- **冒烟**：headless Edge CDP 连击链（砍1→砍2→砍3@165 触发 `timeline/ichigo/143.mp3`）+ KeyO 辅助召唤（gaara root `timeline/gaara/27.mp3`）双路径实测通过。
+- **教训**：baked 包结构漏 `{forms:}` 包装层导致查表恒 miss（根因排查靠页内诊断三步法：tlm 加载✓→lastFrames 走动✓→直接试播✓→只剩查表路径）；Node CDP 脚本易 UV 断言崩溃 → 写文件 + try/catch + process.exit(0)。
+
 ### 工具治理——双哈希 + 漂移归因工具（✅ 2026-11-12）
 
 哈希门禁的漂移调查（证明"纯表示变更"）在切片 9/13/23 反复消耗手工流程，治理如下（DESIGN §3.8 双哈希）：
@@ -197,7 +208,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 4 | rollback | 可选；视云上延迟体验决策 | 架构接口已预留（DESIGN §6） |
 | 5 | 菜单流打磨 | ✅ 骨架（切片 14）；✅ 选人页原版化（切片 15）；✅ 菜单主页原版化（切片 16）；余 Logo 演出/格子动画/结算立绘/开场徽标去除（可选）+ 切片 14 UI 待打磨池（格子长名溢出/DOM 输入样式） | app 层场景系统 |
 | 6 | 街机模式 | mission.xml 关卡数据 + AI（FighterAICtrler 转译，~700 行，种子随机） | AI 是 PvP 路径外的唯一大块逻辑 |
-| 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；✅ 后半·事件驱动（切片 27）：音源五路提取（bgm/se/swc/fx/语音）+ baked/audio.json + AudioSubsystem（SE/BGM/语音防重叠/KO 双段音）+ voice 事件；余：逐帧时间轴贴帧音（攻击挥砍/呐喊等角色动画帧上的匿名音，需 dump 桥逐帧采集，另立切片） | 音效随机选音源在 app 层做，不进 sim |
+| 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；✅ 后半·事件驱动（切片 27）：音源五路提取（bgm/se/swc/fx/语音）+ baked/audio.json + AudioSubsystem（SE/BGM/语音防重叠/KO 双段音）+ voice 事件；✅ 余项·时间轴贴帧音（切片 28）：frame-sounds SWF 解析管线 + baked/timeline-sounds.json + handleTimelineFrames 帧进入触发。块 7 收官；遗留池：嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值按需立项） | 音效随机选音源在 app 层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 | 9 | 进战斗加载画面 | LoadingScene 进度条（原版 GameLoadingStage/LoadingStage 语义）+ 装载分帧化（现同步串行卡主线程）+ bg cover 首帧定位（修"进场黑边"） | 原版场景链：选人 → Loading → GameStage |
 
@@ -207,4 +218,4 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
 2. **阶段 3 尾巴已收编完毕**（切片 21 收编 B1、切片 22 收编 B2、切片 23 收编 B5、切片 24 收编 B3、切片 25 收编 B4；余项仅 suigetsu isAttacking——唯一读者 AI，随 §4.3 块 6 一并处理）；
-3. 阶段 4 各块按 §4.3 表顺序推进，每块开工前细化为切片并登记进 §二 明细表。
+3. **§4.3 块 7（音效/特效）已收官**（切片 26/27/28）；阶段 4 余块按 §4.3 表顺序推进（下一块：断线处理 / 街机模式，开工前细化为切片并登记进 §二 明细表）。

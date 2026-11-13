@@ -143,6 +143,32 @@ export function loadAudio(ctx: Ctx): Promise<AudioManifest> {
   return ctx.assets.json<AudioManifest>(`${BAKED}/audio.json`);
 }
 
+// ---------- timeline-sounds.json（tools/sound-pack/frame-sounds 产物，切片 28） ----------
+
+/** 单帧贴帧音条目（sid = SWF DefineSound characterId）。 */
+export interface TimelineSoundEntry {
+  sid: number;
+  /** 重播次数（原版 SoundInfo LoopCount；>1 才写出，语料仅 1 例） */
+  loops?: number;
+}
+
+/** 角色包：formIndex → 帧 → 条目[]；辅助包：root 帧 → 条目[]。 */
+export type TimelinePackage = {
+  forms?: Record<string, Record<string, TimelineSoundEntry[]>>;
+  root?: Record<string, TimelineSoundEntry[]>;
+};
+
+export interface TimelineSoundsManifest {
+  schema: string;
+  packages: Record<string, TimelinePackage>;
+  /** `swfId/sid` → 音频 url（assets/audio 相对路径） */
+  files: Record<string, string>;
+}
+
+export function loadTimelineSounds(ctx: Ctx): Promise<TimelineSoundsManifest> {
+  return ctx.assets.json<TimelineSoundsManifest>(`${BAKED}/timeline-sounds.json`);
+}
+
 // ---------- 角色包 ----------
 
 export interface FighterPack {
