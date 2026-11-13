@@ -82,6 +82,10 @@ export interface FighterState {
   animFrame: number;
   /** 标签锁定剩余帧（动画帧）：>0 时普通行动不覆盖标签（如 落地 恢复） */
   labelLock: number;
+  /** 主时间轴冻结（原版 stopRenderMainAnimate：target=mc 的 stop 帧触发置位——
+   *  播放头停住、帧脚本不再触发，物理照常；换标签/开新动作（原版 goFrame
+   *  isPlay=true）解冻。同名标签重设（行走每 tick 重设 走）不解冻） */
+  mcHold: boolean;
   /** 当前攻击动作 id（攻击/技能/必杀状态期间非空） */
   attackId: string | null;
   /** 本次攻击已命中的（区动作 id:目标 id）键（一区一目标一次；切片 10 逐区结算） */
@@ -471,6 +475,7 @@ export function createInitialState(config: SimConfig): SimState {
       actLabel: null,
       animFrame: 0,
       labelLock: 0,
+      mcHold: false,
       attackId: null,
       attackHit: [],
       hurtTimer: 0,

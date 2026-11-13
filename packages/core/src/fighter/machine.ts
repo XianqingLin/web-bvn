@@ -128,6 +128,9 @@ export function setLabel(
   if (f.actLabel !== name) {
     f.actLabel = name;
     f.animFrame = range.index + 1;
+    // 原版 goFrame(isPlay=true)：换标签重置 _renderMainAnimate=true 解冻。
+    // 同名重设是 no-op——行走待机门每 tick 重设 走/站立 不能冲掉 stop 冻结
+    f.mcHold = false;
   }
 }
 
@@ -299,6 +302,7 @@ export function startAttack(
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
+  f.mcHold = false; // 原版 doAction → goFrame：开新动作解冻 stop 冻结
   // 原版 clearAction：新动作清除 per-action 标志
   f.isCross = false;
   f.airMove = false;
@@ -530,6 +534,7 @@ function startSkill(
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
+  f.mcHold = false; // 原版 doAction → goFrame：开新动作解冻 stop 冻结
   // 原版 clearAction：新动作清除 per-action 标志（同 startAttack，含清槽）
   f.isCross = false;
   f.airMove = false;
@@ -553,6 +558,7 @@ export function startWanKai(f: FighterState, def: FighterDef | null, label: stri
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
+  f.mcHold = false; // 原版 doAction → goFrame：开新动作解冻 stop 冻结
   f.isAllowBeHit = false;
   // 原版 doAction + doWanKaiAction 的状态清理
   f.isCross = false;
@@ -598,6 +604,7 @@ export function switchForm(
   if (opening) {
     f.actLabel = '开场';
     f.animFrame = opening.index + 1;
+    f.mcHold = false; // 原版 initMc/goFrame：换形态重置时间轴解冻
   } else {
     // 无 开场 标签（合成 def/缺帧）：直接回位（原版假设全体有 开场）
     endAction(f, next);
@@ -1010,6 +1017,11 @@ export function advanceAnimation(
   maintainAirLabel(f, def);
   const range0 = f.actLabel !== null ? def.labels[f.actLabel] : undefined;
   if (!range0) setLabel(f, def, '站立');
+  // stop 冻结（原版 renderAnimate 的 _renderMainAnimate=false，修复批次 32）：
+  // 播放头停住——不推进、帧脚本不重复触发（原版帧脚本只在播放头进入时执行
+  // 一次），判定区钉在冻结帧；物理/状态计时照常。解冻见 setLabel（换标签）
+  // 与各动作入口（原版 doAction → goFrame）。
+  if (f.mcHold) return;
   // 1. 采样当前帧
   onFrame?.(f.animFrame);
   // 2. 状态计时（按采样帧计数）
@@ -1027,6 +1039,9 @@ export function advanceAnimation(
   const label = f.actLabel;
   const range = label !== null ? def.labels[label] : undefined;
   let looped = false;
+  // 本 tick 采样刚消费了 stop 触发（mcHold 置位）——播放头钉在冻结帧，
+  // 与原版一致：stop 帧本身被采样/显示，下一 tick 起由入口处的 mcHold 门接管
+  if (f.mcHold) return;
   if (range) {
     // 防御恢复冻结窗口（修复批次 30）：原版 goFrame("防御恢复",false,...,{call:idle,
     // delay:1})——isPlay=false 播放头钉在首帧不推进，goFrameDelay 两个动画 tick 后
@@ -1133,6 +1148,7 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
       f.actLabel = f.touchFloor;
       f.animFrame = tf.index + 1;
       f.labelLock = 0;
+      f.mcHold = false; // 原版 touchFloor() → goFrame：触地续接解冻 stop 冻结
       f.touchFloor = null;
       f.airHitTimes = 1; // 原版 touchFloor：空中攻击次数重置
       return;
@@ -1150,6 +1166,7 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
       f.actLabel = '落地';
       f.animFrame = land.index + 1;
       f.labelLock = land.duration;
+      f.mcHold = false; // 原版 touchFloor("落地") → goFrame：落地换标签解冻
     }
     return;
   }

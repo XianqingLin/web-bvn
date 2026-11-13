@@ -70,6 +70,7 @@ function patchSource() {
       import flash.system.LoaderContext;
       import flash.utils.ByteArray;
       import flash.utils.Endian;
+      import flash.utils.getQualifiedClassName;
       import net.play5d.game.obvn.map.MapMain;
       import net.play5d.game.obvn.model.AssisterModel;
       import net.play5d.game.obvn.model.FighterModel;

@@ -195,7 +195,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **遗留 ①（默认形态对位）**：~~形态角色的缺省形态取"第一个含动画形态"，与原版 fighter.xml `startFrame` 不完全对位~~ → **实测证实（2026-11-13 用户验收：咒怨佐助/一尾鸣人以原形态进场），同批追补修复**：select-pack 烘 `startFrame`（fighter.xml），core `FighterConfig.formIndex` 初始形态支持，app 按 startFrame 取进场形态。**58 角色实证零例外：缺省形态 = 含动画形态中第 startFrame 个（rootFrame = startFrame+1，基础角色恒 1）**。
 - **顺带修复（万解切形态渲染差一位）**：formIndex 有两套下标空间——sim forms 数组是过滤空根帧后的紧凑数组、render 图集 forms 是含空根帧的全数组，`fighter:form` 事件下标直接喂图集恒差一位（切形态显示回上一形态）。core 事件补发 `rootFrame`（绝对帧寻址），render 优先按 rootFrame 换算图集下标（缺省回退旧下标行为）。基础角色 formIndex 恒 0 起步 → 双哈希零漂移，门禁全绿未重冻。
 - **遗留 ②（门禁覆盖差）**：batch:validate 基线里形态角色仍是**无 XFL** 编译（58 角色基线含 20 个 runtime 形态角色），与本批后 app 装配（挂基名 XFL）不一致；基线反映门禁自身管线暂不改，日后若把 XFL 兜底纳入门禁需整体重冻并 verify-drift 归因。
-- **用户验收新发现 → 遗留池登记**：① 鸣人 W+J（砍技2）影分身出现但不动——fire 元件采集系统性静态化（`capAdvanceChildren` 只步进一层嵌套且遇 stop 标签跳过；原版 Flash 嵌套 mc 自动播放；实证 naruto/sasuke 各 6 元件多帧同图，kj2mc/sbsmc/cbsmc/kj1mc 等），采集管线需 ghost 时间轴式递归步进 + 重跑 capture 桥（与切片 28 嵌套元件时间轴音 99 处同族，render-only 零哈希漂移）；② 佐助防御时人物模糊——待复测定位（疑点：相机 autoZoom 近身放大至 2.5× 位图上采样变糊，全角色共有，原版矢量渲染无损）。
+- **用户验收新发现 → 遗留池登记**：① 鸣人 W+J（砍技2）影分身出现但不动——~~fire 元件采集系统性静态化，采集管线需 ghost 时间轴式递归步进 + 重跑 capture 桥~~ → **批次 32 证伪并结案**：probe 逐帧质询证明 kj2mc/cbsmc/sbsmc/kj1mc 等是**真静态素材**（36 帧全同 = 静态贴图 + 静态 Shape，引擎靠变换矩阵驱动位移），采集忠实无需重采（详见 §4.3 块 10）；② 佐助防御时人物模糊——待复测定位（疑点：相机 autoZoom 近身放大至 2.5× 位图上采样变糊，全角色共有，原版矢量渲染无损）。
 
 ### 修复批次 22——走循环点 + 防御恢复冻结（实战验收第二批·①，✅ 2026-11-13）
 
@@ -207,7 +207,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **顺带发现（未改，待定项）**：原版站立 = `idle("站立") → goFrame("站立",false)` 静态单帧，移植版站立循环播放 9 帧——全角色可见的忠实性偏差，改不改待用户定（影响 body 判定框时序 + 全量基线）。
 - **verify-drift 假阴性修复（门禁工具缺陷）**：两次 dump 原在同进程运行，ESM import 缓存使 HEAD dump 沿用首次加载的 dist → 恒报"零行为差异"（本批实测：手动对比 tick 33 有真差异，工具报零）。修复：dump 抽到子进程 `dump-states.mjs`；stash 加 pathspec 排除工具自身（未跟踪新文件会被 -u 收进 stash）。批次 19 的"verify-drift 归因"规程此前对代码改动完全失效，重冻结论需按新工具复核。
 - **门禁**：core 134 测试全过；replay 6 剧本单独跑（ichigo-mechanics 有意漂移，verify-drift 归因 = walk 循环点 animFrame 26→10，重冻）；batch:validate 20 角色基线漂移重冻（走循环/防御恢复全角色路径）。
-- **遗留 → §4.3**：MC 子元件走段家族——kenshin×2 / ulquiorra / naruto form4 的走段无 loop 触发，原版语义 = `stop` 冻结父播放头 + MovieClip 子元件（mc_010/mc_038/mc_0141）自循环（renderChildren 在 if 外每 tick 照跑）；烘焙整段静止（MovieClip 子元件推进采集失效，与 fire 元件静态化同族）→ 需采集桥子元件推进修复 + 重采，引擎侧 LOOP_LABELS 全标签回卷暂维持近似。
+- **遗留 → §4.3**：~~MC 子元件走段家族——采集桥子元件推进失效需修复重采~~ → **批次 32 证伪并收编**：采集忠实、素材本身静态（stop 冻结走段），引擎侧收编 `stop` 触发（mcHold），详见 §4.3 块 10。
 
 ### 修复批次 23——切人插图两处修复（实战验收第二批·②，✅ 2026-11-13）
 
@@ -260,6 +260,18 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **偏离登记**：① 原版 `setTimeout(loadNext,1000)` 起步延帧对本地资源纯增延迟，省去；定场保留但 1000→600ms；② 原版 loadProcess 为单文件下载字节进度，web fetch 无字节回调，改分步计数进度；③ 原版加载页 ESC 呼出确认框返回主菜单，此处 ESC 直接返回；④ 渲染纹理装载原版并入 loadFighter 一步，此处单列分步回报进度。
 - **门禁**：build / core 186 / replay 7 剧本 `--expect` 零漂移（sim 未触碰，免重冻）/ batch:validate 58+37 全过；headless Edge CDP 冒烟（loading 画面渲染 → 进战斗 `__bvnSim` 置位，控制台零异常）+ 截图目检（VS 舞台画/条形/转圈/右对齐青色消息、战斗首帧无黑边）全过。
 
+### 修复批次 32——stop 触发收编（§4.3 块 10 收官，✅ 2026-11-13）
+
+§4.3 块 10"MC 子元件采集修复"按登记要求先实验定位机制，结论**推翻登记前提**并顺带收编引擎缺口：
+
+- **采集桥无罪（五轮诊断 AIR 运行定案）**：capture-only.txt 扩展 `diag:`（子元件播放头逐帧追踪）与 `probe:`（单独 gotoAndStop(k)+渲染+双哈希质询）过滤器。diag 证明 kenshin 走段子元件 instance519 在 `capAdvanceChildren` 驱动下正常推进（cf 1→2→3→4→1，无重实例化、无拦截）；probe 决定性证据 = 该子元件 4 帧 hash 全同（素材本身静态，49×36），对照组 instance516（站立 12 帧）hash 逐帧变化证明换帧美术采集正常。`capAdvanceChildren` 与原版 `FighterMC.renderChildren` 逐行一致。
+- **fire 元件静态化证伪**：kj2mc = 36 帧全同（静态跑姿 + 单个静态 Shape——引擎靠变换矩阵移动它）；cbsmc/sbsmc/k4mc/zh2atm 等同族真静态；kbsmc（18 帧 uniq）/zh1atm（3 帧 uniq）实际有动画且已正确采集。批次 21F"ghost 时间轴递归步进"假设作废，无需重采任何包。
+- **走段真相**：58 走标签 = 54 个 loop 触发（批次 22/30 已收编）+ 4 个 stop 触发（kenshin mc_030/mc_056、ulquiorra mc_059、naruto mc_0134[form4]）——原版语义 = 播到 stop 帧冻结滑行（动画前缀 + 定格），素材与机制均忠实。
+- **引擎缺口收编**：全量普查 `stop`(target=mc) 150 处（胜利/失败各 58、跳招 15、必杀/砍技家族等）——原版三系控制器（FighterMcCtrler/FighterAttackerCtrler/AssisterCtrler）的 `stop()` 语义完全一致 = `stopRenderMainAnimate`（只冻结主时间轴，物理照常），帧脚本只在播放头进入时执行一次，`goFrame(isPlay=true)` 换标签解冻。收编实现：FighterState 新增 `mcHold`；`stop` 行为从误映射"清速度"（那是 `stopMove`/`move(0,0)` 语义）改为置 `mcHold`；`advanceAnimation` 冻结门（不采样不推进，判定区钉冻结帧）；解冻点 = `setLabel`/`setLabelTo`（换标签，同名重设不冲掉冻结——行走门每 tick 重设 走 不能解冻）+ startAttack/startSkill/startWanKai/onLanded(触地续接·落地)/switchForm。attacker 侧 stop→animHold 语义本已正确，辅助侧零 stop 触发。
+- **触发帧空间教训**：baked 触发帧是 0-based 脚本索引（addFrameScript 参数），编译层 +1 转 1-based——kenshin stop baked@19 = 原版 frame20 脚本 = 1-based 帧 20，引擎在 animFrame 20 冻结为忠实行为。
+- **偏离登记**：stop 冻结后原版 `renderChildren` 每 tick 照跑（子元件在冻结帧内继续动画），web 烘焙 PNG 为静态合成——属全引擎既有烘焙局限的时长放大，不处理。naruto mc_0134 走段原版 2.5 步后滑行、web 曾全标签循环（观感更好但非忠实），按用户决定忠实优先收编。
+- **门禁**：core 135 测试全过；verify-drift 六剧本剔除 mcHold 后零真实差异（结构性字段新增）；batch 冒烟探针 4/58 角色（kenshin/ulquiorra 族）真实触发且冻结跨度有界（攻击即解冻）；新增 replay 剧本 `kenshin-stopwalk`（走停/松键解冻/攻击解冻/二次冻结四覆盖，探针验证 t30 冻结@走f20）+ 7 剧本全部重冻基线；batch:validate 58+37 重冻后全过。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -293,7 +305,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 7 | 音效/特效接线 | ✅ 前半（切片 26）：isSuper 必杀相机聚焦 + bisha/bisha_super 光效 + 相机自适应缩放（autoZoom 收编）；✅ 后半·事件驱动（切片 27）：音源五路提取（bgm/se/swc/fx/语音）+ baked/audio.json + AudioSubsystem（SE/BGM/语音防重叠/KO 双段音）+ voice 事件；✅ 余项·时间轴贴帧音（切片 28）：frame-sounds SWF 解析管线 + baked/timeline-sounds.json + handleTimelineFrames 帧进入触发。块 7 收官；遗留池：嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值按需立项） | 音效随机选音源在 app 层做，不进 sim |
 | 8 | 本地双人 | 第二本地输入源 | 扩展项池，主线收尾后最后做 |
 | 9 | 进战斗加载画面 | ✅ 收官（切片 31）：LoadingScene 原版 loading_fight_mc 演出 + 装载队列分帧化 + renderer.load 分步进度 + prime() 首帧定位（修"进场黑边"）+ BattleLoadout 交接 | 原版场景链：选人 → Loading → GameStage |
-| 10 | MC 子元件采集修复 | `capAdvanceChildren` 对 MovieClip 子元件推进失效（kenshin/ulquiorra/naruto form4 走段、fire 元件 kj2mc/bsmc 类全部受害）——先实验定位机制（Flash 子播放头语义 vs `as MovieClip` 判定）再修 + 重采受影响包；走段家族重采后引擎 LOOP_LABELS 全标签回卷即得正确循环（stop 触发帧 = 循环点近似）| 批次 22 登记；render/数据层，sim 零哈希漂移 |
+| 10 | MC 子元件采集修复 | ✅ 收官（批次 32，结论推翻登记前提）：五轮诊断 AIR 运行（diag 子元件播放头追踪 + probe 逐帧质询）证明 `capAdvanceChildren` 忠实可用——kenshin 走段子元件 4 帧同图（素材本身静态）、fire 元件 kj2mc/cbsmc 类 36 帧全同（静态贴图由引擎变换驱动）；批次 21F"ghost 时间轴递归步进"假设证伪，**无需重采任何包**。走段静止真相：58 走标签 54 个 loop 触发（已收编）、4 个 stop 触发（kenshin×2/ulquiorra/naruto form4）原版语义 = 播到 stop 帧冻结滑行。真正缺口 = 引擎未消费 `stop`（target=mc，全量 150 处：胜利/失败 116、跳招 15、必杀/砍技等）——本块一并收编：fighter `mcHold` 冻结门（stop 置位 / 换标签·开新动作·触地续接·换形态解冻；同名标签重设不冲掉冻结），`stop` 行为从误映射"清速度"（那是 stopMove）改为冻结主时间轴（原版三系控制器 stop() 均只冻结）。verify-drift 归因：6 剧本剔除 mcHold 后零真实差异；batch 冒烟 4/58 角色（kenshin/ulquiorra 族）真实触发且行为有界；新增 kenshin-stopwalk 剧本 + 全部基线重冻（sim 行为变更，非登记时预期的零漂移） | 批次 22 登记；批次 32 收编；冻结帧内子元件动画（原版 renderChildren 照跑）烘焙为静态合成，属全引擎既有 PNG 烘焙局限的时长放大，登记不处理 |
 | 11 | 相机 autoZoom 视口基准 | ✅（批次 23 追补）：zoom 公式改用原版 GAME_SIZE 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 追补收编；render 层，sim 零哈希漂移 |
 | 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；余展示件：startKOmc 开场 KO 字样 / win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / picture_063 顶部装饰 / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项 | 切片 30 遗留池；render+数据层 |
 

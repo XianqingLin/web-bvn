@@ -178,13 +178,15 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.airMove = false;
     ctx.f.touchFloor = null;
   },
-  // stop / stopMove：清空位移速度（原版 stop → setVelocity(0,0)，附带清阻尼）
+  // stop：冻结主时间轴（原版 FighterMcCtrler.stop → FighterMC.stopRenderMainAnimate
+  // → _renderMainAnimate=false：播放头停住、帧脚本不再触发，物理照常；
+  // 换标签/开新动作 goFrame 解冻，见 machine.setLabel / advanceAnimation）。
+  // 偏离修正记录：曾误映射为清空位移速度——那是 stopMove（setVelocity(0,0)）
+  // 的语义；原版三系控制器（mc/attacker/assister）的 stop() 均只冻结时间轴。
   stop(ctx) {
-    ctx.f.vx = 0;
-    ctx.f.vy = 0;
-    ctx.f.dampX = 0;
-    ctx.f.dampY = 0;
+    ctx.f.mcHold = true;
   },
+  // stopMove：清空位移速度（原版 stopMove → setVelocity(0,0)，附带清阻尼）
   stopMove(ctx) {
     ctx.f.vx = 0;
     ctx.f.vy = 0;
@@ -713,6 +715,7 @@ function setLabelTo(ctx: BehaviorContext, name: string): void {
   if (ctx.f.actLabel !== name) {
     ctx.f.actLabel = name;
     ctx.f.animFrame = range.index + 1;
+    ctx.f.mcHold = false; // 换标签 = 原版 goFrame，解冻主时间轴
   }
 }
 

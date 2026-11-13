@@ -1,0 +1,26 @@
+{
+  "name": "kenshin-stopwalk",
+  "seed": 1,
+  "map": "KonohaMura",
+  "ticks": 251,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "223a3155"
+    },
+    {
+      "tick": 119,
+      "hash": "f04f2a1d"
+    },
+    {
+      "tick": 179,
+      "hash": "d16f5ae3"
+    },
+    {
+      "tick": 239,
+      "hash": "1dae3a0a"
+    }
+  ],
+  "finalHash": "b3e062c7"
+}

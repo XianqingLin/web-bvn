@@ -70,6 +70,7 @@
          // 可选 kind 过滤：Documents/bvn-atlas/capture-only.txt 存在时只采集该 kind
          //（如 "assister"），用于桥修复后的局部重采，避免全量重跑 166k 角色帧。
          var onlyKind:String = null;
+         var onlyId:String = null;
          try
          {
             var fo:File = File.documentsDirectory.resolvePath("bvn-atlas/capture-only.txt");
@@ -79,7 +80,26 @@
                sf0.open(fo,"read");
                onlyKind = sf0.readUTFBytes(sf0.bytesAvailable).replace(/[\r\n\s]/g,"");
                sf0.close();
-               capBootLog("filter kind=" + onlyKind);
+               // 过滤格式：kind | kind:id | diag:kind:id | probe:kind:id
+               // diag: = 子元件播放头追踪；probe: = 单独质询子元件各帧渲染内容
+               if(onlyKind.indexOf("diag:") == 0)
+               {
+                  _capDiag = true;
+                  onlyKind = onlyKind.substring(5);
+               }
+               if(onlyKind.indexOf("probe:") == 0)
+               {
+                  _capProbe = true;
+                  _capDiag = true; // probe 运行同时开逐帧追踪
+                  onlyKind = onlyKind.substring(6);
+               }
+               var ci:int = onlyKind.indexOf(":");
+               if(ci != -1)
+               {
+                  onlyId = onlyKind.substring(ci + 1);
+                  onlyKind = onlyKind.substring(0,ci);
+               }
+               capBootLog("filter kind=" + onlyKind + " id=" + onlyId + " diag=" + _capDiag);
             }
          }
          catch(fe:Error)
@@ -90,7 +110,10 @@
          {
             if(onlyKind == null || onlyKind == "fighter")
             {
-               _capItems.push({"kind":"fighter","id":fv.id,"url":fv.fileUrl});
+               if(onlyId == null || fv.id == onlyId)
+               {
+                  _capItems.push({"kind":"fighter","id":fv.id,"url":fv.fileUrl});
+               }
             }
          }
          var asl:* = AssisterModel.I.getAssisters();
@@ -98,7 +121,10 @@
          {
             if(onlyKind == null || onlyKind == "assister")
             {
-               _capItems.push({"kind":"assister","id":av.id,"url":av.fileUrl});
+               if(onlyId == null || av.id == onlyId)
+               {
+                  _capItems.push({"kind":"assister","id":av.id,"url":av.fileUrl});
+               }
             }
          }
          var mpl:* = MapModel.I.getAllMaps();
@@ -108,8 +134,7 @@
             {
                _capItems.push({"kind":"map","id":mv.id,"url":mv.fileUrl});
             }
-         }
-         // fire 采集（切片 13-A3）：fire/addAttacker 命名子元件逐帧栅格化。
+         }         // fire 采集（切片 13-A3）：fire/addAttacker 命名子元件逐帧栅格化。
          // 名单来自 fire-names.json（collect-fire-names.mjs 从 baked JSON 提取），
          // 元件缺失/非 MC 的记 skip 不算失败。attackers（B 步）同机制顺带覆盖。
          if(onlyKind == null || onlyKind == "fire")
@@ -135,14 +160,20 @@
                {
                   if(fnj.fighter != null && fnj.fighter[ffv.id] != null)
                   {
-                     _capItems.push({"kind":"fire","ownerKind":"fighter","id":ffv.id,"url":ffv.fileUrl,"names":fnj.fighter[ffv.id]});
+                     if(onlyId == null || ffv.id == onlyId)
+                     {
+                        _capItems.push({"kind":"fire","ownerKind":"fighter","id":ffv.id,"url":ffv.fileUrl,"names":fnj.fighter[ffv.id]});
+                     }
                   }
                }
                for each(var fav:* in asl)
                {
                   if(fnj.assister != null && fnj.assister[fav.id] != null)
                   {
-                     _capItems.push({"kind":"fire","ownerKind":"assister","id":fav.id,"url":fav.fileUrl,"names":fnj.assister[fav.id]});
+                     if(onlyId == null || fav.id == onlyId)
+                     {
+                        _capItems.push({"kind":"fire","ownerKind":"assister","id":fav.id,"url":fav.fileUrl,"names":fnj.assister[fav.id]});
+                     }
                   }
                }
             }
@@ -400,6 +431,7 @@
                {
                   inner = root.getChildByName("mc");
                }
+               _capRootFrame = r;
                var formRec:Object = {"rootFrame":r,"frames":[]};
                if(inner != null && inner is MovieClip && inner.totalFrames > 0)
                {
@@ -440,6 +472,116 @@
          capLog("captured " + item.kind + ":" + item.id + " pngs=" + pngList.length);
       }
 
+      // 诊断模式（capture-only.txt = diag:kind:id）：追踪子元件播放头行为，
+      // 定位 MovieClip 子元件推进失效机制（块 10）。每次推进前后记录：
+      // 运行时类、totalFrames、currentFrame、currentFrameLabel、实例身份
+      // （REINST = 父时间轴移动导致重实例化）、与上次 currentFrame 的跳变。
+      private var _capDiag:Boolean = false;
+      private var _capProbe:Boolean = false;
+      private var _capDiagSeen:Object;
+      private var _capDiagPrev:Object;
+      private var _capRootFrame:int = 0;
+
+      // probe：对标签扫描完的 mc，逐个多帧子元件单独质询——直接 gotoAndStop(k)
+      // 渲染其自身并哈希。若哈希随 k 变化 = 子元件各帧内容不同（采集管线问题）；
+      // 若恒同 = 符号本身静态（烘焙忠实，走段"静止"是原版语义）。
+      private function capProbeChildren(mc:MovieClip, labName:String) : void
+      {
+         for(var i:int = 0; i < mc.numChildren; i++)
+         {
+            var c1:MovieClip = mc.getChildAt(i) as MovieClip;
+            if(c1 == null || c1.totalFrames < 2)
+            {
+               continue;
+            }
+            var nm:String = c1.name;
+            if(nm != null && (nm == "AImain" || nm == "bdmn" || nm.indexOf("atm") != -1))
+            {
+               continue;
+            }
+            capProbeOne(c1,labName + "#i" + i + "_" + nm);
+         }
+      }
+
+      private function capProbeOne(c1:MovieClip, tag:String) : void
+      {
+         for(var k:int = 1; k <= c1.totalFrames; k++)
+         {
+            try
+            {
+               c1.gotoAndStop(k);
+            }
+            catch(e:Error)
+            {
+               capBootLog("probe goto ERR " + e.message);
+            }
+            var line:String = "PROBE " + tag + " k=" + k + " cf=" + c1.currentFrame + " n=" + c1.numChildren;
+            for(var j:int = 0; j < c1.numChildren; j++)
+            {
+               var ch:DisplayObject = c1.getChildAt(j);
+               line = line + (" |" + j + ":" + ch.name + ":" + getQualifiedClassName(ch));
+            }
+            var b:Rectangle = c1.getBounds(c1);
+            var w:int = Math.ceil(b.width) + 2;
+            var h:int = Math.ceil(b.height) + 2;
+            if(w > 0 && h > 0 && w <= 512 && h <= 512)
+            {
+               var bmp:BitmapData = new BitmapData(w,h,true,0);
+               try
+               {
+                  bmp.draw(c1,new Matrix(1,0,0,1,-(b.x - 1),-(b.y - 1)));
+                  capHashPair(bmp);
+                  line = line + (" h=" + _h1 + ":" + _h2 + " dim=" + w + "x" + h);
+               }
+               catch(e2:Error)
+               {
+                  line = line + (" draw ERR " + e2.message);
+               }
+               bmp.dispose();
+            }
+            capBootLog(line);
+         }
+      }
+
+      private function capDiagChildren(mc:MovieClip, tag:String, depth:int) : void
+      {
+         for(var i:int = 0; i < mc.numChildren; i++)
+         {
+            var c:DisplayObject = mc.getChildAt(i);
+            var q:String = getQualifiedClassName(c);
+            var m:MovieClip = c as MovieClip;
+            var line:String = tag + " d" + depth + " i" + i + " nm=" + c.name + " cls=" + q;
+            if(m != null)
+            {
+               line = line + (" tf=" + m.totalFrames + " cf=" + m.currentFrame + " lbl=" + m.currentFrameLabel);
+               if(depth == 1 && _capDiagSeen != null)
+               {
+                  var key:String = "i" + i + "_" + c.name;
+                  if(_capDiagSeen[key] != null && _capDiagSeen[key] != c)
+                  {
+                     line = line + " REINST";
+                  }
+                  _capDiagSeen[key] = c;
+                  if(_capDiagPrev[key] != null && _capDiagPrev[key] != m.currentFrame)
+                  {
+                     line = line + (" CFJUMP(" + _capDiagPrev[key] + ")");
+                  }
+                  _capDiagPrev[key] = m.currentFrame;
+               }
+            }
+            capBootLog(line);
+            if(depth < 2 && m != null && m.totalFrames > 1)
+            {
+               capDiagChildren(m,tag,depth + 1);
+            }
+         }
+      }
+
+      private function capDiagTag(labName:String, f:int, phase:String) : String
+      {
+         return "DG " + labName + "@" + f + " " + phase;
+      }
+
       // 逐标签镜像 FighterMC.goFrame/renderAnimate 语义采集：
       // 姿势画在子剪辑自身时间轴，引擎每 tick「主时间轴 nextFrame + 子剪辑推进 1 格」
       // （renderChildren），主时间轴关键帧只是放置载体——单纯 gotoAndStop(f) 子剪辑
@@ -465,6 +607,11 @@
             {
                d = 1;
             }
+            if(_capDiag)
+            {
+               _capDiagSeen = {};
+               _capDiagPrev = {};
+            }
             try
             {
                mc.gotoAndStop(s);
@@ -473,8 +620,20 @@
             {
                capBootLog("label goto " + item.id + " " + lab.name + " ERR: " + e.message);
             }
+            if(_capDiag)
+            {
+               capDiagChildren(mc,capDiagTag(lab.name,s,"PRE"),1);
+            }
             capAdvanceChildren(mc,skipRe);
+            if(_capDiag)
+            {
+               capDiagChildren(mc,capDiagTag(lab.name,s,"POST"),1);
+            }
             capShotFrame(item,rootRef,mc,s,seen,pngList,nextId,outFrames,skipRe);
+            if(_capDiag)
+            {
+               capBootLog(capDiagTag(lab.name,s,"PNG") + " png=" + outFrames[s - 1].png);
+            }
             for(var k:int = 1; k < d; k++)
             {
                try
@@ -485,8 +644,24 @@
                {
                   capBootLog("label next " + item.id + " " + lab.name + " ERR: " + e2.message);
                }
+               if(_capDiag)
+               {
+                  capDiagChildren(mc,capDiagTag(lab.name,s + k,"PRE"),1);
+               }
                capAdvanceChildren(mc,skipRe);
+               if(_capDiag)
+               {
+                  capDiagChildren(mc,capDiagTag(lab.name,s + k,"POST"),1);
+               }
                capShotFrame(item,rootRef,mc,s + k,seen,pngList,nextId,outFrames,skipRe);
+               if(_capDiag)
+               {
+                  capBootLog(capDiagTag(lab.name,s + k,"PNG") + " png=" + outFrames[s + k - 1].png);
+               }
+            }
+            if(_capProbe && (lab.name == "走" || lab.name == "站立"))
+            {
+               capProbeChildren(mc,item.id + ":r" + _capRootFrame + ":" + lab.name);
             }
          }
       }
@@ -762,6 +937,11 @@
             {
                rec.frames.push({"frame":f0,"png":-1});
             }
+            if(_capDiag)
+            {
+               _capDiagSeen = {};
+               _capDiagPrev = {};
+            }
             for(var f2:int = 1; f2 <= mc.totalFrames; f2++)
             {
                try
@@ -772,12 +952,24 @@
                {
                   capBootLog("fire goto " + item.id + " " + nmS + " f" + f2 + " ERR: " + e.message);
                }
+               if(_capDiag)
+               {
+                  capDiagChildren(mc,capDiagTag(nmS + "@fire" + _capRootFrame,f2,"PRE"),1);
+               }
                capAdvanceChildren(mc,fireSkipRe);
+               if(_capDiag)
+               {
+                  capDiagChildren(mc,capDiagTag(nmS + "@fire" + _capRootFrame,f2,"POST"),1);
+               }
                capShotFrame(item,mc,mc,f2,seen,pngList,function():int
                {
                   pngCount++;
                   return pngCount;
                },rec.frames,fireSkipRe);
+            }
+            if(_capProbe)
+            {
+               capProbeChildren(mc,item.id + ":fire:" + nmS);
             }
             fires[nmS] = rec;
          }
