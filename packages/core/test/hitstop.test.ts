@@ -48,7 +48,7 @@ function makeDef(defenseType = 0): FighterDef {
     const list: AreaRect[] = [{ name: 'bdmn', x: -10, y: -40, w: 20, h: 40 }];
     if (fr === 58 || fr === 59) list.push({ name: 'k1atm', x: 10, y: -40, w: 30, h: 30 });
     if (fr === 185 || fr === 186) list.push({ name: 'zh1atm', x: 10, y: -40, w: 30, h: 30 });
-    if (fr === 264 || fr === 265) list.push({ name: 'k2atm', x: 10, y: -40, w: 30, h: 30 });
+    if (fr === 270 || fr === 271) list.push({ name: 'k2atm', x: 10, y: -40, w: 30, h: 30 });
     areas[fr] = list;
   }
   return {
@@ -67,15 +67,17 @@ function makeDef(defenseType = 0): FighterDef {
     areas,
     totalFrames: 280,
     // 动作尾部收尾脚本（防时间轴顺流串入相邻标签，同 combat.test）+
-    // 砍1 第 57 帧 setAttack('砍2') 连段槽改写（type 0 用例的第二刀入口）
+    // 砍1 第 57 帧 setAttack('砍2') 连段槽改写（type 0 用例的第二刀入口）。
+    // 批次 38：受击无敌窗 ×2（4→8 tick）后 k2atm 从 264/265 移到 270/271——
+    // 原位置落在加宽后的无敌窗内（夹具边际时序，真实连段相隔约 19 帧不受影响）
     triggers: [
       { frame: 57, target: 'mc', op: 'setAttack', args: ['砍2'] },
       { frame: 69, target: 'mc', op: 'endAct', args: [] },
       { frame: 70, target: 'mc', op: 'idle', args: ['站立'] },
       { frame: 208, target: 'mc', op: 'endAct', args: [] },
       { frame: 209, target: 'mc', op: 'idle', args: ['站立'] },
-      { frame: 275, target: 'mc', op: 'endAct', args: [] },
-      { frame: 276, target: 'mc', op: 'idle', args: ['站立'] },
+      { frame: 277, target: 'mc', op: 'endAct', args: [] },
+      { frame: 278, target: 'mc', op: 'idle', args: ['站立'] },
     ],
     attackLabels: { k1: '砍1', zh1: '招1', k2: '砍2' },
   };

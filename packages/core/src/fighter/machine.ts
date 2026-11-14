@@ -60,13 +60,15 @@ const HURT_HOLD_MIN = 4;
 export const DASH_ENERGY_COST = 20;
 /** 万解气耗（原版 doWanKaiAction：useQi(300) 不允许透支） */
 export const WAN_KAI_QI = 300;
-/** 受击无敌窗（原版 HURT_GAP_FRAME=4；命中结算后短暂不可再命中） */
-export const HURT_GAP_TICKS = 4;
+/** 受击无敌窗（原版 HURT_GAP_FRAME=4，30fps 渲染帧；60Hz tick ×2=8。
+ *  修复批次 38：此前按原值 4 tick 递减（60Hz），窗口实长仅原版一半——
+ *  位移攻击（砍 3）攻击框 3 动画帧持续相交时解冻后二段命中） */
+export const HURT_GAP_TICKS = 8;
 /** 万解槽缺失时的兜底标签（原版 checkDoWankai attackingAct 参数） */
 const WAN_KAI_FALLBACK = { plain: '万解', up: '万解W', down: '万解S' } as const;
-/** 防御命中无敌窗（原版 DEFENSE_GAP_FRAME=4 tick；击飞类 8） */
-const DEFENSE_GAP_TICKS = 4;
-const DEFENSE_GAP_DOWN_TICKS = 8;
+/** 防御命中无敌窗（原版 DEFENSE_GAP_FRAME=4 渲染帧；击飞类 8；tick ×2） */
+const DEFENSE_GAP_TICKS = 8;
+const DEFENSE_GAP_DOWN_TICKS = 16;
 /** 防御削韧（原版 DEFENSE_HOLD_FRAME：hurtTime/1000×FPS/5，夹 [5,10]；击飞类 10） */
 const DEFENSE_HOLD_MIN = 5;
 const DEFENSE_HOLD_MAX = 10;

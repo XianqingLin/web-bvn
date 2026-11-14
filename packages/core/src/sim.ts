@@ -127,9 +127,10 @@ function defenseFreezeTicks(hitType: number): number {
 }
 /** 钢身耗能比例（原版 doSteelHurt useEnergy 其余系 0.4；超钢 0.2 未实现——无超钢字段） */
 const STEEL_ENERGY_RATE = 0.4;
-/** 钢身受击无敌窗（原版 STEEL_HURT_GAP_FRAME=4；击飞类 STEEL_HURT_DOWN_GAP_FRAME=10） */
-const STEEL_HURT_GAP_TICKS = 4;
-const STEEL_HURT_DOWN_GAP_TICKS = 10;
+/** 钢身受击无敌窗（原版 STEEL_HURT_GAP_FRAME=4；击飞类 STEEL_HURT_DOWN_GAP_FRAME=10；
+ *  30fps 渲染帧 → 60Hz tick ×2，修复批次 38 与 HURT_GAP_TICKS 同律） */
+const STEEL_HURT_GAP_TICKS = 8;
+const STEEL_HURT_DOWN_GAP_TICKS = 20;
 /** 防御命中击退衰减（原版 DEFENSE_DAMPING_X=1@30fps → 0.5/tick） */
 const DEFENSE_DAMP_X = 0.5;
 /** 训练模式血量回复（POC 取义） */
