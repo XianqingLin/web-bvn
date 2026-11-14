@@ -58,6 +58,8 @@ import {
   hitZonesWorld,
   HURT_GAP_TICKS,
   onLanded,
+  recoverToNormal,
+  sayIntro,
   setLabel,
   stepGhost,
   stepIntentsFor,
@@ -135,6 +137,22 @@ const STEEL_HURT_DOWN_GAP_TICKS = 20;
 const DEFENSE_DAMP_X = 0.5;
 /** 训练模式血量回复（POC 取义） */
 const TRAINING_REGEN = 2;
+
+// —— 开局特写演出（intro 切片，原版 GameStartCtrler.start1v1；hold 秒 × FPS_GAME=60） ——
+/** 特写 hold（原版 holdFrame 0.5s） */
+const INTRO_FOCUS_TICKS = 30;
+/** say→下一镜头 gap（原版 0.3s） */
+const INTRO_SAY_GAP_TICKS = 18;
+/** 演出收尾 resume hold（原版 0.1s） */
+const INTRO_RESUME_TICKS = 6;
+/**
+ * 开局字样时长（原版 startKOmc start 段）：gotoAndStop("start") 停 XFL index 9，
+ * renderStartAndKO 每 30Hz 渲染帧手动 nextFrame，78 次进入 index 87（stop+COMPLETE
+ * 帧脚本）→ 78 渲染帧 × 2 sim tick = 156。
+ */
+const INTRO_START_TICKS = 156;
+/** 字样段（step 7）：出场后不可跳（原版 _step<5 才可 skip） */
+const INTRO_STEP_START = 7;
 
 // —— 气回充（原版 FighterMain doQiAdd 系；qi 是资源量，速率不折算） ——
 /** 近战命中回气：非必杀 power×0.16，封顶 15（原版 QI_ADD_HIT_MAX） */
@@ -375,7 +393,12 @@ export class Sim {
       this.stepInputs(inputs);
       return this.stepOutput();
     }
-    if (this.state.cutinLock !== null) {
+    if (this.state.intro != null) {
+      // 开局特写演出（intro 切片，原版 actionEnable=false 冻结语义）：输入/物理/
+      // 推挤/命中/回合计时停走，角色时间轴 30Hz 推进 + 能量/辅助气回充照跑
+      // （原版 renderAnimate 无条件），say 步等 开场 播完；skip 经 Btn.back 位图。
+      this.tickIntro(inputs);
+    } else if (this.state.cutinLock !== null) {
       // 特写冻结（切片 22，原版 GameCtrler.pause 语义）：仅锁主时间轴推进，
       // 输入/物理/推挤/命中/计时/回气全部停走；endBisha/endWanKai（锁主时间轴
       // 帧触发）解锁后下一 tick 恢复正常管线。
@@ -451,6 +474,102 @@ export class Sim {
       this.stepAttackerAnim();
     }
     this.stepMatchFlow();
+  }
+
+  /**
+   * 开局特写 tick（intro 切片，原版 GameCtrler actionEnable=false 冻结 +
+   * GameStartCtrler.renderStart1v1 状态机）：输入采样照常（批次 35 教训）、
+   * 回气照跑（原版冻结期 renderAnimate 无条件）、角色时间轴 30Hz 推进；
+   * 物理/推挤/命中/回合计时停走（原版 renderGameTime 被 actionEnable 门控）。
+   */
+  private tickIntro(inputs: InputFrame): void {
+    if (this.state.tick === 0) {
+      this.emit('round:start', { round: this.state.match.round });
+    }
+    this.stepInputs(inputs);
+    const intro = this.state.intro!;
+    // 跳过（原版 GameCtrler.renderPause 的 GameInputer.back(1)：back/MENU
+    // just-down；字样出场前才可跳——skip 即恢复 actionEnable 正常管线）。
+    // 经输入位图进 sim，lockstep 两端同步跳。训练模式无 intro 不走此路径。
+    if (intro.step < INTRO_STEP_START && this.views.some((v) => v.justDown(Btn.back))) {
+      this.endIntro();
+    }
+    if (this.state.intro == null) {
+      // skip tick：恢复正常管线（与本 tick 的 tick() 主路径同序）
+      this.stepIntents();
+      this.stepPhysics();
+      this.stepPush();
+      if (this.state.tick % 2 === 0) {
+        this.stepAnimation();
+        this.stepHitResolution();
+        this.stepBulletAnim();
+        this.stepAttackerAnim();
+      }
+      this.state.match.roundFrame += 1;
+      return;
+    }
+    // 回气照跑（原版冻结期 renderAnimate 无条件：能量/辅助气回充、buff 计时）
+    for (const f of this.state.fighters) this.stepFighterFlow(f);
+    // 角色时间轴 30Hz 推进（原版 renderAnimate 无条件；开场 的语音贴帧音/
+    // 收招/回位触发在此到来）
+    if (this.state.tick % 2 === 0) {
+      this.stepAnimation();
+    }
+    this.stepIntroAdvance();
+  }
+
+  /** 开局演出状态机步进（原版 renderStart1v1 case 0-6 + showStart）。
+   *  say 步不占 hold：等 开场 播完（actionState 离开 INTRO_ING 或离开
+   *  开场 标签——endAct/idle/播尽 endAction 任一路径）。 */
+  private stepIntroAdvance(): void {
+    const intro = this.state.intro;
+    if (intro == null) return;
+    const f1 = this.state.fighters[0]!;
+    const f2 = this.state.fighters[1] ?? null;
+    if (intro.step === 1 || intro.step === 4) {
+      const f = intro.step === 1 ? f1 : f2;
+      if (f !== null && f.actionState === ActionState.INTRO_ING && f.actLabel === '开场') {
+        return; // 仍在播
+      }
+      intro.step += 1;
+      return;
+    }
+    if (intro.step === INTRO_STEP_START) {
+      intro.hold += 1;
+      if (intro.hold >= INTRO_START_TICKS) this.endIntro();
+      return;
+    }
+    if (intro.hold < this.introHoldTicks(intro.step)) {
+      intro.hold += 1;
+      return;
+    }
+    // 步进 + say 步进入副作用（缺 开场 标签 = 跳过该步——原版此情形软锁，偏离）
+    intro.hold = 0;
+    intro.step += 1;
+    if (intro.step === 1 || intro.step === 4) {
+      const f = intro.step === 1 ? f1 : f2;
+      if (f === null || !sayIntro(f, this.defOf(f))) intro.step += 1;
+    }
+  }
+
+  /** 各步 hold 时长（say 步 0 = 纯等待）。 */
+  private introHoldTicks(step: number): number {
+    if (step === 0 || step === 3) return INTRO_FOCUS_TICKS;
+    if (step === 2 || step === 5) return INTRO_SAY_GAP_TICKS;
+    if (step === 6) return INTRO_RESUME_TICKS;
+    return 0;
+  }
+
+  /** 演出结束/跳过收尾（原版 skip/startNextRound 的双方 idle()）：
+   *  INTRO_ING 残留保护性清除（防软锁，批次 18 教训）+ 双方回位。 */
+  private endIntro(): void {
+    for (const f of this.state.fighters) {
+      const def = this.defOf(f);
+      if (f.actionState === ActionState.INTRO_ING) f.actionState = ActionState.NORMAL;
+      recoverToNormal(f, def);
+    }
+    // 字段卸下（undefined；JSON 序列化省略——见 SimState.intro 注）
+    this.state.intro = undefined;
   }
 
   private emit(type: string, payload: Record<string, unknown>): void {
@@ -2144,44 +2263,46 @@ export class Sim {
     if (this.state.tick === 0) {
       this.emit('round:start', { round: this.state.match.round });
     }
-    const { fighters } = this.state;
-    for (let i = 0; i < fighters.length; i++) {
-      const f = fighters[i]!;
-      // 防御命中无敌窗（原版 renderBeHitGap：计满恢复可被命中）
-      if (f.beHitGap > 0) {
-        f.beHitGap -= 1;
-        if (f.beHitGap === 0 && f.actionState !== ActionState.DASH_ING) {
-          f.isAllowBeHit = true;
-        }
-      }
-      // 能量回充（原版 renderEnergy：速率 ×SPEED_PLUS）
-      if (f.energyGap > 0) {
-        f.energyGap -= 1;
-      } else if (f.energy < ENERGY_MAX) {
-        if (f.energyOverload) {
-          f.energy = Math.min(ENERGY_MAX, f.energy + ENERGY_ADD_OVERLOAD);
-          if (f.energy > 30) f.energyOverload = false;
-        } else if (f.actionState === ActionState.DEFENCE_ING) {
-          f.energy += ENERGY_ADD_DEFENSE;
-        } else if (isAttackingState(f.actionState)) {
-          f.energy += ENERGY_ADD_ATTACKING;
-        } else {
-          f.energy += ENERGY_ADD_NORMAL;
-        }
-        if (f.energy > ENERGY_MAX) f.energy = ENERGY_MAX;
-      }
-      // 训练模式：血量恒定回复（2/tick，瞬回 MAX 的 1/15 秒级体感）
-      if (this.training && f.hp > 0 && f.hp < DEFAULT_HP) {
-        f.hp = Math.min(DEFAULT_HP, f.hp + TRAINING_REGEN);
-      }
-      // 辅助气回充（原版 FUZHU_QU_ADD_PERFRAME，无条件；满值封顶）
-      if (f.fzqi < FZQI_MAX) {
-        f.fzqi = Math.min(FZQI_MAX, f.fzqi + FZQI_ADD_PERFRAME);
-      }
-      // 增益 buff 计时（原版 FighterBuffVO render 递减；计满移除恢复基础值）
-      tickBuffs(f);
-    }
+    for (const f of this.state.fighters) this.stepFighterFlow(f);
     this.state.match.roundFrame += 1;
+  }
+
+  /** 单角色流程步（stepMatchFlow/tickIntro 共享；intro 冻结期照跑 =
+   *  原版 renderAnimate 无条件 renderEnergy/renderFzQi 语义）。 */
+  private stepFighterFlow(f: FighterState): void {
+    // 防御命中无敌窗（原版 renderBeHitGap：计满恢复可被命中）
+    if (f.beHitGap > 0) {
+      f.beHitGap -= 1;
+      if (f.beHitGap === 0 && f.actionState !== ActionState.DASH_ING) {
+        f.isAllowBeHit = true;
+      }
+    }
+    // 能量回充（原版 renderEnergy：速率 ×SPEED_PLUS）
+    if (f.energyGap > 0) {
+      f.energyGap -= 1;
+    } else if (f.energy < ENERGY_MAX) {
+      if (f.energyOverload) {
+        f.energy = Math.min(ENERGY_MAX, f.energy + ENERGY_ADD_OVERLOAD);
+        if (f.energy > 30) f.energyOverload = false;
+      } else if (f.actionState === ActionState.DEFENCE_ING) {
+        f.energy += ENERGY_ADD_DEFENSE;
+      } else if (isAttackingState(f.actionState)) {
+        f.energy += ENERGY_ADD_ATTACKING;
+      } else {
+        f.energy += ENERGY_ADD_NORMAL;
+      }
+      if (f.energy > ENERGY_MAX) f.energy = ENERGY_MAX;
+    }
+    // 训练模式：血量恒定回复（2/tick，瞬回 MAX 的 1/15 秒级体感）
+    if (this.training && f.hp > 0 && f.hp < DEFAULT_HP) {
+      f.hp = Math.min(DEFAULT_HP, f.hp + TRAINING_REGEN);
+    }
+    // 辅助气回充（原版 FUZHU_QU_ADD_PERFRAME，无条件；满值封顶）
+    if (f.fzqi < FZQI_MAX) {
+      f.fzqi = Math.min(FZQI_MAX, f.fzqi + FZQI_ADD_PERFRAME);
+    }
+    // 增益 buff 计时（原版 FighterBuffVO render 递减；计满移除恢复基础值）
+    tickBuffs(f);
   }
 
   // 8. 输出：快照 + 表现事件队列 + 状态哈希

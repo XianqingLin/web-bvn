@@ -24,8 +24,10 @@
  *     该重叠随中线外移变成空隙 → 血条横向拉伸每侧补 (visW-800)/2（原版位形
  *     scale 恒 1；横线条纹理拉伸不可感知，与切人横幅/bgFixed 同款适配）。
  *
- * 遗留（未收编，登记 PROGRESS 遗留池）：startKOmc 开局/结算演出、win 胜利星
- * （p1Wins/p2Wins 恒 0 不显示）、scoremc、被动条 sp、回合数字 shape_007。
+ * 遗留（未收编，登记 PROGRESS 遗留池）：startKOmc 结算段（KO/timeover/winner/
+ * drawgame——回合结算流程未接）、win 胜利星（p1Wins/p2Wins 恒 0 不显示）、
+ * scoremc、被动条 sp、回合数字 shape_007。开局段（start+fight）已收编（intro
+ * 切片：core 冻结期快照驱动，intro.step===7 期间 30Hz 流帧）。
  */
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
@@ -98,6 +100,9 @@ export interface HudData {
   };
   winAnim: { frames: number; bleach: [number, number]; naruto: [number, number]; fps: number };
   readyAnim: { frames: number; fps: number };
+  /** 开局字样（startKOmc start+fight 段；canvasOrigin = PNG(0,0) 的 mc_043 局部
+   *  坐标，pos = ui_fight 舞台摆放点——烘焙时已换算，见 hud-pack.mjs） */
+  startKO: { frames: number; fps: number; canvasOrigin: [number, number]; pos: [number, number] };
 }
 
 /** HUD 单侧角色装配（app 按选人结果组装；slot 1/2） */
@@ -197,6 +202,8 @@ export class FightHud {
   private pinned: { c: Container; x: number; y: number; mx: PinX; my: PinY }[] = [];
   /** 血条单元（宽屏延伸拉伸；relayout 重设 scale.x，P2 为负值镜像） */
   private hpBars: { p1: Container; p2: Container } | null = null;
+  /** 开局字样（startKOmc；intro 切片，updateStartKO 驱动） */
+  private startKO: Sprite | null = null;
   private viewW = 1000;
   private viewH = 600;
   private fitZoom = 1;
@@ -305,6 +312,18 @@ export class FightHud {
     add(qi2, d.qi.p2Origin[0], d.qi.p2Origin[1], 'right', 'bottom');
     add(hits1, d.hits.p1[0], d.hits.p1[1], 'left', 'top');
     add(hits2, d.hits.p2[0], d.hits.p2[1], 'right', 'top');
+
+    // —— 开局字样（startKOmc start+fight 段；intro 切片）——
+    // PNG(0,0) = mc_043 画布原点 (13,103)，烘焙时已换算成 ui_fight 舞台摆放点
+    //（startKOmc@(0,0) + showStart y=-50 + 原点 → (13,53)）。原版 showStart
+    // gotoAndStop("start") 显首帧，renderStartAndKO 手动 nextFrame 流帧。
+    if (this.frames.has('startko')) {
+      const ko = this.frameSprite('startko', 0);
+      ko.visible = false;
+      this.root.addChild(ko);
+      this.pinned.push({ c: ko, x: d.startKO.pos[0], y: d.startKO.pos[1], mx: 'left', my: 'top' });
+      this.startKO = ko;
+    }
 
     this.relayout();
   }
@@ -624,6 +643,24 @@ export class FightHud {
     const f2 = fs.find((f) => f.id === 2);
     if (f1) this.updateSide(this.sides[1]!, f1, f2 ?? f1, dtMs);
     if (f2) this.updateSide(this.sides[2]!, f2, f1 ?? f2, dtMs);
+    this.updateStartKO(snap);
+  }
+
+  /** 开局字样（intro 切片，原版 FightUI.showStart/renderStartAndKO）：
+   *  intro step 7 期间快照驱动流帧（hold 每 2 sim tick 一帧 = 30Hz）；intro
+   *  结束/跳过 = clearStartAndKO 隐藏（原版 COMPLETE → clearStartAndKO）。 */
+  private updateStartKO(snap: SimSnapshot): void {
+    const sp = this.startKO;
+    if (!sp) return;
+    const intro = snap.state.intro;
+    if (intro == null || intro.step !== 7) {
+      sp.visible = false;
+      return;
+    }
+    sp.visible = true;
+    sp.texture =
+      this.frame('startko', Math.min(Math.floor(intro.hold / 2), this.data.startKO.frames - 1)) ??
+      sp.texture;
   }
 
   /** f = 本侧角色；target = 对面角色（连击隐藏按目标状态判定）。 */

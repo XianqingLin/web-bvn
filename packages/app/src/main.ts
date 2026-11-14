@@ -3,7 +3,8 @@
  *
  * 默认进 开场徽标（LogoScene）→ 主菜单（单机训练 / 联机对战全 UI 流）；
  * dev 直通参数保留（headless 驱动/快速调试用，跳过开场徽标）：
- *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura）
+ *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura；
+ *                                       &intro=1 附带开局特写演出，intro 冒烟用）
  *   ?mode=net&action=create|join&room=&server=&role=p2
  *                                       自动入房 → 选人页自动确认默认选人
  *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）

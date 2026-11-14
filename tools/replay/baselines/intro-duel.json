@@ -1,0 +1,46 @@
+{
+  "name": "intro-duel",
+  "seed": 1,
+  "map": "KonohaMura",
+  "ticks": 598,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "faabe5ce"
+    },
+    {
+      "tick": 119,
+      "hash": "007b0588"
+    },
+    {
+      "tick": 179,
+      "hash": "6f1430eb"
+    },
+    {
+      "tick": 239,
+      "hash": "969ff95a"
+    },
+    {
+      "tick": 299,
+      "hash": "fd874e02"
+    },
+    {
+      "tick": 359,
+      "hash": "5c772a05"
+    },
+    {
+      "tick": 419,
+      "hash": "4011cbdb"
+    },
+    {
+      "tick": 479,
+      "hash": "772ce1bd"
+    },
+    {
+      "tick": 539,
+      "hash": "9756b502"
+    }
+  ],
+  "finalHash": "bb33eced"
+}

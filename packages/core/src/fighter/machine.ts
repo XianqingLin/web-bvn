@@ -236,7 +236,25 @@ export function endActAction(f: FighterState, def: FighterDef | null): void {
   f.hurtAction = null;
   f.hitTarget = null;
   f.hitTargetChecker = null;
+  // 开场语音门（intro 切片，原版 endAct 置 FREEZE(40)≠60 使 GameStartCtrler
+  // 的等待通过）：INTRO_ING 期间的 endAct = 开场收招信号，回 NORMAL。
+  // 其余状态保持现状（原版语义：endAct 不动播放头/不改攻击态）。
+  if (f.actionState === ActionState.INTRO_ING) f.actionState = ActionState.NORMAL;
   void def;
+}
+
+/**
+ * 开场语音动作（原版 FighterMcCtrler.sayIntro，intro 切片）：
+ * 置 INTRO_ING 门 + 播 开场 标签；等待门由 intro 步进消费（actionState 离开
+ * INTRO_ING 或离开 开场 标签 = 播完——endAct/idle/播尽 endAction 任一路径）。
+ * @returns false = 缺 开场 标签，调用方跳过该步（原版此情形软锁，有意识偏离）
+ */
+export function sayIntro(f: FighterState, def: FighterDef | null): boolean {
+  const range = def?.labels['开场'];
+  if (!range) return false;
+  f.actionState = ActionState.INTRO_ING;
+  setLabel(f, def, '开场');
+  return true;
 }
 
 /**

@@ -11,7 +11,7 @@
  *
  * 坐标规格来源：XFL 工程 swf_source/embed/fight（重建版源码，坐标=像素）：
  *   - ui_fight(mc_044) 顶层：hpbarmc@(400,45.6)、fzqi1@(48,534.1)、fzqi2@(749,534.1,a=-1)、
- *     hits1@(62.15,121.95)、hits2@(662.15,121.95)、startKOmc@(0,0 未收编)；
+ *     hits1@(62.15,121.95)、hits2@(662.15,121.95)、startKOmc@(0,0)（开局段已收编，intro 切片）；
  *   - 血条填充 bar/redbar 内容 x[-260,0]（锚点右端，scaleX 从右往左缩）；
  *   - 气条三段 bar1..3 139/139/140×12 同位叠放（scaleX 按 qi 等级），bar4=满气动画帧 1；
  *   - 能量条填充 123×5 锚点右端；fzqi 辅助格 64×45 scrollRect 底部向上填充。
@@ -187,6 +187,25 @@ await put('hits-label', join(spriteDir(52, 'HITS 字'), '1.png'));
 await putFrames('num', spriteDir(22, '连击数字'), 10, 10);
 // 胜利星 sprite 157 (40帧；in_bleach 10..29 / in_naruto 30..40)
 await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
+// 开局字样（startKOmc = mc_043，sprite 228，画布 663×466）：XFL 帧标签
+// stop@0 dur9 / start@9 dur45 / fight@54 dur33 / stop@87 dur7 / go:fight@139 / ko@144 /
+// winner@199 / timeover@219 / drawgame@266。本切片只收编开局段 = start+fight
+// （XFL 帧 9..87 = FFDec PNG 10..88，79 帧；renderStartAndKO 每 30Hz tick 手动
+// nextFrame，78 步走完 → COMPLETE）。KO/timeover/winner/drawgame 结算段遗留。
+// PNG(0,0) = 画布原点 mc(13,103)（像素取证：帧 36-53 静态 scale-1 nummc 实例 +
+// 6098px 数字 blob 恒等解出）；摆放 = ui_fight.startKOmc@(0,0) + showStart y=-50
+// → PNG(0,0) 落 ui_fight (13,53)。嵌套 nummc（Round 计数）已烘进各帧位图。
+{
+  const dir = spriteDir(228, 'startKOmc 字样');
+  const files = readdirSync(dir).filter((f) => f.endsWith('.png'));
+  if (files.length !== 317) throw new Error(`startKOmc 帧数变化：${files.length} ≠ 317（规格须同步更新）`);
+  const STARTKO_FRAMES = 79;
+  mkdirSync(join(OUT_ASSETS, 'startko'), { recursive: true });
+  for (let i = 0; i < STARTKO_FRAMES; i++) {
+    copyFileSync(join(dir, `${i + 10}.png`), join(OUT_ASSETS, 'startko', `${i + 1}.png`));
+  }
+  el['startko'] = 'ui/hud/startko';
+}
 
 // ---------- 3. baked/hud.json ----------
 const doc = {
@@ -257,6 +276,10 @@ const doc = {
   winAnim: { frames: 40, bleach: [10, 29], naruto: [30, 40], fps: 30 },
   /** READY 闪字：20 帧 @30fps 循环（f1-13 显 / f14-19 空） */
   readyAnim: { frames: 20, fps: 30 },
+  /** 开局字样（startKOmc start+fight 段）：79 帧 @30fps（core 冻结期 30Hz 步进，
+   * 78 步走完 → 156 sim ticks）；canvasOrigin = PNG(0,0) 在 mc_043 局部坐标；
+   * pos = ui_fight 舞台摆放点（startKOmc@(0,0) + showStart y=-50 + 原点换算） */
+  startKO: { frames: 79, fps: 30, canvasOrigin: [13, 103], pos: [13, 53] },
 };
 
 mkdirSync(dirname(OUT_BAKED), { recursive: true });

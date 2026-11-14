@@ -98,5 +98,8 @@ export function createReplaySim(script) {
       },
     ],
     ...(hasAssist ? { assistants } : {}),
+    // 开局特写演出（intro 切片）：剧本顶层 "intro": true 开启；缺省 false
+    // 保证既有剧本零漂移
+    ...(script.intro ? { intro: true } : {}),
   });
 }

@@ -41,6 +41,7 @@ const KEYMAP_P1: Record<string, number> = {
   KeyU: Btn.skill,
   KeyI: Btn.superSkill,
   KeyO: Btn.assist,
+  Escape: Btn.back,
 };
 const KEYMAP_P2: Record<string, number> = {
   ArrowUp: Btn.up,
@@ -50,6 +51,7 @@ const KEYMAP_P2: Record<string, number> = {
   Digit1: Btn.attack,
   Digit2: Btn.jump,
   Digit3: Btn.dash,
+  Escape: Btn.back,
 };
 
 function maskFor(keys: Set<string>, map: Record<string, number>): ButtonMask {
@@ -96,6 +98,8 @@ export class BattleScene implements Scene {
   private acc = 0;
   private last = 0;
   private simTick = 0;
+  /** 开局演出活跃（最新快照 intro ≠ null；ESC 跳过/返回菜单分流） */
+  private introActive = false;
   private stalledSince = -1;
   private peerLostFlag = false;
   private keys = new Set<string>();
@@ -145,9 +149,11 @@ export class BattleScene implements Scene {
     }
 
     // —— 键盘 ——
+    // ESC 双语义：开局演出期间 = 跳过演出（Btn.back 进 sim 位图，lockstep 同步）；
+    // 演出外 = 返回菜单。introActive 由快照驱动（update 循环刷新）。
     const onKeyDown = (e: KeyboardEvent) => {
       this.keys.add(e.code);
-      if (e.code === 'Escape') this.leave();
+      if (e.code === 'Escape' && !this.introActive) this.leave();
     };
     const onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
     window.addEventListener('keydown', onKeyDown);
@@ -186,7 +192,8 @@ export class BattleScene implements Scene {
     this.spawnSim(true);
   }
 
-  /** sim 装配：选人 → 双角色 + 双辅助注册表（solo 双方同配）。 */
+  /** sim 装配：选人 → 双角色 + 双辅助注册表（solo 双方同配）。
+   *  intro：非训练模式带开局特写演出（原版 TRAINING 无开场语义，intro 切片）。 */
   private spawnSim(training: boolean): void {
     const rig = this.loadout.rig;
     const { p1, p2 } = picksOf(this.flow);
@@ -195,6 +202,9 @@ export class BattleScene implements Scene {
       seed: 1,
       stage: st,
       training,
+      // intro：非训练模式带开局特写演出（原版 TRAINING 无开场语义，intro 切片）；
+      // dev 直通 &intro=1 训练局也带演出（冒烟/目检用，正式入口不传）
+      intro: !training || new URLSearchParams(location.search).has('intro'),
       fighters: [
         {
           id: 1,
@@ -269,6 +279,7 @@ export class BattleScene implements Scene {
         snap = this.sim.tick(f);
       }
       this.renderer.onSnapshot(snap);
+      this.introActive = snap.state.intro != null;
       this.audio?.handleSimEvents(snap.events, this.audioBinding);
       this.audio?.handleTimelineFrames(snap, this.timelineBinding);
       this.simTick++;

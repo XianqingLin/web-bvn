@@ -246,7 +246,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **原版算法逐条收编**（AS3 FighterHpBar/QiBar/InsFzBar/EnergyBar/ActionState 语义）：绿条 scaleX=rate 直挂；**红条延迟**——HURT_ING/HURT_FLYING 置 delay=100、HURT_DOWN 首帧 90+justHurtFly 递减、差值 lerp（0.1/0.02 两档）+ 新伤害瞬间 snap；**气条** v=qi/100 clamp 3、4 段亮法 + 幽灵步标识（v<1 显、帧随 0.6 阈值）+ 段数 txt；**fzqi 条** scrollRect 底锚翻转揭示（Pixi Graphics mask 复刻 scale.y=-1）；**能量条** scaleX=energy/100 + 溢出满帧粘滞 + rate<0.3 每 3 渲染帧闪烁；**连击数** hit:connect 事件计数、>1 才显示、目标回位/倒地隐藏（位图数字左起 35px 步进）。
 - **app 接线**：`loadHud`（baked/hud.json）+ 大脸 = select id+'_m'（102×64，getFighterFaceBar 语义）+ 辅助脸 = 辅助 id 50×50（getFighterFace 缺省尺寸语义）+ 能量标签帧 = comicType（0=死神 SPIRITUAL / 1=火影）。
 - **偏离登记**：① 连击计数 = render 侧按 hit:connect + 目标 actionState 近似（原版 FighterEventCtrler.addHits 精确链不进 sim）；② fadin/fadout 进出场 tween 跳过，改 ~0.4s alpha 渐显；③ 能量条闪烁 = alpha 闪烁近似原版 fill 帧 1/2 交替；④ fzqi 满点闪烁点 = fzqi==满 近似原版 isCanHurtBreak；⑤ 计时恒 ∞（无回合时限语义）。
-- **遗留池（§4.3 块 12 登记）**：startKOmc 开场 KO 字样、win 胜场星（p1Wins/p2Wins 恒 0）、scoremc 计分板、被动条 sp、shape_007 圆底数字"2"（回合指示）——均为无对应语义的展示件，按需另立项。（picture_063 顶部装饰已由批次 36 补烘收编）
+- **遗留池（§4.3 块 12 登记）**：~~startKOmc 开场 KO 字样~~ → 开局段（start+fight）已收编（切片 32，intro 演出）；KO/timeover/winner/drawgame 结算段随回合结算流程另立项。余：win 胜场星（p1Wins/p2Wins 恒 0）、scoremc 计分板、被动条 sp、shape_007 圆底数字"2"（回合指示）——均为无对应语义的展示件，按需另立项。（picture_063 顶部装饰已由批次 36 补烘收编）
 - **门禁**：build / core 186 / replay 6 剧本零漂移（纯 render+app 层零哈希影响）/ batch:validate 58+37 全过；有头 Edge Playwright 目检（初始态/近身连击/瞬步耗能）全过——qi 命中回气 25.6、瞬步能量 100→72→63、"3 HITS" 连击计数显示实证。headless rAF 节流致 sim 仅 ~3 tick/s，战斗态目检须有头驱动（`keyboard.press` 边沿陷阱同前：down/up 显式按住 60ms+）。
 
 ### 切片 31——进战斗加载画面（✅ 2026-11-13）
@@ -332,6 +332,17 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 
 - **3.6 对照检查结论（版本差异，不改）**：①血条 HP 数字"2000"——3.x 代码（FighterHpBar）与 fight XFL（mc_040 无文本域）均无 HP 数字，原版数值线 `hpMax=1000×fighterHP×难度`（GameLogic.as:342），数字显示系 3.6 新增 HUD 特性，按需另立项（纯显示层，hp 值现成）；②蓝条贴计时板——已按上述修复（非版本差异，是宽屏适配缺口）；③贴合处 ui 件——hp-deco 装饰条 + shape_007 计时板侧翼件均已收编在位；④援助 READY 闪烁——3.x 原版即有（QiBar `_fzReadyMc.mc.play()`），切片 30 已实现（ready-anim 20 帧 @30fps 循环），行为正确。
 
+### 切片 32——开局特写+语音演出（intro，✅ 2026-11-14）
+
+用户确认原版第一回合开打前有"特写+语音"演出（GameStartCtrler.start1v1），按原版收编。机制规格见 DESIGN §3.5/§5（intro 状态机 8 步：特写P1→语音P1→gap→特写P2→语音P2→gap→resume→字样；冻结语义 = actionEnable=false——时间轴 30Hz/回气照跑，物理/命中/计时停走；skip = Btn.back just-down 仅字样前可跳）。
+
+- **core**：`Btn.back`（1<<10，元层键不进缓冲器——ALL_BUTTONS 维度即 buffer 维度，加位会漂全量哈希）+ `SimConfig.intro?`（缺省 false = 原版 TRAINING 无开场）+ `SimState.intro?`（undefined 时字段不落键——stableStringify/pruneEmpty 双双省略，**既有基线零重冻**）+ `INTRO_ING(60)` + `sayIntro`/`tickIntro`/`stepIntroAdvance`/`endIntro` + `stepFighterFlow` 从 stepMatchFlow 提取共享（回气照跑 = 原版 renderAnimate 无条件语义）+ endActAction 补 INTRO_ING 放行（对齐原版 endAct 置 FREEZE≠60）。
+- **素材**：hud-pack 扩展烘焙 startKOmc（sprite 228）start+fight 段 79 帧（startko/1..79.png，663×466）；画布原点 (13,103) 像素取证 + 摆放 (13,53) 换算登记进 baked/hud.json `startKO` 规格。
+- **render**：renderer `updateIntro`（updateCutin 后覆写 camFocus，step 0-2→P1 / 3-5→P2，zoom 3.5）；hud `startko` 字样件（step 7 期间快照驱动 30Hz 流帧，intro 结束/跳过即隐藏）。
+- **app**：battle.ts `intro: !training`（solo=训练无 intro，net 有——原版 TRAINING(40) 语义）+ Escape 双语义（intro 期 = Btn.back 跳过经位图进 sim，lockstep 同步；其余 = 返回菜单）。
+- **偏离登记**：缺 开场 标签跳过 say 步（原版软锁）；字样仅收编 start+fight 段（KO/timeover/winner/drawgame 结算段随回合结算流程另立项）；语音无独立事件——开场动画贴帧音经切片 28 管线自动出声。
+- **门禁**：build 过；core 149 单测全过（新增 intro.test 7 用例：全序列时序/冻结物理/缺开场跳 say/skip 字样前可跳/字样段不可跳/缺省零漂移）；replay 8 剧本零漂移全过（intro-duel 新剧本 + 基线冻结，598 ticks）；batch:validate 58+37 全过（曾因 intro:null/ALL_BUTTONS 加位漂全量哈希，改 undefined-缺省字段 + back 不进缓冲器归零，免重冻）；无新表现事件（快照驱动，事件表零登记）。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
@@ -367,7 +378,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 9 | 进战斗加载画面 | ✅ 收官（切片 31）：LoadingScene 原版 loading_fight_mc 演出 + 装载队列分帧化 + renderer.load 分步进度 + prime() 首帧定位（修"进场黑边"）+ BattleLoadout 交接 | 原版场景链：选人 → Loading → GameStage |
 | 10 | MC 子元件采集修复 | ✅ 收官（批次 32，结论推翻登记前提）：五轮诊断 AIR 运行（diag 子元件播放头追踪 + probe 逐帧质询）证明 `capAdvanceChildren` 忠实可用——kenshin 走段子元件 4 帧同图（素材本身静态）、fire 元件 kj2mc/cbsmc 类 36 帧全同（静态贴图由引擎变换驱动）；批次 21F"ghost 时间轴递归步进"假设证伪，**无需重采任何包**。走段静止真相：58 走标签 54 个 loop 触发（已收编）、4 个 stop 触发（kenshin×2/ulquiorra/naruto form4）原版语义 = 播到 stop 帧冻结滑行。真正缺口 = 引擎未消费 `stop`（target=mc，全量 150 处：胜利/失败 116、跳招 15、必杀/砍技等）——本块一并收编：fighter `mcHold` 冻结门（stop 置位 / 换标签·开新动作·触地续接·换形态解冻；同名标签重设不冲掉冻结），`stop` 行为从误映射"清速度"（那是 stopMove）改为冻结主时间轴（原版三系控制器 stop() 均只冻结）。verify-drift 归因：6 剧本剔除 mcHold 后零真实差异；batch 冒烟 4/58 角色（kenshin/ulquiorra 族）真实触发且行为有界；新增 kenshin-stopwalk 剧本 + 全部基线重冻（sim 行为变更，非登记时预期的零漂移） | 批次 22 登记；批次 32 收编；冻结帧内子元件动画（原版 renderChildren 照跑）烘焙为静态合成，属全引擎既有 PNG 烘焙局限的时长放大，登记不处理 |
 | 11 | 相机 autoZoom 视口基准 | ✅（批次 23 追补）：zoom 公式改用原版 GAME_SIZE 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 追补收编；render 层，sim 零哈希漂移 |
-| 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；picture_063 顶部装饰已补烘（批次 36）；能量条宽屏延伸已补（批次 37 附）；余展示件：startKOmc 开场 KO 字样 / win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项；另：3.6 版血条 HP 数字显示（3.x 无此件，版本差异）可作纯显示层增强按需立项 | 切片 30 遗留池；render+数据层 |
+| 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；picture_063 顶部装饰已补烘（批次 36）；能量条宽屏延伸已补（批次 37 附）；startKOmc 开局字样已收编（切片 32 intro 演出，KO/timeover/winner/drawgame 结算段随回合结算流程另立项）；余展示件：win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项；另：3.6 版血条 HP 数字显示（3.x 无此件，版本差异）可作纯显示层增强按需立项 | 切片 30 遗留池；render+数据层 |
 
 ---
 
@@ -375,4 +386,4 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 
 1. **真机体验验证**（§4.1）——云服务器已部署（wss 冒烟通过）+ 切片 14/15/16 菜单/联机/选人 UI 已通，公网两端完整对局人工验收条件已齐（入口 `?mode=net&action=create&server=wss://120.48.185.202/`，页面上点选即可）；
 2. **阶段 3 尾巴已收编完毕**（切片 21 收编 B1、切片 22 收编 B2、切片 23 收编 B5、切片 24 收编 B3、切片 25 收编 B4；余项仅 suigetsu isAttacking——唯一读者 AI，随 §4.3 块 6 一并处理）；
-3. **§4.3 块 7（音效/特效）已收官**（切片 26/27/28）；阶段 4 余块按 §4.3 表顺序推进（下一块：断线处理 / 街机模式，开工前细化为切片并登记进 §二 明细表）。
+3. **§4.3 块 7（音效/特效）已收官**（切片 26/27/28）；开局特写+语音演出已收编（切片 32）；阶段 4 余块按 §4.3 表顺序推进（下一块：断线处理 / 街机模式，开工前细化为切片并登记进 §二 明细表）。

@@ -1,0 +1,17 @@
+{
+  "name": "intro-duel",
+  "map": "KonohaMura",
+  "seed": 1,
+  "intro": true,
+  "_comment": "intro 切片基线剧本：开局特写+语音演出（原版 GameStartCtrler.start1v1）。位定义：left=4 right=8 attack=16 jump=32 back=1024（skip）。前 400 tick 为演出冻结期（ichigo 开场标签播完后进入字样段，≈340 tick 结束）——演出期输入无行为副作用（冻结），只锚定回气/时序哈希。",
+  "fighters": [{ "pkg": "ichigo" }, { "pkg": "ichigo" }],
+  "program": [
+    { "frames": 400, "p1": 0, "p2": 0 },
+    { "frames": 45, "p1": 8, "p2": 4 },
+    { "frames": 1, "p1": 16, "p2": 0 },
+    { "frames": 60, "p1": 0, "p2": 0 },
+    { "frames": 1, "p1": 1024, "p2": 0 },
+    { "frames": 1, "p1": 0, "p2": 0 },
+    { "frames": 90, "p1": 8, "p2": 4 }
+  ]
+}

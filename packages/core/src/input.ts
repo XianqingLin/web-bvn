@@ -24,11 +24,18 @@ export const Btn = {
   superSkill: 1 << 8,
   /** 辅助键（阶段后续接线） */
   assist: 1 << 9,
+  /** 返回/菜单键（原版 GameInputer.back；开局演出跳过用，切片 intro） */
+  back: 1 << 10,
 } as const;
 
 export type ButtonMask = number;
 
-export const ALL_BUTTONS: readonly number[] = Object.values(Btn);
+/**
+ * 可缓冲按键集 = Btn 去除 back。back 是元层键（原版 GameInputer.back(1) 仅
+ * just-down，无缓冲语义；开局演出跳过等 meta 流程消费）——不进缓冲器，
+ * PlayerInput.buffer 维度不变（全量状态哈希零漂移）。
+ */
+export const ALL_BUTTONS: readonly number[] = Object.values(Btn).filter((b) => b !== Btn.back);
 
 export interface InputFrame {
   readonly p1: ButtonMask;

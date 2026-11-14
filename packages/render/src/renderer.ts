@@ -1008,6 +1008,19 @@ export class BattleRenderer {
   private blackW = 0;
   private blackH = 0;
 
+  /**
+   * 开局特写相机（intro 切片，原版 GameStartCtrler.preRenderStart/
+   * renderStart1v1 的 cameraFocusOne）：step 0-2 聚焦 P1、3-5 聚焦 P2
+   * （zoom 3.5 与必杀特写同款），step ≥6（resume/字样段）双焦点 autoZoom
+   * 接管。每帧重设（updateCutin 在无锁时清 camFocus，intro 需随后覆写）。
+   */
+  private updateIntro(next: SimSnapshot): void {
+    const intro = next.state.intro;
+    if (intro == null || intro.step >= 6) return;
+    const target = intro.step < 3 ? next.state.fighters[0] : next.state.fighters[1];
+    if (target) this.camFocus = { kind: 'fighter', id: target.id };
+  }
+
   /** 每渲染帧调用：插值推进。dtMs 自上次调用以来的毫秒数。 */
   update(dtMs: number): void {
     if (!this.next) return;
@@ -1040,6 +1053,7 @@ export class BattleRenderer {
     this.updateSparkFx(dtMs);
     this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
+    this.updateIntro(next);
     this.updateCamera(next, dtMs);
     // 世界抖动（原版 gameStage.x/y 整体位移）：叠加在相机变换之后（world+bgFixed）
     this.advanceShake(dtMs);

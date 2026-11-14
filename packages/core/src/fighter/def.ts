@@ -224,6 +224,9 @@ export const ActionState = {
   DEAD: 30,
   /** 万解中（开场演出 + doWanKai 帧驱动；形态切换后续切片） */
   WAN_KAI_ING: 50,
+  /** 开场语音动作中（原版 FighterMcCtrler.sayIntro actionState=60；
+   *  开局特写演出的 say 步等待门，intro 切片） */
+  INTRO_ING: 60,
 } as const;
 
 /** 循环播放的动作标签（其余标签播完即结束动作）。

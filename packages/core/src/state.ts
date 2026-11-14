@@ -355,6 +355,18 @@ export interface AssisterState {
 }
 
 /**
+ * 开局特写演出状态（intro 切片，原版 GameStartCtrler.start1v1/renderStart1v1
+ * 状态机）。step：0 特写P1(hold 30) / 1 语音P1（等 开场 播完） / 2 gap(18) /
+ * 3 特写P2(30) / 4 语音P2 / 5 gap(18) / 6 resume(6) / 7 字样(156)。
+ * hold = 当前步已走 sim tick（原版 holdFrame 秒 × FPS_GAME=60；say 步不用）。
+ * skip 仅 step<7 可用（原版 _step<5，字样出场前）。
+ */
+export interface IntroState {
+  step: number;
+  hold: number;
+}
+
+/**
  * 特写冻结锁（切片 22，原版 EffectCtrler.bisha/wanKai 的 GameCtrler.pause 语义）：
  * 必杀/万解切人演出期间全场冻结（对手/道具/计时/回气全部停走），仅锁主的时间轴
  * 推进（原版施法者画面 render 驱动继续播、帧脚本照常触发——endBisha/endWanKai
@@ -389,6 +401,10 @@ export interface SimState {
   /** 实体 id 分配计数器（bullets/后续 attacker/assister 共用） */
   nextEntityId: number;
   match: MatchState;
+  /** 开局特写演出（intro 切片；无演出/已结束/已跳过 = undefined）。
+   *  undefined 被 JSON 序列化省略（stableStringify/pruneEmpty）——
+   *  全量哈希与行为哈希零漂移，既有 replay/batch 基线不受影响 */
+  intro?: IntroState | undefined;
   /** 特写冻结锁（null = 无演出冻结） */
   cutinLock: CutinLockState | null;
   /** 打击停顿（hitstop，修复批次 35）：>0 时整局停走（原版 EffectCtrler.freeze →
@@ -433,6 +449,12 @@ export interface SimConfig {
    * 冻结/回复在 stepMatchFlow 内确定性执行，进哈希，两端一致。
    */
   training?: boolean;
+  /**
+   * 开局特写演出（intro 切片，原版 GameStartCtrler.start1v1；训练模式无开场
+   * = 原版 TRAINING(40) 直接 actionEnable=true 语义）。缺省 false——replay/
+   * batch 基线配置不传，intro 恒 null 零漂移。
+   */
+  intro?: boolean;
 }
 
 /** 骨架默认配置：P1/P2 在空地图两侧对峙（合成舞台，与真实地图数据无关）。 */
@@ -517,6 +539,8 @@ export function createInitialState(config: SimConfig): SimState {
     assisters: [],
     nextEntityId: 1,
     match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
+    // intro 缺省时字段不落键（undefined）——全量状态哈希零漂移（见 SimState 注）
+    ...(config.intro === true ? { intro: { step: 0, hold: 0 } as IntroState } : {}),
     cutinLock: null,
     freezeTicks: 0,
   };
