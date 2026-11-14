@@ -19,11 +19,13 @@
  *   - fadin/fadout/update 入退场补间跳过（直接显隐）；
  *   - 能量标签 flash 用 alpha 闪烁近似（原版切 inner mc 帧，语义未收编）；
  *   - 辅助格红点可见性用 fzqi 满近似（原版 isCanHurtBreak，core 无此查询）；
- *   - 计时器恒显示 ∞（单局流程无时限）。
+ *   - 计时器恒显示 ∞（单局流程无时限）；
+ *   - 宽屏血条延伸：原版 800 宽下血条外缘搭进计时板近缘 ~9px，逐元素钉边后
+ *     该重叠随中线外移变成空隙 → 血条横向拉伸每侧补 (visW-800)/2（原版位形
+ *     scale 恒 1；横线条纹理拉伸不可感知，与切人横幅/bgFixed 同款适配）。
  *
  * 遗留（未收编，登记 PROGRESS 遗留池）：startKOmc 开局/结算演出、win 胜利星
- * （p1Wins/p2Wins 恒 0 不显示）、scoremc、被动条 sp、气槽顶层装饰 picture_063、
- * 回合数字 shape_007。
+ * （p1Wins/p2Wins 恒 0 不显示）、scoremc、被动条 sp、回合数字 shape_007。
  */
 import { Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
@@ -78,6 +80,7 @@ export interface HudData {
     fzFillSize: [number, number];
     barPos: [number, number];
     slotPos: [number, number];
+    framePos: [number, number];
     segPos: [number, number];
     segSize: [number, number];
     ghostPos: [number, number];
@@ -168,6 +171,8 @@ export class FightHud {
   private frames = new Map<string, Texture[]>();
   /** 钉扎组（design 坐标 + 模式；layout() 重摆） */
   private pinned: { c: Container; x: number; y: number; mx: PinX; my: PinY }[] = [];
+  /** 血条单元（宽屏延伸拉伸；relayout 重设 scale.x，P2 为负值镜像） */
+  private hpBars: { p1: Container; p2: Container } | null = null;
   private viewW = 1000;
   private viewH = 600;
   private fitZoom = 1;
@@ -236,6 +241,7 @@ export class FightHud {
     const bar1 = this.buildHpBar(s1);
     const bar2 = this.buildHpBar(s2);
     bar2.scale.x = -1;
+    this.hpBars = { p1: bar1, p2: bar2 };
     // —— 大脸（mc_035 等价物；P2 镜像 = 原版 face2 a=-1，setDirect 为空操作）——
     const face1 = this.buildFace(this.spec.fighters.p1.faceUrl);
     const face2 = this.buildFace(this.spec.fighters.p2.faceUrl);
@@ -299,19 +305,38 @@ export class FightHud {
   }
 
   private buildFace(faceUrl: string | null): Container {
+    // mc_034（hpbar_facemc）SWF 深度序（XFL 图层自上而下：图层4 picture_090 →
+    // 图层3 mask → 被动条 sp → 图层2 ct 脸槽 → 图层1 黑底矩形）：
+    // 黑底 + 脸槽被六边形 mask 裁剪，picture_090 框在顶层不被裁（内部为半透明
+    // 玻璃暗罩，脸透出变暗）。曾把框垫底 → 被整幅 102×64 脸图盖住（缺框）。
+    // 落位：mc_035 face 实例 tx 0.15（+切片 30 实测 ty 校正 1）；mask 多边形 =
+    // XFL edges twips/20：(99.4,47.8)(84.05,62.1)(14.1,62.1)(-0.15,50.65)
+    // (-0.15,3.85)(70,3.85)(99.4,27.75)；黑底矩形 SolidColor 缺省黑，边 x[-0.95,
+    // 103.6] y[0.85,63.1]。
     const g = new Container();
-    const bg = this.sprite('face-bg');
-    bg.position.set(0.15, 1); // mc_034 落位
-    g.addChild(bg);
+    const mc = new Container();
+    mc.position.set(0.15, 1);
+    const inner = new Container(); // 被裁内容组（黑底 + 脸）
+    const bgRect = new Graphics();
+    bgRect.rect(-0.95, 0.85, 104.55, 62.25).fill(0x000000);
+    inner.addChild(bgRect);
     if (faceUrl) {
       const sp = new Sprite(Texture.EMPTY);
-      sp.position.set(0.15, 1);
+      sp.position.set(0, 0);
       Assets.load<Texture>(faceUrl).then((t) => {
         if (sp.destroyed) return;
-        sp.texture = t; // _m 图恰为 102×64，与 face-bg 同画布 1:1
+        sp.texture = t; // _m 图恰为 102×64，与 picture_090 同画布 1:1
       });
-      g.addChild(sp);
+      inner.addChild(sp);
     }
+    const mask = new Graphics();
+    mask
+      .poly([99.4, 47.8, 84.05, 62.1, 14.1, 62.1, -0.15, 50.65, -0.15, 3.85, 70, 3.85, 99.4, 27.75])
+      .fill(0xffffff);
+    const frame = this.sprite('face-bg'); // picture_090 框（顶层半透明罩）
+    mc.addChild(inner, mask, frame);
+    inner.mask = mask;
+    g.addChild(mc);
     return g;
   }
 
@@ -360,6 +385,11 @@ export class FightHud {
     txt.position.set(d.qi.txtPos[0], d.qi.txtPos[1]);
     if (direct === -1) txt.scale.x = -1;
     bar.addChild(txt);
+    // 顶层装饰框（picture_063 / shape 86，191×23，mc_022 最上层）：XFL 重建源图层标
+    // visible=false 系 FFDec 导出伪影，编译 SWF sprite 87 渲染 191×24 含此框（曾漏烘 = 缺框）
+    const qiFrame = this.sprite('qi-frame');
+    qiFrame.position.set(d.qi.framePos[0], d.qi.framePos[1]);
+    bar.addChild(qiFrame);
     g.addChild(bar);
 
     // —— fzqibar（mc_023）：底板 + 底部向上填充（scrollRect 语义）+ 顶层 + 红点 ——
@@ -473,6 +503,16 @@ export class FightHud {
     this.root.scale.set(this.fitZoom);
     const visW = this.viewW / this.fitZoom;
     const visH = this.viewH / this.fitZoom;
+    // 血条延伸（宽屏适配，偏离记录）：原版 800 宽下血条外缘恰搭进计时板近缘
+    // ~9px（P1 右缘 371.35 / 计时板左缘 362.5）；逐元素钉边后计时板随中线外移，
+    // 与血条间出现空隙 → 血条横向拉伸补齐，每侧伸长 (visW-800)/2——原版位形下
+    // scale 恒 1，重叠量原样保留（槽/装饰/填充为横向线条纹理，拉伸不可感知，
+    // 与切人横幅拉伸 / bgFixed cover 同款适配）
+    const k = 1 + (visW - STAGE_W) / 2 / this.data.hp.bar.size[0];
+    if (this.hpBars) {
+      this.hpBars.p1.scale.x = k;
+      this.hpBars.p2.scale.x = -k;
+    }
     for (const p of this.pinned) {
       const x =
         p.mx === 'left' ? p.x : p.mx === 'right' ? visW - (STAGE_W - p.x) : visW / 2 + (p.x - STAGE_W / 2);
@@ -676,6 +716,7 @@ export class FightHud {
     this.tex.clear();
     this.frames.clear();
     this.pinned = [];
+    this.hpBars = null;
   }
 }
 

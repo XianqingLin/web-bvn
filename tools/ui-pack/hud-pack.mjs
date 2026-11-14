@@ -126,15 +126,20 @@ await putShape('hp-deco', 134, 268, 19);
   await put('hp-fill', join(green[0], '1.png'));
   await put('hp-red', join(green[1], '1.png'));
 }
-// 头像框底 shape 150 = picture_090 (102×64)
+// 头像顶层框 shape 150 = picture_090 (102×64)：内部为半透明玻璃暗罩（脸透出
+// 变暗），mc_034 里位于最顶层不被 mask 裁剪（hud.ts buildFace 深度序：黑底 +
+// 脸槽被六边形 mask 裁 → 框盖顶；曾垫底被脸图盖住 = 缺框）
 await putShape('face-bg', 150, 102, 64);
 // 能量条：槽底 shape 119 = picture_061 (140×10)；填充 sprite 117 (2帧 flash)；标签 sprite 132 (2帧 comicType)
 await putShape('energy-bg', 119, 140, 10);
 await putFrames('energy-fill', spriteDir(117, '能量填充'), 2, 2);
 await putFrames('energy-label', spriteDir(132, '能量标签'), 2, 2);
 // 气条：槽体 shape 57 = shape_001（底板+黑槽合成体 159×19）；分段 60/68 (139×12) +
-// 71 (140×12) + 74 帧1 (140×12 满气)；ghost 65 (2帧)；段字图标 84 (4帧)
+// 71 (140×12) + 74 帧1 (140×12 满气)；ghost 65 (2帧)；段字图标 84 (4帧)；
+// 顶层装饰框 shape 86 = picture_063 (191×23)：XFL 重建源图层标 visible=false 系
+// FFDec 导出伪影——编译 SWF qbar_barmc(sprite 87) 渲染 191×24 含此框（曾漏烘 = 缺框）
 await putShape('qi-slot', 57, 159, 19);
+await putShape('qi-frame', 86, 191, 23);
 {
   const s1 = join(spriteDir(60, '气条1'), '1.png');
   const s2 = join(spriteDir(68, '气条2'), '1.png');
@@ -230,6 +235,8 @@ const doc = {
      *  (9.9,0.85)）；分段 139×12；ghost/段字 */
     barPos: [35.95, 24.45],
     slotPos: [9.9, 0.85],
+    /** 顶层装饰框 picture_063（mc_022 最上层，XFL matrix ty=-0.45） */
+    framePos: [0, -0.45],
     segPos: [9.7, 5.65],
     segSize: [139, 12],
     ghostPos: [82.4, -3.2],
