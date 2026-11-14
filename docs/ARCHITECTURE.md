@@ -71,7 +71,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 | event | payload | 说明 |
 |---|---|---|
-| `hit:connect` | `{ attacker, target, hitType, power, blocked, steel, x, y }` | 命中成立（blocked = 被防御，削血 5%；steel = 命中钢身，命中音改钢身音） |
+| `hit:connect` | `{ attacker, target, hitType, sparkType, power, blocked, steel, breakDef, direct, x, y }` | 命中成立（修复批次 35 扩展：`sparkType` = 特效/音源用类型（手防 KAN→DA、KAN_HEAVY→DA_HEAVY 转换后值，剑防不转）；`steel` = 命中钢身吸收（原 doSteelHurt 语义，穿透钢身的多段命中为 false）；`breakDef` = 本击将破防；`direct` = 攻击者朝向；`x`/`y` = 命中区∩身体区相交中心（火花钉点））。payload 不进 behaviorHash（扩字段免重冻）；`SimState.freezeTicks`（hitstop 停顿）进哈希 |
 | `voice` | `{ fighter, kind }` | 受击语音信号（kind `hurt`=重击硬直 / `hurtFly`=击飞 / `die`=死亡；随机选音源与 rate 门在渲染层，音源按角色 forms.sounds 绑定） |
 | `fighter:guard` / `fighter:guardBreak` | `{ fighter }` | 防御成功 / 破防 |
 | `fighter:form` | `{ fighter, form }` | 万解/通用形态切换（切片 10；render 换图集 forms 下标） |

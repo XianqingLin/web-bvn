@@ -391,6 +391,9 @@ export interface SimState {
   match: MatchState;
   /** 特写冻结锁（null = 无演出冻结） */
   cutinLock: CutinLockState | null;
+  /** 打击停顿（hitstop，修复批次 35）：>0 时整局停走（原版 EffectCtrler.freeze →
+   *  GameCtrler.pause 语义；倒计时等价于原版独立 render 帧递减）。 */
+  freezeTicks: number;
 }
 
 export interface FighterConfig {
@@ -515,5 +518,6 @@ export function createInitialState(config: SimConfig): SimState {
     nextEntityId: 1,
     match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
     cutinLock: null,
+    freezeTicks: 0,
   };
 }

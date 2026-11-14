@@ -374,15 +374,17 @@ export class AudioSubsystem implements Subsystem {
           break;
         }
         case 'hit:connect': {
-          // 命中音（原版 doHitEffect → EffectVO.sound；防御命中走 blocked 表）
+          // 命中音（原版 doHitEffect → EffectVO.sound；防御命中走 blocked 表）。
+          // 防御音随 sparkType（修复批次 35：手防 KAN→DA 转换同样改音源——
+          // 原版音源挂在转换后的防御特效 VO 上）
           const blocked = ev.payload['blocked'] === true;
           const steel = ev.payload['steel'] === true;
-          const hitType = String(ev.payload['hitType']);
+          const sparkType = String(ev.payload['sparkType'] ?? ev.payload['hitType'] ?? 0);
           const name = blocked
-            ? mf.hit.blocked[hitType]
+            ? mf.hit.blocked[sparkType]
             : steel
               ? mf.hit.steel
-              : mf.hit.byType[hitType];
+              : mf.hit.byType[sparkType];
           if (name) this.se(name, 'fx');
           break;
         }

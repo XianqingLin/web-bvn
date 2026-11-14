@@ -290,6 +290,20 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **方法论**：拆除限频类去重门前必须先核实受击方窗口机制完整（attacker 4 帧窗/钢身 4/10 帧窗/防御 DEFENSE_GAP_FRAME）；hitx=0 的合成场景会暴露重复命中频率，真实数据靠击退+窗口自然限频。
 - **门禁**：build 过；core 137 单测全过（4 个旧断言按忠实语义更新 + 新增多段命中窗用例）；verify-drift 归因（差异 = attackHit 字段移除 + 有意行为变更）；replay 8 剧本重冻后全过（tick 数与旧基线一致，无锁死/早退）；batch:validate 58 角色+37 辅助重冻后全过。**sim 行为变更，双基线均已重冻。**
 
+### 修复批次 35——命中特效 + 命中停顿（✅ 2026-11-14）
+
+实战验收发现"打中人无特效、无卡顿"。原版命中反馈链 = EffectCtrler.doHitEffect/doDefenseEffect/doSteelHitEffect（火花特效 + freeze 停顿 + shake 震屏 + shine 闪光），此前引擎只有音效（切片 27），特效/停顿全缺。收编四件：
+
+1. **命中停顿（hitstop）**：`SimState.freezeTicks`（进哈希，重冻双基线）；applyHit 按命中类型置位，tick 顶部早退（原版 GameCtrler.pause 语义）。freeze 全表照 EffectCtrler.freeze：轻击类（KAN=1/DA=2/MAGIC=4）50ms→3 tick、重型（3/5/6/7/8/9/11）400ms→24、0/10 无；防御回退同表、钢身 24、破防 500ms→30。**实测修正：freeze 早退 tick 照常跑 stepInputs**——stepInputs 只推导边沿/缓冲无行为副作用，否则停顿吃掉连段按键窗口（轻击 3 tick 停顿 = 输入缓冲窗口内丢边沿，连招断裂）。
+2. **火花特效**（tools/hit-pack 烘焙 baked/hitspark.json，19 元件）：钉点 = 命中区∩受击方身体区（bdmn）相交区中心；payload 扩 `sparkType`（手防 KAN→DA/KAN_HEAVY→DA_HEAVY 转换后值，剑防不转）/`breakDef`/`direct`/`steel`（=钢身吸收，穿透钢身为 false——修正旧语义）；按命中类型族选特效（普通/防御 fallback/钢身三族），30fps 流帧 + randRotate（渲染层随机，合法）。payload 不进哈希，扩字段免重冻。
+3. **震屏 shake**：原版 renderShakeX/Y 逐帧镜像（30fps 步进、pow 每 2 帧衰减 lose、direct 翻转）；防御 pow→Y 竖抖、破防横抖；命中系 VO 的 shake{pow:6} 为 doEffectVO 死代码（只读 shake.x/y）不移植。
+4. **shine 闪光**：ADD 全屏色块 15fps ×0.95 衰减（原版 shine 语义，元素/火/冰/雷用色直取）。
+
+- **消费接线**：renderer 装载 hitspark 包（sparkTex 预载 + updateSparkFx/updateShines/advanceShake），shake offset 叠加 world 与 bgFixed；audio 防御音改随 `sparkType`（原版音源挂在转换后特效 VO 上）；FighterDef 加 `defenseType`（0=剑缺省/1=手——防御特效转换依据，data 层直通）。
+- **偏离登记**：randRotate 用渲染层 Math.random（表现随机合法）；钢身音效键 `steel` 语义从"命中钢身"收窄为"钢身吸收"。
+- **遗留池登记**（EffectCtrler 未消费项，按需立项）：specialEffectId（fire_ing/ice_ing/shock_ing 灼烧持续特效）、hit_floor 系（KO/落地特效）、hit_end、startShake 触发原语、buff 系特效。
+- **门禁**：build 过；core 142 单测全过（新增 hitstop.test 7 用例：轻/重冻表、停顿逐 tick、type0 连段无冻、剑防不转、手防转换+冻 24、破防冻 30；slice9 受击门排除 hitstop 干扰改 mutateSim）；verify-drift 归因（唯一差异 = freezeTicks 新字段）；replay 8 剧本重冻全过；batch:validate 58 角色+37 辅助重冻全过；vite 冒烟 hitspark 装载链路 200。**sim 行为变更（freezeTicks 进哈希），双基线均已重冻。**
+
 ---
 
 ## 四、剩余工作规划（未完成部分）

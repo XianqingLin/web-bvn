@@ -96,6 +96,8 @@ export interface FighterDef {
   speed: number;
   jumpPower: number;
   heavy: number;
+  /** 防御类型（修复批次 35：0=剑 SWOARD 缺省 / 1=手 HAND——防御特效 KAN→DA 映射依据） */
+  defenseType?: number;
   actions: Record<string, HitDef>;
   labels: Record<string, LabelRange>;
   /** 动画帧（1 起，30Hz）→ 判定区 */

@@ -133,11 +133,13 @@ export interface LoopTriggerDef {
   then: TriggerCall[];
 }
 
-/** 每形态基础数值（$fighter_ctrler.speed / jumpPower / heavy 等赋值）。 */
+/** 每形态基础数值（$fighter_ctrler.speed / jumpPower / heavy / defenseType 等赋值）。 */
 export interface FormStats {
   speed?: number;
   jumpPower?: number;
   heavy?: number;
+  /** 防御类型（修复批次 35：0=剑 SWOARD / 1=手 HAND——防御特效 KAN→DA 映射依据） */
+  defenseType?: number;
 }
 
 /** 声音/特写绑定（原样保留标识符引用）。 */

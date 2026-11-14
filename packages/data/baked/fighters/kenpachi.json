@@ -13,7 +13,8 @@
       "stats": {
         "speed": 10,
         "jumpPower": 16,
-        "heavy": 5
+        "heavy": 5,
+        "defenseType": 0
       },
       "actions": {
         "tk": {

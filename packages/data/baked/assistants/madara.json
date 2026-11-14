@@ -150,6 +150,30 @@
           "args": []
         },
         {
+          "frame": 11,
+          "target": "attacker",
+          "op": "if",
+          "args": [],
+          "cond": {
+            "target": "attacker",
+            "op": "justHit",
+            "args": [
+              "atm1"
+            ],
+            "negate": true
+          },
+          "then": [],
+          "else": [
+            {
+              "target": "attacker",
+              "op": "gotoAndPlay",
+              "args": [
+                "miss"
+              ]
+            }
+          ]
+        },
+        {
           "frame": 26,
           "target": "effect",
           "op": "shine",

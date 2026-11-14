@@ -136,6 +136,13 @@ function makeConfig(opts: { p2x?: number; def?: FighterDef } = {}): SimConfig {
   };
 }
 
+/** 状态预置（serialize→mutate→fromState），供无 mutate 选项的构造路径复用。 */
+function mutateSim(sim: Sim, mutate: (s: SimState) => void): Sim {
+  const state = JSON.parse(sim.serializeState()) as SimState;
+  mutate(state);
+  return Sim.fromState(state, sim.getDefEntries());
+}
+
 /** 追加帧触发器（构造前注入 def，constructor 建索引）+ 状态预置。
  * dropTriggers：按 op 名剔除默认触发器（addAttacker 用例需绕开
  * 命中续接——瞬移后 chkm 立即与目标身体相交会抢先切 招2_CHK）。 */
@@ -406,12 +413,16 @@ describe('切片 9：独立道具（addAttacker）', () => {
 
   // —— 切片 13-A5：attacker 元件时间轴生命周期（原版 FighterAttacker.renderAnimate） ——
 
-  /** 注入 fires 元数据的 attacker sim（zh3mc → anim；剔 setHitTarget 同上）。 */
+  /** 注入 fires 元数据的 attacker sim（zh3mc → anim；剔 setHitTarget 同上）。
+   * P2 关受击门：道具飞行途中命中会触发打击停顿（修复批次 35）拖慢 30Hz
+   * 推进——本组用例只验证动画推进/占位寿命，排除命中路径干扰。 */
   function makeAnimSim(totalFrames: number, labels: Record<string, number> = {}): Sim {
     const def = makeDef();
     def.fires = { zh3mc: { totalFrames, labels } };
     def.triggers = def.triggers.filter((t) => t.op !== 'setHitTarget');
-    return new Sim(makeConfig({ p2x: 200, def }));
+    return mutateSim(new Sim(makeConfig({ p2x: 200, def })), (s) => {
+      s.fighters[1]!.isAllowBeHit = false;
+    });
   }
 
   it('anim 注入 + 30Hz 推进：发射帧已到 2、每 2 tick +1、播尽移除（off-by-one）', () => {
@@ -436,7 +447,7 @@ describe('切片 9：独立道具（addAttacker）', () => {
     expect(end!.state.attackers).toHaveLength(0);
   });
 
-  it('无 anim 数据（animTotal=0）回退 holdTicks 占位寿命', () => {    const sim = makeSim({ p2x: 200, dropTriggers: ['setHitTarget'] });
+  it('无 anim 数据（animTotal=0）回退 holdTicks 占位寿命', () => {    const sim = makeSim({ p2x: 200, dropTriggers: ['setHitTarget'], mutate: (s) => { s.fighters[1]!.isAllowBeHit = false; } });
     let spawnTick = -1;
     for (let i = 0; i < 300; i++) {
       const s = sim.tick({ p1: i === 0 ? Btn.skill : 0, p2: 0 });

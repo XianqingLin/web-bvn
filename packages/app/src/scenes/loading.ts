@@ -30,6 +30,7 @@ import {
   loadBisha,
   loadFighterPack,
   loadHud,
+  loadHitspark,
   loadLoading,
   loadMapPack,
   loadSelect,
@@ -164,6 +165,7 @@ export class LoadingScene implements Scene {
       const assistList: AssistPack[] = [];
       let map: MapPack | null = null;
       let bisha: BishaData | null = null;
+      let hitspark: import('@bvn/render').HitsparkBaked | null = null;
       let hud: import('@bvn/render').HudData | null = null;
 
       const queue: { msg: string; run: () => Promise<void> }[] = [
@@ -197,6 +199,7 @@ export class LoadingScene implements Scene {
           run: async () => {
             await audioOf(ctx.ctx)?.preloadFightBgm(p1.fighter, this.flow.mapId);
             bisha = await loadBisha(ctx.ctx);
+            hitspark = await loadHitspark(ctx.ctx);
             hud = await loadHud(ctx.ctx);
           },
         },
@@ -253,6 +256,7 @@ export class LoadingScene implements Scene {
             ),
           },
           bisha: { mc: bisha!.mc, faces: bisha!.faces, effects: bisha!.effects },
+          hitspark: { baked: hitspark! },
           hud: {
             data: hud!,
             // 血条大脸 = select id+'_m'（102×64）；辅助脸 = 辅助 id 50×50 网格脸

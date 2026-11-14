@@ -13,7 +13,8 @@
       "stats": {
         "speed": 8,
         "jumpPower": 15,
-        "heavy": 3
+        "heavy": 3,
+        "defenseType": 1
       },
       "actions": {
         "tk": {
@@ -346,7 +347,8 @@
       "stats": {
         "speed": 10,
         "jumpPower": 15,
-        "heavy": 4
+        "heavy": 4,
+        "defenseType": 1
       },
       "actions": {
         "tk": {
@@ -578,7 +580,8 @@
       "stats": {
         "speed": 10,
         "jumpPower": 15,
-        "heavy": 5
+        "heavy": 5,
+        "defenseType": 1
       },
       "actions": {
         "tk": {
@@ -827,7 +830,8 @@
       "stats": {
         "speed": 9,
         "jumpPower": 15,
-        "heavy": 3
+        "heavy": 3,
+        "defenseType": 1
       },
       "actions": {
         "tk": {
@@ -1149,7 +1153,8 @@
       "stats": {
         "speed": 12,
         "jumpPower": 16,
-        "heavy": 3
+        "heavy": 3,
+        "defenseType": 1
       },
       "actions": {
         "tk": {

@@ -55,7 +55,7 @@ export interface FighterView {
 }
 
 /** 形态数值缺省值（XFL 包缺形态脚本时兜底；ichigo 初形态实测值）。 */
-const DEFAULT_STATS = { speed: 6, jumpPower: 15, heavy: 3 };
+const DEFAULT_STATS = { speed: 6, jumpPower: 15, heavy: 3, defenseType: 0 };
 
 /**
  * 动作 id → 动画标签映射（切片 5 按判定区实证修正，原版 FighterMcCtrler

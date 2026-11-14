@@ -55,6 +55,41 @@ export interface BishaAssets {
   effects?: { bisha?: EffectMcData; bisha_super?: EffectMcData };
 }
 
+/**
+ * 命中/防御火花规格（修复批次 35；baked/hitspark.json = tools/hit-pack 产物，
+ * 逐条对照原版 EffectModel.as 注册表）。坐标约定：MC 原点钉命中点，
+ * 帧位 = origin×direct（EffectView display.x = orgX + offsetX×direct）。
+ */
+export interface HitsparkEffect {
+  dir: string;
+  /** 帧数（= 帧文件数；原版 cacheBitmapData 不缓存末帧，渲染帧数 = totalFrames−1） */
+  frames: number;
+  /** 画布尺寸（FFDec 统一画布 = 全帧 union bounds） */
+  canvas: [number, number];
+  /** 帧 bounds 原点（PNG (0,0) 相对 MC 原点的偏移，direct=1） */
+  origin: [number, number];
+  blendMode?: 'add' | 'hardlight';
+  /** EffectView randRotate：渲染层随机旋转（绕 MC 原点=命中点） */
+  randRotate?: boolean;
+  /** 帧位 x 随 direct 镜像（防御火花族） */
+  followDirect?: boolean;
+  /** 全屏闪（原版 ShineEffectView：ADD 色块 10×降采样拉伸近似） */
+  shine?: { color: number; alpha: number };
+  freezeMs?: number;
+}
+
+/** baked/hitspark.json 结构（schema bvn/hitspark@1）。 */
+export interface HitsparkBaked {
+  schema: string;
+  effects: Record<string, HitsparkEffect>;
+  hit: { byType: Record<string, string> };
+  defense: { byType: Record<string, string>; fallback: string };
+  /** 钢身族（doSteelHitEffect：kan 系/qdj 系/其余；数组 = 渲染层随机择一） */
+  steel: Record<string, string[]>;
+  shake: { defense: { pow: number; time: number } };
+  breakDef: { id: string; freezeMs: number; shake: { x: number; time: number } };
+}
+
 /** 战斗资源清单（app 装配后传入） */
 export interface BattleAssetsSpec {
   /** 素材基 URL（图集 JSON 与 sheet PNG 同目录） */
@@ -81,6 +116,8 @@ export interface BattleAssetsSpec {
   fireAtlasJson?: Record<string, FireAtlas>;
   /** 必杀/万解切人插图（切片 22）：缺省 = 不渲染切人（黑幕/横幅/立绘全缺） */
   bisha?: BishaAssets;
+  /** 命中/防御火花（修复批次 35）：缺省 = 命中无火花特效 */
+  hitspark?: { baked: HitsparkBaked };
   /** 对局 HUD（切片 30）：缺省 = 不渲染 HUD */
   hud?: HudSpec;
 }
@@ -120,6 +157,8 @@ export class BattleRenderer {
   /** attacker 色块回退（独立道具缺图集条目时） */
   private attackerGfx: Graphics;
   private fxLayer: Container;
+  /** 全屏闪层（修复批次 35 shine；屏幕空间，world 之上 HUD 之下） */
+  private shineLayer: Container;
   private hudLayer: Container;
   /** 切人黑幕（切片 22）：屏幕空间，覆盖全屏；原版 BlackBackView 800×600 挂
    *  gameStage 底层（角色之下、bg 之上），web 端等价 = stage 上 bgFixed 与 world 之间 */
@@ -190,6 +229,31 @@ export class BattleRenderer {
     frame: number;
   }[] = [];
 
+  /** 命中火花（修复批次 35）：baked 表 + 预载纹理；火花视图（30fps 播尽自移除） */
+  private hitspark: HitsparkBaked | null = null;
+  private sparkTex = new Map<string, Texture[]>();
+  private sparkFx: { root: Container; body: Sprite; texs: Texture[]; accMs: number; frame: number }[] =
+    [];
+  /** 全屏闪（原版 ShineEffectView：ADD 色块，15fps 衰减 5%，≤5% 移除） */
+  private shines: { sp: Sprite; alpha: number; accMs: number }[] = [];
+  /** 世界抖动（原版 EffectCtrler.renderShakeX/Y：30fps 步进，pow 逐 2 帧线性衰减、
+   *  direct 逐帧翻转；offset 应用到 world+bgFixed（原版 = gameStage 整体位移） */
+  private shakeSt = {
+    powX: 0,
+    powY: 0,
+    dxX: 1,
+    dxY: 1,
+    frameX: 0,
+    frameY: 0,
+    loseX: 0,
+    loseY: 0,
+    holdX: 0,
+    holdY: 0,
+  };
+  private shakeAccMs = 0;
+  private shakeOffX = 0;
+  private shakeOffY = 0;
+
   /** 相机聚焦（切片 26，原版 GameStage.cameraFocusOne/cameraResume）：super 必杀/
    *  万解聚焦施法者，cutinLock 清除即恢复双焦点（null = 双焦点，autoZoom 接管） */
   private camFocus: { kind: 'fighter' | 'assister'; id: number } | null = null;
@@ -249,7 +313,15 @@ export class BattleRenderer {
       this.fxLayer,
     );
     this.cutinScreen.addChild(this.cutinLayer);
-    app.stage.addChild(this.bgFixed, this.blackLayer, this.cutinScreen, this.world, this.hudLayer);
+    this.shineLayer = new Container();
+    app.stage.addChild(
+      this.bgFixed,
+      this.blackLayer,
+      this.cutinScreen,
+      this.world,
+      this.shineLayer,
+      this.hudLayer,
+    );
     this.onResize();
     app.renderer.on('resize', this.onResize, this);
   }
@@ -279,6 +351,7 @@ export class BattleRenderer {
       (spec.assisters?.length ?? 0) +
       fireCount +
       (spec.bisha ? spec.bisha.mc.frames + effectFrames + faceCount : 0) +
+      (spec.hitspark ? Object.keys(spec.hitspark.baked.effects).length : 0) +
       (spec.hud ? 1 : 0);
     let done = 0;
     const tick = () => {
@@ -377,6 +450,22 @@ export class BattleRenderer {
       this.bishaMc = null;
     }
 
+    // 命中/防御火花（修复批次 35）：全部元件流帧预载（共 19 元件 ~230 帧，vite 缓存后廉价）
+    if (spec.hitspark) {
+      this.hitspark = spec.hitspark.baked;
+      this.sparkTex.clear();
+      for (const [id, eff] of Object.entries(this.hitspark.effects)) {
+        const texs: Texture[] = [];
+        for (let i = 1; i <= eff.frames; i++) {
+          texs.push(await Assets.load<Texture>(`${spec.baseUrl}/${eff.dir}/${i}.webp`));
+        }
+        this.sparkTex.set(id, texs);
+        tick();
+      }
+    } else {
+      this.hitspark = null;
+    }
+
     // 对局 HUD（切片 30）：纹理装载 + 静态树（重建对局时先拆旧树）
     if (spec.hud) {
       this.hud?.destroy();
@@ -455,7 +544,10 @@ export class BattleRenderer {
       if (last === ev.tick) continue; // 去重
       this.lastEventsTick.set(key, ev.tick);
       if (ev.type === 'hit:connect') {
-        // 最小表现：受击者闪红；HUD 连击计数（切片 30，原版 addHits 近似）
+        // 命中火花三件套（修复批次 35，原版 doHitEffect/doDefenseEffect/
+        // doSteelHitEffect 分流；hitstop 冻结在 core 已结算）：
+        // 火花钉 hitRect∩身体区相交中心 + 受击者闪红 + HUD 连击计数
+        this.spawnHitSpark(ev.payload);
         const attacker = ev.payload['attacker'];
         const target = ev.payload['target'];
         if (typeof attacker === 'number') this.hud?.onHit(attacker);
@@ -597,6 +689,190 @@ export class BattleRenderer {
   }
 
   /**
+   * 命中火花（修复批次 35，镜像原版 EffectCtrler 分流；随机项全部在渲染层，
+   * 不触碰 sim 确定性）：钢身族随机择一 → 破防横抖 → 防御竖抖 → 普通命中。
+   * 原版 quirk 保留：命中系 VO 的 shake{pow:6} 是 doEffectVO 死代码（只读
+   * shake.x/y），命中火花不抖；仅防御（pow→y）与破防（x）抖。
+   */
+  private spawnHitSpark(p: Record<string, unknown>): void {
+    const hk = this.hitspark;
+    if (!hk) return;
+    const sparkType = Number(p['sparkType'] ?? p['hitType'] ?? 0);
+    const x = Number(p['x'] ?? 0);
+    const y = Number(p['y'] ?? 0);
+    const direct = Number(p['direct'] ?? 1) >= 0 ? 1 : -1;
+    let id: string | null = null;
+    let shake: { x?: number; y?: number; time?: number } | null = null;
+    if (p['steel'] === true) {
+      // 钢身族（doSteelHitEffect：KAN/KAN_HEAVY→kan、DA/DA_HEAVY→qdj、其余→mfdj；
+      // 族内随机择一，hitType 0 无钢身特效）
+      const fam =
+        sparkType === 1 || sparkType === 6
+          ? 'kan'
+          : sparkType === 2 || sparkType === 3
+            ? 'qdj'
+            : 'mfdj';
+      const list = hk.steel[fam] ?? [];
+      id = sparkType !== 0 && list.length > 0 ? list[Math.floor(Math.random() * list.length)]! : null;
+    } else if (p['breakDef'] === true) {
+      id = hk.breakDef.id;
+      shake = hk.breakDef.shake;
+    } else if (p['blocked'] === true) {
+      // 防御表回退 defense_5（原版 getDefenseEffect 缺表项；core freeze 表同源）
+      id = hk.defense.byType[String(sparkType)] ?? hk.defense.fallback;
+      if (id) shake = { y: hk.shake.defense.pow, time: hk.shake.defense.time };
+    } else {
+      // 普通命中表：type 0/10 无表项 = 无特效不抖（原版 getHitEffect 无回退）
+      id = hk.hit.byType[String(sparkType)] ?? null;
+    }
+    const eff = id !== null ? hk.effects[id] : null;
+    if (!id || !eff) return;
+    const texs = this.sparkTex.get(id);
+    if (!texs || texs.length === 0) return;
+    const root = new Container();
+    const body = new Sprite(texs[0]!);
+    if (eff.blendMode === 'add') body.blendMode = 'add';
+    else if (eff.blendMode === 'hardlight') body.blendMode = 'hard-light';
+    root.addChild(body);
+    // EffectView.start：MC 原点钉命中点；帧位 = origin×direct（followDirect 族镜像）
+    root.position.set(x, y);
+    body.position.set(eff.followDirect ? eff.origin[0] * direct : eff.origin[0], eff.origin[1]);
+    if (eff.randRotate) root.rotation = Math.random() * Math.PI * 2;
+    this.fxLayer.addChild(root);
+    this.sparkFx.push({ root, body, texs, accMs: 0, frame: 0 });
+    if (eff.shine) this.spawnShine(eff.shine.color, eff.shine.alpha);
+    if (shake) this.doShake(shake.x ?? 0, shake.y ?? 0, shake.time ?? 0);
+  }
+
+  /** 火花帧推进（30fps 播尽自移除，同 mc 流帧管线）。 */
+  private updateSparkFx(dtMs: number): void {
+    for (const e of this.sparkFx) {
+      e.accMs += dtMs;
+      const f = Math.floor(e.accMs / (1000 / 30));
+      if (f < e.texs.length && f !== e.frame) {
+        e.frame = f;
+        e.body.texture = e.texs[f]!;
+      }
+    }
+    const done = this.sparkFx.filter((e) => Math.floor(e.accMs / (1000 / 30)) >= e.texs.length);
+    for (const e of done) {
+      this.fxLayer.removeChild(e.root);
+      e.root.destroy({ children: true });
+    }
+    if (done.length > 0) this.sparkFx = this.sparkFx.filter((e) => !done.includes(e));
+  }
+
+  /** 全屏闪（原版 shine(color, alpha) → ShineEffectView：ADD 色块覆盖 gameStage）。 */
+  private spawnShine(color: number, alpha: number): void {
+    const sp = new Sprite(Texture.WHITE);
+    sp.width = this.viewW;
+    sp.height = this.viewH;
+    sp.tint = color;
+    sp.alpha = alpha;
+    sp.blendMode = 'add';
+    this.shineLayer.addChild(sp);
+    this.shines.push({ sp, alpha, accMs: 0 });
+  }
+
+  /** 闪衰减（原版 ShineEffectView：15fps 步进 ×0.95，alpha ≤0.05 移除）。 */
+  private updateShines(dtMs: number): void {
+    for (const s of this.shines) {
+      s.accMs += dtMs;
+      while (s.accMs >= 1000 / 15) {
+        s.accMs -= 1000 / 15;
+        s.alpha *= 0.95;
+      }
+      s.sp.alpha = s.alpha;
+    }
+    const done = this.shines.filter((s) => s.alpha <= 0.05);
+    for (const s of done) {
+      this.shineLayer.removeChild(s.sp);
+      s.sp.destroy();
+    }
+    if (done.length > 0) this.shines = this.shines.filter((s) => !done.includes(s));
+  }
+
+  /** 抖动发起（原版 EffectCtrler.shake：pow 累加（已有则 +|pow|/2）、
+   *  lose = ceil(pow / (time/1000×30)) 下限 1——30fps 内线性衰减到 0）。 */
+  private doShake(powX: number, powY: number, time: number): void {
+    const s = this.shakeSt;
+    if (powX !== 0) {
+      if (s.powX === 0) {
+        s.dxX = powX > 0 ? 1 : -1;
+        s.powX = Math.abs(powX);
+      } else {
+        s.powX += Math.abs(powX) / 2;
+      }
+    }
+    if (powY !== 0) {
+      if (s.powY === 0) {
+        s.dxY = powY > 0 ? 1 : -1;
+        s.powY = Math.abs(powY);
+      } else {
+        s.powY += Math.abs(powY) / 2;
+      }
+    }
+    if (time <= 0) time = 500;
+    s.loseX = Math.max(1, Math.ceil(s.powX / ((time / 1000) * 30)));
+    s.loseY = Math.max(1, Math.ceil(s.powY / ((time / 1000) * 30)));
+  }
+
+  /**
+   * 抖动步进（镜像 EffectCtrler.renderShakeX/Y：30fps 帧；每帧 offset = (hold+pow)
+   * ×direct、direct 逐帧翻转；pow 每 2 帧衰减 lose，衰减尽复位 offset 0。
+   * X 轴先 frameX++ 后翻转，Y 轴先翻转后 frameY++（原版两函数的语序差）。
+   */
+  private advanceShake(dtMs: number): void {
+    this.shakeAccMs += dtMs;
+    while (this.shakeAccMs >= 1000 / 30) {
+      this.shakeAccMs -= 1000 / 30;
+      const s = this.shakeSt;
+      const shakeX = s.holdX + s.powX;
+      if (shakeX > 0) {
+        this.shakeOffX = shakeX * s.dxX;
+        let ended = false;
+        if (s.powX > 0 && s.frameX % 2 === 0) {
+          s.powX -= s.loseX;
+          if (s.powX < s.loseX) {
+            s.powX = 0;
+            this.shakeOffX = 0;
+            s.frameX = 0;
+            s.loseX = 0;
+            ended = true;
+          }
+        }
+        if (!ended) {
+          s.frameX++;
+          s.dxX *= -1;
+        }
+      } else {
+        this.shakeOffX = 0;
+      }
+      const shakeY = s.holdY + s.powY;
+      if (shakeY > 0) {
+        this.shakeOffY = shakeY * s.dxY;
+        let ended = false;
+        if (s.powY > 0 && s.frameY % 2 === 0) {
+          s.powY -= s.loseY;
+          if (s.powY < s.loseY) {
+            s.powY = 0;
+            this.shakeOffY = 0;
+            s.frameY = 0;
+            s.loseY = 0;
+            ended = true;
+          }
+        }
+        if (!ended) {
+          s.dxY *= -1;
+          s.frameY++;
+        }
+      } else {
+        this.shakeOffY = 0;
+      }
+    }
+  }
+
+  /**
    * 切人演出帧推进（切片 22，原版 BlackBackView/BishaFaceEffectView 语义）：
    *   - 黑幕：SimState.cutinLock ≠ null 期间全屏覆盖（屏幕空间）；
    *   - 地图：原版 getMap().setVisible(false) → map/front 层隐藏；
@@ -726,8 +1002,18 @@ export class BattleRenderer {
     this.updateBullets(prev, next, alpha);
     this.updateAssisters(prev, next, alpha);
     this.updateMcEffects(dtMs);
+    this.updateSparkFx(dtMs);
+    this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
     this.updateCamera(next, dtMs);
+    // 世界抖动（原版 gameStage.x/y 整体位移）：叠加在相机变换之后（world+bgFixed）
+    this.advanceShake(dtMs);
+    if (this.shakeOffX !== 0 || this.shakeOffY !== 0) {
+      this.world.x += this.shakeOffX;
+      this.world.y += this.shakeOffY;
+      this.bgFixed.x += this.shakeOffX;
+      this.bgFixed.y += this.shakeOffY;
+    }
     // HUD（切片 30）：屏幕空间钉扎重摆 + 快照驱动（血/气/能量/辅助格/连击）
     const fitZoom = Math.min(this.viewW / LOGICAL_W, this.viewH / LOGICAL_H);
     if (this.hud) {

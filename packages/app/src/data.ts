@@ -166,6 +166,15 @@ export function loadBisha(ctx: Ctx): Promise<BishaData> {
   return ctx.assets.json<BishaData>(`${BAKED}/bisha.json`);
 }
 
+// ---------- hitspark.json（tools/hit-pack 产物，schema bvn/hitspark@1，修复批次 35） ----------
+
+/** 命中/防御火花烘焙包（renderer HitsparkBaked 结构一致）。 */
+export type HitsparkData = import('@bvn/render').HitsparkBaked;
+
+export function loadHitspark(ctx: Ctx): Promise<HitsparkData> {
+  return ctx.assets.json<HitsparkData>(`${BAKED}/hitspark.json`);
+}
+
 // ---------- audio.json（tools/sound-pack 产物，schema bvn/audio@1，切片 27） ----------
 
 export interface AudioManifest {

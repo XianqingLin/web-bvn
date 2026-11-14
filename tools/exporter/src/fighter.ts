@@ -61,7 +61,7 @@ function refName(arg: AsArg | undefined): string | undefined {
   return undefined;
 }
 
-const STAT_KEYS = ['speed', 'jumpPower', 'heavy'] as const;
+const STAT_KEYS = ['speed', 'jumpPower', 'heavy', 'defenseType'] as const;
 
 function buildSounds(defines: { op: string; args: AsArg[] }[]): SoundDefines {
   const sounds: SoundDefines = {};

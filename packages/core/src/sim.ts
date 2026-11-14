@@ -99,6 +99,32 @@ const ENERGY_ADD_OVERLOAD = 0.3; // 0.6 × 0.5
 const DEFENSE_LOSE_HP_RATE = 0.05;
 /** 钢身减伤比例（原版 STEEL_HURT_HP_PERCENT，比例量不折算） */
 const STEEL_HURT_HP_PERCENT = 0.65;
+/**
+ * 打击特效停顿（修复批次 35；EffectModel freeze ms × FPS_GAME/1000 → tick）。
+ * 轻击系（KAN/DA/MAGIC，命中与防御特效同值）50ms=3 tick；重型/属性/摔
+ * （KAN_HEAVY/DA_HEAVY/MAGIC_HEAVY/FIRE/ICE/ELECTRIC/CATCH）与钢身系 400ms=24；
+ * 破防 doBreakDefense 叠加 break_def 特效（freeze 500ms 后调用覆盖前值）=30。
+ * 命中 type 0/10（NONE/STONE）无 hit_ 表项 → 不出特效不冻（原版 getHitEffect
+ * 无回退）；防御走 getDefenseEffect 回退 defense_5 → STONE 按重型档。
+ */
+const HITSPARK_FREEZE_LIGHT_TICKS = 3;
+const HITSPARK_FREEZE_HEAVY_TICKS = 24;
+const BREAK_DEF_FREEZE_TICKS = 30;
+function isHeavySparkType(hitType: number): boolean {
+  return (
+    hitType === 3 || hitType === 5 || hitType === 6 ||
+    hitType === 7 || hitType === 8 || hitType === 9 || hitType === 11
+  );
+}
+function hitFreezeTicks(hitType: number): number {
+  if (hitType === 0 || hitType === 10) return 0;
+  return isHeavySparkType(hitType) ? HITSPARK_FREEZE_HEAVY_TICKS : HITSPARK_FREEZE_LIGHT_TICKS;
+}
+/** 防御特效 freeze（doDefenseEffect：getDefenseEffect 缺失表项回退 defense_5） */
+function defenseFreezeTicks(hitType: number): number {
+  if (hitType === 0) return 0;
+  return isHeavySparkType(hitType) ? HITSPARK_FREEZE_HEAVY_TICKS : HITSPARK_FREEZE_LIGHT_TICKS;
+}
 /** 钢身耗能比例（原版 doSteelHurt useEnergy 其余系 0.4；超钢 0.2 未实现——无超钢字段） */
 const STEEL_ENERGY_RATE = 0.4;
 /** 钢身受击无敌窗（原版 STEEL_HURT_GAP_FRAME=4；击飞类 STEEL_HURT_DOWN_GAP_FRAME=10） */
@@ -337,6 +363,17 @@ export class Sim {
   }
 
   tick(inputs: InputFrame): SimSnapshot {
+    if (this.state.freezeTicks > 0) {
+      // 打击停顿（修复批次 35，原版 EffectCtrler.freeze → GameCtrler.pause）：整局
+      // 停走一 tick；特效/闪屏/抖动在渲染层自行推进，不受停顿影响。倒计时期间
+      // 快照状态不变（tick 号仍递增，渲染层按同一状态插值）。
+      // 输入采样照常推进（stepInputs 只推导边沿/缓冲，无行为副作用）：停顿期间
+      // 按下的边沿进缓冲不丢，解除停顿后的首个决策 tick 照常派生连段——否则
+      // 轻击 3 tick 停顿正好吃掉连段按键窗口，连招手感断裂（批次 35 实测修正）。
+      this.state.freezeTicks -= 1;
+      this.stepInputs(inputs);
+      return this.stepOutput();
+    }
     if (this.state.cutinLock !== null) {
       // 特写冻结（切片 22，原版 GameCtrler.pause 语义）：仅锁主时间轴推进，
       // 输入/物理/推挤/命中/计时/回气全部停走；endBisha/endWanKai（锁主时间轴
@@ -1941,16 +1978,66 @@ export class Sim {
     const nextHp = Math.max(0, target.hp - chip);
     // 训练模式：假人不 KO（血最低保留 1）
     target.hp = this.training && nextHp <= 0 ? 1 : nextHp;
+    // 命中特效钉点（原版 getHitObj→writeOverlap：特效钉 hitRect∩身体区相交区
+    // 中心；防御/钢身同点。身体区缺失 = 回退命中区中心）
+    let sparkX = hitArea.x + hitArea.w / 2;
+    let sparkY = hitArea.y + hitArea.h / 2;
+    if (targetDef) {
+      const bodyLocal = currentBodyRect({ animFrame: target.animFrame, def: targetDef });
+      if (bodyLocal) {
+        const b = worldRect(target, bodyLocal);
+        const x0 = Math.max(hitArea.x, b.x);
+        const x1 = Math.min(hitArea.x + hitArea.w, b.x + b.w);
+        const y0 = Math.max(hitArea.y, b.y);
+        const y1 = Math.min(hitArea.y + hitArea.h, b.y + b.h);
+        sparkX = (x0 + x1) / 2;
+        sparkY = (y0 + y1) / 2;
+      }
+    }
+    // 防御损耗能量：破防技 = 90% 上限，否则 min(50, power/5)（原版 doDefenseHit；
+    // 上提复用——freeze 表与破防判定共用）
+    const drain = hit.isBreakDef
+      ? Math.round(ENERGY_MAX * 0.9)
+      : Math.min(50, Math.floor(hit.power / 5));
+    const willBreakDef = blocking && target.energy < drain;
+    // 特效类型（原版 doEffectVO 的 type 参数）：防御命中按防御者 defenseType
+    // 转换（doDefenseEffect HAND 分支：KAN→DA、KAN_HEAVY→DA_HEAVY；剑防不转）；
+    // 普通命中/钢身 = 原始 hitType
+    const sparkType =
+      blocking && (targetDef?.defenseType ?? 0) === 1
+        ? hit.hitType === 1
+          ? 2
+          : hit.hitType === 6
+            ? 3
+            : hit.hitType
+        : hit.hitType;
     this.emit('hit:connect', {
       attacker: attackerId,
       target: target.id,
       hitType: hit.hitType,
+      sparkType,
       power: hit.power,
       blocked: blocking,
-      steel: target.steelBody,
-      x: hitArea.x + hitArea.w / 2,
-      y: hitArea.y + hitArea.h / 2,
+      // 钢身**吸收**标志（doSteelHurt 实际走到才有钢身特效/音效；钢身+必杀穿透
+      // 时 steelBody 仍为 true 但走普通 doHurt——消费者按此分流）
+      steel: steelAbsorb,
+      breakDef: willBreakDef,
+      direct: attackerFacing,
+      x: sparkX,
+      y: sparkY,
     });
+    // 打击停顿（原版 EffectCtrler.freeze → GameCtrler.pause 整局停走）：
+    // 破防 500ms > 钢身 400ms > 防御/命中按特效表；KO 同样先冻再死（原版
+    // freeze 与 beHit 并行，死亡动画在停顿后播）
+    if (steelAbsorb) {
+      this.state.freezeTicks = HITSPARK_FREEZE_HEAVY_TICKS;
+    } else if (willBreakDef) {
+      this.state.freezeTicks = BREAK_DEF_FREEZE_TICKS;
+    } else if (blocking) {
+      this.state.freezeTicks = defenseFreezeTicks(sparkType);
+    } else {
+      this.state.freezeTicks = hitFreezeTicks(hit.hitType);
+    }
     if (target.hp <= 0) {
       enterDead(target, targetDef);
       // 死亡语音（原版 DIE voice：击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播；
@@ -1962,10 +2049,7 @@ export class Sim {
     if (blocking) {
       // 被防御：justHitToPlay(includeDefense) 查询基准（原版 lastDefHitId 语义）
       target.lastDefHitId = hitId;
-      // 防御损耗能量：破防技 = 90% 上限，否则 min(50, power/5)（原版 doDefenseHit）
-      const drain = hit.isBreakDef
-        ? Math.round(ENERGY_MAX * 0.9)
-        : Math.min(50, Math.floor(hit.power / 5));
+      // 防御损耗能量：drain 已上提（freeze 表与破防判定共用）
       this.emit('fighter:guard', { fighter: target.id });
       if (target.energy < drain) {
         // 破防：额外削血 power/10（原版 doBreakDefense）

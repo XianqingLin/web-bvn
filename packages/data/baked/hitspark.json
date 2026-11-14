@@ -1,0 +1,393 @@
+{
+  "schema": "bvn/hitspark@1",
+  "effects": {
+    "kan": {
+      "dir": "hitspark/kan",
+      "frames": 9,
+      "canvas": [
+        115,
+        120
+      ],
+      "origin": [
+        -58,
+        -54
+      ],
+      "blendMode": "add",
+      "randRotate": true,
+      "freezeMs": 50
+    },
+    "kanx": {
+      "dir": "hitspark/kanx",
+      "frames": 18,
+      "canvas": [
+        283,
+        282
+      ],
+      "origin": [
+        -133,
+        -137
+      ],
+      "blendMode": "add",
+      "randRotate": true,
+      "shine": {
+        "color": 16777215,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "qdj": {
+      "dir": "hitspark/qdj",
+      "frames": 10,
+      "canvas": [
+        58,
+        54
+      ],
+      "origin": [
+        -26,
+        -25
+      ],
+      "blendMode": "add",
+      "randRotate": true,
+      "freezeMs": 50
+    },
+    "qdjx": {
+      "dir": "hitspark/qdjx",
+      "frames": 16,
+      "canvas": [
+        197,
+        197
+      ],
+      "origin": [
+        -101,
+        -100
+      ],
+      "blendMode": "add",
+      "randRotate": true,
+      "shine": {
+        "color": 16777215,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "mfdj": {
+      "dir": "hitspark/mfdj",
+      "frames": 10,
+      "canvas": [
+        57,
+        54
+      ],
+      "origin": [
+        -28,
+        -28
+      ],
+      "blendMode": "add",
+      "randRotate": true,
+      "freezeMs": 50
+    },
+    "mfdjx": {
+      "dir": "hitspark/mfdjx",
+      "frames": 16,
+      "canvas": [
+        251,
+        251
+      ],
+      "origin": [
+        -128,
+        -127
+      ],
+      "blendMode": "add",
+      "randRotate": true,
+      "shine": {
+        "color": 16777215,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "fire": {
+      "dir": "hitspark/fire",
+      "frames": 22,
+      "canvas": [
+        222,
+        214
+      ],
+      "origin": [
+        -107,
+        -112
+      ],
+      "blendMode": "add",
+      "shine": {
+        "color": 16777063,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "ice": {
+      "dir": "hitspark/ice",
+      "frames": 10,
+      "canvas": [
+        197,
+        179
+      ],
+      "origin": [
+        -101,
+        -86
+      ],
+      "blendMode": "add",
+      "shine": {
+        "color": 10741237,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "leidian": {
+      "dir": "hitspark/leidian",
+      "frames": 10,
+      "canvas": [
+        153,
+        184
+      ],
+      "origin": [
+        -76,
+        -88
+      ],
+      "blendMode": "hardlight",
+      "shine": {
+        "color": 8554706,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "catch_hit": {
+      "dir": "hitspark/catch_hit",
+      "frames": 10,
+      "canvas": [
+        133,
+        125
+      ],
+      "origin": [
+        -66,
+        -64
+      ],
+      "freezeMs": 400
+    },
+    "fykan": {
+      "dir": "hitspark/fykan",
+      "frames": 14,
+      "canvas": [
+        160,
+        161
+      ],
+      "origin": [
+        -118,
+        -84
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "freezeMs": 50
+    },
+    "fykanx": {
+      "dir": "hitspark/fykanx",
+      "frames": 18,
+      "canvas": [
+        263,
+        263
+      ],
+      "origin": [
+        -177,
+        -135
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "shine": {
+        "color": 16777215,
+        "alpha": 0.1
+      },
+      "freezeMs": 400
+    },
+    "fyq": {
+      "dir": "hitspark/fyq",
+      "frames": 8,
+      "canvas": [
+        52,
+        127
+      ],
+      "origin": [
+        -26,
+        -63
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "freezeMs": 50
+    },
+    "fyqx": {
+      "dir": "hitspark/fyqx",
+      "frames": 10,
+      "canvas": [
+        219,
+        209
+      ],
+      "origin": [
+        -165,
+        -107
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "shine": {
+        "color": 16777215,
+        "alpha": 0.1
+      },
+      "freezeMs": 400
+    },
+    "mffy": {
+      "dir": "hitspark/mffy",
+      "frames": 10,
+      "canvas": [
+        90,
+        106
+      ],
+      "origin": [
+        -82,
+        -53
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "freezeMs": 50
+    },
+    "mffyx": {
+      "dir": "hitspark/mffyx",
+      "frames": 10,
+      "canvas": [
+        219,
+        209
+      ],
+      "origin": [
+        -165,
+        -107
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "shine": {
+        "color": 16777215,
+        "alpha": 0.15
+      },
+      "freezeMs": 400
+    },
+    "fire_fy": {
+      "dir": "hitspark/fire_fy",
+      "frames": 14,
+      "canvas": [
+        214,
+        216
+      ],
+      "origin": [
+        -192,
+        -104
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "shine": {
+        "color": 16777063,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "ice_fy": {
+      "dir": "hitspark/ice_fy",
+      "frames": 10,
+      "canvas": [
+        179,
+        200
+      ],
+      "origin": [
+        -96,
+        -101
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "shine": {
+        "color": 10741237,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    },
+    "dian_fy": {
+      "dir": "hitspark/dian_fy",
+      "frames": 15,
+      "canvas": [
+        238,
+        174
+      ],
+      "origin": [
+        -197,
+        -90
+      ],
+      "blendMode": "add",
+      "followDirect": true,
+      "shine": {
+        "color": 8554706,
+        "alpha": 0.2
+      },
+      "freezeMs": 400
+    }
+  },
+  "hit": {
+    "byType": {
+      "1": "kan",
+      "2": "qdj",
+      "3": "qdjx",
+      "4": "mfdj",
+      "5": "mfdjx",
+      "6": "kanx",
+      "7": "fire",
+      "8": "ice",
+      "9": "leidian",
+      "11": "catch_hit"
+    }
+  },
+  "defense": {
+    "byType": {
+      "1": "fykan",
+      "2": "fyq",
+      "3": "fyqx",
+      "4": "mffy",
+      "5": "mffyx",
+      "6": "fykanx",
+      "7": "fire_fy",
+      "8": "ice_fy",
+      "9": "dian_fy"
+    },
+    "fallback": "mffyx"
+  },
+  "steel": {
+    "kan": [
+      "kan",
+      "kanx"
+    ],
+    "qdj": [
+      "qdj",
+      "qdjx"
+    ],
+    "mfdj": [
+      "mfdj",
+      "mfdjx",
+      "fire",
+      "ice",
+      "leidian",
+      "catch_hit"
+    ]
+  },
+  "shake": {
+    "defense": {
+      "pow": 6,
+      "time": 400
+    }
+  },
+  "breakDef": {
+    "id": "mfdjx",
+    "freezeMs": 500,
+    "shake": {
+      "x": 6,
+      "time": 400
+    }
+  }
+}
