@@ -127,8 +127,11 @@ function play(
 }
 
 describe('切片 10：逐区命中结算（摔技二段分流语义）', () => {
-  it('同一动作的两个命中段各自结算：k1atm(30) + k12atm(60)，去重键（区动作id:目标id）', () => {
-    // 砍1 时间轴内 k1atm 帧 58-59、k12atm 帧 65-66：逐区解析后两段独立命中
+  it('同一动作的两个命中段各自结算：k1atm(30) + k12atm(60)，多段按受击窗重命中（修复批次 34）', () => {
+    // 砍1 时间轴内 k1atm 帧 58-59、k12atm 帧 65-66：逐区解析后两段独立命中。
+    // 修复批次 34 拆除跨帧去重门（原版 checkHit 每帧重扫）：hitx=0 目标静止，
+    // k12atm 段内受击窗到期（被打标签播尽 endAction 恢复 allow）→ 重命中一次，
+    // 合计 30 + 60×2。多段命中频率由受击方 HURT_GAP_FRAME=4 帧窗限频。
     const res = play(makeSim({ p2x: 130 }), [
       [1, Btn.attack, 0],
       [31, 0, 0], // 仍处于 砍1（17 动画帧 = 34 tick）内采样
@@ -136,13 +139,12 @@ describe('切片 10：逐区命中结算（摔技二段分流语义）', () => {
     const p1 = res.snaps.at(-1)!.state.fighters[0]!;
     const p2 = res.snaps.at(-1)!.state.fighters[1]!;
     expect(p1.actionState).toBe(ActionState.ATTACK_ING);
-    expect(p2.hp).toBe(1000 - 30 - 60);
-    expect(p1.attackHit).toContain('k1:2');
-    expect(p1.attackHit).toContain('k12:2');
-    expect(p1.attackHit.length).toBe(2); // 无重复键
+    expect(p2.hp).toBe(1000 - 30 - 60 - 60);
+    const hitEvents = res.events.filter((e) => e.type === 'hit:connect');
+    expect(hitEvents.length).toBe(3); // k1 一击 + k12 段内两击
   });
 
-  it('两段命中之间血量单调递减、不重复扣血', () => {
+  it('两段命中之间血量单调递减（重复命中按受击窗限频）', () => {
     const res = play(makeSim({ p2x: 130 }), [
       [1, Btn.attack, 0],
       [31, 0, 0],
@@ -151,7 +153,7 @@ describe('切片 10：逐区命中结算（摔技二段分流语义）', () => {
     for (const s of res.snaps) {
       const hp = s.state.fighters[1]!.hp;
       expect(hp).toBeLessThanOrEqual(prev);
-      expect(hp).toBeGreaterThanOrEqual(910);
+      expect(hp).toBeGreaterThanOrEqual(1000 - 30 - 60 - 60);
       prev = hp;
     }
   });

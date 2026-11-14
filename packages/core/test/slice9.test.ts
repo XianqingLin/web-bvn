@@ -397,7 +397,9 @@ describe('切片 9：独立道具（addAttacker）', () => {
     expect(p2.qi).toBeCloseTo(30 * 0.085); // 受击回气
     const p1 = res.snaps.at(-1)!.state.fighters[0]!;
     expect(p1.qi).toBeCloseTo(30 * 0.15); // 4.5（attacker 回气；zh3 非 bs）
-    // 单次命中后 hitAble=false：继续 tick 不再扣血
+    // 修复批次 34：默认 def 的 zh3mc 无逐帧 fires 数据 → 回退占位路径
+    //（保留单次命中门的移植自创近似）；继续 tick 不再扣血。
+    // 逐帧数据路径的多段命中见 B5 描述的多段命中窗用例。
     play(res.sim, [[10, 0, 0]]);
     expect(res.snaps.at(-1)!.state.fighters[1]!.hp).toBe(970);
   });
@@ -523,12 +525,47 @@ describe('B5：逐帧命中矩形', () => {
     const p1 = last.state.fighters[0]!;
     expect(p1.qi).toBeCloseTo(30 * 0.15); // attacker 回气（zh3 非 bs）
     expect(spawn.state.attackers[0]!.hitAble).toBe(true);
-    expect(last.state.attackers[0]!.hitAble).toBe(false); // 单次命中即失效
+    // 修复批次 34：拆除单次命中失效门——attacker 不因命中失效，多段命中
+    // 靠受击方 4 帧无敌窗限频（hitAble 仅供回退占位路径使用）
+    expect(last.state.attackers[0]!.hitAble).toBe(true);
   });
 
   it('命中区名无动作表解析 = 纯表现：全程无判定', () => {
     const sim = new Sim(makeConfig({ p2x: 200, def: makeFrameDef('xyzmc') }));
     const { last } = playToAttacker(sim, 30);
     expect(last.state.fighters[1]!.hp).toBe(1000);
+  });
+
+  it('修复批次 34：多段命中窗逐帧重复命中，频率由受击 4 帧窗限频（蓝染 bs1atm 同构）', () => {
+    // zh3atm 命中窗铺满帧 2-8（7 个动画帧），followTarget 锚定使判定区始终
+    // 套住目标——原版语义：attacker 不因命中失效，多段逐段扣血；移植版此前
+    // 单次命中门让首段之后全部失效（蓝染 I 必杀"只出特效不掉血"根因）。
+    const def = makeFrameDef();
+    const hits: Record<string, { name: string; x: number; y: number; w: number; h: number }[]> = {};
+    for (let fr = 2; fr <= 8; fr++) {
+      hits[String(fr)] = [{ name: 'zh3atm', x: -15, y: -15, w: 30, h: 30 }];
+    }
+    def.fires = { zh3mc: { totalFrames: 9, labels: {}, org: { x: 25, y: -25 }, hits } };
+    const sim = new Sim(makeConfig({ p2x: 200, def }));
+    // 手动循环收集全部 hit:connect（spawn tick 事件 + 后续 tick）
+    let spawn: ReturnType<Sim['tick']> | null = null;
+    let last: ReturnType<Sim['tick']> | null = null;
+    let hitCount = 0;
+    for (let i = 0; i < 200 && !spawn; i++) {
+      const s = sim.tick({ p1: i < 12 ? Btn.skill : 0, p2: 0 });
+      if (s.state.attackers.length > 0) spawn = s;
+    }
+    if (spawn === null) throw new Error('attacker 未生成');
+    hitCount += spawn.events.filter((e) => e.type === 'hit:connect').length;
+    last = spawn;
+    for (let i = 0; i < 20; i++) {
+      last = sim.tick({ p1: 0, p2: 0 });
+      hitCount += last!.events.filter((e) => e.type === 'hit:connect').length;
+    }
+    const p2 = last!.state.fighters[1]!;
+    expect(p2.hp).toBeLessThan(970); // 多段扣血：首段之后仍有命中
+    expect(hitCount).toBeGreaterThanOrEqual(2); // 至少两段
+    expect(hitCount).toBeLessThanOrEqual(7); // 受击窗限频：不可能每帧命中
+    expect(p2.hp).toBe(1000 - 30 * hitCount);
   });
 });

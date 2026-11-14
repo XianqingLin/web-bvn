@@ -88,8 +88,6 @@ export interface FighterState {
   mcHold: boolean;
   /** 当前攻击动作 id（攻击/技能/必杀状态期间非空） */
   attackId: string | null;
-  /** 本次攻击已命中的（区动作 id:目标 id）键（一区一目标一次；切片 10 逐区结算） */
-  attackHit: string[];
   /** 受击/倒地剩余帧（动画帧计数） */
   hurtTimer: number;
   /** 钢身（setSteelBody 触发；受击不掉血外的状态变化） */
@@ -335,8 +333,6 @@ export interface AssisterState {
   animFrame: number;
   /** 触地续接标签（setTouchFloor；落地消费一次） */
   touchFloor: string | null;
-  /** 本次在场已命中目标键（区名:目标 id；一区一目标一次） */
-  attackHit: string[];
   /** 命中续接检查注册（setHitTarget，原版 renderCheckTargetHit；null = 未注册。
    *  checker 区与目标身体相交 → gotoAndPlay(action)；不清除——窗口由判定区
    *  可见帧自然限定，如 byakuya chkm@50 一帧窗口） */
@@ -477,7 +473,6 @@ export function createInitialState(config: SimConfig): SimState {
       labelLock: 0,
       mcHold: false,
       attackId: null,
-      attackHit: [],
       hurtTimer: 0,
       steelBody: false,
       energy: ENERGY_MAX,

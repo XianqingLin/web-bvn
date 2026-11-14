@@ -56,6 +56,7 @@ import {
   defenseGapTicks,
   defenseHoldTicks,
   hitZonesWorld,
+  HURT_GAP_TICKS,
   onLanded,
   setLabel,
   stepGhost,
@@ -96,6 +97,13 @@ const ENERGY_ADD_ATTACKING = 0.55; // 1.1 × 0.5
 const ENERGY_ADD_OVERLOAD = 0.3; // 0.6 × 0.5
 /** 防御削血比例（原版 DEFENSE_LOSE_HP_RATE，比例量不折算） */
 const DEFENSE_LOSE_HP_RATE = 0.05;
+/** 钢身减伤比例（原版 STEEL_HURT_HP_PERCENT，比例量不折算） */
+const STEEL_HURT_HP_PERCENT = 0.65;
+/** 钢身耗能比例（原版 doSteelHurt useEnergy 其余系 0.4；超钢 0.2 未实现——无超钢字段） */
+const STEEL_ENERGY_RATE = 0.4;
+/** 钢身受击无敌窗（原版 STEEL_HURT_GAP_FRAME=4；击飞类 STEEL_HURT_DOWN_GAP_FRAME=10） */
+const STEEL_HURT_GAP_TICKS = 4;
+const STEEL_HURT_DOWN_GAP_TICKS = 10;
 /** 防御命中击退衰减（原版 DEFENSE_DAMPING_X=1@30fps → 0.5/tick） */
 const DEFENSE_DAMP_X = 0.5;
 /** 训练模式血量回复（POC 取义） */
@@ -1086,7 +1094,11 @@ export class Sim {
   /**
    * B5 逐帧命中路径（原版 FighterAttacker.getCurrentHits → hit 结算）：
    * 当前帧命中区逐区解析动作（区序 = 元件子对象序），矩形与目标身体相交
-   * → 回气 + applyHit + hitAble=false。返回是否有命中成立。
+   * → 回气 + applyHit。每帧最多一命中（原版 checkHit→getHitObj 首个相交）；
+   * 多段命中靠受击方 HURT_GAP_FRAME=4 帧无敌窗限频（修复批次 34：拆除
+   * "单次命中即失效"门——该门源于"语料无多次命中实例"误判，已被 17 角色
+   * ≥10 帧连续命中窗语料证伪，原版 FighterAttacker.hit 无失效字段）。
+   * 返回是否有命中成立。
    */
   private attackerFrameHit(
     a: AttackerState,
@@ -1130,7 +1142,6 @@ export class Sim {
           owner,
           true, // viaEntity：回气已在调用侧按 ATTACKER_QI_RATE 结算，跳过近战分支
         );
-        a.hitAble = false;
         return true;
       }
     }
@@ -1164,7 +1175,6 @@ export class Sim {
       // 出场帧 = 原版 goFight gotoAndPlay(2)（1 起；0 帧脚本是 stop() 样板）
       animFrame: 2,
       touchFloor: null,
-      attackHit: [],
       hitTargetChecker: null,
       hitTargetAction: null,
       buffEffects: def.buffEffects !== undefined ? { ...def.buffEffects } : {},
@@ -1656,11 +1666,9 @@ export class Sim {
         if (!bodyLocal) continue;
         const body = worldRect(tgt, bodyLocal);
         for (const { rect: hitArea, zone } of zones) {
-          // 一击一目标按（区动作 id, 目标）去重——同动作不同段可分别命中
-          const dedupKey = `${zone.hitId}:${tgt.id}`;
-          if (atk.attackHit.includes(dedupKey)) continue;
+          // 修复批次 34：拆除跨帧去重门（原版 checkHit 每帧重扫、无跨帧去重，
+          // 多段近战靠受击 4 帧无敌窗限频；一帧一目标至多一命中由下面 break 保证）
           if (!rectsOverlap(hitArea, body)) continue;
-          atk.attackHit.push(dedupKey);
           this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, zone.hit, hitArea, zone.hitId, atk);
           break;
         }
@@ -1733,9 +1741,10 @@ export class Sim {
     }
     // 独立道具 → 角色（原版 FighterAttacker 命中：findHitArea 逐帧扫描命名
     // 子对象 → getHitVOByDisplayName 解析（精确 → 去首个 atm），RectUtils 镜像
-    // 平移到原点；无命中区帧 = 无判定；非必杀所有者回气 power×0.15；单次命中
-    // 即失效——attacker 无多次命中语料。fires 缺逐帧数据的元件回退生成帧
-    // 占位矩形 + 生成动作全程固定——state.ts 偏离注）
+    // 平移到原点；无命中区帧 = 无判定；非必杀所有者回气 power×0.15；逐帧路径
+    // 不因命中失效——多段命中靠受击 4 帧无敌窗限频（修复批次 34）。
+    // fires 缺逐帧数据的元件回退生成帧占位矩形 + 生成动作全程固定——state.ts
+    // 偏离注；回退路径保留单次命中门（移植自创近似不受原版逐帧语义背书））
     for (const a of this.state.attackers) {
       if (!a.hitAble) continue;
       const owner = this.state.fighters.find((f) => f.id === a.ownerId) ?? null;
@@ -1800,11 +1809,13 @@ export class Sim {
       }
     }
     // 辅助 → 角色（切片 12，原版 Assister.hit：命中 → owner 回气 power×0.15 +
-    // 目标受击结算；一区一目标一次去重）
+    // 目标受击结算；一帧一目标至多一命中（原版 checkHit→getHitObj 首个相交），
+    // 跨帧多段靠受击 4 帧无敌窗限频——修复批次 34 拆除跨帧去重门）
     for (const s of this.state.assisters) {
       const def = this.assisterDefs.get(s.assistId);
       const owner = this.state.fighters.find((f) => f.id === s.ownerId) ?? null;
       if (!def || owner === null) continue;
+      const hitTargets = new Set<number>();
       for (const area of def.areas[s.animFrame] ?? []) {
         const hit = def.actions[area.name] ?? null;
         if (hit === null) continue; // 无动作表的区 = 纯表现
@@ -1812,15 +1823,14 @@ export class Sim {
         for (const tgt of fighters) {
           if (tgt.id === s.ownerId) continue;
           if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
-          const dedupKey = `${area.name}:${tgt.id}`;
-          if (s.attackHit.includes(dedupKey)) continue;
+          if (hitTargets.has(tgt.id)) continue;
           const tgtDef = this.defOf(tgt);
           const bodyLocal = tgtDef
             ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
             : null;
           if (!bodyLocal) continue;
           if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
-          s.attackHit.push(dedupKey);
+          hitTargets.add(tgt.id);
           // 辅助命中回气（原版 Assister.hit：addQi(power×0.15)，无必杀排除）
           owner.qi = Math.min(300, owner.qi + hit.power * ASSISTER_QI_RATE);
           this.applyHit(
@@ -1869,7 +1879,15 @@ export class Sim {
     attacker: FighterState | null = null,
     viaEntity = false,
   ): void {
+    // 钢身破格（原版 doSteelHurt：透支/必杀/摔命中 → 破钢走完整 doHurt）；
+    // 钢身优先于防御结算（原版 beHit 先查 isSteelBody）
+    const steelAbsorb =
+      target.steelBody &&
+      !target.energyOverload &&
+      !isBishaAction(hitId ?? '') &&
+      hit.hitType !== 11;
     const blocking =
+      !steelAbsorb &&
       target.actionState === ActionState.DEFENCE_ING &&
       !(hit.hitType === 11 && hit.isBreakDef) &&
       !this.checkDefDirect(target, attackerX, attackerFacing);
@@ -1899,7 +1917,11 @@ export class Sim {
       dmg *= 1 - tgtAssister.buffEffects.attrResistance;
     }
     dmg *= defenseDamageScale(target);
-    const chip = blocking ? dmg * DEFENSE_LOSE_HP_RATE : dmg;
+    const chip = steelAbsorb
+      ? dmg * STEEL_HURT_HP_PERCENT
+      : blocking
+        ? dmg * DEFENSE_LOSE_HP_RATE
+        : dmg;
     // 攻方辅助物吸血（原版 phyLifesteal，结算后按实伤回复；物理非必杀命中）
     if (
       atkFighter !== null &&
@@ -1970,7 +1992,28 @@ export class Sim {
       void defenseHoldTicks(hit);
       return;
     }
-    if (target.steelBody) return; // 钢身：掉血但无受击状态变化（原版 doSteelHurt 子集）
+    if (steelAbsorb) {
+      // 钢身受击（原版 doSteelHurt 收编，修复批次 34）：受击无敌窗（击飞类 10 帧、
+      // 其余 4 帧，限多段命中频率）+ 钢身耗能（原版 useEnergy：破防技全额、其余
+      // 40%；超钢 20% 未实现——无超钢字段）；减伤 65% 已在上方 chip 乘区结算
+      target.beHitGap = hit.hurtType !== 0 ? STEEL_HURT_DOWN_GAP_TICKS : STEEL_HURT_GAP_TICKS;
+      target.isAllowBeHit = false;
+      target.energy -= hit.isBreakDef ? dmg : dmg * STEEL_ENERGY_RATE;
+      target.energyGap = ENERGY_GAP_TICKS;
+      if (target.energy < 0) {
+        target.energy = 0;
+        target.energyOverload = true;
+      }
+      // 击退（原版 doSteelHurt 尾部 setVec2：速度 hitx/hity、阻尼 |hitx|×0.1×
+      // SPEED_PLUS×6=×3（_velocity2 通道 renderVelocity 叠加位移）；破防技 ×2；
+      // 移植版速度/damp 空间 = 原版 ×0.5 → damp = |hitx|×0.1×3×0.5）
+      const kbMul = hit.isBreakDef ? 2 : 1;
+      target.vx = hit.hitx * attackerFacing * SPEED_PLUS * kbMul;
+      target.vy = hit.hity * SPEED_PLUS * kbMul;
+      target.dampX = Math.abs(hit.hitx) * 0.15 * kbMul;
+      target.dampY = Math.abs(hit.hity) * 0.15 * kbMul;
+      return;
+    }
     // 自定义受击动作（原版 doHurt → playHurtAct）：攻击方动作携带（setHurtAction
     // 触发在攻击方时间轴，投技携带受击方专用受击动画）优先，受击方自设兜底；
     // 标签按受击方 def 校验存在性，缺失 = 通用受击态
@@ -1979,6 +2022,10 @@ export class Sim {
       target.hurtAction = null;
       target.lastHurtHitId = hitId;
       target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
+      // 受击无敌窗（原版 doHurt 开头统一设 HURT_GAP_FRAME=4，hurtAct 分支同样
+      // 生效——修复批次 34 补设；缺它则投技受击动画期间逐帧重复扣血）
+      target.beHitGap = HURT_GAP_TICKS;
+      target.isAllowBeHit = false;
       target.actionState = ActionState.HURT_ACT_ING;
       setLabel(target, targetDef, hurtLabel);
       return;

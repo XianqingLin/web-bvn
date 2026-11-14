@@ -1,0 +1,18 @@
+{
+  "name": "defense-reentry-drift",
+  "seed": 1,
+  "map": "KonohaMura",
+  "ticks": 160,
+  "stride": 60,
+  "checkpoints": [
+    {
+      "tick": 59,
+      "hash": "69d639a7"
+    },
+    {
+      "tick": 119,
+      "hash": "46f4d1f8"
+    }
+  ],
+  "finalHash": "f24358a0"
+}

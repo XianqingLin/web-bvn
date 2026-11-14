@@ -95,7 +95,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 - 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`
 - 表现原语（core 只发事件）：`playSoundHit1`、`playSoundHit2`、`shine`、`startShake`、`shake`、`endShake`
 - 飞行道具：`fire(mcName, params?)`（切片 8；params 语料字段 x/y/hold/hits/hp，见 DESIGN §3.5）
-- 独立道具：`addAttacker(mcName, params?)`（切片 9；mcName 为当前帧同名判定区；params 轴对象 `x`/`y`（`{followTarget|moveToTarget, offset, range?}`）、`applyG`；命中 actionId 依元件名反查 owner actions，查不到 = 纯视觉道具；单次命中即失效；寿命 = 播尽移除（切片 13-A5，`animTotal−1` off-by-one 原版 quirk 原样保留；无时间轴回退 holdTicks 120 占位））
+- 独立道具：`addAttacker(mcName, params?)`（切片 9；mcName 为当前帧同名判定区；params 轴对象 `x`/`y`（`{followTarget|moveToTarget, offset, range?}`）、`applyG`；命中 actionId 依元件名反查 owner actions，查不到 = 纯视觉道具；**不因命中失效**——多段靠受击 4 帧窗限频（修复批次 34；仅缺逐帧数据的回退占位路径保留单次命中门）；寿命 = 播尽移除（切片 13-A5，`animTotal−1` off-by-one 原版 quirk 原样保留；无时间轴回退 holdTicks 120 占位））
 - 目标系（摔技/抓取/贴身连段；target = 另一角色）：`setHitTarget(checker, label)`（checker 判定区与目标身体相交 → 切 label）、`moveToTarget(x, y, setDirect?)`（瞬移到目标旁，版边镜像防穿帮）、`moveTarget({followmc, speed} | null)`（抓取吸附锚点区中心 / 释放恢复重力，动作结束由 sim 巡检释放）、`justHitToPlay(hitid, label, ...)`（最近命中即续接）、`setHurtAction(label)`（携带：本次动作命中 → 受击方播专用受击动画；标签属受击方 def，applyHit 消费时校验）、`setDirectToTarget`/`setDirectReverse`/`setTargetVelocity`、`hurtFly(x, y, ...)`（主动击飞）
 - 标签跳转：`gotoAndPlay`/`gotoAndStop`/`loop`（= setLabelTo）
 - 动作槽（切片 9 扩充）：`setAllAct`（整套重填 defaultSlots）、`setJump(label)`、空中槽 `setAttackAIR`/`setSkillAIR`/`setBishaAIR(qi?)`、摔技槽 `setCatch1`/`setCatch2`、万解槽 `setWankai`/`setWankaiW`/`setWankaiS`

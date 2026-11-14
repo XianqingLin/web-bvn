@@ -226,7 +226,6 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
  */
 export function endActAction(f: FighterState, def: FighterDef | null): void {
   f.attackId = null;
-  f.attackHit = [];
   f.slots = emptySlots(f.slots);
   f.steelBody = false;
   f.isCross = false;
@@ -298,7 +297,6 @@ export function startAttack(
   if (!def || label === undefined || !range) return false;
   f.actionState = ActionState.ATTACK_ING;
   f.attackId = actionId;
-  f.attackHit = [];
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
@@ -432,7 +430,6 @@ function doDash(f: FighterState, def: FighterDef | null): void {
   f.applyG = false;
   f.jumpTimes = 0;
   f.attackId = null;
-  f.attackHit = [];
   f.isCross = false;
   setLabel(f, def, label);
 }
@@ -530,7 +527,6 @@ function startSkill(
   f.actionState = superLevel ? ActionState.BISHA_SUPER_ING : ActionState.BISHA_ING;
   if (qiCost === 0) f.actionState = ActionState.SKILL_ING;
   f.attackId = id; // 可为 null（标签存在但无动作表 → 有动画无判定）
-  f.attackHit = [];
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
@@ -554,7 +550,6 @@ export function startWanKai(f: FighterState, def: FighterDef | null, label: stri
   f.qi -= WAN_KAI_QI;
   f.actionState = ActionState.WAN_KAI_ING;
   f.attackId = null;
-  f.attackHit = [];
   f.actLabel = label;
   f.animFrame = range.index + 1;
   f.labelLock = 0;
@@ -593,7 +588,6 @@ export function switchForm(
   f.formIndex = forms.indexOf(next);
   f.slots = defaultSlots(next);
   f.attackId = null;
-  f.attackHit = [];
   f.isCross = false;
   f.airMove = false;
   f.touchFloor = null;

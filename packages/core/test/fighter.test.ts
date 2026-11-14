@@ -224,7 +224,9 @@ describe('命中判定与结算', () => {
     const sim = new Sim(makeConfig({ p2x: 130, def2 }));
     sim.tick({ p1: Btn.attack, p2: 0 });
     const end = runTicks(sim, 40);
-    expect(end.state.fighters[1]!.hp).toBe(970);
+    // 修复批次 34 收编 doSteelHurt：减伤 65%（30×0.65=19.5）+ 受击窗（4 帧，
+    // 段内不重命中——判定区 2 动画帧窗内受击窗未到期）+ 击退（hitx 推离）
+    expect(end.state.fighters[1]!.hp).toBe(1000 - 19.5);
     expect(end.state.fighters[1]!.actionState).toBe(ActionState.NORMAL); // 无硬直
     expect(end.state.fighters[1]!.steelBody).toBe(true);
   });

@@ -279,6 +279,17 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **方法论**：FFDec shape SVG 画布裁到 shape bounds，PNG 落位必须按 bounds (Xmin,Ymin)（twips÷20）补回原点；shape id 序 ≠ 深度序，层级以 SWF PlaceObject 深度/clipDepth 为准。
 - **门禁**：build 过；replay 4 剧本抽检 + batch:validate 58+37 全过（fires 工作区曾出现一批来历不明且剥掉 hits 的退化改动，已证实与基线无关并还原，见批次 32 段后注）；headless Edge CDP 冒烟截图目检——两侧头像立绘在六边形框内正常显示、裁剪正确。
 
+### 修复批次 34——多段命中收编（✅ 2026-11-14）
+
+实战验收发现蓝染 I 必杀多段命中"只出特效不掉血"。根因：切片 23 登记的"attacker 单次命中即失效（语料无多次命中实例）"（DESIGN §132）系**错误前提**——扫描 baked fires 语料，17 角色存在 ≥10 帧连续同判定窗（蓝染 bs1atm 47 帧、冬狮郎 cbs1atm 62 帧、带土 zh31atm 58 帧等），原版 `FighterAttacker.hit` 无任何失效字段，多段命中靠受击方 `HURT_GAP_FRAME=4` 帧无敌窗限频（移植版早已实现）。修复三件：
+
+1. **attacker 逐帧路径拆门**（sim.ts attackerFrameHit）：命中不再置 `hitAble=false`，每帧至多一命中（原版 `checkHit→getHitObj` 首个相交）；缺逐帧数据的**回退占位路径保留单次命中门**（移植自创近似，不受原版逐帧语义背书）。
+2. **近战/辅助 dedup 门拆除**（原 `attackHit` 去重键 `区动作id:目标id` 系移植自创）：原版 `checkHit` 每帧重扫无跨帧去重；辅助路径改帧内 `Set` 保证一帧一目标至多一命中；`attackHit` 字段从 FighterState/AssisterState 删除（哈希视图随之瘦身）。抓取链安全性核实：持抓期间 `target.isAllowBeHit=false`（sim.ts 吸附置位），无无限连抓风险。
+3. **钢身 doSteelHurt 完整收编**（原"掉血不掉状态"子集偏离）：透支/必杀/摔（hitType=11）命中破钢走完整 doHurt；钢身命中减伤 65%（STEEL_HURT_HP_PERCENT）+ 受击窗（击飞类 10 帧、其余 4 帧——批次 34 前钢身无窗，多段门拆除后会逐帧重复扣血）+ 耗能（破防技全额/其余 40%，超钢未实现）+ 击退（setVec2，破防技 ×2）；HURT_ACT_ING（自定义受击动画）分支补设受击窗（原版 doHurt 开头统一设，此前缺 → 投技受击动画期间逐帧重复扣血）。
+
+- **方法论**：拆除限频类去重门前必须先核实受击方窗口机制完整（attacker 4 帧窗/钢身 4/10 帧窗/防御 DEFENSE_GAP_FRAME）；hitx=0 的合成场景会暴露重复命中频率，真实数据靠击退+窗口自然限频。
+- **门禁**：build 过；core 137 单测全过（4 个旧断言按忠实语义更新 + 新增多段命中窗用例）；verify-drift 归因（差异 = attackHit 字段移除 + 有意行为变更）；replay 8 剧本重冻后全过（tick 数与旧基线一致，无锁死/早退）；batch:validate 58 角色+37 辅助重冻后全过。**sim 行为变更，双基线均已重冻。**
+
 ---
 
 ## 四、剩余工作规划（未完成部分）
