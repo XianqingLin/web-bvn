@@ -728,7 +728,15 @@
          }
       }
 
-      // 单帧采集：算内容 bounds（相对 rootRef）→ 渲染 → 哈希去重落盘
+      // 单帧采集：算内容 bounds（相对 rootRef）→ 渲染 → 哈希去重落盘。
+      // 修复批次 37（Flash 混合模式）：顶层子对象 blendMode ≠ normal/layer 时
+      //（必杀白闪 darken / 黑幕 screen / 胜利演出 multiply 等），原版是对
+      // "真实场景底"混合——白底 darken 在游戏里白区透出场景，透明底整帧合成
+      // 却把它拍成不透明白矩形。此类子对象拆出整帧合成：base 只画 normal
+      // 子对象，每个 blend 子对象单独采集 png 并记录 blend 值（帧条目 parts），
+      // 渲染层对场景做对应混合。嵌套（非顶层）blend 仍随整帧压平（已知局限：
+      // add/screen 类在暗底上与透明底近似，darken/multiply 类嵌套用法待出现
+      // 实证失真再扩）。'layer' 只做组合隔离、视觉等价 normal，不拆。
       private function capShotFrame(item:Object, rootRef:DisplayObject, mc:MovieClip, f:int, seen:Object, pngList:Array, nextId:Function, outFrames:Array, skipRe:RegExp) : void
       {
             // 内容 bounds：rootRef 局部坐标系，排除判定区标记节点
@@ -737,6 +745,7 @@
             var rx2:Number = -1e9;
             var ry2:Number = -1e9;
             var has:Boolean = false;
+            var blends:Array = [];
             for(var i:int = 0; i < mc.numChildren; i++)
             {
                var ch:DisplayObject = mc.getChildAt(i);
@@ -745,7 +754,16 @@
                {
                   continue;
                }
+               var bm:String = ch.blendMode;
                var b:Rectangle = ch.getBounds(rootRef);
+               if(bm != "normal" && bm != "layer")
+               {
+                  if(b.width > 0 && b.height > 0)
+                  {
+                     blends.push({"ch":ch,"blend":bm,"b":b});
+                  }
+                  continue;
+               }
                if(b.width <= 0 || b.height <= 0)
                {
                   continue;
@@ -768,12 +786,81 @@
                }
                has = true;
             }
-            if(!has)
+            // base：blend 子对象临时隐藏后整帧渲染（与旧版唯一的差异 = 不含 blend 内容）
+            var basePng:int = -1;
+            var baseX:Number = 0;
+            var baseY:Number = 0;
+            if(has)
+            {
+               for(var vi:int = 0; vi < blends.length; vi++)
+               {
+                  blends[vi].ch.visible = false;
+               }
+               var base:Object = capRenderRegion(item,rootRef,rx,ry,rx2,ry2,f,seen,pngList,nextId);
+               for(var vr:int = 0; vr < blends.length; vr++)
+               {
+                  blends[vr].ch.visible = true;
+               }
+               basePng = base.png;
+               baseX = base.x;
+               baseY = base.y;
+            }
+            // parts：每个 blend 子对象单独采集（隐藏其余全部子对象，仅留目标；
+            // 混合对透明底 = 源不变，png 保留"混合前源内容"供渲染层对场景混合）
+            var parts:Array = null;
+            if(blends.length > 0)
+            {
+               parts = [];
+               for(var bi:int = 0; bi < blends.length; bi++)
+               {
+                  var bl:Object = blends[bi];
+                  var saved:Array = [];
+                  for(var si:int = 0; si < mc.numChildren; si++)
+                  {
+                     var sc:DisplayObject = mc.getChildAt(si);
+                     saved.push(sc.visible);
+                     sc.visible = sc == bl.ch;
+                  }
+                  var part:Object = capRenderRegion(item,rootRef,bl.b.x,bl.b.y,bl.b.x + bl.b.width,bl.b.y + bl.b.height,f,seen,pngList,nextId);
+                  for(var ri:int = 0; ri < saved.length; ri++)
+                  {
+                     mc.getChildAt(ri).visible = saved[ri];
+                  }
+                  if(part.png >= 0)
+                  {
+                     parts.push({"png":part.png,"x":part.x,"y":part.y,"blend":bl.blend});
+                  }
+                  else
+                  {
+                     capBootLog("part draw " + item.id + " f" + f + " blend=" + bl.blend + " ERR: 渲染失败");
+                  }
+               }
+               if(parts.length == 0)
+               {
+                  parts = null;
+               }
+            }
+            if(basePng < 0 && parts == null)
             {
                // 无可见内容：该帧记空（引用 null png）
                outFrames[f - 1] = {"frame":f,"png":-1};
                return;
             }
+            outFrames[f - 1] = {
+               "frame":f,
+               "png":basePng,
+               "x":baseX,
+               "y":baseY
+            };
+            if(parts != null)
+            {
+               outFrames[f - 1]["parts"] = parts;
+            }
+      }
+
+      // 区域渲染 + 哈希去重落盘（capShotFrame base/part 共用）：pngId<0 = 渲染失败
+      private function capRenderRegion(item:Object, rootRef:DisplayObject, rx:Number, ry:Number, rx2:Number, ry2:Number, f:int, seen:Object, pngList:Array, nextId:Function) : Object
+      {
             var rw:int = Math.ceil(rx2 - rx) + 2;
             var rh:int = Math.ceil(ry2 - ry) + 2;
             if(rw > 1024 || rh > 1024)
@@ -792,8 +879,7 @@
             {
                capBootLog("draw " + item.id + " f" + f + " ERR: " + e2.message);
                bmp.dispose();
-               outFrames[f - 1] = {"frame":f,"png":-1};
-               return;
+               return {"png":-1,"x":0,"y":0};
             }
             capHashPair(bmp);
             var key:String = rw + "x" + rh + ":" + _h1 + ":" + _h2;
@@ -812,8 +898,7 @@
                capWritePng(item.pngPrefix != null ? item.pngPrefix : item.kind + "_" + item.id,pngId,png);
                pngList.push({"id":pngId,"w":rw,"h":rh});
             }
-            outFrames[f - 1] = {
-               "frame":f,
+            return {
                "png":pngId,
                "x":Math.round((rx - 1) * 100) / 100,
                "y":Math.round((ry - 1) * 100) / 100

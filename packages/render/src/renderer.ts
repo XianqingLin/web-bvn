@@ -6,6 +6,7 @@
  * 表现事件按 tick 去重消费（不回读 sim 内部状态）。
  */
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import type { BLEND_MODES as TBlendMode } from 'pixi.js';
 import type { SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
 import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedFireAtlas, type LoadedMapAtlas } from './atlas.js';
@@ -14,6 +15,38 @@ import { FightHud, type HudSpec } from './hud.js';
 const TICK_MS = 1000 / 60;
 const LOGICAL_W = 1000;
 const LOGICAL_H = 600;
+
+/**
+ * Flash blendMode → Pixi blendMode（批次 37）。采集桥把顶层 blendMode 元件
+ * 单独采集（透明底 = 源不变），渲染层在此映射对场景混合。
+ * 'layer'（组合隔离）采集侧已视为 normal 不拆；未知值回退 normal（不遮场景）。
+ */
+function pixiBlendMode(flash: string): TBlendMode {
+  switch (flash) {
+    case 'add':
+      return 'add';
+    case 'screen':
+      return 'screen';
+    case 'multiply':
+      return 'multiply';
+    case 'darken':
+      return 'darken';
+    case 'lighten':
+      return 'lighten';
+    case 'subtract':
+      return 'subtract';
+    case 'hardlight':
+      return 'hard-light';
+    case 'overlay':
+      return 'overlay';
+    case 'difference':
+      return 'difference';
+    case 'invert':
+      return 'negation';
+    default:
+      return 'normal';
+  }
+}
 /** 原版 GameCamera._screenSize = GameConfig.GAME_SIZE 800×600：autoZoom 的设计视口
  *  常量（批次 23 追补，§4.3 块 11）——原版战斗可视区恒为 800×600（root scrollRect），
  *  与浏览器纵横比无关；移植版可见区随纵横比更大，但 zoom 数值节奏须对齐原版。 */
@@ -125,6 +158,8 @@ export interface BattleAssetsSpec {
 interface FighterSprite {
   root: Container;
   body: Sprite;
+  /** 混合模式子层（批次 37：Flash blendMode 元件，帧含 parts 时启用） */
+  parts: Sprite[];
   atlasId: string;
   loaded: LoadedFighterAtlas | null;
   /** 图集 forms 下标（= FighterDef.formIndex） */
@@ -525,7 +560,7 @@ export class BattleRenderer {
     body.visible = false;
     root.addChild(body);
     this.fighterLayer.addChild(root);
-    return { root, body, atlasId, loaded, formIndex, appliedPng: -1, appliedFacing: 0 };
+    return { root, body, parts: [], atlasId, loaded, formIndex, appliedPng: -1, appliedFacing: 0 };
   }
 
   /** sim tick 后由 app 调：滚动快照窗口，消费表现事件。 */
@@ -1231,23 +1266,64 @@ export class BattleRenderer {
     sp.appliedPng = animFrame;
     if (animFrame <= 0) {
       sp.body.visible = false;
+      this.hideParts(sp);
       return;
     }
     const form = sp.loaded.atlas.forms[sp.formIndex];
     const frame = form?.frames[animFrame - 1];
     if (!frame || frame.png < 0) {
       sp.body.visible = false;
+      this.hideParts(sp);
+      if (!frame || !frame.parts?.length) return;
+    } else {
+      const tex = frameTexture(sp.loaded, frame.png);
+      if (!tex) {
+        sp.body.visible = false;
+        this.hideParts(sp);
+        return;
+      }
+      sp.body.visible = true;
+      sp.body.texture = tex;
+      // frame.x/y = 内容相对 root 原点偏移（root 原点 = 角色坐标，翻转绕原点）
+      sp.body.position.set(frame.x ?? 0, frame.y ?? 0);
+    }
+    // 混合模式子层（批次 37）：采集桥把顶层 blendMode 元件拆出整帧合成，
+    // 此处对场景做对应混合（原版 Flash：子对象混合对"真实场景底"生效——
+    // darken 白闪白区透出场景、screen 黑幕黑区透出场景）。png 保存的是
+    // "混合前源内容"（透明底采集 = 源不变）。绘制次序在 base 之后（原版
+    // blend 元件均为顶层特效，z 序近似成立）。
+    const parts = frame.parts;
+    if (!parts || parts.length === 0) {
+      this.hideParts(sp);
       return;
     }
-    const tex = frameTexture(sp.loaded, frame.png);
-    if (!tex) {
-      sp.body.visible = false;
-      return;
+    while (sp.parts.length < parts.length) {
+      const s = new Sprite(Texture.WHITE);
+      s.visible = false;
+      sp.root.addChild(s);
+      sp.parts.push(s);
     }
-    sp.body.visible = true;
-    sp.body.texture = tex;
-    // frame.x/y = 内容相对 root 原点偏移（root 原点 = 角色坐标，翻转绕原点）
-    sp.body.position.set(frame.x ?? 0, frame.y ?? 0);
+    for (let i = 0; i < sp.parts.length; i++) {
+      const s = sp.parts[i]!;
+      const part = parts[i];
+      if (!part || part.png < 0) {
+        s.visible = false;
+        continue;
+      }
+      const ptex = frameTexture(sp.loaded, part.png);
+      if (!ptex) {
+        s.visible = false;
+        continue;
+      }
+      s.visible = true;
+      s.texture = ptex;
+      s.position.set(part.x ?? 0, part.y ?? 0);
+      s.blendMode = pixiBlendMode(part.blend);
+    }
+  }
+
+  private hideParts(sp: FighterSprite): void {
+    for (const s of sp.parts) s.visible = false;
   }
 
   /**

@@ -18,6 +18,16 @@ export interface AtlasQuad {
   h: number;
 }
 
+/** 帧内混合模式子对象（批次 37：Flash blendMode 元件单独采集，渲染层对场景混合） */
+export interface AtlasFramePart {
+  png: number;
+  /** 内容左上角相对角色 root 原点的偏移（root 局部坐标，同 base png） */
+  x?: number;
+  y?: number;
+  /** Flash blendMode 原词（darken/screen/multiply/lighten/subtract/hardlight/…） */
+  blend: string;
+}
+
 export interface AtlasFrameRef {
   /** 内层动画帧号（1 起）；png=-1 表示该帧无可见内容 */
   frame: number;
@@ -25,6 +35,8 @@ export interface AtlasFrameRef {
   /** 内容左上角相对角色 root 原点的偏移（root 局部坐标） */
   x?: number;
   y?: number;
+  /** Flash 混合模式子对象（顶层 blendMode ≠ normal/layer；采集时拆出整帧合成） */
+  parts?: AtlasFramePart[];
 }
 
 export interface AtlasForm {
@@ -131,6 +143,17 @@ export function validateFighterAtlas(pkg: unknown): { errors: string[]; warnings
       }
       if (fr.png >= 0 && (fr.x === undefined || fr.y === undefined)) {
         errors.push(`form ${f.rootFrame} frame ${fr.frame} 缺 bounds 偏移 x/y`);
+      }
+      for (const part of fr.parts ?? []) {
+        if (part.png >= 0 && !pngIds.has(String(part.png))) {
+          errors.push(`form ${f.rootFrame} frame ${fr.frame} part 引用不存在的 png ${part.png}`);
+        }
+        if (part.png >= 0 && (part.x === undefined || part.y === undefined)) {
+          errors.push(`form ${f.rootFrame} frame ${fr.frame} part 缺 bounds 偏移 x/y`);
+        }
+        if (typeof part.blend !== 'string' || part.blend.length === 0) {
+          errors.push(`form ${f.rootFrame} frame ${fr.frame} part 缺 blend`);
+        }
       }
     }
   }

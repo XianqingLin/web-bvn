@@ -53,8 +53,12 @@ async function boot(): Promise<void> {
   flow.roleKeymapP2 = params.get('role') === 'p2';
   if (mode === 'solo') {
     flow.mode = 'solo';
-    flow.localPick = { fighter: 'ichigo', assist: 'gaara' };
-    flow.mapId = 'KonohaMura';
+    // dev 直通参数：?fighter=&assist=&map= 覆盖默认选人（冒烟/目检用）
+    flow.localPick = {
+      fighter: params.get('fighter') ?? 'ichigo',
+      assist: params.get('assist') ?? 'gaara',
+    };
+    flow.mapId = params.get('map') ?? 'KonohaMura';
     scenes.switchTo(new LoadingScene(flow, null));
   } else if (mode === 'setup') {
     // dev 直通：只开选人页（不自动确认；切片 15 目检/驱动用）

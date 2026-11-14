@@ -36,6 +36,8 @@ interface CaptureFrame {
   png: number;
   x?: number;
   y?: number;
+  /** Flash 混合模式子对象（批次 37）：采集桥拆出的独立 png + blend 值，透传到 forms */
+  parts?: { png: number; x?: number; y?: number; blend: string }[];
 }
 interface CaptureRootFrame {
   rootFrame: number;
