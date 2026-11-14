@@ -27,7 +27,7 @@
  * 遗留（未收编，登记 PROGRESS 遗留池）：startKOmc 开局/结算演出、win 胜利星
  * （p1Wins/p2Wins 恒 0 不显示）、scoremc、被动条 sp、回合数字 shape_007。
  */
-import { Assets, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
 
 /** 原版舞台规格（HUD 布局设计空间） */
@@ -127,7 +127,19 @@ interface SideHud {
     justHurtFly: boolean;
     prevRate: number;
   };
-  energy: { fill: Sprite; label: Sprite; flashInt: number; flashFrame: number; overload: boolean };
+  energy: {
+    bgMid: Sprite | null;
+    bgMidW: number;
+    bgRight: Sprite;
+    bgRightX: number;
+    fill: Sprite;
+    fillW: number;
+    fillStretch: number;
+    label: Sprite;
+    flashInt: number;
+    flashFrame: number;
+    overload: boolean;
+  };
   qi: {
     segs: Sprite[];
     ghost: Sprite;
@@ -146,7 +158,19 @@ function emptySide(): SideHud {
   const noSprite = () => null as unknown as Sprite;
   return {
     hp: { green: noSprite(), red: noSprite(), redScale: 1, redMoving: false, delay: 0, justHurtFly: false, prevRate: 1 },
-    energy: { fill: noSprite(), label: noSprite(), flashInt: 0, flashFrame: 1, overload: false },
+    energy: {
+      bgMid: null,
+      bgMidW: 0,
+      bgRight: noSprite(),
+      bgRightX: 0,
+      fill: noSprite(),
+      fillW: 124,
+      fillStretch: 1,
+      label: noSprite(),
+      flashInt: 0,
+      flashFrame: 1,
+      overload: false,
+    },
     qi: {
       segs: [],
       ghost: noSprite(),
@@ -343,8 +367,19 @@ export class FightHud {
   private buildEnergy(side: SideHud, comicType: number, direct: 1 | -1): Container {
     const d = this.data;
     const g = new Container();
-    const bg = this.sprite('energy-bg');
-    bg.position.set(d.hp.energy.bgPos[0], d.hp.energy.bgPos[1]);
+    // bg 三段式（宽屏延伸切片）：左斜盖 0-12 / 纯槽中段 12-128 / 右端块 128-140，
+    // 常规位形拼合与整图等价；ext>0 时中段拉伸、端盖原样平移
+    const CAP = 12;
+    const bgTex = this.el('energy-bg');
+    const bw = bgTex.width;
+    const mkSlice = (x: number, w: number): Sprite => {
+      const sp = new Sprite(new Texture({ source: bgTex.source, frame: new Rectangle(x, 0, w, bgTex.height) }));
+      sp.position.set(d.hp.energy.bgPos[0] + x, d.hp.energy.bgPos[1]);
+      return sp;
+    };
+    const bgLeft = mkSlice(0, CAP);
+    const bgMid = mkSlice(CAP, bw - CAP * 2);
+    const bgRight = mkSlice(bw - CAP, CAP);
     const fill = this.frameSprite('energy-fill');
     fill.anchor.set(d.hp.energy.fillAnchorX, 0);
     fill.position.set(d.hp.energy.fillPos[0], d.hp.energy.fillPos[1]);
@@ -352,8 +387,20 @@ export class FightHud {
     const label = this.frameSprite('energy-label', comicType);
     label.position.set(d.hp.energy.labelPos[0], d.hp.energy.labelPos[1]);
     if (direct === -1) label.scale.x = -1;
-    g.addChild(bg, fill, label);
-    side.energy = { fill, label, flashInt: 0, flashFrame: 1, overload: false };
+    g.addChild(bgLeft, bgMid, bgRight, fill, label);
+    side.energy = {
+      bgMid,
+      bgMidW: bw - CAP * 2,
+      bgRight,
+      bgRightX: d.hp.energy.bgPos[0] + bw - CAP,
+      fill,
+      fillW: fill.texture.width,
+      fillStretch: 1,
+      label,
+      flashInt: 0,
+      flashFrame: 1,
+      overload: false,
+    };
     return g;
   }
 
@@ -513,6 +560,20 @@ export class FightHud {
       this.hpBars.p1.scale.x = k;
       this.hpBars.p2.scale.x = -k;
     }
+    // 能量条延伸（同血条）：原版 800 宽下 energy 右缘（374.95）搭进计时板左缘
+    // （362.5）12.45px；宽屏下计时板随中线外移而能量条钉在脸侧 → 空隙。
+    // bg 三段式（端盖固定、纯槽中段拉伸——bg 有斜盖/端块，整段拉伸会拉丝）；
+    // fill 为纯条纹理随 ext 拉长（充电满时仍铺满全槽）。P2 容器镜像下局部 +x
+    // 恒指向屏心，两侧同一公式；原版位形 ext=0 不动
+    const ext = (visW - STAGE_W) / 2;
+    for (const s of [this.sides[1], this.sides[2]]) {
+      const en = s.energy;
+      if (!en.bgMid) continue;
+      en.bgMid.scale.x = (en.bgMidW + ext) / en.bgMidW;
+      en.bgRight.position.x = en.bgRightX + ext;
+      en.fill.position.x = this.data.hp.energy.fillPos[0] + ext;
+      en.fillStretch = (en.fillW + ext) / en.fillW;
+    }
     for (const p of this.pinned) {
       const x =
         p.mx === 'left' ? p.x : p.mx === 'right' ? visW - (STAGE_W - p.x) : visW / 2 + (p.x - STAGE_W / 2);
@@ -612,7 +673,7 @@ export class FightHud {
     // —— 能量条（原版 EnergyBar.render；energyMax = 100）——
     const en = s.energy;
     const eRate = Math.max(0, f.energy / 100);
-    en.fill.scale.x = eRate;
+    en.fill.scale.x = eRate * en.fillStretch;
     if (f.energyOverload) {
       if (!en.overload) {
         en.overload = true;

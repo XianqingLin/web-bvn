@@ -306,6 +306,34 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 
 ---
 
+### 修复批次 37——超必杀 blend 贴图收编（✅ 2026-11-14）
+
+实战发现蓝染 w+i 超必杀画面异常：白色不透明方块（立绘+蝴蝶能量）+ 巨大黑色菱形盖屏。根因 = 原版 Flash `blendMode`（add/darken 等）在采集管线丢失——顶层带 blend 的子对象被合成为不透明位图。收编三段：
+
+1. **采集桥拆分**（inject-capture.as3）：顶层 blend 子对象不再合入主位图，单独采 png（`parts`：name/blendMode/offset），主位图仅含普通子对象；
+2. **atlas-pack 透传**：帧 schema 扩 `parts[]`（png + blendMode + 像素偏移），落 `aizen.atlas.json`（42 sheet、464 唯一帧、1669 帧引用、72 帧带 parts）；
+3. **renderer 混合**：pixi `blendMode` 映射（add→'add'、darken→'darken'、multiply/layer 等），parts 帧渲染为主位图 + 混合子件叠加。
+
+- **偏离记录**：切人插图白底 = darken 对白底的原版设计（非 bug）；app/main.ts 配合 assets.ts 装载链调整。
+- **门禁**：build 过；batch:validate 过（纯表现层零 sim 漂移）；vite 冒烟 40 张截图目检——黑菱形消失、蝴蝶能量正确加色混合。
+
+### 修复批次 38——受击无敌窗单位换算修正（✅ 2026-11-14）
+
+实测蓝染砍 3（位移攻击）一次触发两次伤害。根因 = **移植单位换算 bug，非版本差异**：原版 `_beHitGap=4` 是 30fps **渲染帧**（FighterTester `[SWF(frameRate="30")]`），移植版按 4 个 60Hz tick 递减——窗口实长仅原版一半。位移攻击 3 动画帧攻击框 + 命中停顿（freeze 期 gap 停走）+ moveToTarget 绝对吸附穿过目标，解冻后二段命中。修正（同律三处，全部 30fps 渲染帧 → 60Hz tick ×2）：
+
+- `HURT_GAP_TICKS` 4→8（machine.ts）；`STEEL_HURT_GAP_TICKS` 4→8、`STEEL_HURT_DOWN_GAP_TICKS` 10→20（sim.ts）；`DEFENSE_GAP_TICKS` 4→8、`DEFENSE_GAP_DOWN_TICKS` 8→16。
+- hitstop.test 夹具 k2atm 264/265→270/271（窗口加宽后原夹具边际时序失效；真实连段相隔 ~19 帧不受影响）。
+- **顺带发现未改（登记遗留）**：地面 HURT_ING 摩擦 `GROUND_FRICTION=0.9`（subtractive wake）vs 原版 `setDamping(0.1)`——受击滑步距离差 10 倍以上，注释自认 POC 取义；影响手感面广，单独批次处理。
+- **门禁**：core 142 + exporter 27 单测全过；verify-drift 归因（30/404 tick 不等，唯一差异字段 `beHitGap` 3→7 = 有意变更传导）；replay 8 剧本重冻全过（ichigo-duel 仅 tick 59 检查点漂移、终态收敛）；batch:validate 58 角色+37 辅助重冻全过。**sim 行为变更（无敌窗 ×2），双基线均已重冻。**
+
+### HUD 能量条宽屏延伸（✅ 2026-11-14）
+
+3.6 版对照检查发现：SPIRITUAL 能量条应贴着中间计时板（原版 800 宽下 energy 右缘 374.95 搭进计时板左缘 362.5 约 12px，批次 36 已给血条做了同款延伸，能量条漏了）。hud.ts relayout 补齐：**bg 三段式切片**（端盖 12px 固定、纯槽中段拉伸——bg 有斜盖/端块，整段拉伸会拉丝）+ fill 纯条纹理随 ext 拉长（满能量仍铺满全槽）；P2 镜像容器下局部 +x 恒指向屏心，两侧同公式；原版 800 位形 ext=0 不动。vite 冒烟目检：空/满能量两端贴合、端盖完好。
+
+- **3.6 对照检查结论（版本差异，不改）**：①血条 HP 数字"2000"——3.x 代码（FighterHpBar）与 fight XFL（mc_040 无文本域）均无 HP 数字，原版数值线 `hpMax=1000×fighterHP×难度`（GameLogic.as:342），数字显示系 3.6 新增 HUD 特性，按需另立项（纯显示层，hp 值现成）；②蓝条贴计时板——已按上述修复（非版本差异，是宽屏适配缺口）；③贴合处 ui 件——hp-deco 装饰条 + shape_007 计时板侧翼件均已收编在位；④援助 READY 闪烁——3.x 原版即有（QiBar `_fzReadyMc.mc.play()`），切片 30 已实现（ready-anim 20 帧 @30fps 循环），行为正确。
+
+---
+
 ## 四、剩余工作规划（未完成部分）
 
 > 本节只收未完成项；已完成内容见 §二/§三。排期可按实际开工时调整，调整时改本节。
@@ -339,7 +367,7 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 | 9 | 进战斗加载画面 | ✅ 收官（切片 31）：LoadingScene 原版 loading_fight_mc 演出 + 装载队列分帧化 + renderer.load 分步进度 + prime() 首帧定位（修"进场黑边"）+ BattleLoadout 交接 | 原版场景链：选人 → Loading → GameStage |
 | 10 | MC 子元件采集修复 | ✅ 收官（批次 32，结论推翻登记前提）：五轮诊断 AIR 运行（diag 子元件播放头追踪 + probe 逐帧质询）证明 `capAdvanceChildren` 忠实可用——kenshin 走段子元件 4 帧同图（素材本身静态）、fire 元件 kj2mc/cbsmc 类 36 帧全同（静态贴图由引擎变换驱动）；批次 21F"ghost 时间轴递归步进"假设证伪，**无需重采任何包**。走段静止真相：58 走标签 54 个 loop 触发（已收编）、4 个 stop 触发（kenshin×2/ulquiorra/naruto form4）原版语义 = 播到 stop 帧冻结滑行。真正缺口 = 引擎未消费 `stop`（target=mc，全量 150 处：胜利/失败 116、跳招 15、必杀/砍技等）——本块一并收编：fighter `mcHold` 冻结门（stop 置位 / 换标签·开新动作·触地续接·换形态解冻；同名标签重设不冲掉冻结），`stop` 行为从误映射"清速度"（那是 stopMove）改为冻结主时间轴（原版三系控制器 stop() 均只冻结）。verify-drift 归因：6 剧本剔除 mcHold 后零真实差异；batch 冒烟 4/58 角色（kenshin/ulquiorra 族）真实触发且行为有界；新增 kenshin-stopwalk 剧本 + 全部基线重冻（sim 行为变更，非登记时预期的零漂移） | 批次 22 登记；批次 32 收编；冻结帧内子元件动画（原版 renderChildren 照跑）烘焙为静态合成，属全引擎既有 PNG 烘焙局限的时长放大，登记不处理 |
 | 11 | 相机 autoZoom 视口基准 | ✅（批次 23 追补）：zoom 公式改用原版 GAME_SIZE 800×600 设计视口常量（`DESIGN_VIEW_W/H`），渲染可见区仍随纵横比铺满；逻辑基线 1000 维持不动（菜单用 1000 舞台坐标，16:9 下基线无视觉差异） | 批次 23 追补收编；render 层，sim 零哈希漂移 |
-| 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；picture_063 顶部装饰已补烘（批次 36）；余展示件：startKOmc 开场 KO 字样 / win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项 | 切片 30 遗留池；render+数据层 |
+| 12 | 对局 HUD 余项 | 主 HUD 已原版化（切片 30）；picture_063 顶部装饰已补烘（批次 36）；能量条宽屏延伸已补（批次 37 附）；余展示件：startKOmc 开场 KO 字样 / win 胜场星（p1Wins/p2Wins 恒 0）/ scoremc 计分板 / 被动条 sp / shape_007 圆底数字（回合指示）——均无对应语义，按需另立项；另：3.6 版血条 HP 数字显示（3.x 无此件，版本差异）可作纯显示层增强按需立项 | 切片 30 遗留池；render+数据层 |
 
 ---
 
