@@ -25,7 +25,7 @@ import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { tweenOf, tickTweens, clearTweens } from '../anim.js';
 import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
-import { loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
+import { ASSETS, loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
 import type { Flow, Pick } from '../flow.js';
 import { LoadingScene } from './loading.js';
 
@@ -86,7 +86,7 @@ export class SetupScene implements Scene {
     // select 场景壳元件预载
     const el = this.uiData.select.elements;
     const pairs = await Promise.all(
-      Object.entries(el).map(async ([k, url]) => [k, await Assets.load<Texture>(`/packages/data/assets/${url}`)] as const),
+      Object.entries(el).map(async ([k, url]) => [k, await Assets.load<Texture>(`${ASSETS}/${url}`)] as const),
     );
     this.tex = Object.fromEntries(pairs);
 
@@ -516,7 +516,7 @@ export class SetupScene implements Scene {
 
   private showMapPic(pic: Sprite, entries: { id: string | null; name: string }[]): void {
     const e = entries[this.mapIndex]!;
-    const url = `/packages/data/assets/${this.uiData!.maps.dir}/${e.id ?? 'random'}.png`;
+    const url = `${ASSETS}/${this.uiData!.maps.dir}/${e.id ?? 'random'}.png`;
     const token = this.loadToken;
     void Assets.load<Texture>(url).then((t) => {
       if (token !== this.loadToken) return;
