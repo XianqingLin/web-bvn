@@ -11,4 +11,9 @@ export default defineConfig({
     open: '/packages/app/preview.html',
     fs: { allow: [resolve(dirname(fileURLToPath(import.meta.url)), '../..')] },
   },
+  // root=仓库根会让 dep scanner 扫全仓库 *.html（含 tools/_scratch 下的 Edge profile 垃圾），
+  // 显式钉死扫描入口，只扫真正的预览页。
+  optimizeDeps: {
+    entries: ['packages/app/preview.html'],
+  },
 });
