@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -p tsconfig.json"
+    "build": "tsc -p tsconfig.json",
+    "build:dist": "vite build --config vite.config.build.ts && node scripts/prepare-dist.mjs"
   },
   "dependencies": {
     "@bvn/core": "workspace:*",
     "@bvn/data": "workspace:*",
     "@bvn/net": "workspace:*",
     "@bvn/render": "workspace:*",
+    "@xlp/game-sdk": "file:../../../xiao-lin-game-shop/packages/game-sdk",
     "pixi.js": "^8.6.6"
   },
   "devDependencies": {

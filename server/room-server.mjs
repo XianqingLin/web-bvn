@@ -2,6 +2,13 @@
 /**
  * 房间服务器（切片 7）。只做房间编排与输入中继，不跑模拟。
  *
+ * 【已退役·仅作参考】联机已迁移到小林游戏铺平台通用对战中转
+ * （xiao-lin-game-shop/server/relay.mjs，方案 A：平台为唯一权威、字节管道
+ * {t,ch,payload}、HMAC 凭证验签）。游戏侧适配见 packages/net/src/platform.ts。
+ * 本文件保留供参考，不再被 dev/构建流程引用。
+ *
+ * 职责：
+ *
  * 职责：
  *   1. create → 开新房分配 4 位房间码（P1）；join <code> → 入房（P2）；
  *      失败回 error（room-not-found / room-full）并关闭连接；

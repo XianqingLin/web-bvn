@@ -193,6 +193,9 @@ importers:
       '@bvn/render':
         specifier: workspace:*
         version: link:../render
+      '@xlp/game-sdk':
+        specifier: file:../../../xiao-lin-game-shop/packages/game-sdk
+        version: file:../xiao-lin-game-shop/packages/game-sdk
       pixi.js:
         specifier: ^8.6.6
         version: 8.22.0
@@ -986,6 +989,9 @@ packages:
   '@webgpu/types@0.1.74':
     resolution: {integrity: sha512-lgiI4hbuLcI9unnm2cL/tvCaQU45dp0xcLWJh5uB/9MBGvIA4F8XIk7nSiBeg+K4xWGYwgZKn80LmERI5CxoTA==}
 
+  '@xlp/game-sdk@file:../xiao-lin-game-shop/packages/game-sdk':
+    resolution: {directory: ../xiao-lin-game-shop/packages/game-sdk, type: directory}
+
   '@xmldom/xmldom@0.8.15':
     resolution: {integrity: sha512-/5NV/vDALVFDXgLmfsy9TRCBlKwO2LNBFzpzvb9iIj+jR+eSc6DLYYvVOdivT/jm7MtU6TebYuRmzEOI7w40UA==}
     engines: {node: '>=10.0.0'}
@@ -1768,6 +1774,8 @@ snapshots:
       tinyrainbow: 2.0.0
 
   '@webgpu/types@0.1.74': {}
+
+  '@xlp/game-sdk@file:../xiao-lin-game-shop/packages/game-sdk': {}
 
   '@xmldom/xmldom@0.8.15': {}
 

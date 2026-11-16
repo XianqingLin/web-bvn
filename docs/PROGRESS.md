@@ -61,6 +61,7 @@
 | 29 | 阶段 4·块 5 收尾·菜单流打磨：Logo 开场演出（logo_movie 66 帧流播 + LogoScene）+ 结算立绘（内嵌 loading.swf winner_stg_mc 92 帧舞台 + 胜者立绘/台词气泡 + select-pack 升 @2 烘 win_cls/says）+ 选人格子入场/退场/地图面板动画（buildList/fadOutList/initMap 收编，tween 提取共享 anim.ts + FrameStream 泛化）+ UI 打磨池（长名钳制/DOM 输入样式） | ✅ | §三·切片 29 |
 | 30 | 阶段 4·对局 HUD 原版化（用户目检发现占位 UI，立项收编）：fight.swf XFL 全 HUD 装配逆向（血条/大脸/能量条/计时板/气条/READY/辅助格/连击数）+ `tools/ui-pack/hud-pack.mjs` 27 元素烘焙（FFDec sprite 帧序 + shape SVG 光栅化）+ `baked/hud.json` + render FightHud 屏幕空间钉边组件 + app 接线（select `comicType`/`_m` 大脸/50×50 辅助脸）；原版血条红条延迟/能量溢出闪烁/气条 4 段+幽灵步/连击数算法逐条收编 | ✅ | §三·切片 30 |
 | 31 | 阶段 4·块 9·进战斗加载画面：`tools/ui-pack/loading-pack.mjs` 烘焙（loading.swf loading_fight_mc 舞台画裁切 + 进度条槽/填充/美术字/spinner 30 帧）+ `baked/loading.json`（schema bvn/loading@1）+ app LoadingScene（原版 LoadingStage 装载队列语义：角色→辅助→场景→BGM 预解码→渲染纹理，msg+计数/条形 scaleX/spinner 30fps）+ 装载分帧化（步间让帧，不再整段卡主线程）+ renderer.load 分步进度回报 + renderer.prime() 首帧定位（修"进场黑边"）+ 装载期舞台层隐藏 + BattleScene 改装载产物交接（setup/winner/main 三处入口改经 LoadingScene） | ✅ | §三·切片 31 |
+| 33 | 联机迁移到小林游戏铺平台中转（方案 A）：`packages/net/platform.ts` RelaySocket（平台中转 → 旧 WsLike 协议适配：welcome/start 本地合成、peer-lost 由 onPeers 差分合成、pick/input/hash 走 ch='game' payload 透传、close=leave）+ `openPlatformSession`（xlp.rooms.create/join + 凭证连中转）+ app 接线（connectXlp 进 boot / Flow.xlp / NetScene 改平台入房 / standalone 提示）+ 嵌入构建（vite.config.build.ts base './' + index.html + prepare-dist.mjs：baked 拷贝 + assets junction）+ `server/room-server.mjs` 退役为参考实现 | ✅ | §三·切片 33 |
 
 ---
 
@@ -353,6 +354,19 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 4. **砍 3 位移偏远感（不改，数据忠实）**：原版 movePercent(2)+dampingPercent(0.1) = 26px/帧衰减，折算 60Hz 后移植 13px/tick 衰 0.65，同 JUMP_DAMPING 既有 ×SPEED_PLUS 约定；移植总位移反而**短于原版**（~130px/0.33s vs 原版 ~260px/0.67s）。体感偏差大概率来自滑行 bug（残速叠加在位移上）+ 帧率差；滑行修复后建议复测再议。
 
 - **门禁**：build 过；core 149 + exporter 27 + net 7 单测全过；verify-drift 归因（行为差异 = 有意变更）；replay 9 剧本 + batch:validate 58+37 重冻全过；headless Edge 冒烟目检（sbs 白块消失/演出层次正确、zh2 招2 起手 x 恒定 615.35 + 白闪可见）。
+
+### 切片 33——联机迁移到小林游戏铺平台中转（✅ 2026-11-16）
+
+按根 CLAUDE.md 方案 A：平台服务器为唯一权威并承担通用对战中转（信封 `{t,ch,payload}` 字节管道 + HMAC 凭证），web-bvn 删除自有房间服务器运行时依赖。tether 已迁（平台侧首个验证载体），bvn 为第二款接入游戏。
+
+- **packages/net/platform.ts（新增，核心）**：`RelaySocket implements WsLike`——把平台中转伪装成旧协议套接字，**场景代码与 LockstepClient 零改动**。服务器语义本地合成：welcome（openPlatformSession 建房/加入后排队交付，joinRoom 兼容）；start（双方 hello 凑齐即合成，不锁存——重赛每轮 hello 重放，对齐旧服务器"每次 hello 都检查"）；peer-lost（relay.onPeers 差分 + room-closed 事件，一次对局去重一次）；pick/input/hash 原样作 `ch='game'` JSON payload 透传（平台不解析）。`close()` = `relay.leave()`（旧语义：断开即离开，host 离开解散房间）。对端重连不做对局恢复（lockstep 双方 tick 状态无法对接，与旧行为一致——冻结等待由看门狗提示）。只依赖 @xlp/game-sdk 的结构子集（duck typing），net 包不引平台依赖。
+- **`openPlatformSession`**：xlp.rooms.create({maxPlayers:2})/join(6 位码) → 凭证连中转（10s 显式超时，代理丢 upgrade 不挂死）→ RelaySocket。入房失败映射 RoomJoinError（不存在/已满/码格式）。
+- **app 接线**：main.ts boot `connectXlp()`（standalone 自动降级）；`Flow.serverUrl`（localStorage 记忆的 ws 地址）删除，改 `Flow.xlp: XlpSdk | null`；NetScene 改平台入房（显示登录账号；standalone/未登录提示"联机需要在小林游戏铺平台内运行"；房间码 4 位→6 位）；dev 直通 `?mode=net&action=create|join&room=` 保留（server/port 参数删除）。
+- **既有 bug 顺手修复**：`waitPeerPick` 此前丢弃 `pick.map`——P2 拿不到 P1 选的地图，非默认地图两端 configHash 必错配。补透传。
+- **嵌入构建（平台 /g/bvn/ 前提）**：`packages/app/index.html`（正式入口页）+ `vite.config.build.ts`（root=本包、base './'）+ `scripts/prepare-dist.mjs`（baked ~14MB 拷入 dist；assets ~848MB 建 Windows junction 指向 `packages/data/assets`，零拷贝；非 Win 退化符号链接/整拷）+ `data.ts` 路径改 `import.meta.env.BASE_URL` 派生（dev 绝对路径不变，构建走相对路径）。构建命令 `pnpm --filter @bvn/app build:dist`。
+- **server/room-server.mjs**：头部标注"已退役·仅作参考"（按平台侧约定保留骨架参考），不再被 dev/构建引用（lockstep.test 的真实进程 e2e 仍引用其作对照，保留）。
+- **平台侧**：games.config.json 加 `bvn → ../web-bvn/packages/app/dist`；games.json bvn 条目补 launchUrl + online capability（mode platform / maxPlayers 2）。平台"不可启动"测试原以 bvn 为夹具，改为独立夹具测试文件（bvn 已可启动）。
+- **门禁**：build 过；net 18 单测全过（新增 platform.test 11 用例：内存假平台，welcome 合成/hello→start 两方向/透传/peer-lost 去重/close=leave/端到端 lockstep 哈希等于单机直跑）；core/data/render/exporter 全过；replay 9 剧本 + batch:validate 58+37 基线门禁全过（sim 零改动）；平台 79 测试全过；HTTP 冒烟 /g/bvn/ 全链 200（index/bundle/baked/faces/bgm 经 junction）。浏览器双账号人工验证待做。
 
 ---
 

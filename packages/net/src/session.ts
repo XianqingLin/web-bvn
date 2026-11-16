@@ -97,7 +97,7 @@ export function waitPeerPick(socket: WsLike, timeoutMs = 120_000): Promise<PickI
       rej(new Error('waitPeerPick：等待对端选人超时'));
     }, timeoutMs);
     socket.onmessage = (ev) => {
-      let msg: { t?: string; player?: PlayerSlot; fighter?: string; assist?: string };
+      let msg: { t?: string; player?: PlayerSlot; fighter?: string; assist?: string; map?: string };
       try {
         msg = JSON.parse(
           typeof ev.data === 'string' ? ev.data : (ev.data as { toString(): string }).toString(),
@@ -108,7 +108,7 @@ export function waitPeerPick(socket: WsLike, timeoutMs = 120_000): Promise<PickI
       if (msg.t === 'pick') {
         clearTimeout(timer);
         socket.onmessage = null;
-        res({ fighter: msg.fighter!, assist: msg.assist! });
+        res({ fighter: msg.fighter!, assist: msg.assist!, map: msg.map });
       }
     };
   });

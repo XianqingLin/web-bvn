@@ -1,7 +1,9 @@
 /**
- * 场景间共享的对局流程状态（切片 14）。
+ * 场景间共享的对局流程状态（切片 14；联机迁移：平台 SDK 进 Flow）。
  * 一个 Flow 贯穿 菜单→选人→战斗→结算 的单次流转；回菜单即废弃。
  */
+import type { XlpSdk } from '@xlp/game-sdk';
+
 export interface Pick {
   fighter: string;
   assist: string;
@@ -10,11 +12,11 @@ export interface Pick {
 export interface Flow {
   /** solo = 单机训练；net = 联机 lockstep */
   mode: 'solo' | 'net';
-  /** 房间服务器地址（联机；localStorage 记忆） */
-  serverUrl: string;
-  /** 联机位次（服务器分配；solo 恒 1） */
+  /** 平台 SDK（boot 时 connectXlp；standalone 时 rooms/relay 调用异步抛错） */
+  xlp: XlpSdk | null;
+  /** 联机位次（平台角色映射：host→1 / guest→2；solo 恒 1） */
   player: 1 | 2;
-  /** 房间码（联机） */
+  /** 房间码（联机；平台 6 位码） */
   room: string;
   /** 本端选人 */
   localPick: Pick | null;
@@ -31,7 +33,7 @@ export interface Flow {
 export function makeFlow(): Flow {
   return {
     mode: 'solo',
-    serverUrl: localStorage.getItem('bvn.server') ?? 'ws://localhost:8787',
+    xlp: null,
     player: 1,
     room: '',
     localPick: null,

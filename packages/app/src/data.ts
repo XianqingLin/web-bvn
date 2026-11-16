@@ -1,6 +1,8 @@
 /**
  * baked 数据装配助手（app 各场景共用；与 tools/replay 同一编译接线）。
- * 路径约定：vite root = 仓库根，baked/assets 以 /packages/data/… 静态可 fetch。
+ * 路径约定：dev（vite root = 仓库根）用 /packages/data/… 绝对路径；
+ * 构建（base './'，嵌平台 /g/bvn/）用相对路径，dist 下自带 packages/data/baked、
+ * packages/data/assets（assets 为指向真实资源目录的 junction，见 scripts/prepare-dist.mjs）。
  */
 import {
   compileAssistant,
@@ -10,8 +12,9 @@ import {
 } from '@bvn/data';
 import type { Ctx } from './host.js';
 
-export const BAKED = '/packages/data/baked';
-export const ASSETS = '/packages/data/assets';
+const DATA_BASE = import.meta.env.BASE_URL;
+export const BAKED = `${DATA_BASE}packages/data/baked`;
+export const ASSETS = `${DATA_BASE}packages/data/assets`;
 
 // ---------- select.json（tools/select-pack 产物，schema bvn/select@1） ----------
 

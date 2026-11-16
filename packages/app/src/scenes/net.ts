@@ -1,9 +1,11 @@
 /**
- * 联机房间场景（切片 14）：服务器地址（localStorage 记忆）+ 创建/加入房间。
- * 入房成功 → 选人场景（pick 交换在选人确认时进行）。
+ * 联机房间场景（切片 14；联机迁移：走小林游戏铺平台）。
+ * 创建/加入 6 位房间码房间（平台 rooms API）→ 入房成功 → 选人场景
+ * （pick 交换与对局经平台中转的 RelaySocket，旧协议语义不变）。
+ * 未在平台内运行（standalone）时提示需登录平台。
  */
 import { Container, Text } from 'pixi.js';
-import { joinRoom, type WsLike } from '@bvn/net';
+import { openPlatformSession, type WsLike } from '@bvn/net';
 import type { Scene, SceneCtx } from './scene.js';
 import { domInput, makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
@@ -15,14 +17,14 @@ export class NetScene implements Scene {
 
   private ui: Container | null = null;
   private status: Text | null = null;
-  private serverText: Text | null = null;
-  private socket: WebSocket | null = null;
+  private accountText: Text | null = null;
+  private socket: WsLike | null = null;
   private ctx: SceneCtx | null = null;
   private closed = false;
 
   constructor(
     private readonly flow: Flow,
-    /** dev 直通：enter 后自动以该参数连接（UI 入口不传） */
+    /** dev 直通：enter 后自动以该参数入房（UI 入口不传） */
     private readonly auto: { action: 'create' | 'join'; room?: string | undefined } | null = null,
   ) {}
 
@@ -39,17 +41,15 @@ export class NetScene implements Scene {
     title.position.set(UI_W / 2, 100);
     ui.addChild(title);
 
-    const serverText = makeLabel(`服务器：${this.flow.serverUrl}（点击修改）`, {
-      size: 15,
-      color: 0x8fd0ff,
-    });
-    serverText.anchor.set(0.5);
-    serverText.position.set(UI_W / 2, 170);
-    serverText.eventMode = 'static';
-    serverText.cursor = 'pointer';
-    serverText.on('pointertap', () => void this.editServer());
-    this.serverText = serverText;
-    ui.addChild(serverText);
+    const xlp = this.flow.xlp;
+    const accountText = makeLabel(
+      xlp?.user ? `账号：${xlp.user.username}` : '未登录 —— 联机需要在小林游戏铺平台内运行',
+      { size: 15, color: xlp?.user ? 0x8fd0ff : 0xffb0b0 },
+    );
+    accountText.anchor.set(0.5);
+    accountText.position.set(UI_W / 2, 170);
+    this.accountText = accountText;
+    ui.addChild(accountText);
 
     const createBtn = makeButton('创建房间', () => void this.connect('create'));
     createBtn.position.set(UI_W / 2 - 210, 240);
@@ -81,54 +81,41 @@ export class NetScene implements Scene {
     this.socket = null;
   }
 
-  private async editServer(): Promise<void> {
-    const { domHost } = this.ctx!;
-    const { done } = domInput(domHost, 'ws(s)://host:port', this.flow.serverUrl);
-    const url = await done;
-    if (!url) return;
-    this.flow.serverUrl = url;
-    localStorage.setItem('bvn.server', url);
-    if (this.serverText) this.serverText.text = `服务器：${url}（点击修改）`;
-  }
-
   private async connect(action: 'create' | 'join', roomOverride?: string): Promise<void> {
     const flow = this.flow;
     const status = this.status!;
-    status.text = '连接服务器…';
-    const socket = new WebSocket(flow.serverUrl);
-    this.socket = socket;
-    try {
-      await new Promise<void>((res, rej) => {
-        socket.addEventListener('open', () => res(), { once: true });
-        socket.addEventListener('error', () => rej(new Error('无法连接房间服务器')), { once: true });
-      });
-    } catch (e) {
-      status.text = (e as Error).message;
+    if (!flow.xlp || flow.xlp.standalone || !flow.xlp.user) {
+      status.text = '联机需要在小林游戏铺平台内运行并登录';
       return;
     }
     let roomCode = roomOverride ?? '';
     if (action === 'join' && !roomCode) {
-      const { done } = domInput(this.ctx!.domHost, '4 位房间码', '');
+      const { done } = domInput(this.ctx!.domHost, '6 位房间码', '');
       roomCode = await done;
       if (!roomCode) {
         status.text = '已取消';
-        socket.close();
         return;
       }
     }
+    status.text = action === 'create' ? '创建房间…' : '加入房间…';
     try {
-      const welcome = await joinRoom(socket as unknown as WsLike, action, roomCode || undefined);
-      flow.player = welcome.player;
-      flow.room = welcome.room;
-      status.text = `房间 ${welcome.room} —— 你是 P${welcome.player}，进入选人…`;
+      const session = await openPlatformSession(flow.xlp, {
+        action,
+        roomCode: roomCode || undefined,
+      });
+      flow.player = session.player;
+      flow.room = session.room;
+      status.text = `房间 ${session.room} —— 你是 P${session.player}，进入选人…`;
+      if (this.closed) {
+        session.socket.close();
+        return;
+      }
+      // socket 交由选人/对局阶段接管
+      this.socket = session.socket;
+      this.ctx!.switchTo(new SetupScene(flow, session.socket));
     } catch (e) {
       status.text = `入房失败：${(e as Error).message}`;
-      socket.close();
-      return;
     }
-    if (this.closed) return;
-    // socket 交由选人/对局阶段接管
-    this.ctx!.switchTo(new SetupScene(flow, socket as unknown as WsLike));
   }
 
   exit(): void {
