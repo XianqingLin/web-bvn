@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-14T07:10:28.808Z",
+  "generatedAt": "2026-11-16T06:13:22.315Z",
   "fighters": 58,
   "framesPerFighter": 700,
   "map": "Forest",
@@ -16,10 +16,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "ac8cccc1",
-        "resumeHash": "ac8cccc1",
+        "finalHash": "fed1939a",
+        "resumeHash": "fed1939a",
         "resumeFrames": 300,
-        "rerunHash": "ac8cccc1"
+        "rerunHash": "fed1939a"
       }
     },
     {
@@ -31,10 +31,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "49751fb4",
-        "resumeHash": "49751fb4",
+        "finalHash": "2dc59d4c",
+        "resumeHash": "2dc59d4c",
         "resumeFrames": 300,
-        "rerunHash": "49751fb4"
+        "rerunHash": "2dc59d4c"
       }
     },
     {
@@ -46,10 +46,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "49751fb4",
-        "resumeHash": "49751fb4",
+        "finalHash": "2dc59d4c",
+        "resumeHash": "2dc59d4c",
         "resumeFrames": 300,
-        "rerunHash": "49751fb4"
+        "rerunHash": "2dc59d4c"
       }
     },
     {
@@ -61,10 +61,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "c2d0ac64",
-        "resumeHash": "c2d0ac64",
+        "finalHash": "9f89ccbd",
+        "resumeHash": "9f89ccbd",
         "resumeFrames": 300,
-        "rerunHash": "c2d0ac64"
+        "rerunHash": "9f89ccbd"
       }
     },
     {
@@ -76,10 +76,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "714ee341",
-        "resumeHash": "714ee341",
+        "finalHash": "be5daf69",
+        "resumeHash": "be5daf69",
         "resumeFrames": 300,
-        "rerunHash": "714ee341"
+        "rerunHash": "be5daf69"
       }
     },
     {
@@ -91,10 +91,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "74333fd7",
-        "resumeHash": "74333fd7",
+        "finalHash": "6a6441f6",
+        "resumeHash": "6a6441f6",
         "resumeFrames": 300,
-        "rerunHash": "74333fd7"
+        "rerunHash": "6a6441f6"
       }
     },
     {
@@ -106,10 +106,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "7034a698",
-        "resumeHash": "7034a698",
+        "finalHash": "e5fd8f65",
+        "resumeHash": "e5fd8f65",
         "resumeFrames": 300,
-        "rerunHash": "7034a698"
+        "rerunHash": "e5fd8f65"
       }
     },
     {
@@ -121,10 +121,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "645cb907",
-        "resumeHash": "645cb907",
+        "finalHash": "ca24646d",
+        "resumeHash": "ca24646d",
         "resumeFrames": 300,
-        "rerunHash": "645cb907"
+        "rerunHash": "ca24646d"
       }
     },
     {
@@ -211,10 +211,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "55d5722d",
-        "resumeHash": "55d5722d",
+        "finalHash": "a6ab70cb",
+        "resumeHash": "a6ab70cb",
         "resumeFrames": 300,
-        "rerunHash": "55d5722d"
+        "rerunHash": "a6ab70cb"
       }
     },
     {
@@ -226,10 +226,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "cfc0d6db",
-        "resumeHash": "cfc0d6db",
+        "finalHash": "de1a18b1",
+        "resumeHash": "de1a18b1",
         "resumeFrames": 300,
-        "rerunHash": "cfc0d6db"
+        "rerunHash": "de1a18b1"
       }
     },
     {
@@ -241,10 +241,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "64c45e08",
-        "resumeHash": "64c45e08",
+        "finalHash": "9f6ceab4",
+        "resumeHash": "9f6ceab4",
         "resumeFrames": 300,
-        "rerunHash": "64c45e08"
+        "rerunHash": "9f6ceab4"
       }
     },
     {
@@ -271,10 +271,10 @@
       "rawScripts": 37,
       "smoke": {
         "ok": true,
-        "finalHash": "e0bbd0ec",
-        "resumeHash": "e0bbd0ec",
+        "finalHash": "6a5a7fee",
+        "resumeHash": "6a5a7fee",
         "resumeFrames": 300,
-        "rerunHash": "e0bbd0ec"
+        "rerunHash": "6a5a7fee"
       }
     },
     {
@@ -286,10 +286,10 @@
       "rawScripts": 37,
       "smoke": {
         "ok": true,
-        "finalHash": "e0bbd0ec",
-        "resumeHash": "e0bbd0ec",
+        "finalHash": "6a5a7fee",
+        "resumeHash": "6a5a7fee",
         "resumeFrames": 300,
-        "rerunHash": "e0bbd0ec"
+        "rerunHash": "6a5a7fee"
       }
     },
     {
@@ -316,10 +316,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "66f48f64",
-        "resumeHash": "66f48f64",
+        "finalHash": "187a307a",
+        "resumeHash": "187a307a",
         "resumeFrames": 300,
-        "rerunHash": "66f48f64"
+        "rerunHash": "187a307a"
       }
     },
     {
@@ -331,10 +331,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "37871293",
-        "resumeHash": "37871293",
+        "finalHash": "7d71f7fd",
+        "resumeHash": "7d71f7fd",
         "resumeFrames": 300,
-        "rerunHash": "37871293"
+        "rerunHash": "7d71f7fd"
       }
     },
     {
@@ -346,10 +346,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "37871293",
-        "resumeHash": "37871293",
+        "finalHash": "7d71f7fd",
+        "resumeHash": "7d71f7fd",
         "resumeFrames": 300,
-        "rerunHash": "37871293"
+        "rerunHash": "7d71f7fd"
       }
     },
     {
@@ -361,10 +361,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "bd098c71",
-        "resumeHash": "bd098c71",
+        "finalHash": "58034b0a",
+        "resumeHash": "58034b0a",
         "resumeFrames": 300,
-        "rerunHash": "bd098c71"
+        "rerunHash": "58034b0a"
       }
     },
     {
@@ -391,10 +391,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "488e5651",
-        "resumeHash": "488e5651",
+        "finalHash": "89021a83",
+        "resumeHash": "89021a83",
         "resumeFrames": 300,
-        "rerunHash": "488e5651"
+        "rerunHash": "89021a83"
       }
     },
     {
@@ -406,10 +406,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "33ab1204",
-        "resumeHash": "33ab1204",
+        "finalHash": "2fef5658",
+        "resumeHash": "2fef5658",
         "resumeFrames": 300,
-        "rerunHash": "33ab1204"
+        "rerunHash": "2fef5658"
       }
     },
     {
@@ -421,10 +421,10 @@
       "rawScripts": 2,
       "smoke": {
         "ok": true,
-        "finalHash": "33ab1204",
-        "resumeHash": "33ab1204",
+        "finalHash": "2fef5658",
+        "resumeHash": "2fef5658",
         "resumeFrames": 300,
-        "rerunHash": "33ab1204"
+        "rerunHash": "2fef5658"
       }
     },
     {
@@ -436,10 +436,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "ab1b3e21",
-        "resumeHash": "ab1b3e21",
+        "finalHash": "b848df20",
+        "resumeHash": "b848df20",
         "resumeFrames": 300,
-        "rerunHash": "ab1b3e21"
+        "rerunHash": "b848df20"
       }
     },
     {
@@ -451,10 +451,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "1bb80c0c",
-        "resumeHash": "1bb80c0c",
+        "finalHash": "f5846bf8",
+        "resumeHash": "f5846bf8",
         "resumeFrames": 300,
-        "rerunHash": "1bb80c0c"
+        "rerunHash": "f5846bf8"
       }
     },
     {
@@ -541,10 +541,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "5fe4237f",
-        "resumeHash": "5fe4237f",
+        "finalHash": "314e20d9",
+        "resumeHash": "314e20d9",
         "resumeFrames": 300,
-        "rerunHash": "5fe4237f"
+        "rerunHash": "314e20d9"
       }
     },
     {
@@ -646,10 +646,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "cebabfd0",
-        "resumeHash": "cebabfd0",
+        "finalHash": "46446082",
+        "resumeHash": "46446082",
         "resumeFrames": 300,
-        "rerunHash": "cebabfd0"
+        "rerunHash": "46446082"
       }
     },
     {
@@ -676,10 +676,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "0aa98b1a",
-        "resumeHash": "0aa98b1a",
+        "finalHash": "fddf9af3",
+        "resumeHash": "fddf9af3",
         "resumeFrames": 300,
-        "rerunHash": "0aa98b1a"
+        "rerunHash": "fddf9af3"
       }
     },
     {
@@ -691,10 +691,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "0aa98b1a",
-        "resumeHash": "0aa98b1a",
+        "finalHash": "fddf9af3",
+        "resumeHash": "fddf9af3",
         "resumeFrames": 300,
-        "rerunHash": "0aa98b1a"
+        "rerunHash": "fddf9af3"
       }
     },
     {
@@ -766,10 +766,10 @@
       "rawScripts": 1,
       "smoke": {
         "ok": true,
-        "finalHash": "4adf8984",
-        "resumeHash": "4adf8984",
+        "finalHash": "5d564610",
+        "resumeHash": "5d564610",
         "resumeFrames": 300,
-        "rerunHash": "4adf8984"
+        "rerunHash": "5d564610"
       }
     },
     {
@@ -841,10 +841,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "f09fab08",
-        "resumeHash": "f09fab08",
+        "finalHash": "3b793817",
+        "resumeHash": "3b793817",
         "resumeFrames": 300,
-        "rerunHash": "f09fab08"
+        "rerunHash": "3b793817"
       }
     },
     {
@@ -856,10 +856,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "f09fab08",
-        "resumeHash": "f09fab08",
+        "finalHash": "3b793817",
+        "resumeHash": "3b793817",
         "resumeFrames": 300,
-        "rerunHash": "f09fab08"
+        "rerunHash": "3b793817"
       }
     },
     {
@@ -871,10 +871,10 @@
       "rawScripts": 0,
       "smoke": {
         "ok": true,
-        "finalHash": "7867b189",
-        "resumeHash": "7867b189",
+        "finalHash": "c60be3ce",
+        "resumeHash": "c60be3ce",
         "resumeFrames": 300,
-        "rerunHash": "7867b189"
+        "rerunHash": "c60be3ce"
       }
     }
   ],

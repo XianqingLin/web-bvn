@@ -315,7 +315,16 @@ export function startAttack(
   const label = def?.attackLabels[actionId];
   const range = label !== undefined ? def?.labels[label] : undefined;
   if (!def || label === undefined || !range) return false;
+  // 行走残速清理（修复批次 40）：原版行走 = 逐帧直接改 _x（BaseGameSprite.move），
+  // 无速度概念，攻击起手天然静止；移植版行走并入 vx（插值渲染需要），起手须显式清。
+  // 仅 NORMAL（站立/走）起手清：链段衔接（ATTACK_ING 内 setAttack → 砍3 惯性进砍4）
+  // 与空中攻击（保留 vy 落势）不在其列。
+  const wasNormal = f.actionState === ActionState.NORMAL;
   f.actionState = ActionState.ATTACK_ING;
+  if (wasNormal) {
+    f.vx = 0;
+    f.dampX = 0;
+  }
   f.attackId = actionId;
   f.actLabel = label;
   f.animFrame = range.index + 1;
@@ -544,8 +553,14 @@ function startSkill(
   const range = def?.labels[label];
   if (!range) return false;
   if (qiCost > 0) f.qi -= qiCost;
+  // 行走残速清理（同 startAttack，修复批次 40）
+  const wasNormal = f.actionState === ActionState.NORMAL;
   f.actionState = superLevel ? ActionState.BISHA_SUPER_ING : ActionState.BISHA_ING;
   if (qiCost === 0) f.actionState = ActionState.SKILL_ING;
+  if (wasNormal) {
+    f.vx = 0;
+    f.dampX = 0;
+  }
   f.attackId = id; // 可为 null（标签存在但无动作表 → 有动画无判定）
   f.actLabel = label;
   f.animFrame = range.index + 1;
@@ -568,7 +583,13 @@ export function startWanKai(f: FighterState, def: FighterDef | null, label: stri
   if (!def || label === null || !range) return false;
   if (f.qi < WAN_KAI_QI) return false;
   f.qi -= WAN_KAI_QI;
+  // 行走残速清理（同 startAttack，修复批次 40）
+  const wasNormal = f.actionState === ActionState.NORMAL;
   f.actionState = ActionState.WAN_KAI_ING;
+  if (wasNormal) {
+    f.vx = 0;
+    f.dampX = 0;
+  }
   f.attackId = null;
   f.actLabel = label;
   f.animFrame = range.index + 1;

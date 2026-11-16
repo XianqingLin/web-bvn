@@ -343,6 +343,17 @@ PROGRESS §4.3 块 7 的切片 22 遗留项收编，顺带收编原版 `GameCame
 - **偏离登记**：缺 开场 标签跳过 say 步（原版软锁）；字样仅收编 start+fight 段（KO/timeover/winner/drawgame 结算段随回合结算流程另立项）；语音无独立事件——开场动画贴帧音经切片 28 管线自动出声。
 - **门禁**：build 过；core 149 单测全过（新增 intro.test 7 用例：全序列时序/冻结物理/缺开场跳 say/skip 字样前可跳/字样段不可跳/缺省零漂移）；replay 8 剧本零漂移全过（intro-duel 新剧本 + 基线冻结，598 ticks）；batch:validate 58+37 全过（曾因 intro:null/ALL_BUTTONS 加位漂全量哈希，改 undefined-缺省字段 + back 不进缓冲器归零，免重冻）；无新表现事件（快照驱动，事件表零登记）。
 
+### 修复批次 40——蓝染实测三连收编（✅ 2026-11-16）
+
+用户实战蓝染报 4 问题：↓+U"无特效无 UI"、↑+I 特效白底、移动中攻击滑行、砍 3 位移偏远感。逐一根因：
+
+1. **↑+I 特效白底（根因 = pixi.js 8.22.0 打包缺陷，表现层）**：darken/lighten/hard-light 等"高级混合"由 `BlendModeFilter`（filter 实现）驱动，注册调用在 `advanced-blend-modes/init.js`，但 **8.22.0 的主入口（CJS/ESM 皆然）不 import 它** → BlendModePipe 注册表空 → setBlendMode('darken') 判 `_isAdvanced=false` → 批次管线把 darken 当 normal 画，暗化 parts 的白底直接盖出来（切人演出 + 空中必杀帧的白矩形）。另pixi v8 需 `useBackBuffer: true` 才允许 blendRequired 过滤器读背景（缺省 false 时 FilterSystem 静默 skip）。修法：render 入口补 `import 'pixi.js/advanced-blend-modes'` + app.init 加 `useBackBuffer: true`。**批次 37 的"hardlight 命中特效"此前同样静默回退 normal，本次一并生效。**实证：最小混合测试页（白块 darken/蓝底）四组对照像素级验证 + sbs 冒烟目检白块消失、灵压飞溅正确对场景暗化。
+2. **移动中攻击滑行（根因 = 行走并入 vx 的移植近似缺残速清理，sim 行为变更）**：原版行走 = 逐帧直接改 `_x`（BaseGameSprite.move），攻击起手天然静止；移植版行走写 vx（插值渲染需要）且 startAttack/startSkill/startWanKai 不清 → 整段攻击以全速滑行（招2 实测 650→962px）。修法：三入口在 `actionState===NORMAL`（站立/走）起手清 `vx/dampX`；链段衔接（ATTACK_ING 内 setAttack，砍3 惯性进砍4）与空中攻击（保 vy）不动。verify-drift 归因：首个差异 tick 46 唯一字段 `vx 3→0`（有意变更传导）；**双基线重冻**（batch:validate 58+37、replay 4 剧本 assist-duel/ichigo-duel/ichigo-mechanics/temari-wind）。
+3. **↓+U"无特效"**：招2 主链路实测完好（命中 mfdjx 火花 + 回气 + 击飞 + HUD 连击皆在）；真缺口 = 时间轴 `shine` 触发此前被 renderer 静默丢弃（consumeEvents effect 分支只认 bisha/wanKai）——补消费：招2_CHK 白闪等走 spawnShine（原版 FighterEffectCtrler.shine：白=0.3 其余=0.2；params 兼容 fighter 裸色值 / attacker `{arg}` 两形态）。滑行修复后起手贴地不再漂移，可能也是体感来源之一。**遗留登记**：effect 表其余未消费 id（shake 震屏/dash 走尘/jump、touchFloor 尘土/shadow 残影/slowDown 慢速）按需另立项。
+4. **砍 3 位移偏远感（不改，数据忠实）**：原版 movePercent(2)+dampingPercent(0.1) = 26px/帧衰减，折算 60Hz 后移植 13px/tick 衰 0.65，同 JUMP_DAMPING 既有 ×SPEED_PLUS 约定；移植总位移反而**短于原版**（~130px/0.33s vs 原版 ~260px/0.67s）。体感偏差大概率来自滑行 bug（残速叠加在位移上）+ 帧率差；滑行修复后建议复测再议。
+
+- **门禁**：build 过；core 149 + exporter 27 + net 7 单测全过；verify-drift 归因（行为差异 = 有意变更）；replay 9 剧本 + batch:validate 58+37 重冻全过；headless Edge 冒烟目检（sbs 白块消失/演出层次正确、zh2 招2 起手 x 恒定 615.35 + 白闪可见）。
+
 ---
 
 ## 四、剩余工作规划（未完成部分）

@@ -6,6 +6,10 @@
  * 表现事件按 tick 去重消费（不回读 sim 内部状态）。
  */
 import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+// 高级混合模式注册（darken/lighten/hard-light/subtract…走 BlendModeFilter 实现）。
+// pixi.js@8.22.0 的打包缺陷：主入口不引 advanced-blend-modes/init，不显式 import 则
+// 这些 blendMode 静默回退 normal（darken 白底直接画出来 = 白矩形块）。
+import 'pixi.js/advanced-blend-modes';
 import type { BLEND_MODES as TBlendMode } from 'pixi.js';
 import type { SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
@@ -638,6 +642,20 @@ export class BattleRenderer {
             }
           }
           if (this.bishaMc) this.beginCutin(snap, ev.payload, isSuper);
+        } else if (id === 'shine') {
+          // 全屏色闪（修复批次 40：招2_CHK 等时间轴 shine 触发此前被静默丢弃）。
+          // 原版 FighterEffectCtrler.shine(color)：白=0.3 其余=0.2，EffectCtrler.shine
+          // 加 ShineEffectView 全屏。params 两形态：fighter 时间轴 = 裸色值；
+          // attacker 道具转发 = { arg }。缺省白。
+          const raw = ev.payload['params'] as unknown;
+          const arg =
+            typeof raw === 'number'
+              ? raw
+              : raw !== null && typeof raw === 'object' && typeof (raw as Record<string, unknown>)['arg'] === 'number'
+                ? ((raw as Record<string, unknown>)['arg'] as number)
+                : undefined;
+          const color = arg === undefined ? 0xffffff : arg;
+          this.spawnShine(color >>> 0, color === 0xffffff ? 0.3 : 0.2);
         }
       }
       // sound/voice/hit:connect 等音频事件由 app 层 AudioSubsystem 消费（切片 27），render 不处理

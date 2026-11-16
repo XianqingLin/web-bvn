@@ -23,7 +23,9 @@ import { makeFlow } from './flow.js';
 
 async function boot(): Promise<void> {
   const app = new Application();
-  await app.init({ width: 1000, height: 600, background: 0x0a0a12, antialias: true });
+  // useBackBuffer：blendRequired 过滤器（高级混合 darken/lighten/hard-light…）需要
+  // back buffer 读背景内容；缺省 false 时 FilterSystem 静默跳过这些过滤器。
+  await app.init({ width: 1000, height: 600, background: 0x0a0a12, antialias: true, useBackBuffer: true });
   const host = document.getElementById('stage');
   if (!host) throw new Error('#stage 缺失');
   host.appendChild(app.canvas);
