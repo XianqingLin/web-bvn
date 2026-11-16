@@ -101,7 +101,12 @@ export function domInput(
   host.appendChild(wrap);
   el.focus();
   const done = new Promise<string>((res) => {
+    // 完成守卫：wrap.remove() 会同步引发 blur，finish 被重入时不得再次
+    // remove（Chrome 会对半分离节点抛 NotFoundError）或重复 res。
+    let finished = false;
     const finish = () => {
+      if (finished) return;
+      finished = true;
       wrap.remove();
       res(el.value.trim());
     };
