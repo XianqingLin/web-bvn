@@ -110,8 +110,9 @@ export class NetScene implements Scene {
         session.socket.close();
         return;
       }
-      // socket 交由选人/对局阶段接管
-      this.socket = session.socket;
+      // socket 所有权移交选人/对局阶段：清空本场景引用，switchTo 触发的
+      // exit()/closeSocket() 不得关闭它（否则 host 刚建房就 leave 解散房间）。
+      this.socket = null;
       this.ctx!.switchTo(new SetupScene(flow, session.socket));
     } catch (e) {
       status.text = `入房失败：${(e as Error).message}`;
