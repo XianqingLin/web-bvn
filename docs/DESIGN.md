@@ -209,11 +209,13 @@ PixiJS v8；逻辑坐标 1000×600（y 向下）与原版 FighterTester SWF 舞�
 
 **对局 HUD**（切片 30，原版 fight.swf FightStage HUD 全装配；批次 36 追补）：屏幕空间层（`FightHud`，相机变换之外），设计空间 800×600 按 `fitZoom=min(viewW/1000,viewH/600)` 等比，**逐元素钉边**——P1 血条/大脸钉左视口边、P2 钉右（原版 root scrollRect 800 宽，宽屏下两角分离）、计时板居中、气条/READY/辅助格钉底；**宽屏血条延伸**（批次 36 偏离登记）：原版 800 宽下血条外缘恰搭进计时板近缘 ~9px，逐元素钉边后计时板随中线外移、与血条间出现空隙 → 血条单元横向拉伸每侧补 (visW−800)/2，原版位形 scale 恒 1、重叠量原样保留（槽/装饰/填充为横向线条纹理，拉伸不可感知，与切人横幅拉伸 / bgFixed cover 同款适配）；**宽屏能量条延伸**（批次 37 附）：同款空隙（原版 energy 右缘搭进计时板左缘 ~12px）→ bg 三段式切片（端盖 12px 固定、纯槽中段拉伸——bg 有斜盖/端块，整段拉伸拉丝）+ fill 纯条纹理随 ext 拉长，原版位形 ext=0 不动；P2 侧容器 scale.x=-1 镜像（XFL a=-1 同值），镜像内文字件（气段数/READY/能量标签）双翻转保持可读、连击数不镜像。数据 = `baked/hud.json`（ui-pack fight XFL 逆向：各件装配坐标/锚点/帧序）+ select `comicType`（能量标签帧，0=死神 SPIRITUAL/1=火影）+ 大脸 = select id+'_m'（102×64，getFighterFaceBar）+ 辅助脸 = 辅助 id 50×50（getFighterFace 缺省）。原版算法逐条收编：**红条延迟**（HURT_ING/HURT_FLYING delay=100、HURT_DOWN 首帧 90+justHurtFly 递减、lerp 0.1/0.02 两档 + 新伤害 snap，|diff|<0.01 snap）；**气条** v=qi/100 clamp 3，bar1~4 按 v>0/1/2/3 亮、ghost 幽灵步标识 v<1 显（帧随 0.6 阈值）、段数 txt 帧 int(v)+1；**fzqi 条** 原版 scrollRect+scaleY=-1 底锚翻转揭示（Pixi mask 复刻）；**能量条** scaleX=energy/100、溢出满帧粘滞、rate<0.3 每 3 渲染帧闪烁；**连击数** hit:connect 计数、>1 显示、位图数字左起 35px 步进。偏离登记：连击链 render 侧近似（hit:connect+actionState）；fadin/fadout tween 跳过改 alpha 渐显；能量闪烁 alpha 近似；fz 满点闪烁 fzqi==满 近似 isCanHurtBreak；计时恒 ∞（无回合时限）。遗留：startKOmc/win 星/scoremc/被动条 sp/shape_007（§4.3 块 12）。气条顶层装饰框 picture_063 已收编（批次 36）：XFL 重建源图层标 `visible="false"` 系 FFDec 导出伪影，编译 SWF qbar_barmc(sprite 87) 渲染 191×24 实证其显示——以 shape 86 光栅化烘 `qi-frame` (191×23) 置 mc_022 最上层 @(0,-0.45)。
 
-## 6. 联机层（阶段 2，接口现已冻结）
+## 6. 联机层
 
-Node + WebSocket 房间服务器，只做输入中继与房间管理，不跑模拟。每帧上行自己的 `ButtonMask`，下行全员 `(tick, ButtonMask)`；lockstep 调度 + 2~3 帧本地输入延迟掩盖抖动；定期交换快照哈希检测失步。回放 = 输入序列 + 种子 + 数据版本戳，帧同步天然免费。
+联机是**游戏自己的事**：游戏自有房间服务器（Node + WebSocket），只做输入中继与房间管理，不跑模拟。每帧上行自己的 `ButtonMask`，下行全员 `(tick, ButtonMask)`；lockstep 调度 + 2~3 帧本地输入延迟掩盖抖动；定期交换快照哈希检测失步。回放 = 输入序列 + 种子 + 数据版本戳，帧同步天然免费。2026-11-16 定案：平台不做联机（方案 A 平台中转作废），平台只提供好友邀请深链与身份凭证，游戏以平台用户 ID 为账号主键（零账号逻辑）。
 
 架构上为 rollback 预留的三个接口（core 已按此设计）：tick 纯函数式推进、`SimState` 可序列化、输入只经 `InputFrame` 进入。
+
+房间/匹配/联机选人/地图抽取等产品形态与协议扩展的完整设计见 [netplay-design.md](netplay-design.md)。
 
 ## 7. 验证体系（harness 先行）
 
