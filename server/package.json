@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node room-server.mjs"
+    "start": "node room-server.mjs",
+    "test": "node --test test/"
   },
   "dependencies": {
     "ws": "^8.18.0"

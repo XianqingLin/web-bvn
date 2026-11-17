@@ -3,11 +3,12 @@
  *
  * 联机生命周期与 socket 的 onmessage 单槽对应，按阶段接管：
  *   joinRoom      create/join → welcome（入房）
+ *   sendReady/sendRoomConfig/sendBegin   房间语义上行（切片 34 房间页用）
  *   sendPick/waitPeerPick   选人结果交换（服务器透传 pick）
  *   lockstart     LockstepClient 接管（自动发 hello 互验）→ 等 start 广播
  * startSession = 三段一步到位（无选人流程的兼容入口）。
  */
-import type { PlayerSlot } from './protocol.js';
+import type { PlayerSlot, RoomSettings } from './protocol.js';
 import { LockstepClient, type LockstepOptions } from './lockstep.js';
 import { wsTransport, type WsLike } from './transport.js';
 
@@ -30,6 +31,8 @@ export interface SessionOptions {
   hashStride?: number | undefined;
   /** 入房成功即回调（create 方可先拿到房间码展示，不必等对手） */
   onWelcome?: ((player: PlayerSlot, room: string) => void) | undefined;
+  /** 显示昵称（进 room-info 快照） */
+  name?: string | undefined;
   onDesync?: LockstepOptions['onDesync'];
   onPeerLost?: LockstepOptions['onPeerLost'];
   onConfigMismatch?: LockstepOptions['onConfigMismatch'];
@@ -51,12 +54,14 @@ export class RoomJoinError extends Error {
   }
 }
 
-/** 入房：create → 开新房（P1）；join → 凭码入房（P2）。resolve = 收到 welcome。 */
+/** 入房：create → 开新房（P1）；join → 凭码入房（P2）。resolve = 收到 welcome。
+ *  name = 显示昵称（平台昵称；服务器进 room-info 快照）。 */
 export async function joinRoom(
   socket: WsLike,
   action: 'create' | 'join',
   room?: string | undefined,
   onWelcome?: ((player: PlayerSlot, room: string) => void) | undefined,
+  name?: string | undefined,
 ): Promise<{ player: PlayerSlot; room: string }> {
   if (action === 'join' && !room) {
     throw new Error('joinRoom：join 需要 room');
@@ -80,8 +85,26 @@ export async function joinRoom(
         rej(new RoomJoinError(msg.code!, msg.message ?? msg.code!));
       }
     };
-    socket.send(JSON.stringify(action === 'create' ? { t: 'create' } : { t: 'join', room }));
+    socket.send(JSON.stringify(action === 'create' ? { t: 'create', name } : { t: 'join', room, name }));
   });
+}
+
+// ---------- 房间语义客户端助手（切片 34，房间页用） ----------
+
+/** 客座：准备状态切换（服务器更新快照后广播 room-info）。 */
+export function sendReady(socket: WsLike, ready: boolean): void {
+  socket.send(JSON.stringify({ t: 'ready', ready }));
+}
+
+/** 房主：设置变更（服务器合并进快照后广播 room-info）。 */
+export function sendRoomConfig(socket: WsLike, settings: Partial<RoomSettings>): void {
+  socket.send(JSON.stringify({ t: 'room-config', settings }));
+}
+
+/** 房主：请求开始（服务器校验客座已准备 → 双方广播 start 进选人页；
+ *  未准备回非致命 error guest-not-ready）。 */
+export function sendBegin(socket: WsLike): void {
+  socket.send(JSON.stringify({ t: 'begin' }));
 }
 
 /** 发送本端选人结果（服务器透传给对端）。 */
@@ -143,6 +166,6 @@ export async function lockstart(
 }
 
 export async function startSession(socket: WsLike, opts: SessionOptions): Promise<Session> {
-  const { player, room } = await joinRoom(socket, opts.action, opts.room, opts.onWelcome);
+  const { player, room } = await joinRoom(socket, opts.action, opts.room, opts.onWelcome, opts.name);
   return lockstart(socket, player, { ...opts, room });
 }
