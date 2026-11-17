@@ -5,7 +5,7 @@
  *  1. openPlatformSession create/join → joinRoom 兼容（welcome 本地合成）；
  *  2. 入房失败（房间不存在/已满）→ RoomJoinError；
  *  3. hello 凑齐 → start 本地合成（两个方向到达顺序都成立）；
- *  4. pick/input/hash 经 ch='game' payload 端到端透传；
+ *  4. pick/input/hash 经 ch='game' payload 端到端透传；pick 早到（接管前）暂存补交；
  *  5. 对端断线 / 房间解散 → peer-lost（去重）；
  *  6. close() → leave + onclose（旧语义：断开即离开）；
  *  7. 端到端：两端经假平台对跑一段 lockstep，finalHash 与单机直跑一致。
@@ -366,10 +366,30 @@ describe('端到端 lockstep（经假平台管道）', () => {
 
   it('waitPeerPick 透传 map 字段（P1 地图选择到达 P2）', async () => {
     const { host, guest } = await pair();
-    // 先挂监听再发送：适配器与旧服务器一致，无人接管时丢弃透传（app 靠 3s 重发兜底）
+    // 先挂监听再发送：正常路径，pick 直达
     const pending = waitPeerPick(guest);
     sendPick(host, 1, { fighter: 'ichigo', assist: 'gaara', map: 'HuecoMundo' });
     const peer = await pending;
     expect(peer.map).toBe('HuecoMundo');
+  });
+
+  it('pick 早到（接管前）→ 暂存，waitPeerPick 接管时补交（选人竞态回归）', async () => {
+    const { host, guest } = await pair();
+    // host 先进交换页发 pick，guest 还在选人 UI（onmessage 空）——
+    // 真机死锁场景：host 收到 guest 的 pick 后停止重发，guest 必须靠暂存补交
+    sendPick(host, 1, { fighter: 'ichigo', assist: 'gaara', map: 'KonohaMura' });
+    const peer = await waitPeerPick(guest);
+    expect(peer.fighter).toBe('ichigo');
+    expect(peer.assist).toBe('gaara');
+    expect(peer.map).toBe('KonohaMura');
+  });
+
+  it('接管前多条 pick 到达 → 只补交最新一条', async () => {
+    const { host, guest } = await pair();
+    sendPick(host, 1, { fighter: 'ichigo', assist: 'gaara' });
+    sendPick(host, 1, { fighter: 'naruto', assist: 'sakura' });
+    const peer = await waitPeerPick(guest);
+    expect(peer.fighter).toBe('naruto');
+    expect(peer.assist).toBe('sakura');
   });
 });

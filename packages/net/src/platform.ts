@@ -8,7 +8,9 @@
  *   - hello 凑齐 → start 广播 → 双方 hello 各自确认后本地合成（重赛重放兼容：
  *     每轮 hello 交换各产生一次 start，与旧服务器"每次 hello 都检查"语义一致）
  *   - 对端断线/离开/房间解散  → peer-lost（冻结等待；去重，一次对局只报一次）
- *   - pick/input/hash        → 原样透传（平台管道）
+ *   - pick                    → 原样透传；onmessage 未接管期间到达的暂存、接管时补交
+ *     （选人 UI 阶段的竞态兜底：对端收到本端 pick 即停发重发，不能只靠 3s 重发）
+ *   - input/hash              → 原样透传（平台管道）
  *   - close()                → relay.leave()（旧语义：断开即离开；host 离开解散房间）
  *
  * 对端重连不做对局恢复：lockstep 双方 tick 状态无法对接（旧服务器同样无重连），
@@ -151,6 +153,8 @@ export class RelaySocket implements WsLike {
 
   /** onmessage 挂上前的入站消息（welcome 等），挂上后按序补交。 */
   private readonly pending: NetMessage[] = [];
+  /** onmessage 未接管期间收到的最新 peer pick（见 onGamePayload 的竞态兜底）。 */
+  private pendingPick: NetMessage | null = null;
   private selfHello = false;
   private peerHello = false;
   private peerLostSent = false;
@@ -179,7 +183,14 @@ export class RelaySocket implements WsLike {
   }
   set onmessage(handler: ((ev: { data: unknown }) => void) | null) {
     this.messageHandler = handler;
-    if (handler) this.flushPending();
+    if (handler) {
+      this.flushPending();
+      if (this.pendingPick) {
+        const pick = this.pendingPick;
+        this.pendingPick = null;
+        this.deliver(pick);
+      }
+    }
   }
 
   send(text: string): void {
@@ -252,6 +263,14 @@ export class RelaySocket implements WsLike {
       this.peerHello = true;
       this.deliver(msg);
       this.maybeStart();
+      return;
+    }
+    if (msg.t === 'pick' && !this.messageHandler) {
+      // 选人交换竞态兜底：app 在选人 UI 阶段（fighter/assist/map）不接管 onmessage，
+      // 此时到达的对端 pick 会被 deliver 丢弃；而对端一收到本端 pick 就停止 3s
+      // 重发——双方快速先后选完时互相等不到对方 pick（真机首验死锁）。暂存最新
+      // 一条（重发覆盖），waitPeerPick 接管 onmessage 时补交。
+      this.pendingPick = msg;
       return;
     }
     this.deliver(msg);
