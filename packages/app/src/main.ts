@@ -1,11 +1,11 @@
 /**
- * BVN Web 入口（切片 14 场景化；联机迁移：经小林游戏铺平台中转联机）。
+ * BVN Web 入口（切片 14 场景化；切片 34 联机回归自有 room-server 路径）。
  *
  * 默认进 开场徽标（LogoScene）→ 主菜单（单机训练 / 联机对战全 UI 流）；
  * dev 直通参数保留（headless 驱动/快速调试用，跳过开场徽标）：
  *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura；
  *                                       &intro=1 附带开局特写演出，intro 冒烟用）
- *   ?mode=net&action=create|join&room=   自动入房（平台 6 位房间码）→ 选人页自动确认
+ *   ?mode=net&action=create|join&room=   自动入房（4 位房间码）→ 房间页 → 选人页自动确认
  *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）
  */
 import { Application } from 'pixi.js';
@@ -42,7 +42,7 @@ async function boot(): Promise<void> {
   // 主循环：子系统（场景）每渲染帧推进
   app.ticker.add(() => appHost.update(app.ticker.deltaMS));
 
-  // 平台握手（不在平台内运行时进 standalone，联机按钮给出提示）
+  // 平台握手（不在平台内运行时进 standalone；联机走自有服务器，平台账号仅作昵称显示）
   const flow = makeFlow();
   flow.xlp = await connectXlp();
 

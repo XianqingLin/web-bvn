@@ -1,6 +1,6 @@
 /**
- * 场景间共享的对局流程状态（切片 14；联机迁移：平台 SDK 进 Flow）。
- * 一个 Flow 贯穿 菜单→选人→战斗→结算 的单次流转；回菜单即废弃。
+ * 场景间共享的对局流程状态（切片 14；切片 34 回归自有 room-server 路径）。
+ * 一个 Flow 贯穿 菜单→房间→选人→战斗→结算 的单次流转；回菜单即废弃。
  */
 import type { XlpSdk } from '@xlp/game-sdk';
 
@@ -12,11 +12,15 @@ export interface Pick {
 export interface Flow {
   /** solo = 单机训练；net = 联机 lockstep */
   mode: 'solo' | 'net';
-  /** 平台 SDK（boot 时 connectXlp；standalone 时 rooms/relay 调用异步抛错） */
+  /** 房间服务器地址（联机；localStorage 记忆） */
+  serverUrl: string;
+  /** 本端显示昵称（房间页/VS 横幅；平台昵称，standalone 回退"玩家N"） */
+  name: string;
+  /** 平台 SDK（boot 时 connectXlp；standalone 时联机走自有服务器，账号信息仅作显示） */
   xlp: XlpSdk | null;
-  /** 联机位次（平台角色映射：host→1 / guest→2；solo 恒 1） */
+  /** 联机位次（服务器分配：create→1 / join→2；solo 恒 1） */
   player: 1 | 2;
-  /** 房间码（联机；平台 6 位码） */
+  /** 房间码（联机；自有服务器 4 位码） */
   room: string;
   /** 本端选人 */
   localPick: Pick | null;
@@ -33,6 +37,8 @@ export interface Flow {
 export function makeFlow(): Flow {
   return {
     mode: 'solo',
+    serverUrl: localStorage.getItem('bvn.server') ?? 'ws://localhost:8787',
+    name: '',
     xlp: null,
     player: 1,
     room: '',

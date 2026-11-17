@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node room-server.mjs",
-    "test": "node --test test/"
+    "test": "node --test"
   },
   "dependencies": {
     "ws": "^8.18.0"

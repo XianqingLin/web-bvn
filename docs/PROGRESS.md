@@ -55,7 +55,7 @@
 | 31 | 阶段 4·块 9·进战斗加载画面：loading-pack + LoadingScene + 装载分帧化 + BattleLoadout 交接 | ✅ | §三 |
 | 32 | 阶段 4·intro：开局特写+语音演出（GameStartCtrler.start1v1 收编，Btn.back 元层键） | ✅ | §三；规格 DESIGN §3.5/§5 |
 | 33 | 联机迁移平台中转（方案 A）：RelaySocket + openPlatformSession + 嵌入构建（⚠ 同日晚方案 A 作废，处置见 §4.4 切片 34） | ✅/作废 | §三 |
-| 34 | 联机房间流：房间语义协议 + 房间页 + 方案 A 遗留处置 | ⬜ | §4.4 / [netplay-design.md](netplay-design.md) |
+| 34 | 联机房间流：房间语义协议 + 房间页 + 方案 A 遗留处置 | ✅ | §三；§4.4 / [netplay-design.md](netplay-design.md) |
 | 35 | 联机房间流：选人页双光标（cursor 同步/选中即锁/团队 3+1） | ⬜ | §4.4 |
 | 36 | 联机房间流：地图阶段（房主选择 / 开箱抽取 + 服务器权威种子） | ⬜ | §4.4 |
 | 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ⬜ | §4.4 |
@@ -100,6 +100,7 @@
 - **切片 32·intro**（✅ 2026-11-14）开局特写+语音演出：`Btn.back` 元层键（不进缓冲器）+ `SimState.intro` 缺省省略（零重冻）+ INTRO_ING 冻结语义（回气照跑）+ startKOmc 字样 + render camFocus。规格 DESIGN §3.5/§5。
 - **批次 40**（✅ 2026-11-16）蓝染实测三连：① pixi 8.22.0 高级混合打包缺陷（补 `import 'pixi.js/advanced-blend-modes'` + `useBackBuffer: true`）；② 攻击起手清残速（NORMAL 起手清 vx/dampX，链段衔接与空中攻击不动）——sim 变更双基线重冻；③ shine 触发补消费。砍 3 位移不改（数据忠实，滑行修复后复测）。
 - **切片 33**（✅ 2026-11-16，⚠ 同日晚方案 A 作废）联机迁移平台中转：RelaySocket 适配层（welcome/start 本地合成、peer-lost 差分、pick/input/hash 透传）+ openPlatformSession + app 接线 + 嵌入构建（prepare-dist、相对路径）+ net 18 单测。**方案 A 作废后迁移代码留存，处置归切片 34**（room-server.mjs 回归游戏自有定位）。顺手修复：waitPeerPick 丢 pick.map。
+- **切片 34**（✅ 2026-11-17）房间语义协议 + 房间页 + 方案 A 遗留处置：① room-server.mjs 扩展（room-info 快照广播/room-config/ready/begin 校验准备门/掉线清理按 §10；start 两段语义：begin=进选人、hello 收齐=开跑）+ protocol.ts 词表（房间语义 4 条 + UI 同步占位 cursor/map-pick/map-roll）+ session.ts 房间助手 + server 11 单测（node --test 子进程起服）；② app：NetScene 回自有服务器路径（serverUrl localStorage 记忆 + BufferedSocket 包装）+ RoomScene 房间页（房主常备/开始门/三项设置/客座准备切换/房间码/邀请占位，room-info 快照驱动渲染）；③ 方案 A 处置：platform.ts + platform.test.ts 删除（回退），RelaySocket 的 pick 竞态兜底收编为 BufferedSocket（net 6 单测，含 2 条竞态回归自 platform.test 移植）。实现取舍：快照单一通道（room-config 仅上行，状态统一经 room-info）；房间默认设置 private+房主选图+单挑（设计稿未定案）。
 
 ---
 
@@ -137,7 +138,7 @@
 
 | 切片 | 内容 | 状态 |
 |---|---|---|
-| 34 | 房间语义协议 + 房间页：room-server.mjs 扩展（room-info/ready/room-config/begin/掉线清理）+ NetMessage 词表扩展 + app RoomScene（房主常备/客座准备切换/开始门/公开-随机地图-团队三项设置/房间码/邀请操作占位）+ **方案 A 遗留处置**（NetScene 回自有服务器路径，platform.ts 回退或改造为凭证接缝） | ⬜ |
+| 34 | 房间语义协议 + 房间页：room-server.mjs 扩展（room-info/ready/room-config/begin/掉线清理）+ NetMessage 词表扩展 + app RoomScene（房主常备/客座准备切换/开始门/公开-随机地图-团队三项设置/房间码/邀请操作占位）+ **方案 A 遗留处置**（NetScene 回自有服务器路径，platform.ts 回退或改造为凭证接缝） | ✅（2026-11-17） |
 | 35 | 联机选人页：SetupScene 双光标（cursor 消息同步/双色框/选中即锁/双方齐套本地推导推进/团队模式 3 选 + 1 援助/同角色允许）+ pick 按次序累计语义 | ⬜ |
 | 36 | 地图阶段：房主选择（map-pick 实时广播、客座只读）+ 开箱抽取（map-roll 服务器权威种子、~4s 动画、不可跳过/重抽、种子进 configHash） | ⬜ |
 | 37 | 匹配与浏览：服务器匹配队列（queue/unqueue/matched）+ 公开房间列表轮询（list-rooms/room-list）+ app 匹配 UI（"匹配中" + 红 ✕ 取消）+ 浏览房间页 + VS 横幅（下限 2.5s、上限以建连就绪为准） | ⬜ |
@@ -161,6 +162,6 @@
 
 ## 五、下一步（按优先级）
 
-1. **联机房间流切片 34**（§4.4）——设计已定案（netplay-design.md），从房间语义协议 + 房间页开工，一并处置方案 A 遗留；
+1. **联机房间流切片 35**（§4.4）——选人页双光标（cursor 消息同步/选中即锁/双方齐套本地推导推进/团队 3+1）；
 2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程公网验收；
 3. 阶段 4 余块（断线判负/录像/观战/街机/本地双人）按 §4.3 顺序推进，开工前细化登记 §二。
