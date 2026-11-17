@@ -49,7 +49,7 @@ const ASSIST_FACE_SIZE = 50;
 /** baked/hud.json（tools/ui-pack/hud-pack.mjs 产物，schema bvn/hud@1） */
 export interface HudData {
   schema: string;
-  /** 元素名 → assets 相对路径（文件 .png / 帧集为目录） */
+  /** 元素名 → assets 相对路径（文件 .webp / 帧集为目录） */
   elements: Record<string, string>;
   hp: {
     /** hpbarmc 原点（XFL mc_040 静止帧） */
@@ -230,7 +230,7 @@ export class FightHud {
   /** 装载纹理并搭静态树（renderer.load 内 await）。 */
   async load(baseUrl: string): Promise<void> {
     for (const [name, path] of Object.entries(this.data.elements)) {
-      if (path.endsWith('.png')) {
+      if (path.endsWith('.webp')) {
         this.tex.set(name, await Assets.load<Texture>(`${baseUrl}/${path}`));
       } else {
         this.frames.set(name, await this.loadFrames(`${baseUrl}/${path}`));
@@ -248,12 +248,12 @@ export class FightHud {
     this.build();
   }
 
-  /** 帧集目录：1.png 起连续装载，缺失即止。 */
+  /** 帧集目录：1.webp 起连续装载，缺失即止。 */
   private async loadFrames(url: string): Promise<Texture[]> {
     const out: Texture[] = [];
     for (let i = 1; ; i++) {
       try {
-        out.push(await Assets.load<Texture>(`${url}/${i}.png`));
+        out.push(await Assets.load<Texture>(`${url}/${i}.webp`));
       } catch {
         break;
       }

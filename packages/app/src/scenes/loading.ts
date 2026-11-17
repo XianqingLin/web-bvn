@@ -110,10 +110,10 @@ export class LoadingScene implements Scene {
     bar.addChild(this.fill);
     bar.addChild(await this.part(data.bar.label.url, data.bar.label.size, data.bar.label.pos));
     for (let i = 1; i <= data.bar.spin.frames; i++) {
-      this.spinTex.push(await Assets.load<Texture>(`${ASSETS}/${data.bar.spin.dir}/${i}.png`));
+      this.spinTex.push(await Assets.load<Texture>(`${ASSETS}/${data.bar.spin.dir}/${i}.webp`));
     }
     this.spinFps = data.bar.spin.fps;
-    this.spin = await this.part(`${data.bar.spin.dir}/1.png`, data.bar.spin.size, data.bar.spin.pos);
+    this.spin = await this.part(`${data.bar.spin.dir}/1.webp`, data.bar.spin.size, data.bar.spin.pos);
     bar.addChild(this.spin);
 
     // 动态消息文本（原版 bar.txt：右对齐、右缘钉进度条右端）

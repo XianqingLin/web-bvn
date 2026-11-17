@@ -13,7 +13,7 @@
       555.1
     ],
     "track": {
-      "url": "ui/loading/track.png",
+      "url": "ui/loading/track.webp",
       "pos": [
         0,
         0
@@ -24,7 +24,7 @@
       ]
     },
     "fill": {
-      "url": "ui/loading/fill.png",
+      "url": "ui/loading/fill.webp",
       "pos": [
         2,
         5
@@ -52,7 +52,7 @@
       "fps": 30
     },
     "label": {
-      "url": "ui/loading/label.png",
+      "url": "ui/loading/label.webp",
       "pos": [
         24,
         -21.45

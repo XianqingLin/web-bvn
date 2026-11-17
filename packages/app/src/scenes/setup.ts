@@ -1099,7 +1099,7 @@ export class SetupScene implements Scene {
   private mapEntries(): { id: string | null; name: string }[] {
     return [
       ...this.select!.maps.map((m) => ({ id: m.id as string | null, name: m.name })),
-      { id: null, name: '随机地图' }, // 原版 random 项（random.png）
+      { id: null, name: '随机地图' }, // 原版 random 项（random.webp）
     ];
   }
 
@@ -1191,7 +1191,7 @@ export class SetupScene implements Scene {
 
   private showMapPic(pic: Sprite, entries: { id: string | null; name: string }[]): void {
     const e = entries[this.mapIndex]!;
-    const url = `${ASSETS}/${this.uiData!.maps.dir}/${e.id ?? 'random'}.png`;
+    const url = `${ASSETS}/${this.uiData!.maps.dir}/${e.id ?? 'random'}.webp`;
     const token = this.loadToken;
     void Assets.load<Texture>(url).then((t) => {
       if (token !== this.loadToken) return;
@@ -1223,7 +1223,7 @@ export class SetupScene implements Scene {
     if (this.status) this.status.text = '地图抽取中…';
     // 缩略图全量预载（两端同 select 数据 → 同图集，动画后帧一致）
     const texs = await Promise.all(
-      maps.map((m) => Assets.load<Texture>(`${ASSETS}/${this.uiData!.maps.dir}/${m.id}.png`)),
+      maps.map((m) => Assets.load<Texture>(`${ASSETS}/${this.uiData!.maps.dir}/${m.id}.webp`)),
     );
     if (this.destroyedFlag || token !== this.loadToken || this.phase !== 'map') return;
 
