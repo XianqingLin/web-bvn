@@ -2,6 +2,7 @@
  * BVN Web 入口（切片 14 场景化；切片 34 联机回归自有 room-server 路径）。
  *
  * 默认进 开场徽标（LogoScene）→ 主菜单（单机训练 / 联机对战全 UI 流）；
+ * ?server= 房间服务器地址覆盖（localStorage 记忆；正式入口与 dev 直通均生效）；
  * dev 直通参数保留（headless 驱动/快速调试用，跳过开场徽标）：
  *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura；
  *                                       &intro=1 附带开局特写演出，intro 冒烟用）
@@ -53,6 +54,13 @@ async function boot(): Promise<void> {
 
   // —— 场景入口（dev 直通参数见文件头） ——
   const params = new URLSearchParams(location.search);
+  // ?server= 覆盖房间服务器地址（localStorage 记忆；联机入口/浏览房间页均消费此值；
+  // 正式入口与 dev 直通都生效）
+  const serverParam = params.get('server');
+  if (serverParam) {
+    flow.serverUrl = serverParam;
+    localStorage.setItem('bvn.server', serverParam);
+  }
   const mode = params.get('mode');
   if (!mode) {
     // 正式入口：开场徽标 → 主菜单（原版 LogoStage → MenuStage 流）

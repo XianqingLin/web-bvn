@@ -9,7 +9,8 @@
     "replay": "node tools/replay/replay.mjs",
     "batch:validate": "node tools/batch-validate/batch-validate.mjs --expect tools/batch-validate/baseline.json",
     "export:ichigo": "node tools/exporter/dist/main.js fighter OpenBleachVsNaruto/swf_source/f_fighter/ichigo --id ichigo --fighter-xml OpenBleachVsNaruto/swf_output/assets/config/fighter.xml --out packages/data/baked/fighters/ichigo.json",
-    "export:all": "node tools/exporter/dist/main.js batch --xfl-root OpenBleachVsNaruto/swf_source --out-dir packages/data/baked --fighter-xml OpenBleachVsNaruto/swf_output/assets/config/fighter.xml"
+    "export:all": "node tools/exporter/dist/main.js batch --xfl-root OpenBleachVsNaruto/swf_source --out-dir packages/data/baked --fighter-xml OpenBleachVsNaruto/swf_output/assets/config/fighter.xml",
+    "dev:net": "node tools/dev-net.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -54,7 +54,9 @@ export interface Flow {
 export function makeFlow(): Flow {
   return {
     mode: 'solo',
-    serverUrl: localStorage.getItem('bvn.server') ?? 'ws://localhost:8787',
+    // 服务器地址优先级：?server= 参数 > 手动修改（localStorage，调试覆盖） >
+    // 构建期默认（.env.production，正式构建烘入云服务器）> dev 本地默认
+    serverUrl: localStorage.getItem('bvn.server') ?? import.meta.env.VITE_ROOM_SERVER ?? 'ws://localhost:8787',
     name: '',
     xlp: null,
     player: 1,
