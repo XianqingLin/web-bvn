@@ -1,215 +1,56 @@
-import { advancePlayerInput, createPlayerInput, Btn, InputView, type InputFrame } from './input.js';
+import {
+  advancePlayerInput,
+  Btn,
+  type InputFrame,
+  type InputView,
+} from './input.js';
 import { behaviorHash, hashState, stableStringify } from './serialize.js';
 import {
   createInitialState,
-  DEFAULT_HP,
-  ENERGY_GAP_TICKS,
-  ENERGY_MAX,
-  FZQI_ADD_PERFRAME,
-  FZQI_MAX,
-  JUMP_TIMES_START,
-  PLAYFIELD_HALF_WIDTH,
-  type AssisterState,
-  type AttackerState,
-  type BulletState,
   type CutinLockState,
   type FighterState,
   type RoundEndState,
   type SimConfig,
   type SimState,
-  type StageState,
 } from './state.js';
 import {
-  ActionState,
-  currentBodyRect,
-  defaultSlots,
   isAttackingState,
-  rectsOverlap,
-  SPEED_PLUS,
-  worldRect,
+  ActionState,
   type AssisterDef,
-  type AreaRect,
   type FighterDef,
   type FrameTrigger,
-  type HitDef,
-  type TriggerCondition,
 } from './fighter/def.js';
-import {
-  attackRateOf,
-  defaultAssisterBehaviors,
-  defenseDamageScale,
-  evaluateLoopCond,
-  isAttributeHit,
-  isPhysicalHit,
-  stepAssisterCustomFunc,
-  tickBuffs,
-  type AssisterContext,
-  type AssisterHandler,
-  type AssistBulletSpawnSpec,
-  type AssistAttackerSpawnSpec,
-} from './fighter/assister.js';
-import {
-  advanceAnimation,
-  applyJumpLaunch,
-  endAction,
-  endActAction,
-  enterDead,
-  enterGuardBreak,
-  enterHurt,
-  defenseGapTicks,
-  defenseHoldTicks,
-  hitZonesWorld,
-  HURT_GAP_TICKS,
-  onLanded,
-  recoverToNormal,
-  sayIntro,
-  setLabel,
-  stepGhost,
-  stepIntentsFor,
-  switchForm,
-  walkSpeed,
-} from './fighter/machine.js';
+import { endActAction, setLabel, switchForm } from './fighter/machine.js';
 import {
   createBehaviorRegistry,
-  evaluateTriggerCondition,
-  type AttackerParams,
-  type AttackerSpawnSpec,
-  type BehaviorContext,
   type BehaviorHandler,
-  type BulletSpawnSpec,
 } from './fighter/behaviors.js';
-
-// 物理帧常量（原版 BaseGameSprite/GameLogic 语义 × SPEED_PLUS=0.5，即
-// 原版自己的 60fps 手感基准——见 DESIGN §3.1；空间容差类常量不乘系数）
-//   重力斜坡：原版 applayG(12) 的 _g（原始空间）每帧 +G_ADD×SPEED_PLUS=0.6、
-//   上限 12，位移 = _g×SPEED_PLUS → 60Hz 位移空间 = 步长 +0.3/tick、上限 6
-//   （落到位移空间直接结算，不再乘系数——修复批次 19 修正：此前步长误减半成
-//   0.6，下落加速比原版快 2 倍）；穿台阈值/吸附带/平台容差是空间量，保持原值
-const GRAVITY_START = 2;
-const GRAVITY_STEP = 0.3;
-const GRAVITY_CAP = 6;
-const GROUND_SNAP_BAND = 12;
-const FALL_LAND_SPEED = 2.5;
-const LAND_TOLERANCE = 10;
-/** 地面滑行摩擦（受击/倒地滑行衰减；POC 取义，原版按 HURT_DAMPING 结算） */
-const GROUND_FRICTION = 0.9;
-
-// —— 能量（原版 GameConfig/FighterMain，速率 ×SPEED_PLUS=0.5） ——
-// ENERGY_GAP_TICKS 从 state.js 导入（机器与 sim 共用）
-const ENERGY_ADD_NORMAL = 1; // 2 × 0.5
-const ENERGY_ADD_DEFENSE = 0.4; // 0.8 × 0.5
-const ENERGY_ADD_ATTACKING = 0.55; // 1.1 × 0.5
-const ENERGY_ADD_OVERLOAD = 0.3; // 0.6 × 0.5
-/** 防御削血比例（原版 DEFENSE_LOSE_HP_RATE，比例量不折算） */
-const DEFENSE_LOSE_HP_RATE = 0.05;
-/** 钢身减伤比例（原版 STEEL_HURT_HP_PERCENT，比例量不折算） */
-const STEEL_HURT_HP_PERCENT = 0.65;
-/**
- * 打击特效停顿（修复批次 35；EffectModel freeze ms × FPS_GAME/1000 → tick）。
- * 轻击系（KAN/DA/MAGIC，命中与防御特效同值）50ms=3 tick；重型/属性/摔
- * （KAN_HEAVY/DA_HEAVY/MAGIC_HEAVY/FIRE/ICE/ELECTRIC/CATCH）与钢身系 400ms=24；
- * 破防 doBreakDefense 叠加 break_def 特效（freeze 500ms 后调用覆盖前值）=30。
- * 命中 type 0/10（NONE/STONE）无 hit_ 表项 → 不出特效不冻（原版 getHitEffect
- * 无回退）；防御走 getDefenseEffect 回退 defense_5 → STONE 按重型档。
- */
-const HITSPARK_FREEZE_LIGHT_TICKS = 3;
-const HITSPARK_FREEZE_HEAVY_TICKS = 24;
-const BREAK_DEF_FREEZE_TICKS = 30;
-function isHeavySparkType(hitType: number): boolean {
-  return (
-    hitType === 3 || hitType === 5 || hitType === 6 ||
-    hitType === 7 || hitType === 8 || hitType === 9 || hitType === 11
-  );
-}
-function hitFreezeTicks(hitType: number): number {
-  if (hitType === 0 || hitType === 10) return 0;
-  return isHeavySparkType(hitType) ? HITSPARK_FREEZE_HEAVY_TICKS : HITSPARK_FREEZE_LIGHT_TICKS;
-}
-/** 防御特效 freeze（doDefenseEffect：getDefenseEffect 缺失表项回退 defense_5） */
-function defenseFreezeTicks(hitType: number): number {
-  if (hitType === 0) return 0;
-  return isHeavySparkType(hitType) ? HITSPARK_FREEZE_HEAVY_TICKS : HITSPARK_FREEZE_LIGHT_TICKS;
-}
-/** 钢身耗能比例（原版 doSteelHurt useEnergy 其余系 0.4；超钢 0.2 未实现——无超钢字段） */
-const STEEL_ENERGY_RATE = 0.4;
-/** 钢身受击无敌窗（原版 STEEL_HURT_GAP_FRAME=4；击飞类 STEEL_HURT_DOWN_GAP_FRAME=10；
- *  30fps 渲染帧 → 60Hz tick ×2，修复批次 38 与 HURT_GAP_TICKS 同律） */
-const STEEL_HURT_GAP_TICKS = 8;
-const STEEL_HURT_DOWN_GAP_TICKS = 20;
-/** 防御命中击退衰减（原版 DEFENSE_DAMPING_X=1@30fps → 0.5/tick） */
-const DEFENSE_DAMP_X = 0.5;
-/** 训练模式血量回复（POC 取义） */
-const TRAINING_REGEN = 2;
-
-// —— 开局特写演出（intro 切片，原版 GameStartCtrler.start1v1；hold 秒 × FPS_GAME=60） ——
-/** 特写 hold（原版 holdFrame 0.5s） */
-const INTRO_FOCUS_TICKS = 30;
-/** say→下一镜头 gap（原版 0.3s） */
-const INTRO_SAY_GAP_TICKS = 18;
-/** 演出收尾 resume hold（原版 0.1s）。偏离登记（2026-11-17）：6→30——原版 0.1s
- * 后字样即出，但移植版镜头 3.5→1 缓动需 ~0.5s（render updateCamera k=1-(1-1/5)^f），
- * 字样叠在拉镜过程上；30 tick（0.5s）让镜头基本回正再出字样。 */
-const INTRO_RESUME_TICKS = 30;
-/**
- * 开局字样时长（原版 startKOmc start 段）：gotoAndStop("start") 停 XFL index 9，
- * renderStartAndKO 每 30Hz 渲染帧手动 nextFrame，78 次进入 index 87（stop+COMPLETE
- * 帧脚本）→ 78 渲染帧 × 2 sim tick = 156。
- */
-const INTRO_START_TICKS = 156;
-/** 字样段（step 7）：出场后不可跳（原版 _step<5 才可 skip） */
-const INTRO_STEP_START = 7;
-
-// —— 团队回合结束演出（切片 36，原版 GameEndCtrler） ——
-/**
- * 回合结束演出时长（原版胜利动作 hold 3s × FPS_GAME=60）。原版的 showEnd KO
- * 字样 UI（10s 上限，动画完成回调提前）与 transIn 转场不建模——port 以固定
- * 3s 胜利动作 + 全程可跳（原版仅 step2 可跳，偏离记录）折算。
- */
-const ROUND_END_TICKS = 180;
-/**
- * 胜方回合间血量回复比例（原版 0.165×(timeRate+1)，timeRate = 剩余回合时间比；
- * 移植版无回合计时器 → timeRate=1 → 0.33。比例量不折算，偏离记录）。
- */
-const WIN_RECOVER_LOST_RATE = 0.33;
-
-// —— 气回充（原版 FighterMain doQiAdd 系；qi 是资源量，速率不折算） ——
-/** 近战命中回气：非必杀 power×0.16，封顶 15（原版 QI_ADD_HIT_MAX） */
-const HIT_QI_RATE = 0.16;
-const QI_ADD_HIT_MAX = 15;
-/** 受击回气：power×0.085，封顶 20（原版 QI_ADD_HURT_MAX） */
-const HURT_QI_RATE = 0.085;
-const QI_ADD_HURT_MAX = 20;
-/** 飞行道具命中回气：发射者 power×0.1 */
-const BULLET_QI_RATE = 0.1;
-/** 独立道具命中回气：所有者 power×0.15 */
-const ATTACKER_QI_RATE = 0.15;
-/** 辅助命中回气：召唤者 power×0.15（原版 Assister.hit） */
-const ASSISTER_QI_RATE = 0.15;
-/** 站立自动面向对手的间隔（原版 renderAnimate：站立态计数 >5 即每 6 帧一次） */
-const AUTO_FACE_INTERVAL = 6;
-/** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
-/** 无元件时间轴（animTotal=0）时 attacker 的占位寿命回退（原版无此机制）。 */
-const ATTACKER_LIFE_TICKS = 120;
-
-/**
- * 速度线性衰减（原版 KyoUtils.num_wake：正负双向逼近 0）。
- */
-function wake(v: number, k: number): number {
-  if (k <= 0 || v === 0) return v;
-  if (v > 0) {
-    v -= k;
-    return v < 0 ? 0 : v;
-  }
-  v += k;
-  return v > 0 ? 0 : v;
-}
-
-/** 向目标点步进一步（吸附速度换算后值；speed≤0 直接吸附）。 */
-function stepToward(v: number, target: number, speed: number): number {
-  if (speed <= 0 || v === target) return target;
-  const d = target - v;
-  return d > 0 ? v + Math.min(d, speed) : v + Math.max(d, -speed);
-}
+import { defaultAssisterBehaviors, type AssisterHandler } from './fighter/assister.js';
+import { indexTriggers, type SimCtx } from './sim/ctx.js';
+import { stepIntents, stepAnimation } from './sim/anim.js';
+import { releaseGrab, resolveLanding, stepPhysics, stepPush } from './sim/physics.js';
+import { spawnBullet, spawnAssistBullet, stepBullets, stepBulletAnim } from './sim/bullets.js';
+import {
+  removeAttackers,
+  spawnAttacker,
+  spawnAssistAttacker,
+  stepAttackers,
+  stepAttackerAnim,
+} from './sim/attackers.js';
+import { spawnAssister, stepAssisterAnimation, stepAssisterPhysics } from './sim/assisters.js';
+import { stepHitResolution } from './sim/hit.js';
+import {
+  advanceRoundEnd,
+  endIntro,
+  INTRO_STEP_START,
+  isBishaOrWanKaiState,
+  ROUND_END_TICKS,
+  stepFighterFlow,
+  stepIntroAdvance,
+  stepMatchFlow,
+  stepPassivePhysics,
+  WIN_RECOVER_LOST_RATE,
+} from './sim/flow.js';
 
 /**
  * 表现事件（契约 §表现事件表）。
@@ -248,6 +89,11 @@ export interface SimSnapshot {
  *   6. [动画帧]     命中判定与结算（固定顺序 P1→P2→道具→辅助）
  *   7. 流程事件     死亡、回合计时、比分、能量回复
  *   8. 输出         快照 + 表现事件队列 + 状态哈希
+ *
+ * 2026-11-17 结构重构：子系统实现拆入 sim/ 子模块（physics/flow/bullets/
+ * attackers/assisters/hit/anim，均以 SimCtx 只读视图 + 桥接闭包为参数的
+ * 纯函数）；本类保留状态所有权、定义注册表与 tick 管线编排，逐行搬运
+ * 子系统代码、不改任何执行顺序——纯结构重构，哈希与行为零漂移。
  */
 export class Sim {
   private state: SimState;
@@ -269,6 +115,8 @@ export class Sim {
   private events: SimEvent[] = [];
   /** 训练模式（SimConfig.training）：假人不 KO、血量恒定回复。 */
   private training: boolean;
+  /** 子模块共享上下文（只读视图 + 桥接闭包；见 sim/ctx.ts 注） */
+  private ctx: SimCtx;
 
   constructor(config: SimConfig) {
     this.state = createInitialState(config);
@@ -300,11 +148,12 @@ export class Sim {
     this.assisterTriggerIndex = new Map(
       [...this.assisterDefs].map(([id, d]) => [id, indexTriggers(d)]),
     );
+    this.ctx = this.buildCtx();
     this.behaviors = createBehaviorRegistry({
       endAct: endActAction,
-      releaseGrab: (f) => this.releaseGrab(f),
-      spawnBullet: (spec) => this.spawnBullet(spec),
-      spawnAttacker: (spec) => this.spawnAttacker(spec),
+      releaseGrab: (f) => this.ctx.releaseGrab(f),
+      spawnBullet: (spec) => this.ctx.spawnBullet(spec),
+      spawnAttacker: (spec) => this.ctx.spawnAttacker(spec),
       switchForm: (f, frame) => this.doSwitchForm(f, frame),
       setCutin: (f, kind) => this.setCutin('fighter', f.id, kind),
     });
@@ -343,16 +192,64 @@ export class Sim {
         );
       }
     }
+    sim.ctx = sim.buildCtx();
     sim.behaviors = createBehaviorRegistry({
       endAct: endActAction,
-      releaseGrab: (f) => sim.releaseGrab(f),
-      spawnBullet: (spec) => sim.spawnBullet(spec),
-      spawnAttacker: (spec) => sim.spawnAttacker(spec),
+      releaseGrab: (f) => sim.ctx.releaseGrab(f),
+      spawnBullet: (spec) => sim.ctx.spawnBullet(spec),
+      spawnAttacker: (spec) => sim.ctx.spawnAttacker(spec),
       switchForm: (f, frame) => sim.doSwitchForm(f, frame),
       setCutin: (f, kind) => sim.setCutin('fighter', f.id, kind),
     });
     sim.assisterBehaviors = defaultAssisterBehaviors;
     return sim;
+  }
+
+  /** 子模块共享上下文装配（只读视图经 getter 惰性取字段，装配顺序无关）。 */
+  private buildCtx(): SimCtx {
+    const self = this;
+    const ctx: SimCtx = {
+      get state() {
+        return self.state;
+      },
+      get training() {
+        return self.training;
+      },
+      get behaviors() {
+        return self.behaviors;
+      },
+      get assisterBehaviors() {
+        return self.assisterBehaviors;
+      },
+      get assisterDefs() {
+        return self.assisterDefs;
+      },
+      get assisterTriggerIndex() {
+        return self.assisterTriggerIndex;
+      },
+      get triggerIndex() {
+        return self.triggerIndex;
+      },
+      emit: (type, payload) => self.emit(type, payload),
+      defOf: (f) => self.defOf(f),
+      defById: (id, formIndex) => self.defById(id, formIndex),
+      ownerTargetDefOf: (owner) => self.ownerTargetDefOf(owner),
+      doSwitchForm: (f, frame) => self.doSwitchForm(f, frame),
+      setCutin: (kind, id, k) => self.setCutin(kind, id, k),
+      releaseGrab: (f) => releaseGrab(ctx, f),
+      spawnBullet: (spec) => spawnBullet(ctx, spec),
+      spawnAssistBullet: (spec) => spawnAssistBullet(ctx, spec),
+      spawnAttacker: (spec) => spawnAttacker(ctx, spec),
+      spawnAssistAttacker: (spec) => spawnAssistAttacker(ctx, spec),
+      spawnAssister: (owner) => spawnAssister(ctx, owner),
+      removeAttackers: (ids) => removeAttackers(ctx, ids),
+      stepAssisterAnimation: (cutinLock) => stepAssisterAnimation(ctx, cutinLock),
+      stepBullets: () => stepBullets(ctx),
+      stepAttackers: () => stepAttackers(ctx),
+      stepAssisterPhysics: () => stepAssisterPhysics(ctx),
+      resolveLanding: (f, stage) => resolveLanding(f, stage),
+    };
+    return ctx;
   }
 
   serializeState(): string {
@@ -392,6 +289,13 @@ export class Sim {
     return t !== null ? this.defOf(t) : null;
   }
 
+  /** 按 id + 形态下标取 def（rotateIn 用；FighterState 尚未构造）。 */
+  private defById(id: number, formIndex: number): FighterDef | null {
+    const forms = this.formsById.get(id);
+    if (!forms || forms.length === 0) return null;
+    return forms[Math.min(formIndex, forms.length - 1)] ?? null;
+  }
+
   /** doWanKai/switchForm 桥：形态切换 + 表现事件（render 换图集形态用）。
    *  切换后保持 WAN_KAI_ING，由新形态 开场 播完经 endAction 回位。
    *  事件带 rootFrame（绝对帧寻址）：sim forms 数组是过滤空根帧后的紧凑数组、
@@ -408,6 +312,19 @@ export class Sim {
         rootFrame: next.rootFrame,
       });
     }
+  }
+
+  /** 特写冻结锁置位/清除（behaviors 桥；bisha/wanKai 置锁，end 系清除）。 */
+  private setCutin(
+    ownerKind: 'fighter' | 'assister',
+    id: number,
+    kind: 'bisha' | 'wanKai' | null,
+  ): void {
+    this.state.cutinLock = kind === null ? null : { kind: ownerKind, id, type: kind };
+  }
+
+  private emit(type: string, payload: Record<string, unknown>): void {
+    this.events.push({ tick: this.state.tick, type, payload });
   }
 
   tick(inputs: InputFrame): SimSnapshot {
@@ -440,27 +357,18 @@ export class Sim {
       this.tickCutinLock(inputs);
     } else {
       this.stepInputs(inputs); // 1. 输入处理
-      this.stepIntents(); // 2. 意图决策
-      this.stepPhysics(); // 3. 物理积分
-      this.stepPush(); //    4. 推挤
+      stepIntents(this.ctx, this.views); // 2. 意图决策
+      stepPhysics(this.ctx, this.views); // 3. 物理积分
+      stepPush(this.ctx); //    4. 推挤
       if (this.state.tick % 2 === 0) {
-        this.stepAnimation(); // 5. [动画帧] 30Hz
-        this.stepHitResolution(); // 6. [动画帧] 30Hz
-        this.stepBulletAnim(); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
-        this.stepAttackerAnim(); // [动画帧] 30Hz（原版 FighterAttacker.renderAnimate）
+        stepAnimation(this.ctx); // 5. [动画帧] 30Hz
+        stepHitResolution(this.ctx); // 6. [动画帧] 30Hz
+        stepBulletAnim(this.ctx); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
+        stepAttackerAnim(this.ctx); // [动画帧] 30Hz（原版 FighterAttacker.renderAnimate）
       }
-      this.stepMatchFlow(); // 7. 流程事件
+      stepMatchFlow(this.ctx); // 7. 流程事件
     }
     return this.stepOutput(); // 8. 输出
-  }
-
-  /** 特写冻结锁置位/清除（behaviors 桥；bisha/wanKai 置锁，end 系清除）。 */
-  private setCutin(
-    ownerKind: 'fighter' | 'assister',
-    id: number,
-    kind: 'bisha' | 'wanKai' | null,
-  ): void {
-    this.state.cutinLock = kind === null ? null : { kind: ownerKind, id, type: kind };
   }
 
   /**
@@ -492,23 +400,23 @@ export class Sim {
       return;
     }
     if (this.state.tick % 2 === 0) {
-      this.stepAnimation(lock);
+      stepAnimation(this.ctx, lock);
     }
   }
 
   /** 正常管线重入（锁主失联解锁 tick 复用；与 tick() 主路径同序）。 */
   private tickFallback(inputs: InputFrame): void {
     this.stepInputs(inputs);
-    this.stepIntents();
-    this.stepPhysics();
-    this.stepPush();
+    stepIntents(this.ctx, this.views);
+    stepPhysics(this.ctx, this.views);
+    stepPush(this.ctx);
     if (this.state.tick % 2 === 0) {
-      this.stepAnimation();
-      this.stepHitResolution();
-      this.stepBulletAnim();
-      this.stepAttackerAnim();
+      stepAnimation(this.ctx);
+      stepHitResolution(this.ctx);
+      stepBulletAnim(this.ctx);
+      stepAttackerAnim(this.ctx);
     }
-    this.stepMatchFlow();
+    stepMatchFlow(this.ctx);
   }
 
   /**
@@ -527,121 +435,30 @@ export class Sim {
     // just-down；字样出场前才可跳——skip 即恢复 actionEnable 正常管线）。
     // 经输入位图进 sim，lockstep 两端同步跳。训练模式无 intro 不走此路径。
     if (intro.step < INTRO_STEP_START && this.views.some((v) => v.justDown(Btn.back))) {
-      this.endIntro();
+      endIntro(this.ctx);
     }
     if (this.state.intro == null) {
       // skip tick：恢复正常管线（与本 tick 的 tick() 主路径同序）
-      this.stepIntents();
-      this.stepPhysics();
-      this.stepPush();
+      stepIntents(this.ctx, this.views);
+      stepPhysics(this.ctx, this.views);
+      stepPush(this.ctx);
       if (this.state.tick % 2 === 0) {
-        this.stepAnimation();
-        this.stepHitResolution();
-        this.stepBulletAnim();
-        this.stepAttackerAnim();
+        stepAnimation(this.ctx);
+        stepHitResolution(this.ctx);
+        stepBulletAnim(this.ctx);
+        stepAttackerAnim(this.ctx);
       }
       this.state.match.roundFrame += 1;
       return;
     }
     // 回气照跑（原版冻结期 renderAnimate 无条件：能量/辅助气回充、buff 计时）
-    for (const f of this.state.fighters) this.stepFighterFlow(f);
+    for (const f of this.state.fighters) stepFighterFlow(this.ctx, f);
     // 角色时间轴 30Hz 推进（原版 renderAnimate 无条件；开场 的语音贴帧音/
     // 收招/回位触发在此到来）
     if (this.state.tick % 2 === 0) {
-      this.stepAnimation();
+      stepAnimation(this.ctx);
     }
-    this.stepIntroAdvance();
-  }
-
-  /** 开局演出状态机步进（原版 renderStart1v1 case 0-6 + showStart）。
-   *  say 步不占 hold：等 开场 播完（actionState 离开 INTRO_ING 或离开
-   *  开场 标签——endAct/idle/播尽 endAction 任一路径）。 */
-  private stepIntroAdvance(): void {
-    const intro = this.state.intro;
-    if (intro == null) return;
-    const f1 = this.state.fighters[0]!;
-    const f2 = this.state.fighters[1] ?? null;
-    // 团队换人跳侧（原版 renderStart1v1 introTeamId==1 分支）：P1 入场（skip=1）
-    // 的 say 段播完后直入 resume，P2 的 focus/say/gap 全部跳过
-    const advance = (): void => {
-      intro.step += 1;
-      if (intro.step === 2 && intro.skip === 1) intro.step = 6;
-    };
-    if (intro.step === 1 || intro.step === 4) {
-      const f = intro.step === 1 ? f1 : f2;
-      if (f !== null && f.actionState === ActionState.INTRO_ING && f.actLabel === '开场') {
-        return; // 仍在播
-      }
-      advance();
-      return;
-    }
-    if (intro.step === INTRO_STEP_START) {
-      intro.hold += 1;
-      if (intro.hold >= INTRO_START_TICKS) this.endIntro();
-      return;
-    }
-    if (intro.hold < this.introHoldTicks(intro.step)) {
-      intro.hold += 1;
-      return;
-    }
-    // 步进 + say 步进入副作用（缺 开场 标签 = 跳过该步——原版此情形软锁，偏离）
-    intro.hold = 0;
-    advance();
-    if (intro.step === 1 || intro.step === 4) {
-      const f = intro.step === 1 ? f1 : f2;
-      if (f === null || !sayIntro(f, this.defOf(f))) advance();
-    }
-  }
-
-  /** 各步 hold 时长（say 步 0 = 纯等待）。 */
-  private introHoldTicks(step: number): number {
-    if (step === 0 || step === 3) return INTRO_FOCUS_TICKS;
-    if (step === 2 || step === 5) return INTRO_SAY_GAP_TICKS;
-    if (step === 6) return INTRO_RESUME_TICKS;
-    return 0;
-  }
-
-  /** 演出结束/跳过收尾（原版 skip/startNextRound 的双方 idle()）：
-   *  INTRO_ING 残留保护性清除（防软锁，批次 18 教训）+ 双方回位。 */
-  private endIntro(): void {
-    for (const f of this.state.fighters) {
-      const def = this.defOf(f);
-      if (f.actionState === ActionState.INTRO_ING) f.actionState = ActionState.NORMAL;
-      recoverToNormal(f, def);
-    }
-    // 字段卸下（undefined；JSON 序列化省略——见 SimState.intro 注）
-    this.state.intro = undefined;
-  }
-
-  // —— 团队回合结束/换人（切片 36，原版 GameCtrler.startNextTeamFight/nextFighter
-  //    + GameEndCtrler + GameStage.resetFight + GameStartCtrler.start1v1） ——
-
-  /**
-   * 团队模式 KO → 回合结束演出置位（原版 doGameEnd → GameEndCtrler.initlize）。
-   * 非 team 模式/演出已置位不重复置位——1v1 的结束判定仍归 app 层 checkKo。
-   * 胜方同 tick 亦死（双 KO）→ draw（原版 isDrawGame）。
-   */
-  private maybeBeginRoundEnd(loser: FighterState): void {
-    const teams = this.state.match.teams;
-    if (!teams || this.state.roundEnd != null) return;
-    const loserSide = teams.p1.some((s) => s.id === loser.id) ? 1 : 2;
-    const winnerSide: 1 | 2 = loserSide === 1 ? 2 : 1;
-    const winner = this.state.fighters.find((f) => f.id !== loser.id) ?? null;
-    const loserSlot = (loserSide === 1 ? teams.p1 : teams.p2).find(
-      (s) => s.id === loser.id,
-    );
-    this.state.roundEnd = {
-      winnerSide,
-      winnerId: winner?.id ?? -1,
-      loserId: loser.id,
-      loserQi: loser.qi,
-      loserComicType: loserSlot?.comicType ?? -1,
-      draw: winner !== null && winner.hp <= 0,
-      winApplied: false,
-      hold: 0,
-      over: false,
-    };
-    this.emit('round:end', { round: this.state.match.round, winner: winnerSide });
+    stepIntroAdvance(this.ctx);
   }
 
   /**
@@ -665,7 +482,7 @@ export class Sim {
         winner !== null &&
         winner.hp > 0 &&
         !re.winApplied &&
-        !this.isBishaOrWanKaiState(winner.actionState)
+        !isBishaOrWanKaiState(winner.actionState)
       ) {
         re.winApplied = true;
         winner.actionState = ActionState.WIN_ING;
@@ -677,288 +494,15 @@ export class Sim {
       }
     }
     // 回气/buff 照跑（原版冻结期 renderAnimate 无条件）
-    for (const f of this.state.fighters) this.stepFighterFlow(f);
+    for (const f of this.state.fighters) stepFighterFlow(this.ctx, f);
     // 被动物理（无输入位移；道具/辅助/推挤/抓取停走——清场前冻结）
-    for (const f of this.state.fighters) this.stepPassivePhysics(f);
+    for (const f of this.state.fighters) stepPassivePhysics(this.ctx, f);
     // 角色时间轴 30Hz 推进（胜利/死亡动画；帧触发器照常——胜利标签的
     // 贴帧音/收招触发在此到来）
-    if (this.state.tick % 2 === 0) this.stepAnimation();
+    if (this.state.tick % 2 === 0) stepAnimation(this.ctx);
     if (re.over) return; // 终局已发，冻结待 app 切结算
     if (re.winApplied || re.draw) re.hold += 1;
-    if (re.hold >= ROUND_END_TICKS) this.advanceRoundEnd(re);
-  }
-
-  /** 必杀/万解施法态（原版 FighterActionState.allowGhostStep 的排除集）。 */
-  private isBishaOrWanKaiState(v: number): boolean {
-    return (
-      v === ActionState.BISHA_ING ||
-      v === ActionState.BISHA_SUPER_ING ||
-      v === ActionState.WAN_KAI_ING
-    );
-  }
-
-  /**
-   * 演出期被动物理（stepPhysics 的无输入子集：速度衰减/重力/落地；原版 KO 后
-   * actionEnable=false 只封输入位移，物理照常——胜方空中自然落地、尸体沉降）。
-   * 不含行走/瞬身步/道具/推挤/抓取/牵引边界（演出期冻结，清场前无意义）。
-   */
-  private stepPassivePhysics(f: FighterState): void {
-    const wasAirborne = !f.onGround;
-    f.vx = wake(f.vx, f.dampX);
-    f.vy = wake(f.vy, f.dampY);
-    f.x += f.vx;
-    f.y += f.vy;
-    const airborne = this.resolveLanding(f, this.state.stage);
-    if (airborne) {
-      if (f.applyG && f.vy >= 0) {
-        f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-        f.y += f.gRamp;
-      } else if (f.vy < 0) {
-        f.gRamp = 0;
-      }
-      f.onGround = false;
-    } else {
-      f.gRamp = GRAVITY_START;
-      if (wasAirborne) onLanded(f, this.defOf(f));
-      f.onGround = true;
-    }
-  }
-
-  /** 演出计满分流：换人入场或终局（原版 GameCtrler.runNext）。 */
-  private advanceRoundEnd(re: RoundEndState): void {
-    const teams = this.state.match.teams!;
-    if (re.draw) {
-      // 平局（原版 startNextTeamFight drawGame 分支）：双侧均有备 → 双方换人
-      // 全量开场；一侧耗尽 → 该侧判负终局；双侧耗尽 → 按胜方侧判定（原版该
-      // 边角以尸体重启回合，视为缺陷修正，偏离记录）
-      const dead1 = this.state.fighters.find((f) => teams.p1.some((s) => s.id === f.id))?.id;
-      const dead2 = this.state.fighters.find((f) => teams.p2.some((s) => s.id === f.id))?.id;
-      const has1 = dead1 !== undefined && teams.pending1.length > 0;
-      const has2 = dead2 !== undefined && teams.pending2.length > 0;
-      if (!has1 || !has2) {
-        this.finishMatch(has1 ? 1 : 2);
-        return;
-      }
-      // 气继承：双侧都以记录的败方气量为基准（原版 draw 分支 lastLoserData
-      // 指向首个败者，偏离记录：后死者气量丢弃）
-      this.rotateIn(1, dead1, re.loserQi, re.loserComicType);
-      this.rotateIn(2, dead2, re.loserQi, re.loserComicType);
-      this.repositionRound();
-      this.state.roundEnd = undefined;
-      this.state.match.round += 1;
-      this.state.match.roundFrame = 0;
-      this.clearField();
-      this.beginIntro(0);
-      this.emit('round:start', { round: this.state.match.round });
-      return;
-    }
-    const loserSide: 1 | 2 = teams.p1.some((s) => s.id === re.loserId) ? 1 : 2;
-    const pending = loserSide === 1 ? teams.pending1 : teams.pending2;
-    if (pending.length === 0) {
-      // 败方无备可选 → 终局（原版 nextFighter 返回 false → fightFinish）
-      this.finishMatch(re.winnerSide);
-      return;
-    }
-    this.rotateIn(loserSide, re.loserId, re.loserQi, re.loserComicType);
-    this.repositionRound();
-    this.state.roundEnd = undefined;
-    this.state.match.round += 1;
-    this.state.match.roundFrame = 0;
-    this.clearField();
-    // 换人开场：入场方 = 败方侧（原版 introTeamId = loseTeam），获得特写/开场
-    this.beginIntro(loserSide);
-    this.emit('round:start', { round: this.state.match.round });
-  }
-
-  /**
-   * 终局（原版 fightFinish）：match:over 表现事件 + 冻结待 app 切结算。
-   * 演出态保留（over=true），tickRoundEnd 继续跑动画直至场景切换。
-   */
-  private finishMatch(winner: 1 | 2): void {
-    const re = this.state.roundEnd!;
-    re.over = true;
-    if (winner === 1) this.state.match.p1Wins += 1;
-    else this.state.match.p2Wins += 1;
-    this.emit('match:over', { winner });
-  }
-
-  /**
-   * 换人入场（原版 GameCtrler.nextFighter + FighterMain 新实例）：败方位替换为
-   * roster 下一名。气量继承（原版 lastLoserQi + 同 comicType +100，封顶 300）；
-   * 能量/辅助气/动作槽全部新起（原版新 FighterMain 实例语义）。
-   * @returns 入场 fighter id
-   */
-  private rotateIn(
-    side: 1 | 2,
-    deadId: number,
-    qiCarry: number,
-    qiComicType: number,
-  ): number {
-    const teams = this.state.match.teams!;
-    const pending = side === 1 ? teams.pending1 : teams.pending2;
-    const slots = side === 1 ? teams.p1 : teams.p2;
-    const nextId = pending.shift()!;
-    const slot = slots.find((s) => s.id === nextId)!;
-    const idx = this.state.fighters.findIndex((f) => f.id === deadId);
-    const def = this.defById(slot.id, slot.formIndex);
-    // 血量取槽位抄录值（TeamSlot.hp = 出生 hp，原版 nextFighter 新建
-    // FighterMain 用 config hp；随状态走，fromState 恢复无需重新注入配置）
-    const cfgHp = slot.hp;
-    this.state.fighters[idx] = {
-      id: slot.id,
-      x: slot.x,
-      y: slot.y ?? this.state.stage.groundY,
-      vx: 0,
-      vy: 0,
-      dampX: 0,
-      dampY: 0,
-      gRamp: GRAVITY_START,
-      facing: side === 1 ? 1 : -1,
-      hp: cfgHp,
-      qi: Math.min(
-        300,
-        qiCarry + (slot.comicType !== undefined && slot.comicType === qiComicType ? 100 : 0),
-      ),
-      actionState: 0,
-      onGround: true,
-      actLabel: null,
-      animFrame: 0,
-      labelLock: 0,
-      mcHold: false,
-      attackId: null,
-      hurtTimer: 0,
-      steelBody: false,
-      energy: ENERGY_MAX,
-      energyOverload: false,
-      energyGap: 0,
-      isAllowBeHit: true,
-      beHitGap: 0,
-      isCross: false,
-      applyG: true,
-      airMove: false,
-      touchFloor: null,
-      hpMax: cfgHp,
-      airHitTimes: 1,
-      hurtAction: null,
-      lastHurtHitId: null,
-      lastDefHitId: null,
-      hitTargetChecker: null,
-      hitTarget: null,
-      moveTarget: null,
-      formIndex: slot.formIndex,
-      jumpTimes: JUMP_TIMES_START,
-      jumpDelay: 0,
-      ghostTicks: 0,
-      ghostType: 0,
-      ghostCooldown: 0,
-      fzqi: FZQI_MAX,
-      assistId: slot.assistId,
-      buffs: { speedUp: null, attackUp: null, defenseUp: null },
-      slots: defaultSlots(def),
-      input: createPlayerInput(),
-    };
-    this.emit('fighter:enter', { fighter: slot.id, side });
-    return slot.id;
-  }
-
-  /** 按 id + 形态下标取 def（rotateIn 用；FighterState 尚未构造）。 */
-  private defById(id: number, formIndex: number): FighterDef | null {
-    const forms = this.formsById.get(id);
-    if (!forms || forms.length === 0) return null;
-    return forms[Math.min(formIndex, forms.length - 1)] ?? null;
-  }
-
-  /**
-   * 回合重定位（原版 GameStage.resetFight）：双方回出生点、面向对手。胜方血量
-   * 保持——原版 resetFighterHp 双方满血 + lastWinnerHp 回填的净效果即胜方持有
-   * 恢复后血量、入场者满血（rotateIn 已按满血构造）。
-   */
-  private repositionRound(): void {
-    const teams = this.state.match.teams!;
-    for (const f of this.state.fighters) {
-      const isP1 = teams.p1.some((s) => s.id === f.id);
-      const slot = (isP1 ? teams.p1 : teams.p2).find((s) => s.id === f.id)!;
-      f.x = slot.x;
-      f.y = slot.y ?? this.state.stage.groundY;
-      f.facing = isP1 ? 1 : -1;
-      f.vx = 0;
-      f.vy = 0;
-      f.dampX = 0;
-      f.dampY = 0;
-      f.gRamp = GRAVITY_START;
-      f.onGround = true;
-    }
-  }
-
-  /** 回合清场（原版 resetFight 重建舞台的实体侧）：道具/辅助/冻结锁清除，
-   *  despawn 事件照发（渲染层精灵对齐快照）。 */
-  private clearField(): void {
-    for (const b of this.state.bullets) {
-      this.emit('entity:despawn', { kind: 'bullet', id: b.id });
-    }
-    for (const a of this.state.attackers) {
-      this.emit('entity:despawn', { kind: 'attacker', id: a.id });
-    }
-    for (const a of this.state.assisters) {
-      this.emit('entity:despawn', { kind: 'assister', id: a.id });
-    }
-    this.state.bullets = [];
-    this.state.attackers = [];
-    this.state.assisters = [];
-    this.state.cutinLock = null;
-  }
-
-  /**
-   * 换人开场（原版 doBuildNextRound → start1v1(p1, p2, loseTeam)）：introTeamId
-   * = 入场方（败方侧）——入场方获得特写/开场，胜方跳过（skip 语义见 IntroState）；
-   * 平局全量开场。BGM 按入场方切换（原版 playFightBGM(pN.data.id)）
-   * 由 app 消费 fighter:enter 事件完成。
-   */
-  private beginIntro(skipSide: 0 | 1 | 2): void {
-    this.state.intro =
-      skipSide === 2
-        ? { step: 3, hold: 0, skip: 2 }
-        : skipSide === 1
-          ? { step: 0, hold: 0, skip: 1 }
-          : { step: 0, hold: 0 };
-  }
-
-  private emit(type: string, payload: Record<string, unknown>): void {
-    this.events.push({ tick: this.state.tick, type, payload });
-  }
-
-  /**
-   * 垂直落地判定，语义对照原版 GameLogic.isInAir（module-map §地图几何）。
-   * 返回是否仍在空中（true 时调用方施加重力斜坡）：
-   *   1. 上升（vy<0）不落地；
-   *   2. 落到 groundY - GROUND_SNAP_BAND 之下 → 吸附主地面（优先于平台段）；
-   *   3. 快速下落（vy ≥ FALL_LAND_SPEED）→ 穿过平台段（原版同规则：
-   *      原版检查的是显式速度 _velocity.y，不含重力斜坡位移）；
-   *   4. 其余情况：平台段 ±LAND_TOLERANCE 命中（x 在段内且 y 邻近）→ 吸附该平台。
-   * 偏离原版：去掉 floor-contact 缓存——它只是性能优化，可观测行为不变
-   * （缓存命中的条件与全量扫描等价）。
-   */
-  private resolveLanding(f: FighterState, stage: StageState): boolean {
-    if (f.vy < 0) return true;
-    if (f.y > stage.groundY - GROUND_SNAP_BAND) {
-      f.y = stage.groundY;
-      f.vy = 0;
-      return false;
-    }
-    if (f.vy >= FALL_LAND_SPEED) return true;
-    for (const fl of stage.floors) {
-      if (
-        f.x > fl.xFrom &&
-        f.x < fl.xTo &&
-        f.y > fl.y - LAND_TOLERANCE &&
-        f.y < fl.y + LAND_TOLERANCE
-      ) {
-        f.y = fl.y;
-        f.vy = 0;
-        return false;
-      }
-    }
-    return true;
+    if (re.hold >= ROUND_END_TICKS) advanceRoundEnd(this.ctx, re);
   }
 
   // 1. 输入处理：位图 → 缓冲器 → 输入视图
@@ -967,1711 +511,6 @@ export class Sim {
     this.views = this.state.fighters.map((f, i) =>
       advancePlayerInput(f.input, masks[i] ?? 0),
     );
-  }
-
-  // 2. 意图决策：状态机读取意图尝试触发动作（多实体按 id 升序）
-  private stepIntents(): void {
-    const { fighters } = this.state;
-    for (let i = 0; i < fighters.length; i++) {
-      const f = fighters[i]!;
-      const def = this.defOf(f);
-      const view = this.views[i]!;
-      // 朝向按状态分流（原版语义）：
-      //   站立待机：自动面向对手（原版 renderAnimate 仅 currentFrameName=="站立"
-      //     时计数，>5 帧 setDirectToTarget → 每 6 帧一次；用 tick 取模等价实现）
-      //   行走：方向键决定（原版 renderMoving：moveLEFT→direct=-1，
-      //     moveRIGHT→direct=1），可背对对手移动，停下回站立后自动转回
-      //   跳跃：保持起跳时朝向（原版 doJump 不改 direct）
-      //   防御：方向键决定（原版 renderDefense），转向时重播抬手段
-      if (f.actionState === ActionState.NORMAL && f.hp > 0) {
-        const other = fighters[i === 0 ? 1 : 0];
-        if (f.actLabel === '站立') {
-          if (other && this.state.tick % AUTO_FACE_INTERVAL === 0) {
-            f.facing = other.x >= f.x ? 1 : -1;
-          }
-        } else if (f.actLabel === '走') {
-          if (view.held(Btn.left)) f.facing = -1;
-          else if (view.held(Btn.right)) f.facing = 1;
-        }
-      } else if (f.actionState === ActionState.DEFENCE_ING) {
-        const def = this.defOf(f);
-        const dir = view.held(Btn.left) ? -1 : view.held(Btn.right) ? 1 : 0;
-        if (dir !== 0 && f.facing !== dir) {
-          f.facing = dir as 1 | -1;
-          // 原版 renderDefense 转向分支：setDefenseAction 重播抬手
-          //（goFrame("防御", true, 3)——从首帧重放，定格逻辑见 advanceAnimation）
-          const range = def?.labels['防御'];
-          if (range) f.animFrame = range.index + 1;
-        }
-      }
-      // 摔技目标判定需要对手状态（allowCatch）；双人模型取另一角色
-      const other = fighters[i === 0 ? 1 : 0] ?? null;
-      stepIntentsFor(f, def, view, other, other !== null ? this.defOf(other) : null);
-      // 辅助召唤（原版 FighterMcCtrler.renderAssist）：NORMAL/DEFENCE +
-      // 辅助键 + fzqi 满 → fzqi 清零并召唤。偏离记录：被动辅助冷却
-      // （isUsedPassiveCdIng）依赖未建模的被动辅助语料，不实现。
-      if (
-        view.justDown(Btn.assist) &&
-        (f.actionState === ActionState.NORMAL ||
-          f.actionState === ActionState.DEFENCE_ING) &&
-        f.hp > 0 &&
-        f.fzqi >= FZQI_MAX &&
-        !this.state.assisters.some((a) => a.ownerId === f.id)
-      ) {
-        view.consume(Btn.assist);
-        this.spawnAssister(f);
-      }
-    }
-  }
-
-  // 3. 物理积分（行走 + 显式速度/阻尼 + 重力斜坡 + 多段地板落地 + 牵引边界）
-  private stepPhysics(): void {
-    const { stage, fighters } = this.state;
-    for (let i = 0; i < fighters.length; i++) {
-      const f = fighters[i]!;
-      const view = this.views[i]!;
-      const def = this.defOf(f);
-      const wasAirborne = !f.onGround;
-      // 瞬身步推进（原版 renderGhostStep；结束回位/恢复速度/发事件）
-      stepGhost(f, def, (g) => {
-        this.emit('effect', { id: 'endGhostStep', x: g.x, y: g.y, params: {} });
-      });
-      // 行走：NORMAL 且在地面（原版 renderFloorAction）；airMove（飞行系）空中也可；
-      // 瞬身步期间速度由瞬身步驱动（原版画面冻结期不受输入）。
-      // 地面行走仅在待机标签族（站立/走）且无标签锁时施加（修复批次 20）：
-      // 原版移动由 moveLeft/moveRight 槽驱动（doMove→goFrame("走")），落地/
-      // 收招等收尾标签期间槽已清空、输入不产生位移；移植版曾只按状态门，
-      // 落地 labelLock 窗口内持续置 vx → 站立姿势原地滑步（实测批 20 之一）。
-      // airMove（飞行系空中）不受标签门约束。
-      if (
-        f.actionState === ActionState.NORMAL &&
-        (f.onGround || f.airMove) &&
-        f.hp > 0 &&
-        f.ghostTicks === 0 &&
-        (!f.onGround ||
-          def === null ||
-          f.actLabel === null || // 出生首帧未采样（advanceAnimation 首轮才置 站立）
-          (f.labelLock <= 0 && (f.actLabel === '站立' || f.actLabel === '走')))
-      ) {
-        let dir = 0;
-        if (view.held(Btn.left)) dir -= 1;
-        if (view.held(Btn.right)) dir += 1;
-        // speedUp buff（切片 12）：平加值随移速（原版 speed 属性 + buff 值）
-        f.vx = dir * (walkSpeed(def) + (f.buffs.speedUp?.value ?? 0) * SPEED_PLUS);
-        // 走路拥有水平速度所有权（切片 13 修复）：原版走路不经 _velocity
-        //（renderFloorAction 直改 _x），dashStop 残留的 damping 只衰减冲刺残速、
-        // 不会饿死走路；移植版统一进 vx 后必须在此清 dampX，否则瞬步收势
-        // 的 dampX=|vx|×p 永不复位 → 落地后行走速度每帧被 wake 清零（角色冻结）。
-        f.dampX = 0;
-      } else if (
-        f.onGround &&
-        (f.actionState === ActionState.HURT_ING ||
-          f.actionState === ActionState.HURT_DOWN ||
-          f.actionState === ActionState.DEAD)
-      ) {
-        // 地面滑行摩擦（仅受击/倒地/死亡；瞬步/防御速度走自身衰减或置零）
-        f.vx = wake(f.vx, GROUND_FRICTION);
-      }
-      // 速度线性衰减（原版 renderVelocity + KyoUtils.num_wake）
-      f.vx = wake(f.vx, f.dampX);
-      f.vy = wake(f.vy, f.dampY);
-      f.x += f.vx;
-      f.y += f.vy;
-      const airborne = this.resolveLanding(f, stage);
-      if (airborne) {
-        // 重力斜坡（原版 applayG(12)：上升段清零；下落段每 tick 递增后施为位移；
-        // isApplyG=false（飞行系）不施加重力）
-        if (!f.applyG) {
-          // 悬停：无重力位移
-        } else if (f.vy < 0) {
-          f.gRamp = 0;
-        } else {
-          f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-          f.y += f.gRamp;
-        }
-        f.onGround = false;
-      } else {
-        // 落地瞬间预置下次离地的初值（原版 setInAir(false) → _g=4）
-        f.gRamp = GRAVITY_START;
-        if (wasAirborne) onLanded(f, def);
-        f.onGround = true;
-      }
-      // 起跳延迟（原版 renderJumpAnimate：延迟计满才施加跳跃速度并消耗
-      // jumpTimes——放在积分后，首个上升位移出现在下一 tick）
-      if (f.jumpDelay > 0) {
-        f.jumpDelay -= 1;
-        if (f.jumpDelay === 0) applyJumpLaunch(f, def);
-      }
-    }
-    // 飞行道具推进（原版 Bullet.render：每 tick 位移/加速/钳制/寿命/出界）
-    this.stepBullets();
-    // 独立道具推进（原版 FighterAttacker.render：follow 重定位/重力/寿命占位）
-    this.stepAttackers();
-    // 辅助实体推进（原版 BaseGameSprite 物理 × SPEED_PLUS + 重力斜坡；切片 12）
-    this.stepAssisterPhysics();
-    // 抓取吸附施加（原版 FighterMC.moveTarget：把目标吸向自身锚点）
-    this.stepMoveTargets();
-    // 牵引边界：版边 = 两角色中点 ± PLAYFIELD_HALF_WIDTH，clamp 到地图边界。
-    // 相机不进模拟（契约硬规则 5）。
-    this.clampPlayfield();
-  }
-
-  /**
-   * 飞行道具每 tick 推进（原版 Bullet.render）。
-   * 风场弹速级（B4 temari）：原版 fuutonFunc 每动画帧对所有敌方弹写
-   * sp.speedLevel = level × direct（direct = sp.direct==selfDirect ? -1:1，
-   * 即同向 -level 加速、逆风 level 减速），位移乘 (1−speedLevel)。
-   * 移植为**派生值**：步进时按在场风场辅助求值，不逐弹存储——多辅助同场
-   * 按 id 序后者覆盖（= 原版单槽函数的寄存器覆写序）；偏离记录：风场期间
-   * 生成的弹体即刻受风（原版 ≤2 动画帧延迟），辅助提前退场（owner 死亡）
-   * 时弹体立即恢复常速（原版最后一次覆写值泄漏至弹体消失——视为原版缺陷
-   * 修正，见 DESIGN §3.5 风场段）。
-   */
-  private stepBullets(): void {
-    const { stage, bullets, assisters } = this.state;
-    const removed: number[] = [];
-    for (const b of bullets) {
-      // 命中残留段（原版 _isHit → render 早退）：停移动，仅时间轴推进
-      if (b.hitAnim) continue;
-      // 风场弹速级求值（同队跳过 = 原版 isSelfTeam 守卫；2P 模型 team id = fighter id）
-      let speedLevel = 0;
-      for (const a of assisters) {
-        const cf = a.customFunc;
-        if (cf === null || cf.kind !== 'windField') continue;
-        if (b.ownerId === a.ownerId) continue;
-        speedLevel = cf.level * (b.facing === cf.direct ? -1 : 1);
-      }
-      // 位移（局部空间速度；x 沿发射朝向，乘风场弹速级系数）+ 加速（add×2×SPEED_PLUS = add/tick）
-      b.x += b.sx * SPEED_PLUS * b.facing * (1 - speedLevel);
-      b.y += b.sy * SPEED_PLUS;
-      b.sx += b.addX;
-      b.sy += b.addY;
-      // 局部空间钳制（朝向镜像后两方向语义一致：sx∈[minX,maxX]，见 state.ts 注）
-      if (b.sx > b.maxX) b.sx = b.maxX;
-      if (b.sx < b.minX) b.sx = b.minX;
-      if (b.sy > b.maxY) b.sy = b.maxY;
-      if (b.sy < b.minY) b.sy = b.minY;
-      // 寿命（原版 holdFrame 递减至 0 → 有 timeout 标签跳 timeout 段续播至
-      // 时间轴播尽移除，无标签立即移除；_isTimeout 后不再递减）
-      if (b.holdTicks >= 0 && --b.holdTicks <= 0) {
-        const timeoutFrame = b.animLabels['timeout'];
-        if (b.animTotal > 0 && timeoutFrame !== undefined) {
-          b.animFrame = timeoutFrame;
-          b.holdTicks = -1;
-          continue;
-        }
-        removed.push(b.id);
-        continue;
-      }
-      // 出界（原版 GameLogic.isOutRange：边界 ±20；bullet allowCrossMapXY 可越界飞行）
-      if (
-        b.x > stage.rightBound + 20 ||
-        b.x < stage.leftBound - 20 ||
-        b.y > stage.bottomY + 20
-      ) {
-        removed.push(b.id);
-      }
-    }
-    if (removed.length > 0) this.removeBullets(removed);
-  }
-
-  /**
-   * 飞行道具动画推进（原版 Bullet.renderAnimate，30Hz；切片 13-A3）。
-   *
-   * 原版语义：mc.nextFrame() 后按 currentLabel（≤当前帧的最近标签）分派——
-   * loop→回跳 loop_start（无则帧 1）；remove→移除；hit_over→停止命中；
-   * 其余：currentFrame == totalFrames-1 → 移除（原版 off-by-one 原样保留，
-   * 1 帧元件永不自动移除）。命中残留段（hitAnim）继续推进至播尽——
-   * entity:despawn 时机即残留结束（渲染层随之收尾）。
-   */
-  private stepBulletAnim(): void {
-    const { bullets } = this.state;
-    const removed: number[] = [];
-    for (const b of bullets) {
-      if (b.animTotal <= 0) continue;
-      // 推进（到尾停住：原版 nextFrame 在末帧滞留，播尽判定见下）
-      if (b.animFrame < b.animTotal) b.animFrame += 1;
-      // currentLabel = 起始帧 ≤ 当前帧的最近标签
-      let label: string | null = null;
-      let labelFrame = 0;
-      for (const [name, start] of Object.entries(b.animLabels)) {
-        if (start <= b.animFrame && start >= labelFrame) {
-          // 同帧多标签按字典序稳定取（同帧多标签语料不存在；确定性优先）
-          if (start === labelFrame && (label === null || name < label)) continue;
-          label = name;
-          labelFrame = start;
-        }
-      }
-      switch (label) {
-        case 'loop':
-          b.animFrame = b.animLabels['loop_start'] ?? 1;
-          break;
-        case 'remove':
-          removed.push(b.id);
-          break;
-        case 'hit_over':
-          b.hitAble = false;
-          break;
-        default:
-          // 原版：currentFrame == totalFrames - 1 → removeSelf
-          if (b.animFrame === b.animTotal - 1) removed.push(b.id);
-          break;
-      }
-    }
-    if (removed.length > 0) this.removeBullets(removed);
-  }
-
-  /**
-   * 独立道具内层时间轴推进（原版 FighterAttacker.renderAnimate，切片 21 收紧）：
-   * 逐动画帧 nextFrame + 元件触发器分派（def.attackerScripts，target
-   * attacker=道具控制 / effect=表现），stop → animHold 完全冻结（不推进/
-   * 不分派/不播尽移除，gotoAndPlay 解除），removeSelf → 移除，
-   * currentFrame == totalFrames-1 → removeSelf（off-by-one 原样保留）。
-   * 跳转（外部 gotoAndPlay 或元件脚本）用 frameJumped 标志传递：下一动画步
-   * 分派落点帧触发器且不推进（同帧 rewind 值比较不可辨）。
-   * 已知边界：元件第 1 帧触发器不执行（生成 tick 直接推进到 2）——语料
-   * attacker 元件脚本最早帧 3，无实例；endAct 为 no-op（isAttacking 标志
-   * 唯一读者是 AI，port 无观察者）。
-   */
-  private stepAttackerAnim(): void {
-    const removed: number[] = [];
-    for (const a of this.state.attackers) {
-      if (a.animTotal <= 0) continue;
-      if (a.animHold) continue;
-      const jumped = a.frameJumped; // 外部跳转落点帧：本步分派不推进
-      a.frameJumped = false;
-      if (!jumped && a.animFrame < a.animTotal) a.animFrame += 1;
-      const scripts =
-        a.scriptAssistId !== null
-          ? this.assisterDefs.get(a.scriptAssistId)?.attackerScripts?.[a.name]
-          : undefined;
-      if (scripts) {
-        let removedSelf = false;
-        for (const t of scripts.triggers) {
-          if (t.frame !== a.animFrame) continue;
-          if (this.dispatchAttackerScript(a, t)) {
-            removedSelf = true;
-            break;
-          }
-        }
-        if (removedSelf) {
-          removed.push(a.id);
-          continue;
-        }
-      }
-      if (a.animHold) continue; // 本步 stop()：定格
-      if (!jumped && a.animFrame === a.animTotal - 1) removed.push(a.id);
-    }
-    if (removed.length > 0) this.removeAttackers(removed);
-  }
-
-  /**
-   * attacker 元件脚本单条分派（切片 21）。返回 true = removeSelf。
-   * 未注册 op 确定性静默（madara justHit miss 分支留 raw——内层 hitVO 未
-   * 导出前无真值，见 attackerScripts 契约注）。
-   */
-  private dispatchAttackerScript(a: AttackerState, t: FrameTrigger): boolean {
-    if (t.target === 'attacker') {
-      if (t.op === 'if') return this.dispatchAttackerCond(a, t);
-      switch (t.op) {
-        case 'stop':
-          a.animHold = true;
-          return false;
-        case 'gotoAndPlay': {
-          const arg = t.args[0];
-          if (typeof arg === 'string') {
-            const f = a.animLabels[arg];
-            if (f === undefined) return false; // 标签缺失静默
-            a.animFrame = f;
-          } else if (typeof arg === 'number') {
-            a.animFrame = arg;
-          } else {
-            return false;
-          }
-          a.animHold = false;
-          a.frameJumped = true;
-          return false;
-        }
-        case 'stopFollowTarget':
-          a.followX = false;
-          a.followY = false;
-          return false;
-        case 'removeSelf':
-          return true;
-        case 'endAct':
-          return false;
-        default:
-          return false;
-      }
-    }
-    // effect 表现系（原版 $attacker_ctrler.effect 转发；坐标取道具实体）
-    switch (t.op) {
-      case 'playSoundHit1':
-        this.emit('sound', { id: 'hit1', x: a.x, y: a.y });
-        return false;
-      case 'playSoundHit2':
-        this.emit('sound', { id: 'hit2', x: a.x, y: a.y });
-        return false;
-      case 'shine':
-        this.emit('effect', { id: 'shine', x: a.x, y: a.y, params: { arg: t.args[0] } });
-        return false;
-      default:
-        return false;
-    }
-  }
-
-  /**
-   * attacker 元件条件触发分派（B5，madara miss 分支）：cond 成立执行 then，
-   * 否则执行 else；分支体调用仍走元件脚本分派（gotoAndPlay 需经 frameJumped
-   * 语义），removeSelf 短路同帧移除。
-   */
-  private dispatchAttackerCond(a: AttackerState, t: FrameTrigger): boolean {
-    const cond = t.cond;
-    if (cond === undefined) return false;
-    const branch = this.evaluateAttackerCondition(a, cond) ? t.then : t.else;
-    if (!branch) return false;
-    for (const c of branch) {
-      const removed = this.dispatchAttackerScript(a, {
-        frame: t.frame,
-        target: c.target,
-        op: c.op,
-        args: c.args,
-      });
-      if (removed) return true;
-    }
-    return false;
-  }
-
-  /**
-   * attacker 语境条件查询（B5）。justHit：原版 FighterAttackerCtrler.justHit
-   * 委托 owner 控制器 → AssisterCtrler.isJustHit = 目标 hurtHit.id 比对；
-   * port = 目标 lastHurtHitId（受击恢复清空，近战 justHit 同语义）。
-   * 未知查询 op = false（确定性静默，同 fighter 侧 evaluateTriggerCondition）。
-   */
-  private evaluateAttackerCondition(a: AttackerState, cond: TriggerCondition): boolean {
-    if (cond.op === 'justHit') {
-      const hitid = typeof cond.args[0] === 'string' ? cond.args[0] : null;
-      const t = this.state.fighters.find((f) => f.id !== a.ownerId) ?? null;
-      const v =
-        t !== null &&
-        hitid !== null &&
-        (t.lastHurtHitId === hitid || (cond.args[1] === true && t.lastDefHitId === hitid));
-      return cond.negate === true ? !v : v;
-    }
-    return false;
-  }
-
-  /**
-   * 飞行道具死亡（原版 Bullet.doHit）：停命中，有元件时间轴则进入残留段
-   * （跳 hit 标签段；无标签原地停住播尽），entity:despawn 延后到播尽——
-   * 命中残留演出随 despawn 收紧（切片 13-A3）。无动画数据时保持旧行为
-   * （立即移除）。
-   */
-  private killBullet(b: BulletState): void {
-    b.hitAble = false;
-    if (b.animTotal <= 0) {
-      this.despawnBullet(b.id);
-      return;
-    }
-    b.hitAnim = true;
-    const hitFrame = b.animLabels['hit'];
-    if (hitFrame !== undefined) b.animFrame = hitFrame;
-  }
-
-  /** 发射（behaviors.fire 引擎桥）：判定区换算世界坐标 + 参数换算入 SimState。 */
-  private spawnBullet(spec: BulletSpawnSpec): void {
-    const { owner, name, local, hit, params } = spec;
-    const world = worldRect(owner, local);
-    const axis = (v: number | { start?: number; add?: number; max?: number; min?: number } | undefined) => {
-      if (typeof v === 'number') return { start: v, add: 0, max: 999, min: -999 };
-      return {
-        start: v?.start ?? 0,
-        add: v?.add ?? 0,
-        max: v?.max ?? 999,
-        min: v?.min ?? -999,
-      };
-    };
-    const ax = axis(params.x);
-    const ay = axis(params.y);
-    const hold = params.hold === undefined ? -1 : params.hold === -1 ? -1 : Math.round(params.hold * 60);
-    const bullet: BulletState = {
-      id: this.state.nextEntityId,
-      ownerId: owner.id,
-      facing: owner.facing,
-      name,
-      x: world.x,
-      y: world.y,
-      w: world.w,
-      h: world.h,
-      sx: ax.start,
-      sy: ay.start,
-      addX: ax.add,
-      addY: ay.add,
-      minX: ax.min,
-      maxX: ax.max,
-      minY: ay.min,
-      maxY: ay.max,
-      holdTicks: hold,
-      hitTimes: params.hits ?? -1,
-      hp: params.hp ?? 100,
-      hpMax: params.hp ?? 100,
-      hit: { ...hit },
-      hitAble: true,
-      viaAssist: false,
-      animTotal: spec.anim?.totalFrames ?? 0,
-      animFrame: 1,
-      animLabels: spec.anim ? { ...spec.anim.labels } : {},
-      hitAnim: false,
-    };    this.state.nextEntityId += 1;
-    this.state.bullets.push(bullet);
-    this.state.bullets.sort((a, b) => a.id - b.id);
-    this.emit('entity:spawn', { kind: 'bullet', id: bullet.id, name: bullet.name, owner: owner.id });
-  }
-
-  private removeBullets(ids: number[]): void {
-    const set = new Set(ids);
-    this.state.bullets = this.state.bullets.filter((b) => {
-      if (set.has(b.id)) {
-        this.emit('entity:despawn', { kind: 'bullet', id: b.id });
-        return false;
-      }
-      return true;
-    });
-  }
-
-  /**
-   * 生成独立道具（behaviors.addAttacker 引擎桥；原版 FighterAttacker.init）。
-   * 位置：元件原点锚定（B5），x 轴沿朝向镜像；moveToTarget 轴改以 target 为基准。
-   * 偏离：fires 缺逐帧数据的元件回退占位矩形见 state.ts AttackerState 注；
-   * range 轴语料未出现，不支持（确定性静默）。
-   */
-  private spawnAttacker(spec: AttackerSpawnSpec): void {
-    const { owner, name, local, fbHit, hit, hitId, params } = spec;
-    this.spawnAttackerEntity({
-      anchor: owner,
-      ownerId: owner.id,
-      targetOf: this.state.fighters.find((f) => f.id !== owner.id) ?? null,
-      name,
-      local,
-      fbHit,
-      hit,
-      hitId,
-      anim: spec.anim,
-      params,
-      viaAssist: false,
-      scriptAssistId: null,
-    });
-  }
-
-  /**
-   * 辅助生成独立道具（assister.addAttacker 引擎桥；原版同 FighterAttacker，
-   * owner = 辅助实体）：位置锚/朝向取辅助实体，命中回气归召唤者
-   * （原版 getOwnerFighter 回溯），渲染图集/逐帧命中数据走辅助侧（viaAssist）。
-   */
-  private spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void {
-    const owner = this.state.fighters.find((f) => f.id === spec.ownerId) ?? null;
-    // 来源辅助 def id（B5 起 viaAssist 必设：fires 元数据/元件脚本寻址）；
-    // def.attackerScripts[name] 存在 → 标签并入 animLabels（fires 元数据
-    // 同基同值，attackerScripts 优先）
-    const def = this.assisterDefs.get(spec.self.assistId);
-    const scripts = def?.attackerScripts?.[spec.name];
-    this.spawnAttackerEntity({
-      anchor: spec.self,
-      ownerId: spec.ownerId,
-      targetOf:
-        owner !== null ? this.state.fighters.find((f) => f.id !== owner.id) ?? null : null,
-      name: spec.name,
-      local: spec.local,
-      fbHit: spec.fbHit,
-      hit: spec.hit,
-      hitId: spec.hitId,
-      anim: spec.anim,
-      params: spec.params,
-      viaAssist: true,
-      scriptAssistId: spec.self.assistId,
-      ...(scripts !== undefined ? { scriptLabels: scripts.labels } : {}),
-    });
-  }
-
-  private spawnAttackerEntity(args: {
-    anchor: { x: number; y: number; facing: 1 | -1 };
-    ownerId: number;
-    targetOf: FighterState | null;
-    name: string;
-    local: AreaRect;
-    fbHit: { x: number; y: number; w: number; h: number };
-    hit: HitDef | null;
-    hitId: string | null;
-    anim?: { totalFrames: number; labels: Record<string, number> } | undefined;
-    params: AttackerParams;
-    viaAssist: boolean;
-    /** 来源辅助 def id（viaAssist 时必设：fires 元数据/元件脚本寻址；
-     *  切片 21 仅脚本来源，B5 扩展；null = 角色生成） */
-    scriptAssistId: string | null;
-    /** 元件脚本标签（def.attackerScripts[name].labels；并入 animLabels） */
-    scriptLabels?: Record<string, number>;
-  }): void {
-    const { anchor, ownerId, targetOf: t, name, local, fbHit, hit, hitId, anim, params, viaAssist } = args;
-    // 元件原点（root 空间 direct=1）= 生成帧判定区 − 回退矩形偏移；
-    // 原版 _mcOrgPoint = (mainmc.x, mainmc.y)（实例摆放在父时间轴的位置）
-    const orgX = local.x - fbHit.x;
-    const orgY = local.y - fbHit.y;
-    const axisX = typeof params.x === 'object' && params.x !== null ? params.x : null;
-    const axisY = typeof params.y === 'object' && params.y !== null ? params.y : null;
-    // 原版 _startX：number → params.x + _mcOrgPoint.x；轴对象 → offset；
-    // 缺省 → _mcOrgPoint（FighterAttacker.as:36-96）
-    const startX = typeof params.x === 'number' ? params.x + orgX : axisX?.offset ?? orgX;
-    const startY = typeof params.y === 'number' ? params.y + orgY : axisY?.offset ?? orgY;
-    let cx = anchor.x + startX * anchor.facing;
-    let cy = anchor.y + startY;
-    if (axisX?.moveToTarget === true && t !== null) cx = t.x + startX * anchor.facing;
-    if (axisY?.moveToTarget === true && t !== null) cy = t.y + startY;
-    const attacker: AttackerState = {
-      id: this.state.nextEntityId,
-      ownerId,
-      facing: anchor.facing,
-      name,
-      x: cx,
-      y: cy,
-      w: local.w,
-      h: local.h,
-      fbHit,
-      offsetX: startX,
-      offsetY: startY,
-      followX: axisX?.followTarget === true,
-      followY: axisY?.followTarget === true,
-      applyG: params.applyG === true,
-      gRamp: 0,
-      holdTicks: ATTACKER_LIFE_TICKS,
-      animTotal: anim?.totalFrames ?? 0,
-      animFrame: 1,
-      hit: hit !== null ? { ...hit } : null,
-      hitId,
-      hitAble: true,
-      viaAssist,
-      animHold: false,
-      animLabels: { ...(anim?.labels ?? {}), ...(args.scriptLabels ?? {}) },
-      scriptAssistId: args.scriptAssistId,
-      frameJumped: false,
-    };
-    this.state.nextEntityId += 1;
-    this.state.attackers.push(attacker);
-    this.state.attackers.sort((a, b) => a.id - b.id);
-    this.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: ownerId });
-  }
-
-  /** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。 */
-  private stepAttackers(): void {
-    const { stage, fighters, attackers } = this.state;
-    const removed: number[] = [];
-    for (const a of attackers) {
-      const t = fighters.find((f) => f.id !== a.ownerId) ?? null;
-      // followTarget：原点重定位到 target + 局部偏移（x 沿道具朝向镜像）；
-      // 非 follow 轴生成后固定（原版 attacker 是绝对定位实体）
-      if (a.followX && t !== null) a.x = t.x + a.offsetX * a.facing;
-      if (a.followY && t !== null) a.y = t.y + a.offsetY;
-      if (a.applyG) {
-        // 底边 = 原点 + 回退矩形底（B5 原点锚定；回退 org=中心时与旧
-        // a.y + a.h 中心语义等价）
-        const bottom = a.y + a.fbHit.y + a.fbHit.h;
-        if (bottom >= stage.groundY) {
-          a.y = stage.groundY - (a.fbHit.y + a.fbHit.h);
-          a.gRamp = GRAVITY_START;
-        } else {
-          a.gRamp = Math.min(a.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-          a.y += a.gRamp;
-        }
-      }
-      // 寿命：有元件时间轴由 stepAttackerAnim 播尽移除；无时间轴走占位回退
-      if (a.animTotal <= 0 && --a.holdTicks <= 0) removed.push(a.id);
-    }
-    if (removed.length > 0) this.removeAttackers(removed);
-  }
-
-  private removeAttackers(ids: number[]): void {
-    const set = new Set(ids);
-    this.state.attackers = this.state.attackers.filter((a) => {
-      if (set.has(a.id)) {
-        this.emit('entity:despawn', { kind: 'attacker', id: a.id });
-        return false;
-      }
-      return true;
-    });
-  }
-
-  /**
-   * B5 逐帧命中路径（原版 FighterAttacker.getCurrentHits → hit 结算）：
-   * 当前帧命中区逐区解析动作（区序 = 元件子对象序），矩形与目标身体相交
-   * → 回气 + applyHit。每帧最多一命中（原版 checkHit→getHitObj 首个相交）；
-   * 多段命中靠受击方 HURT_GAP_FRAME=4 帧无敌窗限频（修复批次 34：拆除
-   * "单次命中即失效"门——该门源于"语料无多次命中实例"误判，已被 17 角色
-   * ≥10 帧连续命中窗语料证伪，原版 FighterAttacker.hit 无失效字段）。
-   * 返回是否有命中成立。
-   */
-  private attackerFrameHit(
-    a: AttackerState,
-    areas: { name: string; x: number; y: number; w: number; h: number }[],
-    actions: Record<string, HitDef>,
-    powerOverride: Record<string, number> | undefined,
-    owner: FighterState | null,
-    fighters: FighterState[],
-  ): boolean {
-    for (const area of areas) {
-      const actionId = resolveAttackerActionId(area.name, actions);
-      if (actionId === null) continue; // 无动作表的区 = 纯表现
-      const base = actions[actionId]!;
-      // 命中力覆写（itachi 动态伤害：power = target.hpMax × rate）
-      const hit: HitDef =
-        powerOverride?.[actionId] !== undefined
-          ? { ...base, power: powerOverride[actionId]! }
-          : base;
-      const rect = attackerLocalRect(a, area);
-      for (const tgt of fighters) {
-        if (tgt.id === a.ownerId) continue;
-        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
-        const tgtDef = this.defOf(tgt);
-        const bodyLocal = tgtDef
-          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
-          : null;
-        if (!bodyLocal) continue;
-        if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
-        if (owner !== null && !isBishaAction(actionId)) {
-          owner.qi = Math.min(300, owner.qi + hit.power * ATTACKER_QI_RATE);
-        }
-        this.applyHit(
-          a.ownerId,
-          a.facing,
-          rect.x + rect.w / 2,
-          tgt,
-          tgtDef,
-          hit,
-          rect,
-          actionId,
-          owner,
-          true, // viaEntity：回气已在调用侧按 ATTACKER_QI_RATE 结算，跳过近战分支
-        );
-        return true;
-      }
-    }
-    return false;
-  }
-
-  // —— 辅助实体（切片 12，原版 Assister） ——
-
-  /** 召唤（原版 FighterMcCtrler.renderAssist → FighterEventCtrler.addAssister）：
-   *  出生点 = owner.x − 30×direct（身后），y 同 owner；fzqi 已由调用方清零。 */
-  private spawnAssister(owner: FighterState): void {
-    const assistId = this.assistIdOf(owner);
-    const def = assistId !== null ? this.assisterDefs.get(assistId) : undefined;
-    if (assistId === null || !def) return;
-    owner.fzqi = 0;
-    const assister: AssisterState = {
-      id: this.state.nextEntityId,
-      ownerId: owner.id,
-      assistId,
-      facing: owner.facing,
-      x: owner.x - 30 * owner.facing,
-      y: owner.y,
-      vx: 0,
-      vy: 0,
-      dampX: 0,
-      dampY: 0,
-      gRamp: GRAVITY_START,
-      applyG: true,
-      onGround: true,
-      actLabel: null,
-      // 出场帧 = 原版 goFight gotoAndPlay(2)（1 起；0 帧脚本是 stop() 样板）
-      animFrame: 2,
-      touchFloor: null,
-      hitTargetChecker: null,
-      hitTargetAction: null,
-      buffEffects: def.buffEffects !== undefined ? { ...def.buffEffects } : {},
-      customFunc: null,
-      frameJumped: false,
-      hitPowerOverrides: {},
-    };
-    this.state.nextEntityId += 1;
-    this.state.assisters.push(assister);
-    this.state.assisters.sort((a, b) => a.id - b.id);
-    this.emit('entity:spawn', {
-      kind: 'assister',
-      id: assister.id,
-      name: assistId,
-      owner: owner.id,
-    });
-    // 生成帧脚本（原版帧 1 脚本在实例化时执行一次，随后才 gotoAndPlay(2)；
-    // port 出场帧 = 2，帧 1 触发器在此补跑——itachi 动态伤害等生成期副作用）
-    const spawnCtx: AssisterContext = {
-      self: assister,
-      def,
-      owner,
-      ownerDef: this.defOf(owner),
-      ownerTargetDef: this.ownerTargetDefOf(owner),
-      fighters: this.state.fighters,
-      stage: this.state.stage,
-      emit: (type, payload) => this.emit(type, payload),
-      spawnAssistBullet: (spec) => this.spawnAssistBullet(spec),
-      spawnAssistAttacker: (spec) => this.spawnAssistAttacker(spec),
-      remove: () => {},
-      setCutin: (kind) => this.setCutin('assister', assister.id, kind),
-      getAttacker: () => null,
-      gotoAndPlayAttacker: () => {},
-      stopFollowAttacker: () => {},
-      removeAttacker: () => {},
-    };
-    const spawnList = this.assisterTriggerIndex.get(assistId)?.get(1);
-    if (spawnList) {
-      for (const t of spawnList) {
-        const h = this.assisterBehaviors[t.op];
-        if (h) h(spawnCtx, t.args, t.target);
-      }
-    }
-  }
-
-  private assistIdOf(f: FighterState): string | null {
-    return f.assistId;
-  }
-
-  /** 辅助每 tick 物理（原版 renderVelocity/applayG；位移 = 速度，速度已是 60Hz 值）。 */
-  private stepAssisterPhysics(): void {
-    const { stage, assisters } = this.state;
-    for (const s of assisters) {
-      s.vx = wake(s.vx, s.dampX);
-      s.vy = wake(s.vy, s.dampY);
-      s.x += s.vx;
-      s.y += s.vy;
-      if (s.y >= stage.groundY) {
-        s.y = stage.groundY;
-        s.vy = 0;
-        s.gRamp = GRAVITY_START;
-        if (!s.onGround && s.touchFloor !== null) {
-          // 触地续接（原版 setTouchFloor 消费）
-          const def = this.assisterDefs.get(s.assistId);
-          const range = def?.labels[s.touchFloor];
-          if (def && range) {
-            s.actLabel = s.touchFloor;
-            s.animFrame = range.index + 1;
-          }
-          s.touchFloor = null;
-        }
-        s.onGround = true;
-      } else {
-        if (s.applyG) {
-          if (s.vy < 0) {
-            s.gRamp = 0;
-          } else {
-            s.gRamp = Math.min(s.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-            s.y += s.gRamp;
-          }
-        }
-        s.onGround = false;
-      }
-    }
-  }
-
-  /** 辅助 30Hz 推进：帧触发器 + 循环触发 + 动画推进 + 退场判定。
-   *  cutinLock（切片 22）：特写冻结期只推进锁主（辅助侧切人演出）。 */
-  private stepAssisterAnimation(cutinLock?: CutinLockState): void {
-    const { fighters, stage, assisters } = this.state;
-    const removed: number[] = [];
-    for (const s of assisters) {
-      if (removed.includes(s.id)) continue;
-      if (cutinLock && !(cutinLock.kind === 'assister' && cutinLock.id === s.id)) continue;
-      const def = this.assisterDefs.get(s.assistId);
-      if (!def) continue;
-      const owner = fighters.find((f) => f.id === s.ownerId) ?? null;
-      // owner 死亡退场判定移至 customFunc 步进之后（切片 21：原版 renderAnimate
-      // 的退场判定在 _customFunc 之后——死亡 tick checkFunc 先清 attacker 再退场）
-      const ctx: AssisterContext = {
-        self: s,
-        def,
-        owner,
-        ownerDef: owner !== null ? this.defOf(owner) : null,
-        ownerTargetDef: this.ownerTargetDefOf(owner),
-        fighters,
-        stage,
-        emit: (type, payload) => this.emit(type, payload),
-        spawnAssistBullet: (spec) => this.spawnAssistBullet(spec),
-        spawnAssistAttacker: (spec) => this.spawnAssistAttacker(spec),
-        remove: () => {
-          if (!removed.includes(s.id)) removed.push(s.id);
-        },
-        setCutin: (kind) => this.setCutin('assister', s.id, kind),
-        // attacker 桥（切片 21）：范围 = viaAssist 且 ownerId === 召唤者
-        //（每 fighter 至多一辅助在场 → 无歧义），name 匹配元件名
-        getAttacker: (name) =>
-          this.state.attackers.find(
-            (a) => a.viaAssist && a.ownerId === s.ownerId && a.name === name,
-          ) ?? null,
-        gotoAndPlayAttacker: (name, label) => {
-          const a = ctx.getAttacker(name);
-          if (a === null) return;
-          const frame = a.animLabels[label];
-          if (frame === undefined) return; // 标签缺失静默
-          a.animFrame = frame;
-          a.animHold = false;
-          a.frameJumped = true;
-        },
-        stopFollowAttacker: (name) => {
-          const a = ctx.getAttacker(name);
-          if (a === null) return;
-          a.followX = false;
-          a.followY = false;
-        },
-        removeAttacker: (name) => {
-          const a = ctx.getAttacker(name);
-          if (a === null) return;
-          this.removeAttackers([a.id]);
-        },
-      };
-      // 帧触发器（同帧按注册顺序；触发器后同帧可能被 gotoAndPlay 改写帧号）
-      // 跳转检测：gotoAndPlay/命中续接改写 animFrame 后本步不再推进
-      //（原版 AS3 gotoAndPlay 播放头落在目标帧、次 tick 才前进——落点帧
-      // 的触发器下一步照常执行；此前实现跳转后仍 +1，系统性吞掉标签
-      // 首帧（byakuya CHK 落点 52 被推进成 53 滑进 CHK_False 段））
-      const frameBefore = s.animFrame;
-      const byFrame = this.assisterTriggerIndex.get(s.assistId);
-      const list = byFrame?.get(s.animFrame);
-      if (list) {
-        for (const t of list) {
-          const h = this.assisterBehaviors[t.op];
-          if (h) h(ctx, t.args, t.target);
-        }
-      }
-      // 循环触发（注册帧起每动画帧，至 untilFrame 独占；条件不成立静默）
-      for (const lt of def.loopTriggers) {
-        if (s.animFrame < lt.frame) continue;
-        if (lt.untilFrame !== null && s.animFrame >= lt.untilFrame) continue;
-        if (!evaluateLoopCond(lt.cond, ctx)) continue;
-        for (const c of lt.then) {
-          const h = this.assisterBehaviors[c.op];
-          if (h) h(ctx, c.args, c.target);
-        }
-      }
-      if (removed.includes(s.id)) continue; // finish/gotoAndStop 触发退场
-      // 命中续接检查（原版 AssisterCtrler.renderCheckTargetHit：帧脚本后、
-      // 播放头推进前；checker 区与目标身体相交 → gotoAndPlay(action)）。
-      // checker 不清除——窗口由判定区可见帧自然限定（byakuya chkm@50 一帧
-      // 窗口，命中跳 CHK 段即挂载 atmmc 道具；未中则 51 帧默认分支
-      // gotoAndPlay(CHK_False)）。
-      if (s.hitTargetChecker !== null) {
-        const area = (def.areas[s.animFrame] ?? []).find(
-          (a) => a.name === s.hitTargetChecker,
-        );
-        const tgt = owner !== null ? fighters.find((f) => f.id !== owner.id) ?? null : null;
-        const tgtDef = tgt !== null ? this.defOf(tgt) : null;
-        const body =
-          tgt !== null && tgtDef !== null
-            ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
-            : null;
-        if (area && tgt && body && rectsOverlap(worldRect(s, area), worldRect(tgt, body))) {
-          const range =
-            s.hitTargetAction !== null ? def.labels[s.hitTargetAction] : undefined;
-          if (range && s.hitTargetAction !== null && s.actLabel !== s.hitTargetAction) {
-            s.actLabel = s.hitTargetAction;
-            s.animFrame = range.index + 1;
-          }
-        }
-      }
-      // 时间轴末退场（原版 renderAnimate：currentFrame == totalFrames-1 → finish）
-      if (s.animFrame >= def.totalFrames - 1) {
-        removed.push(s.id);
-        continue;
-      }
-      // customFunc 步进（原版 mc.nextFrame 后回调 _customFunc；每动画帧）
-      stepAssisterCustomFunc(ctx);
-      if (removed.includes(s.id)) continue; // checkFunc2 finish
-      if (s.animFrame !== frameBefore) continue; // 本步发生过跳转：不推进
-      s.animFrame += 1;
-      // actLabel 同步（标签数少，线性扫描；渲染寻帧用）
-      for (const [label, r] of Object.entries(def.labels)) {
-        if (s.animFrame > r.index && s.animFrame <= r.index + r.duration) {
-          s.actLabel = label;
-          break;
-        }
-      }
-      // owner 死亡退场（原版 finish 判定 || !owner.isAlive；customFunc 已先行清 attacker）
-      if (owner === null || owner.hp <= 0) removed.push(s.id);
-    }
-    if (removed.length > 0) this.removeAssisters(removed);
-  }
-
-  private removeAssisters(ids: number[]): void {
-    const set = new Set(ids);
-    this.state.assisters = this.state.assisters.filter((a) => {
-      if (set.has(a.id)) {
-        this.emit('entity:despawn', { kind: 'assister', id: a.id });
-        return false;
-      }
-      return true;
-    });
-  }
-
-  /** 辅助 fire 桥（原版 Bullet 构造，owner is FighterMain 不成立 → 命中不回气）。 */
-  private spawnAssistBullet(spec: AssistBulletSpawnSpec): void {
-    const { self, ownerId, name, local, hit, params } = spec;
-    const world = worldRect(self, local);
-    const axis = (v: number | { start?: number; add?: number; max?: number; min?: number } | undefined) => {
-      if (typeof v === 'number') return { start: v, add: 0, max: 999, min: -999 };
-      return {
-        start: v?.start ?? 0,
-        add: v?.add ?? 0,
-        max: v?.max ?? 999,
-        min: v?.min ?? -999,
-      };
-    };
-    const ax = axis(params.x);
-    const ay = axis(params.y);
-    const hold = params.hold === undefined ? -1 : params.hold === -1 ? -1 : Math.round(params.hold * 60);
-    const bullet: BulletState = {
-      id: this.state.nextEntityId,
-      ownerId,
-      facing: self.facing,
-      name,
-      x: world.x,
-      y: world.y,
-      w: world.w,
-      h: world.h,
-      sx: ax.start,
-      sy: ay.start,
-      addX: ax.add,
-      addY: ay.add,
-      minX: ax.min,
-      maxX: ax.max,
-      minY: ay.min,
-      maxY: ay.max,
-      holdTicks: hold,
-      hitTimes: params.hits ?? -1,
-      hp: params.hp ?? 100,
-      hpMax: params.hp ?? 100,
-      hit: { ...hit },
-      hitAble: true,
-      viaAssist: true,
-      animTotal: spec.anim?.totalFrames ?? 0,
-      animFrame: 1,
-      animLabels: spec.anim ? { ...spec.anim.labels } : {},
-      hitAnim: false,
-    };
-    this.state.nextEntityId += 1;
-    this.state.bullets.push(bullet);
-    this.state.bullets.sort((a, b) => a.id - b.id);
-    this.emit('entity:spawn', { kind: 'bullet', id: bullet.id, name: bullet.name, owner: ownerId });
-  }
-
-  /** 某 fighter 当前在场的辅助（buff 结算查询；最多一个）。 */
-  private assisterOf(fighterId: number): AssisterState | null {
-    return this.state.assisters.find((a) => a.ownerId === fighterId) ?? null;
-  }
-
-  /**
-   * 抓取吸附每 tick 施加（原版 FighterMC.moveTarget）：把目标吸向自身锚点
-   * （followmc 判定区中心，偏离：原版取子对象注册点，不可得）。
-   * speed 为 0 直接吸附。吸附仅在攻击状态期间有效——攻击结束（endAct/受击/
-   * 回位）即释放并恢复目标重力（原版 clearAction 清 moveTarget；machine 不清，
-   * 由本巡检统一释放，见 machine.endAction 注）。
-   */
-  private stepMoveTargets(): void {
-    const { fighters } = this.state;
-    for (const g of fighters) {
-      const p = g.moveTarget;
-      if (p === null) continue;
-      if (!isAttackingState(g.actionState)) {
-        this.releaseGrab(g);
-        continue;
-      }
-      const t = fighters.find((o) => o.id !== g.id) ?? null;
-      if (t === null) continue;
-      let ax = g.x;
-      let ay = g.y;
-      if (p.followmc !== null) {
-        const def = this.defOf(g);
-        const area = def
-          ? (def.areas[g.animFrame] ?? []).find((r) => r.name === p.followmc)
-          : null;
-        if (area) {
-          ax = g.x + (area.x + area.w / 2) * g.facing;
-          ay = g.y + area.y + area.h / 2;
-        }
-      }
-      t.x = stepToward(t.x, ax, p.speedX);
-      t.y = stepToward(t.y, ay, p.speedY);
-    }
-  }
-
-  /** 释放抓取（原版 moveTarget 清除分支：恢复目标重力，击飞中 y 回拉）。 */
-  private releaseGrab(g: FighterState): void {
-    g.moveTarget = null;
-    const t = this.state.fighters.find((o) => o.id !== g.id) ?? null;
-    if (t !== null) {
-      t.applyG = true;
-      if (t.actionState === ActionState.HURT_FLYING) t.y -= 5;
-    }
-  }
-
-  private clampPlayfield(): void {
-    const { stage, fighters } = this.state;
-    if (fighters.length === 2) {
-      const [a, b] = fighters as [FighterState, FighterState];
-      const mid = (a.x + b.x) / 2;
-      let left = mid - PLAYFIELD_HALF_WIDTH;
-      let right = mid + PLAYFIELD_HALF_WIDTH;
-      if (left < stage.leftBound) {
-        right += stage.leftBound - left;
-        left = stage.leftBound;
-      }
-      if (right > stage.rightBound) {
-        left -= right - stage.rightBound;
-        right = stage.rightBound;
-      }
-      left = Math.max(left, stage.leftBound);
-      right = Math.min(right, stage.rightBound);
-      for (const f of fighters) {
-        f.x = Math.min(Math.max(f.x, left), right);
-      }
-    }
-  }
-
-  // 4. 推挤：body AABB 重叠时按 heavy 系数互推（原版 checkBodyHit 最小子集）
-  private stepPush(): void {
-    const { stage, fighters } = this.state;
-    if (fighters.length !== 2) return;
-    const [a, b] = fighters as [FighterState, FighterState];
-    const defA = this.defOf(a);
-    const defB = this.defOf(b);
-    if (!defA || !defB) return;
-    if (
-      a.hp <= 0 ||
-      b.hp <= 0 ||
-      a.actionState === ActionState.HURT_FLYING ||
-      b.actionState === ActionState.HURT_FLYING ||
-      a.isCross ||
-      b.isCross // 原版 checkBodyHit：穿越态（瞬步）不参与推挤
-    ) {
-      return;
-    }
-    const bodyA = currentBodyRect({ animFrame: a.animFrame, def: defA });
-    const bodyB = currentBodyRect({ animFrame: b.animFrame, def: defB });
-    if (!bodyA || !bodyB) return;
-    const ra = worldRect(a, bodyA);
-    const rb = worldRect(b, bodyB);
-    const overlapX =
-      Math.min(ra.x + ra.w, rb.x + rb.w) - Math.max(ra.x, rb.x);
-    const overlapY =
-      Math.min(ra.y + ra.h, rb.y + rb.h) - Math.max(ra.y, rb.y);
-    if (overlapX <= 0 || overlapY <= 0) return;
-    const total = defA.heavy + defB.heavy;
-    const shareA = defB.heavy / total; // 越重挪得越少
-    const shareB = defA.heavy / total;
-    if (a.x <= b.x) {
-      a.x -= overlapX * shareA;
-      b.x += overlapX * shareB;
-    } else {
-      a.x += overlapX * shareA;
-      b.x -= overlapX * shareB;
-    }
-    // 推挤后仍受地图边界约束（原版版边卡住由对方承担全部位移，POC 简化为 clamp）
-    for (const f of [a, b]) {
-      f.x = Math.min(Math.max(f.x, stage.leftBound), stage.rightBound);
-    }
-  }
-
-  // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）。
-  // cutinLock（切片 22）：特写冻结期只推进锁主的时间轴。
-  private stepAnimation(cutinLock?: CutinLockState): void {
-    const { fighters, stage } = this.state;
-    for (let i = 0; i < fighters.length; i++) {
-      const f = fighters[i]!;
-      if (cutinLock && !(cutinLock.kind === 'fighter' && cutinLock.id === f.id)) continue;
-      const def = this.defOf(f);
-      if (!def) {
-        advanceAnimation(f, null);
-        continue;
-      }
-      // 帧触发器（behaviors 注册表分派；同帧触发按注册顺序执行；
-      // 索引按当前形态寻址——形态切换后即用新形态时间轴）
-      const byFrame = this.triggerIndex.get(f.id)?.get(f.formIndex);
-      advanceAnimation(f, def, (frame) => {
-        const list = byFrame?.get(frame);
-        if (!list) return;
-        const ctx: BehaviorContext = {
-          f,
-          def,
-          fighters,
-          stage,
-          emit: (type, payload) => this.emit(type, payload),
-          spawnBullet: (spec) => this.spawnBullet(spec),
-          spawnAttacker: (spec) => this.spawnAttacker(spec),
-          switchForm: (g, frameNum) => this.doSwitchForm(g, frameNum),
-          setCutin: (kind) => this.setCutin('fighter', f.id, kind),
-        };
-        for (const t of list) {
-          if (t.cond) {
-            // 条件触发（切片 11）：cond 求值 → then/else 分支体内调用依次分派
-            const branch = evaluateTriggerCondition(t.cond, ctx) ? t.then : t.else;
-            for (const c of branch ?? []) {
-              const h = this.behaviors[c.op];
-              if (h) h(ctx, c.args, c.target);
-            }
-            continue;
-          }
-          const handler = this.behaviors[t.op];
-          if (handler) handler(ctx, t.args, t.target);
-        }
-      });
-      // 命中续接检查（原版 FighterMcCtrler：checker 判定区与目标身体相交
-      // → 切续接标签并清除；每动画帧检查，触发器之后）
-      if (f.hitTargetChecker !== null && f.hitTarget !== null) {
-        const t = fighters.find((o) => o.id !== f.id) ?? null;
-        const tDef = t !== null ? this.defOf(t) : null;
-        const area = (def.areas[f.animFrame] ?? []).find(
-          (a) => a.name === f.hitTargetChecker,
-        );
-        const bodyLocal =
-          t !== null && tDef !== null
-            ? currentBodyRect({ animFrame: t.animFrame, def: tDef })
-            : null;
-        if (
-          area !== undefined &&
-          t !== null &&
-          bodyLocal !== null &&
-          rectsOverlap(worldRect(f, area), worldRect(t, bodyLocal))
-        ) {
-          setLabel(f, def, f.hitTarget);
-          f.hitTargetChecker = null;
-          f.hitTarget = null;
-        }
-      }
-    }
-    // 辅助实体推进（30Hz：帧触发器/循环触发/退场判定；切片 12）
-    // 特写冻结（切片 22）：cutinLock 锁主为辅助时只推进锁主
-    this.stepAssisterAnimation(cutinLock);
-  }
-
-  // 6. [动画帧] 命中判定与结算。
-  // 固定顺序（本引擎 canonical，替代原版 children 插入序；两端一致即确定）：
-  //   角色→角色（P1→P2）→ 角色攻击→道具 → 道具→角色 → 道具→道具（均按 id 升序）
-  //   → 辅助→角色（切片 12 追加尾部）
-  private stepHitResolution(): void {
-    const { fighters, bullets } = this.state;
-    for (const atk of fighters) {
-      const atkDef = this.defOf(atk);
-      // 必杀/技/砍技同属攻击结算（原版 isAttacking：命中监听不区分攻击层级；
-      // 此前只认 ATTACK_ING 导致近战必杀永不命中——切片 9 修复）
-      if (!isAttackingState(atk.actionState) || !atkDef) continue;
-      // 逐区解析（切片 10：原版 getCurrentHitSprite + getHitVOByDisplayName——
-      // 每帧每个可解析 atm 区独立成命中，多段动作如 摔1 的 sh12atm 二段生效）
-      const zones = hitZonesWorld(atk, atkDef);
-      if (zones.length === 0) continue;
-      for (const tgt of fighters) {
-        if (tgt.id === atk.id) continue;
-        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD) continue;
-        // 原版 checkHit：isAllowBeHit=false 一侧整体排除（瞬步/防御无敌窗）
-        if (!tgt.isAllowBeHit) continue;
-        const tgtDef = this.defOf(tgt);
-        const bodyLocal = tgtDef
-          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
-          : null;
-        if (!bodyLocal) continue;
-        const body = worldRect(tgt, bodyLocal);
-        for (const { rect: hitArea, zone } of zones) {
-          // 修复批次 34：拆除跨帧去重门（原版 checkHit 每帧重扫、无跨帧去重，
-          // 多段近战靠受击 4 帧无敌窗限频；一帧一目标至多一命中由下面 break 保证）
-          if (!rectsOverlap(hitArea, body)) continue;
-          this.applyHit(atk.id, atk.facing, atk.x, tgt, tgtDef, zone.hit, hitArea, zone.hitId, atk);
-          break;
-        }
-      }
-      // 角色攻击 vs 敌方道具（原版 Bullet.beHit：hp -= power；摧毁不回气——简化偏离；
-      // 死亡走 killBullet 进残留段，切片 13-A3）
-      for (const b of bullets) {
-        if (!b.hitAble || b.ownerId === atk.id) continue;
-        const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
-        const zone = zones.find((z) => rectsOverlap(z.rect, bRect));
-        if (!zone) continue;
-        b.hp -= zone.zone.hit.power;
-        if (b.hp <= 0) this.killBullet(b);
-      }
-    }
-    // 道具 → 角色 / 道具 → 道具（2 人模型：ownerId 不同即敌对）
-    for (const b of bullets) {
-      if (!this.state.bullets.includes(b) || !b.hitAble) continue;
-      const bRect = { x: b.x, y: b.y, w: b.w, h: b.h };
-      const owner = this.state.fighters.find((f) => f.id === b.ownerId) ?? null;
-      let consumed = false;
-      for (const tgt of fighters) {
-        if (tgt.id === b.ownerId) continue;
-        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
-        const tgtDef = this.defOf(tgt);
-        const bodyLocal = tgtDef
-          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
-          : null;
-        if (!bodyLocal) continue;
-        if (!rectsOverlap(bRect, worldRect(tgt, bodyLocal))) continue;
-        // 原版 Bullet.hit：非必杀命中 → 发射者回气 power×0.1（qi 上限 300）；
-        // 辅助发射的弹不回气（viaAssist，原版 `owner is FighterMain` 守卫）
-        if (owner && !b.viaAssist && !isBishaAction(b.name.replace('atm', ''))) {
-          owner.qi = Math.min(300, owner.qi + b.hit.power * BULLET_QI_RATE);
-        }
-        this.applyHit(
-          b.ownerId,
-          b.facing,
-          b.x + b.w / 2,
-          tgt,
-          tgtDef,
-          b.hit,
-          bRect,
-          b.name.replace('atm', ''),
-          // 弹体命中非近战：不结算近战回气（调用侧已按 BULLET_QI_RATE），
-          // 也不消费发射者 hurtAction（那是投技/近战动作的携带语义）
-          null,
-        );
-        // 原版 hitTimes：每次命中递减，耗尽 → doHit（停止命中，播残留段至
-        // 时间轴播尽移除——切片 13-A3 起 entity:despawn 即残留结束）
-        if (b.hitTimes > 0 && --b.hitTimes <= 0) {
-          this.killBullet(b);
-          consumed = true;
-          break;
-        }
-      }
-      if (consumed) continue;
-      // 道具对撞（原版 Bullet.beHit：hp -= 对方 hpMax；双灭同帧按 id 序结算）
-      for (const other of bullets) {
-        if (other.id === b.id || !other.hitAble) continue;
-        if (other.ownerId === b.ownerId) continue;
-        const oRect = { x: other.x, y: other.y, w: other.w, h: other.h };
-        if (!rectsOverlap(bRect, oRect)) continue;
-        b.hp -= other.hpMax;
-        other.hp -= b.hpMax;
-        if (b.hp <= 0) this.killBullet(b);
-        if (other.hp <= 0) this.killBullet(other);
-        if (!this.state.bullets.includes(b)) break;
-      }
-    }
-    // 独立道具 → 角色（原版 FighterAttacker 命中：findHitArea 逐帧扫描命名
-    // 子对象 → getHitVOByDisplayName 解析（精确 → 去首个 atm），RectUtils 镜像
-    // 平移到原点；无命中区帧 = 无判定；非必杀所有者回气 power×0.15；逐帧路径
-    // 不因命中失效——多段命中靠受击 4 帧无敌窗限频（修复批次 34）。
-    // fires 缺逐帧数据的元件回退生成帧占位矩形 + 生成动作全程固定——state.ts
-    // 偏离注；回退路径保留单次命中门（移植自创近似不受原版逐帧语义背书））
-    for (const a of this.state.attackers) {
-      if (!a.hitAble) continue;
-      const owner = this.state.fighters.find((f) => f.id === a.ownerId) ?? null;
-      // 命中数据源：viaAssist → 辅助 def fires；角色生成 → owner 当前形态 fires
-      const tl =
-        a.viaAssist && a.scriptAssistId !== null
-          ? this.assisterDefs.get(a.scriptAssistId)?.fires?.[a.name]
-          : owner !== null
-            ? this.defOf(owner)?.fires?.[a.name]
-            : undefined;
-      const frameAreas = tl?.hits?.[String(a.animFrame)];
-      if (frameAreas !== undefined) {
-        // 逐帧路径：动作表 = viaAssist → 辅助 def；角色 → owner 当前形态 def
-        //（偏离：原版 hitModel 跨形态累积注册，port 用单一动作表；
-        // 语料 attacker 命中区名基本同形态，形态切换中命中罕见）
-        const actions =
-          a.viaAssist && a.scriptAssistId !== null
-            ? this.assisterDefs.get(a.scriptAssistId)?.actions
-            : owner !== null
-              ? this.defOf(owner)?.actions
-              : undefined;
-        if (actions === undefined) continue;
-        // 命中力覆写（itachi 动态伤害：assister 生成时按 target hpMax 改写
-        // hitVO.power——原版 hitModel.getHitVO 直接改写实例）
-        const powerOverride =
-          a.viaAssist && a.scriptAssistId !== null
-            ? this.state.assisters.find(
-                (s) => s.assistId === a.scriptAssistId && s.ownerId === a.ownerId,
-              )?.hitPowerOverrides
-            : undefined;
-        this.attackerFrameHit(a, frameAreas, actions, powerOverride, owner, fighters);
-      }
-      if (a.hit === null) continue;
-      // 回退路径：生成帧占位矩形（元件局部 fbHit 镜像平移到原点）全程固定
-      const rect = attackerLocalRect(a, a.fbHit);
-      for (const tgt of fighters) {
-        if (tgt.id === a.ownerId) continue;
-        if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
-        const tgtDef = this.defOf(tgt);
-        const bodyLocal = tgtDef
-          ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
-          : null;
-        if (!bodyLocal) continue;
-        if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
-        if (owner !== null && !isBishaAction(a.hitId ?? '')) {
-          owner.qi = Math.min(300, owner.qi + a.hit.power * ATTACKER_QI_RATE);
-        }
-        this.applyHit(
-          a.ownerId,
-          a.facing,
-          rect.x + rect.w / 2,
-          tgt,
-          tgtDef,
-          a.hit,
-          rect,
-          a.hitId,
-          owner,
-          true, // viaEntity：回气已在调用侧按 ATTACKER_QI_RATE 结算，跳过近战分支
-        );
-        a.hitAble = false;
-        break;
-      }
-    }
-    // 辅助 → 角色（切片 12，原版 Assister.hit：命中 → owner 回气 power×0.15 +
-    // 目标受击结算；一帧一目标至多一命中（原版 checkHit→getHitObj 首个相交），
-    // 跨帧多段靠受击 4 帧无敌窗限频——修复批次 34 拆除跨帧去重门）
-    for (const s of this.state.assisters) {
-      const def = this.assisterDefs.get(s.assistId);
-      const owner = this.state.fighters.find((f) => f.id === s.ownerId) ?? null;
-      if (!def || owner === null) continue;
-      const hitTargets = new Set<number>();
-      for (const area of def.areas[s.animFrame] ?? []) {
-        const hit = def.actions[area.name] ?? null;
-        if (hit === null) continue; // 无动作表的区 = 纯表现
-        const rect = worldRect(s, area);
-        for (const tgt of fighters) {
-          if (tgt.id === s.ownerId) continue;
-          if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) continue;
-          if (hitTargets.has(tgt.id)) continue;
-          const tgtDef = this.defOf(tgt);
-          const bodyLocal = tgtDef
-            ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
-            : null;
-          if (!bodyLocal) continue;
-          if (!rectsOverlap(rect, worldRect(tgt, bodyLocal))) continue;
-          hitTargets.add(tgt.id);
-          // 辅助命中回气（原版 Assister.hit：addQi(power×0.15)，无必杀排除）
-          owner.qi = Math.min(300, owner.qi + hit.power * ASSISTER_QI_RATE);
-          this.applyHit(
-            s.ownerId,
-            s.facing,
-            s.x,
-            tgt,
-            tgtDef,
-            hit,
-            rect,
-            area.name,
-            null,
-            true, // viaEntity：回气已按 ASSISTER_QI_RATE 在调用侧结算
-          );
-          break;
-        }
-      }
-    }
-  }
-
-  /** 道具命中消散（原版 doHit：_hitAble=false → 播 hit 段 → remove；此处置即时消散，偏离已记录）。 */
-  private despawnBullet(id: number): void {
-    this.removeBullets([id]);
-  }
-
-  /**
-   * 命中结算（原版 beHit 分流：钢身 → 防御 → doHurt）。
-   * 防御分支照 doDefenseHit：削血 5% → 能量不足则破防（doBreakDefense）→
-   * 否则能量损耗 + 短暂无敌 + 击退（无防御硬直动画窗，POC 偏离已记录）。
-   * @param attackerId 攻击来源 id（角色或道具）
-   * @param attackerFacing 击退方向基准（角色=当前朝向；道具=发射时朝向）
-   * @param attackerX 攻击来源位置（背刺判定；道具=道具矩形中心）
-   * @param hitId 攻击动作 id（justHitToPlay 查询/必杀判定；道具/attacker = 元件名反查）
-   * @param attacker 攻击方 fighter（近战回气 + hurtAction 携带；弹体命中传 null）
-   * @param viaEntity 是否独立道具命中（回气调用侧已结算，跳过近战分支）
-   */
-  private applyHit(
-    attackerId: number,
-    attackerFacing: 1 | -1,
-    attackerX: number,
-    target: FighterState,
-    targetDef: FighterDef | null,
-    hit: HitDef,
-    hitArea: { x: number; y: number; w: number; h: number },
-    hitId: string | null = null,
-    attacker: FighterState | null = null,
-    viaEntity = false,
-  ): void {
-    // 钢身破格（原版 doSteelHurt：透支/必杀/摔命中 → 破钢走完整 doHurt）；
-    // 钢身优先于防御结算（原版 beHit 先查 isSteelBody）
-    const steelAbsorb =
-      target.steelBody &&
-      !target.energyOverload &&
-      !isBishaAction(hitId ?? '') &&
-      hit.hitType !== 11;
-    const blocking =
-      !steelAbsorb &&
-      target.actionState === ActionState.DEFENCE_ING &&
-      !(hit.hitType === 11 && hit.isBreakDef) &&
-      !this.checkDefDirect(target, attackerX, attackerFacing);
-    // 攻击方近战回气（原版 FighterMain.doQiAdd：非必杀 power×0.16 封顶 15；
-    // 被防御的命中同样结算——偏离记录：原版结算点在命中监听层）。
-    // 仅角色本人的动作命中结算（viaEntity 排除独立道具/弹体——各自调用侧
-    // 已按专属费率结算，attacker 仅用于投技 hurtAction 携带）
-    if (attacker !== null && hitId !== null && !viaEntity && !isBishaAction(hitId)) {
-      attacker.qi = Math.min(
-        300,
-        attacker.qi + Math.min(hit.power * HIT_QI_RATE, QI_ADD_HIT_MAX),
-      );
-    }
-    // 伤害乘区（切片 12，原版 FighterBuffCtrler/FighterBuffVO）：
-    //   攻方 attackRate = 1 + attackUp 加值（hitModel.setPowerRate）；
-    //   守方辅助 buffEffects.attrResistance（属性命中，结算前）；
-    //   守方 dr = clamp(2 − defenseRate, 0.1, 1)（loseHp 语义）。
-    // 气/吸血等资源结算仍用原始 power（原版语义：powerRate 只进伤害）。
-    const atkFighter = this.state.fighters.find((f) => f.id === attackerId) ?? null;
-    let dmg = hit.power * (atkFighter !== null ? attackRateOf(atkFighter) : 1);
-    const tgtAssister = this.assisterOf(target.id);
-    if (
-      tgtAssister !== null &&
-      isAttributeHit(hit.hitType) &&
-      tgtAssister.buffEffects.attrResistance !== undefined
-    ) {
-      dmg *= 1 - tgtAssister.buffEffects.attrResistance;
-    }
-    dmg *= defenseDamageScale(target);
-    const chip = steelAbsorb
-      ? dmg * STEEL_HURT_HP_PERCENT
-      : blocking
-        ? dmg * DEFENSE_LOSE_HP_RATE
-        : dmg;
-    // 攻方辅助物吸血（原版 phyLifesteal，结算后按实伤回复；物理非必杀命中）
-    if (
-      atkFighter !== null &&
-      !blocking &&
-      isPhysicalHit(hit.hitType) &&
-      hitId !== null &&
-      !isBishaAction(hitId)
-    ) {
-      const atkAssister = this.assisterOf(attackerId);
-      if (atkAssister !== null && atkAssister.buffEffects.phyLifesteal !== undefined) {
-        atkFighter.hp = Math.min(
-          atkFighter.hpMax,
-          atkFighter.hp + chip * atkAssister.buffEffects.phyLifesteal,
-        );
-      }
-    }
-    const nextHp = Math.max(0, target.hp - chip);
-    // 训练模式：假人不 KO（血最低保留 1）
-    target.hp = this.training && nextHp <= 0 ? 1 : nextHp;
-    // 命中特效钉点（原版 getHitObj→writeOverlap：特效钉 hitRect∩身体区相交区
-    // 中心；防御/钢身同点。身体区缺失 = 回退命中区中心）
-    let sparkX = hitArea.x + hitArea.w / 2;
-    let sparkY = hitArea.y + hitArea.h / 2;
-    if (targetDef) {
-      const bodyLocal = currentBodyRect({ animFrame: target.animFrame, def: targetDef });
-      if (bodyLocal) {
-        const b = worldRect(target, bodyLocal);
-        const x0 = Math.max(hitArea.x, b.x);
-        const x1 = Math.min(hitArea.x + hitArea.w, b.x + b.w);
-        const y0 = Math.max(hitArea.y, b.y);
-        const y1 = Math.min(hitArea.y + hitArea.h, b.y + b.h);
-        sparkX = (x0 + x1) / 2;
-        sparkY = (y0 + y1) / 2;
-      }
-    }
-    // 防御损耗能量：破防技 = 90% 上限，否则 min(50, power/5)（原版 doDefenseHit；
-    // 上提复用——freeze 表与破防判定共用）
-    const drain = hit.isBreakDef
-      ? Math.round(ENERGY_MAX * 0.9)
-      : Math.min(50, Math.floor(hit.power / 5));
-    const willBreakDef = blocking && target.energy < drain;
-    // 特效类型（原版 doEffectVO 的 type 参数）：防御命中按防御者 defenseType
-    // 转换（doDefenseEffect HAND 分支：KAN→DA、KAN_HEAVY→DA_HEAVY；剑防不转）；
-    // 普通命中/钢身 = 原始 hitType
-    const sparkType =
-      blocking && (targetDef?.defenseType ?? 0) === 1
-        ? hit.hitType === 1
-          ? 2
-          : hit.hitType === 6
-            ? 3
-            : hit.hitType
-        : hit.hitType;
-    this.emit('hit:connect', {
-      attacker: attackerId,
-      target: target.id,
-      hitType: hit.hitType,
-      sparkType,
-      power: hit.power,
-      blocked: blocking,
-      // 钢身**吸收**标志（doSteelHurt 实际走到才有钢身特效/音效；钢身+必杀穿透
-      // 时 steelBody 仍为 true 但走普通 doHurt——消费者按此分流）
-      steel: steelAbsorb,
-      breakDef: willBreakDef,
-      direct: attackerFacing,
-      x: sparkX,
-      y: sparkY,
-    });
-    // 打击停顿（原版 EffectCtrler.freeze → GameCtrler.pause 整局停走）：
-    // 破防 500ms > 钢身 400ms > 防御/命中按特效表；KO 同样先冻再死（原版
-    // freeze 与 beHit 并行，死亡动画在停顿后播）
-    if (steelAbsorb) {
-      this.state.freezeTicks = HITSPARK_FREEZE_HEAVY_TICKS;
-    } else if (willBreakDef) {
-      this.state.freezeTicks = BREAK_DEF_FREEZE_TICKS;
-    } else if (blocking) {
-      this.state.freezeTicks = defenseFreezeTicks(sparkType);
-    } else {
-      this.state.freezeTicks = hitFreezeTicks(hit.hitType);
-    }
-    if (target.hp <= 0) {
-      enterDead(target, targetDef);
-      // 死亡语音（原版 DIE voice：击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播；
-      // 移植版统一提前到 KO 时刻——偏离记录）
-      this.emit('voice', { fighter: target.id, kind: 'die' });
-      this.emit('fighter:ko', { fighter: target.id });
-      // 团队回合结束（切片 36）：同 tick 胜方亦死（多命中结算序）→ 转平局
-      if (
-        this.state.roundEnd != null &&
-        this.state.roundEnd.winnerId === target.id
-      ) {
-        this.state.roundEnd.draw = true;
-      } else {
-        this.maybeBeginRoundEnd(target);
-      }
-      return;
-    }
-    if (blocking) {
-      // 被防御：justHitToPlay(includeDefense) 查询基准（原版 lastDefHitId 语义）
-      target.lastDefHitId = hitId;
-      // 防御损耗能量：drain 已上提（freeze 表与破防判定共用）
-      this.emit('fighter:guard', { fighter: target.id });
-      if (target.energy < drain) {
-        // 破防：额外削血 power/10（原版 doBreakDefense）
-        target.hp -= hit.power / 10;
-        if (target.hp <= 0) {
-          target.hp = 0;
-          enterDead(target, targetDef);
-          this.emit('fighter:ko', { fighter: target.id });
-          // 团队回合结束（切片 36）：同 tick 胜方亦死（多命中结算序）→ 转平局
-          if (
-            this.state.roundEnd != null &&
-            this.state.roundEnd.winnerId === target.id
-          ) {
-            this.state.roundEnd.draw = true;
-          } else {
-            this.maybeBeginRoundEnd(target);
-          }
-          return;
-        }
-        target.energy = 0;
-        target.energyOverload = true;
-        target.energyGap = ENERGY_GAP_TICKS;
-        enterGuardBreak(target, targetDef, hit, attackerFacing);
-        this.emit('fighter:guardBreak', { fighter: target.id });
-        return;
-      }
-      target.energy -= drain;
-      target.energyGap = ENERGY_GAP_TICKS;
-      target.beHitGap = defenseGapTicks(hit);
-      target.isAllowBeHit = false;
-      target.vx = hit.hitx * attackerFacing * SPEED_PLUS;
-      target.dampX = DEFENSE_DAMP_X;
-      void defenseHoldTicks(hit);
-      return;
-    }
-    if (steelAbsorb) {
-      // 钢身受击（原版 doSteelHurt 收编，修复批次 34）：受击无敌窗（击飞类 10 帧、
-      // 其余 4 帧，限多段命中频率）+ 钢身耗能（原版 useEnergy：破防技全额、其余
-      // 40%；超钢 20% 未实现——无超钢字段）；减伤 65% 已在上方 chip 乘区结算
-      target.beHitGap = hit.hurtType !== 0 ? STEEL_HURT_DOWN_GAP_TICKS : STEEL_HURT_GAP_TICKS;
-      target.isAllowBeHit = false;
-      target.energy -= hit.isBreakDef ? dmg : dmg * STEEL_ENERGY_RATE;
-      target.energyGap = ENERGY_GAP_TICKS;
-      if (target.energy < 0) {
-        target.energy = 0;
-        target.energyOverload = true;
-      }
-      // 击退（原版 doSteelHurt 尾部 setVec2：速度 hitx/hity、阻尼 |hitx|×0.1×
-      // SPEED_PLUS×6=×3（_velocity2 通道 renderVelocity 叠加位移）；破防技 ×2；
-      // 移植版速度/damp 空间 = 原版 ×0.5 → damp = |hitx|×0.1×3×0.5）
-      const kbMul = hit.isBreakDef ? 2 : 1;
-      target.vx = hit.hitx * attackerFacing * SPEED_PLUS * kbMul;
-      target.vy = hit.hity * SPEED_PLUS * kbMul;
-      target.dampX = Math.abs(hit.hitx) * 0.15 * kbMul;
-      target.dampY = Math.abs(hit.hity) * 0.15 * kbMul;
-      return;
-    }
-    // 自定义受击动作（原版 doHurt → playHurtAct）：攻击方动作携带（setHurtAction
-    // 触发在攻击方时间轴，投技携带受击方专用受击动画）优先，受击方自设兜底；
-    // 标签按受击方 def 校验存在性，缺失 = 通用受击态
-    const hurtLabel = attacker?.hurtAction ?? target.hurtAction;
-    if (hurtLabel !== null && targetDef?.labels[hurtLabel] !== undefined) {
-      target.hurtAction = null;
-      target.lastHurtHitId = hitId;
-      target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
-      // 受击无敌窗（原版 doHurt 开头统一设 HURT_GAP_FRAME=4，hurtAct 分支同样
-      // 生效——修复批次 34 补设；缺它则投技受击动画期间逐帧重复扣血）
-      target.beHitGap = HURT_GAP_TICKS;
-      target.isAllowBeHit = false;
-      target.actionState = ActionState.HURT_ACT_ING;
-      setLabel(target, targetDef, hurtLabel);
-      return;
-    }
-    target.lastHurtHitId = hitId;
-    // 受击回气（原版 FighterMain.doQiAdd：power×0.085 封顶 20）
-    target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
-    const hurtResult = enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
-    // 受击语音（原版 doHurt：硬直 + 重击类型 → HURT voice（rate 0.5 由渲染层掷）、
-    // 击飞 → HURT_FLY；isHeavy 类型集 = KAN/KAN_HEAVY/DA/DA_HEAVY = isPhysicalHit 同集）
-    if (hurtResult === 'fly') {
-      this.emit('voice', { fighter: target.id, kind: 'hurtFly' });
-    } else if (isPhysicalHit(hit.hitType)) {
-      this.emit('voice', { fighter: target.id, kind: 'hurt' });
-    }
-  }
-
-  /** 背刺判定（原版 checkDefDirect）：防御者背对攻击来源 → 防御无效。 */
-  private checkDefDirect(
-    defender: FighterState,
-    attackerX: number,
-    attackerFacing: 1 | -1,
-  ): boolean {
-    if (defender.x < attackerX - 5) return defender.facing < 0 && attackerFacing < 0;
-    if (defender.x > attackerX + 5) return defender.facing > 0 && attackerFacing > 0;
-    return false;
-  }
-
-  // 7. 流程事件：能量回充 / 无敌窗计时 / 训练回复 / 回合计时
-  private stepMatchFlow(): void {
-    if (this.state.tick === 0) {
-      this.emit('round:start', { round: this.state.match.round });
-    }
-    for (const f of this.state.fighters) this.stepFighterFlow(f);
-    this.state.match.roundFrame += 1;
-  }
-
-  /** 单角色流程步（stepMatchFlow/tickIntro 共享；intro 冻结期照跑 =
-   *  原版 renderAnimate 无条件 renderEnergy/renderFzQi 语义）。 */
-  private stepFighterFlow(f: FighterState): void {
-    // 防御命中无敌窗（原版 renderBeHitGap：计满恢复可被命中）
-    if (f.beHitGap > 0) {
-      f.beHitGap -= 1;
-      if (f.beHitGap === 0 && f.actionState !== ActionState.DASH_ING) {
-        f.isAllowBeHit = true;
-      }
-    }
-    // 能量回充（原版 renderEnergy：速率 ×SPEED_PLUS）
-    if (f.energyGap > 0) {
-      f.energyGap -= 1;
-    } else if (f.energy < ENERGY_MAX) {
-      if (f.energyOverload) {
-        f.energy = Math.min(ENERGY_MAX, f.energy + ENERGY_ADD_OVERLOAD);
-        if (f.energy > 30) f.energyOverload = false;
-      } else if (f.actionState === ActionState.DEFENCE_ING) {
-        f.energy += ENERGY_ADD_DEFENSE;
-      } else if (isAttackingState(f.actionState)) {
-        f.energy += ENERGY_ADD_ATTACKING;
-      } else {
-        f.energy += ENERGY_ADD_NORMAL;
-      }
-      if (f.energy > ENERGY_MAX) f.energy = ENERGY_MAX;
-    }
-    // 训练模式：血量恒定回复（2/tick，瞬回 MAX 的 1/15 秒级体感）
-    if (this.training && f.hp > 0 && f.hp < DEFAULT_HP) {
-      f.hp = Math.min(DEFAULT_HP, f.hp + TRAINING_REGEN);
-    }
-    // 辅助气回充（原版 FUZHU_QU_ADD_PERFRAME，无条件；满值封顶）
-    if (f.fzqi < FZQI_MAX) {
-      f.fzqi = Math.min(FZQI_MAX, f.fzqi + FZQI_ADD_PERFRAME);
-    }
-    // 增益 buff 计时（原版 FighterBuffVO render 递减；计满移除恢复基础值）
-    tickBuffs(f);
   }
 
   // 8. 输出：快照 + 表现事件队列 + 状态哈希
@@ -2687,49 +526,4 @@ export class Sim {
     this.state.tick += 1;
     return snapshot;
   }
-}
-
-/** def.triggers → 帧 → 触发列表（保持注册顺序；角色/辅助定义通用）。 */
-function indexTriggers(def: { triggers: FrameTrigger[] }): Map<number, FrameTrigger[]> {
-  const map = new Map<number, FrameTrigger[]>();
-  for (const t of def.triggers) {
-    const list = map.get(t.frame);
-    if (list) list.push(t);
-    else map.set(t.frame, [t]);
-  }
-  return map;
-}
-
-/** 原版 HitVO.isBisha：动作 id 含 bs/sbs/cbs/kbs（子串 bs 覆盖全部）。 */
-function isBishaAction(actionId: string): boolean {
-  return actionId.includes('bs');
-}
-
-/** 元件局部矩形 → 世界矩形（原版 RectUtils.cached：原点锚定 + direct 镜像）。 */
-function attackerLocalRect(
-  a: { x: number; y: number; facing: 1 | -1 },
-  r: { x: number; y: number; w: number; h: number },
-): { x: number; y: number; w: number; h: number } {
-  return {
-    x: a.x + (a.facing === 1 ? r.x : -r.x - r.w),
-    y: a.y + r.y,
-    w: r.w,
-    h: r.h,
-  };
-}
-
-/**
- * 命中区名 → 动作 id（原版 FighterHitModel.getHitVOByDisplayName：
- * 精确 id 先查；名字含 "atm" 再查去首个 atm 的结果；都查不到 = null）。
- */
-function resolveAttackerActionId(
-  name: string,
-  actions: Record<string, unknown>,
-): string | null {
-  if (actions[name] !== undefined) return name;
-  if (name.includes('atm')) {
-    const stripped = name.replace('atm', '');
-    if (actions[stripped] !== undefined) return stripped;
-  }
-  return null;
 }
