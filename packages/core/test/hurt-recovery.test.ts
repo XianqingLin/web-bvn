@@ -17,6 +17,7 @@ function makeDef(id: string): FighterDef {
     落: { index: 90, duration: 8 },
     起跳: { index: 100, duration: 8 },
     落地: { index: 110, duration: 10 },
+    砍1: { index: 120, duration: 5 },
   };
   const areas: FighterDef['areas'] = {};
   for (let fr = 1; fr <= 130; fr++) {
@@ -45,6 +46,18 @@ const TK: Parameters<typeof enterHurt>[2] = {
   hurtType: 0,
   isBreakDef: false,
   isApplyG: false,
+};
+
+/** 普通硬直命中（hurtType 0，非摔投）：hity<0 轻微浮空。 */
+const STAGGER: Parameters<typeof enterHurt>[2] = {
+  power: 30,
+  hitType: 1,
+  hitx: 3,
+  hity: -4,
+  hurtTime: 400,
+  hurtType: 0,
+  isBreakDef: false,
+  isApplyG: true,
 };
 
 function makeSim(state: SimState): Sim {
@@ -106,6 +119,70 @@ describe('isApplyG:false 命中后受击恢复（回归：悬浮卡死修复）'
     for (let i = 0; i < 120; i++) sim.tick(zero);
     const after = sim.tick(zero).state.fighters[1]!;
     expect(after.applyG).toBe(true);
+  });
+});
+
+describe('空中硬直恢复后落地（回归：滞留 跳中 修复，2026-11-17）', () => {
+  it('硬直计时在空中走完 → 空中恢复 → 落地须播 落地 回站立，不得滞留 跳中', () => {
+    const state = buildState();
+    const f2 = state.fighters[1]!;
+    const def = makeDef('t');
+    // 高空被命中，hurtTimer 设短 → 计时空中走完、空中恢复（跳中）
+    f2.y = 350;
+    f2.onGround = false;
+    enterHurt(f2, def, STAGGER, -1, true);
+    f2.hurtTimer = 2;
+    const sim = makeSim(state);
+    const zero = { p1: 0, p2: 0 };
+    let recoveredAir = false;
+    let landed = -1;
+    for (let i = 0; i < 300; i++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      if (!f.onGround && f.actionState === 0 /* NORMAL */ && f.actLabel === '跳中') {
+        recoveredAir = true;
+      }
+      if (recoveredAir && f.onGround && landed < 0) {
+        landed = i;
+        // 修复前：落地滞留 跳中（循环标签）→ 浮空姿势定格 + 行走门失效
+        expect(f.actLabel, '落地瞬间应接管为 落地').toBe('落地');
+        break;
+      }
+    }
+    expect(recoveredAir, '前置：应发生空中恢复（跳中）').toBe(true);
+    expect(landed, '300 tick 内应落地').toBeGreaterThanOrEqual(0);
+    // 落地标签播尽后回 站立（待机族，行走门恢复）
+    let backToIdle = false;
+    for (let i = 0; i < 60; i++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      if (f.actLabel === '站立') {
+        backToIdle = true;
+        break;
+      }
+    }
+    expect(backToIdle, '落地标签播尽应回 站立').toBe(true);
+  });
+
+  it('空中恢复后落地 → 动作槽重填（原版 touchFloor("落地") setAllAct 语义）', () => {
+    const state = buildState();
+    const f2 = state.fighters[1]!;
+    const def = makeDef('t');
+    f2.y = 350;
+    f2.onGround = false;
+    enterHurt(f2, def, STAGGER, -1, true);
+    f2.hurtTimer = 2;
+    f2.slots = { ...f2.slots, attack: null, skill1: null }; // 模拟空中攻击打断后槽被清
+    const sim = makeSim(state);
+    const zero = { p1: 0, p2: 0 };
+    let landed = false;
+    for (let i = 0; i < 300; i++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      if (f.onGround && f.actLabel === '落地') {
+        landed = true;
+        expect(f.slots.attack, '落地应重填动作槽').toBe('砍1');
+        break;
+      }
+    }
+    expect(landed, '300 tick 内应落地播 落地').toBe(true);
   });
 });
 

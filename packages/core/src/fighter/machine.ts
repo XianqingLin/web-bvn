@@ -1165,6 +1165,12 @@ export function advanceAnimation(
   }
 }
 
+/** 空中姿势标签（起跳/跳中/落）。空中恢复（recoverToNormal 空中分支）落地
+ *  时 actionState 已是 NORMAL，仅凭标签识别——见 onLanded 的偏离修正记录。 */
+function isAirPose(f: FighterState): boolean {
+  return f.actLabel === '起跳' || f.actLabel === '跳中' || f.actLabel === '落';
+}
+
 /**
  * 落地状态转移（物理判定落地后调用；vy 已清零）。
  * 击飞落地 → 倒地（击飞_倒 → 起身 → NORMAL）；跳跃落地 → 落地恢复。
@@ -1172,6 +1178,10 @@ export function advanceAnimation(
  * 常量重填；受击落地由 recoverToNormal 恢复）。偏离修正记录：曾只在初始
  * 状态置 JUMP_TIMES_START——双跳/空中瞬步/快速下落耗尽后落地永不恢复，
  * 角色永久无法起跳。
+ * 偏离修正记录 2（2026-11-17）：曾只认 JUMP_ING——空中硬直（被打）计时在
+ * 空中走完时 recoverToNormal 空中分支回 NORMAL+跳中，落地落入本函数后无人
+ * 接管 → 滞留 跳中（循环标签，endAction 不可达）：浮空姿势定格 + 行走门
+ * （站立/走 标签族）失效。现按空中姿势标签（isAirPose）同样走 落地恢复。
  */
 export function onLanded(f: FighterState, def: FighterDef | null): void {
   if (f.actionState === ActionState.HURT_FLYING) {
@@ -1198,7 +1208,7 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
       return;
     }
   }
-  if (f.actionState === ActionState.JUMP_ING) {
+  if (f.actionState === ActionState.JUMP_ING || isAirPose(f)) {
     f.actionState = ActionState.NORMAL;
     f.dampY = 0;
     f.airHitTimes = 1;
