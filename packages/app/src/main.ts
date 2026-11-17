@@ -6,6 +6,7 @@
  *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura；
  *                                       &intro=1 附带开局特写演出，intro 冒烟用）
  *   ?mode=net&action=create|join&room=   自动入房（4 位房间码）→ 房间页 → 选人页自动确认
+ *   ?mode=local2p                       本地双人选人页（双键盘双光标目检用，不自动确认）
  *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）
  */
 import { Application } from 'pixi.js';
@@ -69,6 +70,11 @@ async function boot(): Promise<void> {
   } else if (mode === 'setup') {
     // dev 直通：只开选人页（不自动确认；切片 15 目检/驱动用）
     flow.mode = 'solo';
+    flow.autoPick = false;
+    scenes.switchTo(new SetupScene(flow, null));
+  } else if (mode === 'local2p') {
+    // dev 直通：本地双人选人页（不自动确认；双键盘双光标目检用）
+    flow.mode = 'local';
     flow.autoPick = false;
     scenes.switchTo(new SetupScene(flow, null));
   } else if (mode === 'net') {

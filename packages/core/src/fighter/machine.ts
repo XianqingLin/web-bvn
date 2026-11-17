@@ -158,6 +158,10 @@ function idleLabel(f: FighterState, def: FighterDef | null): void {
 export function recoverToNormal(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.NORMAL;
   f.hurtTimer = 0;
+  // 重力恢复（原版 idle 链 setInAir/isApplyG=true）：isApplyG:false 命中（摔投）
+  // 置 applyG=false 后，计时恢复路径此前不复位——空中受击恢复后 applyG 恒 false
+  // → 重力门永久跳过 → 悬浮卡死（2026-11-17 修复）。
+  f.applyG = true;
   f.attackId = null;
   f.isAllowBeHit = true;
   f.beHitGap = 0;
@@ -284,9 +288,14 @@ export function startAirJump(f: FighterState, def: FighterDef | null): boolean {
 }
 
 /** 起跳延迟结束（每 tick 由 sim 调用）：施加跳跃速度 + 消耗 jumpTimes。
- * 返回 true = 本 tick 离地。 */
+ * 返回 true = 本 tick 离地。
+ * 原版 FighterMain.jump() = setVelocity(0, -jumpPower) + setDamping(0, JUMP_DAMPING)
+ * ——起跳瞬间清零水平速度与水平阻尼（无惯性跳跃）；偏离修正记录（2026-11-17）：
+ * 曾保留走跑 vx → 空中漂移 + 落地 labelLock 窗口无摩擦匀速滑行。 */
 export function applyJumpLaunch(f: FighterState, def: FighterDef | null): boolean {
   f.jumpDelay = 0;
+  f.vx = 0;
+  f.dampX = 0;
   f.vy = jumpVelocity(def);
   f.dampY = JUMP_DAMPING;
   f.onGround = false;

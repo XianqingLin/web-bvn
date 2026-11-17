@@ -119,7 +119,7 @@ describe('intro 切片：开局特写+语音演出', () => {
     expect(saySnap).toBeDefined();
     // 冻结期 roundFrame 停走（原版 renderGameTime 被 actionEnable 门控）
     expect(roundFrames.size).toBe(1);
-    // 结束后双方回位 NORMAL（≈31+39+18+31+39+18+6+156 ≈ 338 tick）
+    // 结束后双方回位 NORMAL（≈31+39+18+31+39+18+30+156 ≈ 362 tick）
     expect(endTick).toBeGreaterThan(0);
     const after = snaps[endTick]!;
     expect(after.state.fighters[0]!.actionState).toBe(ActionState.NORMAL);
@@ -147,7 +147,7 @@ describe('intro 切片：开局特写+语音演出', () => {
       (s) => s.state.intro != null && (s.state.intro.step === 1 || s.state.intro.step === 4),
     );
     expect(sayTicks.length).toBe(0);
-    // 全程时长 = 无 say 等待（31+18+31+18+6+156 ≈ 260 tick）
+    // 全程时长 = 无 say 等待（31+18+31+18+30+156 ≈ 284 tick）
     const end = snaps.findIndex((s) => s.state.intro == null);
     expect(end).toBeGreaterThan(200);
     expect(end).toBeLessThan(300);
@@ -169,8 +169,8 @@ describe('intro 切片：开局特写+语音演出', () => {
 
   it('skip：字样段（step 7）不可跳，播完自动结束', () => {
     const sim = new Sim(makeConfig(false));
-    // 缺 开场 → ~106 tick 进 step 7；tick 120 起按住 back（step 7 内 just-down）
-    const snaps = drive(sim, 350, (i) => (i >= 120 ? Btn.back : 0));
+    // 缺 开场 → ~128 tick 进 step 7（resume 6→30 后）；tick 160 起按住 back（step 7 内 just-down）
+    const snaps = drive(sim, 400, (i) => (i >= 160 ? Btn.back : 0));
     const step7 = snaps.filter((s) => s.state.intro?.step === 7);
     expect(step7.length).toBeGreaterThan(100);
     expect(step7.every((s) => s.state.intro != null)).toBe(true);

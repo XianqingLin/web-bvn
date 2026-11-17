@@ -43,15 +43,19 @@ const KEYMAP_P1: Record<string, number> = {
   KeyO: Btn.assist,
   Escape: Btn.back,
 };
+// 本地双人 P2 完整键位（切片 39）：方向键移动 + 小键盘 1攻击 2跳 3瞬步 4技 5必杀 6辅助。
+// e.code 是物理键位，NumLock 开关不影响；与 P1 的 WASD/JKLUIO 物理不冲键。
 const KEYMAP_P2: Record<string, number> = {
   ArrowUp: Btn.up,
   ArrowDown: Btn.down,
   ArrowLeft: Btn.left,
   ArrowRight: Btn.right,
-  Digit1: Btn.attack,
-  Digit2: Btn.jump,
-  Digit3: Btn.dash,
-  Escape: Btn.back,
+  Numpad1: Btn.attack,
+  Numpad2: Btn.jump,
+  Numpad3: Btn.dash,
+  Numpad4: Btn.skill,
+  Numpad5: Btn.superSkill,
+  Numpad6: Btn.assist,
 };
 
 function maskFor(keys: Set<string>, map: Record<string, number>): ButtonMask {
@@ -68,6 +72,14 @@ class KeyboardSource implements InputSource {
   constructor(private readonly keys: Set<string>, private readonly map: Record<string, number>) {}
   frame(_tick: number): { p1: ButtonMask; p2: ButtonMask } {
     return { p1: maskFor(this.keys, this.map), p2: 0 };
+  }
+}
+
+/** 本地双人键盘源（切片 39）：P1/P2 两套键位图同时进 sim。 */
+class LocalKeyboardSource implements InputSource {
+  constructor(private readonly keys: Set<string>) {}
+  frame(_tick: number): { p1: ButtonMask; p2: ButtonMask } {
+    return { p1: maskFor(this.keys, KEYMAP_P1), p2: maskFor(this.keys, KEYMAP_P2) };
   }
 }
 
@@ -109,7 +121,7 @@ export class BattleScene implements Scene {
 
   private sim: Sim | null = null;
   private renderer: BattleRenderer | null = null;
-  private keyboard: KeyboardSource | null = null;
+  private keyboard: KeyboardSource | LocalKeyboardSource | null = null;
   private netClient: LockstepClient | null = null;
   private netKeymap: Record<string, number> = KEYMAP_P1;
   private overlay: Container | null = null;
@@ -194,6 +206,8 @@ export class BattleScene implements Scene {
 
     if (this.flow.mode === 'solo') {
       this.enterSolo();
+    } else if (this.flow.mode === 'local') {
+      this.enterLocal();
     } else {
       await this.enterNet(map);
     }
@@ -219,6 +233,15 @@ export class BattleScene implements Scene {
     this.hideOverlay();
     this.koSeen = false;
     this.spawnSim(true);
+  }
+
+  /** 本地双人（切片 39）：真对局（intro 演出 + KO 结算流转），P1/P2 键盘源双路进 sim。 */
+  private enterLocal(): void {
+    this.keyboard = new LocalKeyboardSource(this.keys);
+    this.spawnSim(false);
+    this.renderer!.setHint(
+      'P1  WASD移动 J攻击 K跳 L瞬步 U技 I必杀 O辅助 | P2  方向键移动 小键盘1攻击 2跳 3瞬步 4技 5必杀 6辅助 | ESC返回菜单',
+    );
   }
 
   /** sim 装配：rig roster → 全员 FighterConfig（team ≤3+≤3 / 1v1 各一名）+

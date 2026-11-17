@@ -146,8 +146,10 @@ const TRAINING_REGEN = 2;
 const INTRO_FOCUS_TICKS = 30;
 /** say→下一镜头 gap（原版 0.3s） */
 const INTRO_SAY_GAP_TICKS = 18;
-/** 演出收尾 resume hold（原版 0.1s） */
-const INTRO_RESUME_TICKS = 6;
+/** 演出收尾 resume hold（原版 0.1s）。偏离登记（2026-11-17）：6→30——原版 0.1s
+ * 后字样即出，但移植版镜头 3.5→1 缓动需 ~0.5s（render updateCamera k=1-(1-1/5)^f），
+ * 字样叠在拉镜过程上；30 tick（0.5s）让镜头基本回正再出字样。 */
+const INTRO_RESUME_TICKS = 30;
 /**
  * 开局字样时长（原版 startKOmc start 段）：gotoAndStop("start") 停 XFL index 9，
  * renderStartAndKO 每 30Hz 渲染帧手动 nextFrame，78 次进入 index 87（stop+COMPLETE

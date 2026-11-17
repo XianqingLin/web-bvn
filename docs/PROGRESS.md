@@ -60,6 +60,7 @@
 | 36 | 联机房间流：地图阶段（房主选择 / 开箱抽取 + 服务器权威种子） | ⬜ | §4.4 |
 | 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ⬜ | §4.4 |
 | 38 | 联机房间流：平台接缝（身份凭证/邀请深链/资料接入） | ⬜ | §4.4 |
+| 39 | 本地双人：主菜单 LOCAL PLAY 入口（1v1/团队子菜单）+ 选人页双键盘双光标 + 对局双键盘输入源 | ✅ | §三 |
 
 修复批次（17~24、21F、30~33、34~38、40 编号混用于切片序号，以 §三 为准）。
 
@@ -103,6 +104,8 @@
 - **切片 34**（✅ 2026-11-17）房间语义协议 + 房间页 + 方案 A 遗留处置：① room-server.mjs 扩展（room-info 快照广播/room-config/ready/begin 校验准备门/掉线清理按 §10；start 两段语义：begin=进选人、hello 收齐=开跑）+ protocol.ts 词表（房间语义 4 条 + UI 同步占位 cursor/map-pick/map-roll）+ session.ts 房间助手 + server 11 单测（node --test 子进程起服）；② app：NetScene 回自有服务器路径（serverUrl localStorage 记忆 + BufferedSocket 包装）+ RoomScene 房间页（房主常备/开始门/三项设置/客座准备切换/房间码/邀请占位，room-info 快照驱动渲染）；③ 方案 A 处置：platform.ts + platform.test.ts 删除（回退），RelaySocket 的 pick 竞态兜底收编为 BufferedSocket（net 6 单测，含 2 条竞态回归自 platform.test 移植）。实现取舍：快照单一通道（room-config 仅上行，状态统一经 room-info）；房间默认设置 private+房主选图+单挑（设计稿未定案）。
 - **切片 35**（✅ 2026-11-17）选人页双光标：① SetupScene 联机分支重构——本端光标跟随鼠标 hover（原版键盘驱动不移植，netplay-design §7 已注明），hover 变更即 cursor 广播（去重 + 安全发送）；对端光标以对侧纹理渲染、对端展示盒实时跟随其光标；② 选中即锁：点击即锁定无反悔，随机项此刻解析成具体角色后按最终项同步，锁满份额后本端光标冻结；双色锁定框（P1 蓝/P2 粉，本端内框/对端外框）；③ 双方齐套本地推导推进（角色 → 援助 → 地图），地图尾沿用最终 pick（map 仅 P1，P2 选满收到即进加载页，两端完整性守卫防误放行）；④ 团队模式 3 选 + 1 援助（selectTimesCount=3，同角色/自身重复允许），pick 改累计快照覆盖式上行（fighters[]/assists[] 按锁定次序，3s 重发幂等），flow 增 team/localTeamPick/peerTeamPick；⑤ 断线按 §10 提示后回主菜单（消息泵常驻接管 socket，移交加载页时脱钩）；随机项联机解禁（原禁用）。遗留：对局侧 3+1 装配未接（原版 GameRunFighterGroup/换人 ~250 行），团队累计选人暂以首名进 1v1 对局（→ 切片 35 尾巴已接）；地图阶段实时跟随/开箱抽取归切片 36。server 补 cursor/locked-pick 透传单测（12 条）。
 - **切片 35 尾巴**（✅ 2026-11-17）对局侧团队 3+1 装配：① core——`SimConfig.teams { p1, p2 }`（出场序 id 表，构造器校验唯一且可寻址）→ `MatchState.teams` 槽位抄录（`TeamSlot` 含 x/y/comicType/assistId/formIndex/hp，换人只依赖 SimState、fromState 免重注入）+ 仅队首进 fighters（严格 2 活跃模型）+ `SimState.roundEnd` 状态机（KO 即置位——1v1 不置零漂移；等胜方收尾 isAllowWinState 门 → WIN_ING+胜利+血量恢复 0.33 → hold 180 计满；Btn.back 全程可跳）+ `rotateIn` 换人（pending 出队、全新满血 FighterState、气继承 lastLoserQi+同 comicType+100 封顶 300、双方回出生点、清场 despawn、beginIntro(入场方)）+ draw 同拍双 KO 改判与双侧轮换 + 终局 `match:over`+over 冻结；② render——roster 全员精灵按 fighter id 预载 id-swap（bench 不可见复用 + 入场即换免重绑图集）+ HUD teamFighters 大脸/能量标签按 id 寻址换脸；③ app——fighterId(side,i)=1,3,5/2,4,6 交错编号即 sim id，roster 全员 FighterConfig + teams 装配（solo/net 双路径），team 模式 fighter:ko 不切场景、match:over 后 600ms 进结算，ESC 演出期=跳过/演出外=返回菜单；configHash 增 teams 指纹（roster 序两端一致）。core 8 单测（装配/KO→换人/气继承同系加成/skip/败方耗尽/两轮打满/确定性/1v1 零漂移）。规格 DESIGN §3.5 团队回合流（偏离登记：固定 180 tick 演出+全程可跳、无计时器恢复常数 0.33、draw 双侧轮换以首个败方气计、入场方 focus 时序 ±18 tick）。
+- **切片 39**（✅ 2026-11-17）本地双人：① 菜单——LOCAL PLAY 顶层项（原版单人/双人并列形态）+ 1v1/团队两子项；进选人页前重置 `flow.player=1`（防联机客座残留）；② 选人页——复刻原版 `isVsPeople()` 双光标语义搬回同一台键盘：P1 = WASD 移动 + J 确认，P2 = 方向键移动 + 小键盘 1 确认，互不阻塞；鼠标不参与选人（一台机器只有一个鼠标，地图轮盘共用）；复用联机双光标状态结构（localLocked = P1 / peerLocked = P2）与锁定推进（选中即锁/随机项确认时解析/双方齐套本地推导/团队 3+1），仅去网络收发；锁定逻辑抽 lockOwn/lockPeer 供联机与本地共用；导航表按 row,col 行主序 + 阶段 token 门禁（装料/过渡窗键盘输入忽略）；地图阶段 = solo 鼠标轮盘共用 + P1 键盘（A/D 翻页 J 确认，地图归 P1 定同联机房主）；③ 对局——`LocalKeyboardSource`（P1/P2 键位图同帧进 sim），P2 键位补齐为小键盘方案（Numpad1攻击 2跳 3瞬步 4技 5必杀 6辅助，e.code 物理键位 NumLock 无关），spawnSim(false) 真对局（intro + KO → 结算立绘，CONTINUE 本地可用重开）；④ dev 直通 `?mode=local2p`（选人页目检，不自动确认）。偏离登记：地图阶段 P2 无键盘操作权（鼠标共用可越权点击，沙发社交默认容忍）；SIM 无改动（9 剧本哈希 + batch 基线零漂移复跑确认）。
+- **批次 41**（✅ 2026-11-17）本地双人实测三修：① 悬浮卡死——isApplyG:false 命中（白哉 tk 摔投/援助 atm1，全角色数据仅此二处）后 `recoverToNormal` 不复位 applyG → 空中受击计时恢复后重力门永久跳过悬浮卡死；修复 = recoverToNormal 恢复 `applyG=true`（原版 idle 链 setInAir 语义）；真实数据矩阵回归（byakuya 全招式 × 8 空中前置 → 落地回 idle）入 data/test/hurt-recovery.test.ts，core 另有合成回归；② 原版无惯性跳跃——起跳发射清 vx/dampX（原版 FighterMain.jump setVelocity(0,-jumpPower)；此前保留走跑 vx 致空中漂移 + 落地 labelLock 窗口无摩擦匀速滑行），批次 40"砍 3 位移"之滑行问题就此收口；③ 开场字样时机——INTRO_RESUME_TICKS 6→30（偏离登记：原版 0.1s 后字样即出，移植版镜头 3.5→1 缓动 ~0.5s，30 tick 让镜头回正再出字样）；另查明原版无 Round/Fight 播报语音（swc 资源仅有角色开场台词，移植版已播）。sim 变更，batch 基线 + ichigo-duel/intro-duel replay 基线重冻。
 
 ---
 
@@ -130,7 +133,7 @@
 | 2 | 录像回放 | 输入序列 + 种子 + 数据版本戳的存储与播放 UI | 帧同步免费送，core 无需改 |
 | 3 | 观战 | 只收不发输入的观战客户端 | net 层扩展 |
 | 6 | 街机模式 | mission.xml 关卡数据 + FighterAICtrler 转译（~700 行，种子随机） | AI 是 PvP 路径外唯一大块逻辑 |
-| 8 | 本地双人 | 第二本地输入源 | 扩展项池，最后做 |
+| 8 | 本地双人 | ✅（2026-11-17 切片 39）：LOCAL PLAY 菜单入口（1v1/团队）+ 选人页双键盘双光标 + 对局双键盘输入源 | 原版 isVsPeople 语义收编 |
 
 （块 4 rollback 并入 §4.1 延迟调优；块 5/7/9/10/11/12 已收官，余项入 §4.5。）
 
@@ -166,4 +169,4 @@
 
 1. **联机房间流切片 36**（§4.4）——地图阶段（房主选择 map-pick 实时广播 / 开箱抽取服务器权威种子，种子进 configHash）；
 2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程公网验收；
-3. 阶段 4 余块（断线判负/录像/观战/街机/本地双人）按 §4.3 顺序推进，开工前细化登记 §二。
+3. 阶段 4 余块（断线判负/录像/观战/街机）按 §4.3 顺序推进，开工前细化登记 §二。

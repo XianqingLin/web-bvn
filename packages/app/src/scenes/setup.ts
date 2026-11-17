@@ -28,6 +28,13 @@
  *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/peer-lost 分派），
  *    断线按 netplay-design §10 提示后回主菜单。
  *
+ * 本地双人（切片 39；复刻原版 isVsPeople() 语义，同一台键盘搬回来）：
+ *  - 双光标各自键盘驱动：P1 = WASD 移动 + J 确认；P2 = 方向键移动 + 小键盘 1 确认；
+ *    互不阻塞；鼠标不参与选人（一台机器只有一个鼠标，留到地图轮盘共用）；
+ *  - 复用联机双光标的状态结构（localLocked = P1 / peerLocked = P2）与锁定推进，
+ *    仅去掉网络收发；地图阶段 = solo 鼠标轮盘 + P1 键盘（A/D 翻页、J 确认）；
+ *  - 选中即锁无反悔（同联机）；随机项确认时解析；双方齐套本地推导推进。
+ *
  * 骨架期限制（记录，切片 14 沿用）：
  *  - 原版 more= 形态切换未实现（数据保留，more= 项格框黄色提示）；
  */
@@ -108,8 +115,22 @@ export class SetupScene implements Scene {
     fighters: [],
     assists: [],
   };
-  /** 对端累计锁定 id（pick 覆盖式快照） */
+  /** 对端累计锁定 id（联机 = pick 覆盖式快照；本地双人 = P2 锁定按次序） */
   private peerLocked: { fighters: string[]; assists: string[] } = { fighters: [], assists: [] };
+
+  // —— 本地双人双键盘（切片 39）——
+  /** 键盘导航列表（当前阶段格子按 row,col 排序；与渲染 entries 同源） */
+  private navList: SelectEntry[] = [];
+  /** 光标下标（navList 序；P1/P2 各一份，0 = 首格） */
+  private keyIdxP1 = 0;
+  private keyIdxP2 = 0;
+  /** 阶段 token：renderPhase 递增，navList 就绪时登记——两者相等才接受键盘输入
+   *  （异步装料/过渡窗内 navList 尚为旧阶段数据） */
+  private navToken = 0;
+  private navListToken = -1;
+  /** 地图轮盘缩略图（键盘翻页重绘用；null = 非地图阶段/未就绪） */
+  private mapPicSprite: Sprite | null = null;
+  private readonly onKeyLocal = (e: KeyboardEvent) => this.handleLocalKey(e);
   /** 连接已断（§10：提示后回主菜单，只触发一次） */
   private netDead = false;
   /** 已移交加载页（消息泵停止） */
@@ -119,7 +140,7 @@ export class SetupScene implements Scene {
 
   constructor(
     private readonly flow: Flow,
-    /** 联机 socket（net 场景交接；solo 省略） */
+    /** 联机 socket（net 场景交接；solo/local 省略） */
     private readonly socket: WsLike | null = null,
   ) {}
 
@@ -173,6 +194,11 @@ export class SetupScene implements Scene {
       this.socket.onclose = () => this.onNetDown();
     }
 
+    // 本地双人：双键盘监听（双光标移动/确认 + ESC 返回菜单）
+    if (this.flow.mode === 'local') {
+      window.addEventListener('keydown', this.onKeyLocal);
+    }
+
     // dev 直通：自动确认默认选人（ichigo/gaara/KonohaMura）
     if (this.flow.autoPick) this.autoConfirm(ctx);
   }
@@ -180,6 +206,7 @@ export class SetupScene implements Scene {
   /** dev 直通：免点击走完 选角色→选辅助→（地图）→开打。 */
   private autoConfirm(ctx: SceneCtx): void {
     if (this.flow.mode === 'net') return this.autoConfirmNet(ctx);
+    if (this.flow.mode === 'local') return this.autoConfirmLocal(ctx);
     const byId = (list: SelectEntry[], id: string) => list.find((e) => e.id === id) ?? list[0]!;
     this.fighter = byId(this.select!.chars, 'ichigo');
     this.assist = byId(this.select!.assists, 'gaara');
@@ -187,6 +214,22 @@ export class SetupScene implements Scene {
     this.mapId = 'KonohaMura';
     this.mapChosen = true;
     this.startSolo(ctx);
+  }
+
+  /** dev 直通（本地双人）：双方默认选人 → 默认地图开打。 */
+  private autoConfirmLocal(ctx: SceneCtx): void {
+    const need = this.flow.team ? 3 : 1;
+    const ids = ['ichigo', 'naruto', 'sasuke'].slice(0, need);
+    const byId = (list: SelectEntry[], id: string) => list.find((e) => e.id === id) ?? list[0]!;
+    this.localLocked.fighters = ids.map((id) => byId(this.select!.chars, id));
+    this.localLocked.assists = [byId(this.select!.assists, 'gaara')];
+    this.peerLocked = {
+      fighters: this.localLocked.fighters.map((e) => e.id),
+      assists: this.localLocked.assists.map((e) => e.id),
+    };
+    this.mapId = 'KonohaMura';
+    this.mapChosen = true;
+    this.startLocal(ctx);
   }
 
   /** dev 直通（联机）：免点击走完累计锁定；P1 直接确认默认地图进交换等待。 */
@@ -226,6 +269,8 @@ export class SetupScene implements Scene {
 
   private renderPhase(ctx: SceneCtx): void {
     this.loadToken++;
+    this.navToken++;
+    this.mapPicSprite = null;
     this.cursor = null;
     this.peerCursor = null;
     this.peerCursorIdx = null;
@@ -240,12 +285,13 @@ export class SetupScene implements Scene {
 
     if (this.status) this.status.text = '';
     const net = this.flow.mode === 'net';
+    const local2p = this.flow.mode === 'local';
 
     // 确认按钮：顶部右侧（底部两角让位原版展示框）。
-    // 联机 fighter/assist 选中即锁无确认；地图仅房主可确认（客座只读等待）。
+    // 联机/本地双人 fighter/assist 选中即锁无确认；地图仅房主可确认（客座只读等待）。
     if (this.phase === 'fighter' || this.phase === 'assist' || this.phase === 'map') {
       const mapHost = !net || this.flow.player === 1;
-      if ((this.phase === 'map' && mapHost) || (!net && this.phase !== 'map')) {
+      if ((this.phase === 'map' && mapHost) || (!net && !local2p && this.phase !== 'map')) {
         const confirmLabel =
           this.phase === 'map'
             ? net
@@ -256,7 +302,7 @@ export class SetupScene implements Scene {
               : '确认辅助';
         this.mountConfirm(root, confirmLabel, () => this.onConfirm(ctx));
       }
-      if (this.phase !== 'fighter' && !net) {
+      if (this.phase !== 'fighter' && !net && !local2p) {
         // 上一步仅单机（联机选中即锁无反悔，不提供）
         const backBtn = makeButton('上一步', () => {
           this.phase = this.phase === 'map' ? 'assist' : 'fighter';
@@ -317,6 +363,7 @@ export class SetupScene implements Scene {
         return;
       }
       if (this.flow.mode === 'net') this.netMapConfirmed(ctx);
+      else if (this.flow.mode === 'local') this.transitionPhase(ctx, () => this.startLocal(ctx));
       else this.transitionPhase(ctx, () => this.startSolo(ctx));
     }
   }
@@ -369,9 +416,17 @@ export class SetupScene implements Scene {
     const ui = this.uiData!;
     const token = ++this.loadToken;
     const net = this.flow.mode === 'net';
+    const local2p = this.flow.mode === 'local';
+    const dual = net || local2p;
     const ownSide: 1 | 2 = this.flow.player === 2 ? 2 : 1;
     const peerSide: 1 | 2 = ownSide === 1 ? 2 : 1;
     const player = ownSide === 2 ? 'p2' : 'p1';
+
+    // 键盘导航列表（本地双人）：按 row,col 行主序排序；光标下标复位到首格
+    this.navList = [...entries].sort((a, b) => a.row - b.row || a.col - b.col);
+    this.keyIdxP1 = 0;
+    this.keyIdxP2 = 0;
+    this.navListToken = this.navToken;
 
     // 头像纹理批量预载后挂格子（丢失头像类兜底 = 无头像的空格框）
     void Promise.all(
@@ -389,7 +444,7 @@ export class SetupScene implements Scene {
       this.cursor = cursor;
       this.hoverIdx = null;
       this.peerCursor = null;
-      if (net) {
+      if (dual) {
         const peerCursor = new Sprite(this.tex[peerSide === 2 ? 'cursor_p2' : 'cursor_p1']!);
         peerCursor.visible = false;
         this.peerCursor = peerCursor;
@@ -416,6 +471,7 @@ export class SetupScene implements Scene {
         cell.eventMode = 'static';
         cell.cursor = 'pointer';
         cell.on('pointerover', () => {
+          if (local2p) return; // 本地双人：鼠标不参与选人（双键盘驱动，见切片 39）
           // 原版 doHover：光标跟随悬停 + select 音；
           // 联机：锁满本端份额后光标冻结，hover 变更即 cursor 广播
           if (net && this.stageComplete(true)) return;
@@ -435,6 +491,7 @@ export class SetupScene implements Scene {
             if (!this.stageComplete(true)) onTap(e); // 选中即锁；锁满后忽略
             return;
           }
+          if (local2p) return; // 本地双人：锁定走键盘确认键
           cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
           cursor.visible = true;
           audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
@@ -458,15 +515,18 @@ export class SetupScene implements Scene {
       const tokenAt = token;
       window.setTimeout(() => {
         if (tokenAt !== this.loadToken || this.destroyedFlag) return;
-        // 初始光标停在第一个可选格
-        if (first) {
+        // 初始光标停在第一个可选格（本地双人：双光标都停首格）
+        if (local2p) {
+          this.placeKeyCursor(1);
+          this.placeKeyCursor(2);
+        } else if (first) {
           cursor.position.set(first[0] + ui.select.cursorOffset[0], first[1] + ui.select.cursorOffset[1]);
           cursor.visible = true;
         }
         root.addChild(cursor);
         if (this.peerCursor) root.addChild(this.peerCursor);
-        // 锁定框层（联机双色框）
-        if (net) {
+        // 锁定框层（联机/本地双人双色框）
+        if (dual) {
           const lockLayer = new Graphics();
           root.addChild(lockLayer);
           this.lockLayer = lockLayer;
@@ -475,9 +535,9 @@ export class SetupScene implements Scene {
         }
         // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
         this.boxOwn = this.mountBox(root, ownSide);
-        if (net) this.boxPeer = this.mountBox(root, peerSide);
-        // 盒内容恢复：单机显示当前阶段已选；联机恢复阶段内最近锁定/对端锁定
-        if (net) {
+        if (dual) this.boxPeer = this.mountBox(root, peerSide);
+        // 盒内容恢复：单机显示当前阶段已选；双光标恢复阶段内最近锁定/对方锁定
+        if (dual) {
           const locked = this.localStageLocks();
           if (locked.length > 0) this.refreshBox(this.boxOwn, locked[locked.length - 1]!);
           const peerIds = this.peerStageLocks();
@@ -603,9 +663,15 @@ export class SetupScene implements Scene {
     }
   }
 
-  /** 联机锁定（选中即锁，无反悔）：随机项此刻解析成具体角色后按最终项同步。 */
+  /** 本端锁定（选中即锁，无反悔）：随机项此刻解析成具体角色后按最终项同步/同步上行。 */
   private lockEntry(ctx: SceneCtx, e: SelectEntry): void {
     if (this.netDead || this.done) return;
+    this.lockOwn(ctx, e);
+    this.sendPickSafe(this.pickInfo());
+  }
+
+  /** 本端锁定核心（联机 + 本地双人 P1 共用）。 */
+  private lockOwn(ctx: SceneCtx, e: SelectEntry): void {
     const resolved = this.resolveNetEntry(e, this.stageList());
     const list = this.phase === 'assist' ? this.localLocked.assists : this.localLocked.fighters;
     list.push(resolved);
@@ -613,7 +679,17 @@ export class SetupScene implements Scene {
     this.refreshBox(this.boxOwn, resolved);
     this.redrawLocks();
     this.updateNetStatus();
-    this.sendPickSafe(this.pickInfo());
+    this.checkAdvance(ctx);
+  }
+
+  /** 对方/P2 锁定（本地双人；联机对端走消息泵 onPeerPick）。 */
+  private lockPeer(ctx: SceneCtx, e: SelectEntry): void {
+    const resolved = this.resolveNetEntry(e, this.stageList());
+    this.peerStageLocks().push(resolved.id);
+    audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
+    this.refreshBox(this.boxPeer, resolved);
+    this.redrawLocks();
+    this.updateNetStatus();
     this.checkAdvance(ctx);
   }
 
@@ -646,18 +722,19 @@ export class SetupScene implements Scene {
     }
   }
 
-  /** 联机阶段状态行：本端进度 + 对端进度。 */
+  /** 阶段状态行：本端进度 + 对方进度（联机"对方" = 对端；本地双人 = P2）。 */
   private updateNetStatus(): void {
     if (!this.status || (this.phase !== 'fighter' && this.phase !== 'assist')) return;
     const need = this.requiredLocks();
     const l = Math.min(this.localStageLocks().length, need);
     const p = Math.min(this.peerStageLocks().length, need);
     const what = this.phase === 'fighter' ? '角色' : '辅助';
+    const peerLabel = this.flow.mode === 'net' ? '对方' : 'P2';
     this.status.text =
       l < need
         ? `选择${what}：已锁定 ${l}/${need}`
         : p < need
-          ? `等待对方选择${what}（${p}/${need}）`
+          ? `等待${peerLabel}选择${what}（${p}/${need}）`
           : '';
   }
 
@@ -668,6 +745,96 @@ export class SetupScene implements Scene {
     this.phase = this.phase === 'fighter' ? 'assist' : 'map';
     this.hoverIdx = null;
     this.transitionPhase(ctx, () => this.renderPhase(ctx));
+  }
+
+  // ---------- 本地双人双键盘（切片 39；原版 isVsPeople 语义搬回同一台键盘） ----------
+
+  /** 双键盘分派：fighter/assist 阶段 = 双光标移动/确认；map 阶段 = 鼠标轮盘共用 + P1 键盘。 */
+  private handleLocalKey(e: KeyboardEvent): void {
+    if (this.done || this.destroyedFlag || !this.ctxRef) return;
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (e.code === 'Escape') {
+      e.preventDefault();
+      this.back(this.ctxRef);
+      return;
+    }
+    if (this.phase === 'fighter' || this.phase === 'assist') {
+      if (this.navListToken !== this.navToken) return; // 装料/过渡窗：导航表未就绪
+      // P1：WASD 移动 + J 确认；P2：方向键移动 + 小键盘 1 确认（互不阻塞；
+      // 各自锁满份额后确认键忽略，同联机"锁满冻结"语义）
+      switch (e.code) {
+        case 'KeyW': e.preventDefault(); this.moveCursor(1, 0, -1); return;
+        case 'KeyS': e.preventDefault(); this.moveCursor(1, 0, 1); return;
+        case 'KeyA': e.preventDefault(); this.moveCursor(1, -1, 0); return;
+        case 'KeyD': e.preventDefault(); this.moveCursor(1, 1, 0); return;
+        case 'KeyJ':
+          e.preventDefault();
+          if (!this.stageComplete(true)) this.lockOwn(this.ctxRef, this.navEntry(1));
+          return;
+        case 'ArrowUp': e.preventDefault(); this.moveCursor(2, 0, -1); return;
+        case 'ArrowDown': e.preventDefault(); this.moveCursor(2, 0, 1); return;
+        case 'ArrowLeft': e.preventDefault(); this.moveCursor(2, -1, 0); return;
+        case 'ArrowRight': e.preventDefault(); this.moveCursor(2, 1, 0); return;
+        case 'Numpad1':
+          e.preventDefault();
+          if (!this.stageComplete(false)) this.lockPeer(this.ctxRef, this.navEntry(2));
+          return;
+      }
+    } else if (this.phase === 'map') {
+      // 地图阶段：鼠标轮盘共用；P1 键盘 A/D 翻页、J 确认（地图归 P1 定，同联机房主）
+      if (!this.mapPicSprite) return;
+      const n = this.mapEntries().length;
+      if (e.code === 'KeyA' || e.code === 'KeyW') {
+        e.preventDefault();
+        this.mapIndex = (this.mapIndex - 1 + n) % n;
+        audioOf(this.ctxRef.ctx)?.se('menu1', 'swc'); // 原版地图轮盘翻页音
+        this.showMapPic(this.mapPicSprite, this.mapEntries());
+      } else if (e.code === 'KeyD' || e.code === 'KeyS') {
+        e.preventDefault();
+        this.mapIndex = (this.mapIndex + 1) % n;
+        audioOf(this.ctxRef.ctx)?.se('menu1', 'swc');
+        this.showMapPic(this.mapPicSprite, this.mapEntries());
+      } else if (e.code === 'KeyJ') {
+        e.preventDefault();
+        this.confirmMap(this.mapEntries()[this.mapIndex]!);
+      }
+    }
+  }
+
+  /** 键盘光标当前指向的格子。 */
+  private navEntry(side: 1 | 2): SelectEntry {
+    const idx = side === 1 ? this.keyIdxP1 : this.keyIdxP2;
+    return this.navList[idx] ?? this.stageList()[0]!;
+  }
+
+  /** 键盘光标移动：同行/同列内步进，行/列边界钳制；移动音 + 展示盒跟随。 */
+  private moveCursor(side: 1 | 2, dx: number, dy: number): void {
+    const list = this.navList;
+    if (list.length === 0) return;
+    const cur = side === 1 ? this.keyIdxP1 : this.keyIdxP2;
+    const from = list[cur]!;
+    const pool = list
+      .map((e, i) => ({ e, i }))
+      .filter(({ e }) => (dx !== 0 ? e.row === from.row : e.col === from.col))
+      .sort((a, b) => (dx !== 0 ? a.e.col - b.e.col : a.e.row - b.e.row));
+    const at = pool.findIndex(({ i }) => i === cur);
+    const next = pool[Math.max(0, Math.min(pool.length - 1, at + (dx || dy)))];
+    if (!next || next.i === cur) return;
+    if (side === 1) this.keyIdxP1 = next.i;
+    else this.keyIdxP2 = next.i;
+    this.placeKeyCursor(side);
+    audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版 doHover select 音
+    this.refreshBox(side === 1 ? this.boxOwn : this.boxPeer, next.e);
+  }
+
+  /** 键盘光标落位（navList 下标 → 格子坐标）。 */
+  private placeKeyCursor(side: 1 | 2): void {
+    const cur = side === 1 ? this.cursor : this.peerCursor;
+    if (!cur || !this.uiData) return;
+    const e = this.navEntry(side);
+    const [x, y] = this.cellPos(e, this.stageList());
+    cur.position.set(x + this.uiData.select.cursorOffset[0], y + this.uiData.select.cursorOffset[1]);
+    cur.visible = true;
   }
 
   /** 累计锁定写入 flow：首名进 localPick/peerPick 供既有对局装配；团队另存全序。 */
@@ -866,6 +1033,7 @@ export class SetupScene implements Scene {
     pic.eventMode = 'static';
     pic.cursor = 'pointer';
     panel.addChild(pic);
+    this.mapPicSprite = pic; // 键盘翻页重绘用（renderPhase 清空）
     const kuang = new Sprite(this.tex.select_map_kuang!);
     kuang.position.set(...ui.select.mapKuangOffset);
     panel.addChild(kuang);
@@ -965,6 +1133,14 @@ export class SetupScene implements Scene {
     ctx.switchTo(new LoadingScene(this.flow, null));
   }
 
+  /** 本地双人开打（地图确认后）：P1/P2 累计锁定写入 flow → 加载页（装配复用 net 双方异配路径）。 */
+  private startLocal(ctx: SceneCtx): void {
+    const maps = this.select!.maps;
+    this.flow.mapId = this.mapId ?? maps[Math.floor(Math.random() * maps.length)]!.id;
+    this.commitPicks();
+    ctx.switchTo(new LoadingScene(this.flow, null));
+  }
+
   update(dtMs: number): void {
     tickTweens(dtMs);
     // 联机 3s 重发兜底（覆盖语义幂等；对端收齐后进下一阶段，残余重发无害）：
@@ -983,6 +1159,7 @@ export class SetupScene implements Scene {
     this.destroyedFlag = true;
     this.loadToken++;
     this.ctxRef = null;
+    window.removeEventListener('keydown', this.onKeyLocal);
     for (const id of this.timers) window.clearTimeout(id);
     this.timers.length = 0;
     clearTweens();

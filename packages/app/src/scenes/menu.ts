@@ -318,8 +318,36 @@ export class MenuScene implements Scene {
         cn: '单机训练',
         action: () => {
           this.flow.mode = 'solo';
+          this.flow.player = 1;
+          this.flow.team = false;
           this.switchTo?.(new SetupScene(this.flow));
         },
+      },
+      {
+        en: 'LOCAL PLAY',
+        cn: '本地双人',
+        children: [
+          {
+            en: '1 VS 1',
+            cn: '单挑 1v1',
+            action: () => {
+              this.flow.mode = 'local';
+              this.flow.player = 1; // 本地双人恒以 P1 视角装配（防联机客座残留）
+              this.flow.team = false;
+              this.switchTo?.(new SetupScene(this.flow));
+            },
+          },
+          {
+            en: 'TEAM MATCH',
+            cn: '团队模式',
+            action: () => {
+              this.flow.mode = 'local';
+              this.flow.player = 1;
+              this.flow.team = true;
+              this.switchTo?.(new SetupScene(this.flow));
+            },
+          },
+        ],
       },
       {
         en: 'NET PLAY',

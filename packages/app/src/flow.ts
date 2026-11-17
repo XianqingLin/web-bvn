@@ -16,8 +16,8 @@ export interface TeamPicks {
 }
 
 export interface Flow {
-  /** solo = 单机训练；net = 联机 lockstep */
-  mode: 'solo' | 'net';
+  /** solo = 单机训练；local = 本地双人（P1/P2 同机键盘）；net = 联机 lockstep */
+  mode: 'solo' | 'local' | 'net';
   /** 房间服务器地址（联机；localStorage 记忆） */
   serverUrl: string;
   /** 本端显示昵称（房间页/VS 横幅；平台昵称，standalone 回退"玩家N"） */
@@ -64,7 +64,7 @@ export function makeFlow(): Flow {
   };
 }
 
-/** 两端就位后的对局装配选人：slot = 联机位次（solo 双方同配）。 */
+/** 两端就位后的对局装配选人：slot = 联机位次（solo 双方同配；local P1=P2 视角本端/对方）。 */
 export function picksOf(flow: Flow): { p1: Pick; p2: Pick } {
   const local = flow.localPick ?? { fighter: 'ichigo', assist: 'gaara' };
   if (flow.mode === 'solo') return { p1: local, p2: local };
