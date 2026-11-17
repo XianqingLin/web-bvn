@@ -80,9 +80,11 @@ export type NetMessage =
   // ---------- UI 同步（透传给对端；切片 35/36 使用） ----------
   /** 选人/援助阶段光标位置（变更即广播，轻量消息） */
   | { t: 'cursor'; player: PlayerSlot; stage: 'fighter' | 'assist'; idx: number }
-  /** 房主切换/确认地图（切片 36，客座只读实时跟随） */
+  /** 房主切换/确认地图（切片 36，客座只读实时跟随）。map = 地图 id；
+   *  轮盘随机项广播时传 'random'（最终确认仍走 pick.map，房主侧解析） */
   | { t: 'map-pick'; player: PlayerSlot; map: string }
-  /** 开箱抽取种子（切片 36；服务器权威生成广播，收到才开始播动画） */
+  /** 开箱抽取种子（切片 36；服务器权威生成，begin 时广播）。
+   *  兼作对局 sim seed——seed 统一服务器权威（netplay-design §9），进 configHash */
   | { t: 'map-roll'; seed: number };
 
 /**

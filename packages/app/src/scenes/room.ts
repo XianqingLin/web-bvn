@@ -128,6 +128,8 @@ export class RoomScene implements Scene {
         };
         // 团队模式随快照同步（选人页 3+1 节奏依据；切片 35）
         this.flow.team = (msg.settings as RoomSettings).team === true;
+        // 地图阶段模式随快照同步（开箱抽取 vs 房主选择；切片 36）
+        this.flow.randomMap = (msg.settings as RoomSettings).randomMap === true;
         this.render();
         break;
       case 'error':

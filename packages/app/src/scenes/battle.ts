@@ -270,7 +270,9 @@ export class BattleScene implements Scene {
     const p1Fcs = rig.p1.map((_, i) => fcOf(1, i));
     const p2Fcs = rig.p2.map((_, i) => fcOf(2, i));
     this.sim = new Sim({
-      seed: 1,
+      // 服务器权威种子（切片 36 map-roll 广播；net 双端一致，进 configHash）；
+      // solo/local 无种子恒 1（replay/batch 基线锚点）
+      seed: this.flow.mapSeed ?? 1,
       stage: st,
       training,
       // intro：非训练模式带开局特写演出（原版 TRAINING 无开场语义，intro 切片）；
@@ -296,7 +298,7 @@ export class BattleScene implements Scene {
     );
 
     const configHash = makeConfigHash({
-      seed: 1,
+      seed: flow.mapSeed ?? 1,
       stage: map.stage,
       fighters: [
         ...rig.p1.map((e) => e.pack.id),

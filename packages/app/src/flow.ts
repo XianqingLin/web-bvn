@@ -34,6 +34,12 @@ export interface Flow {
   peerPick: Pick | null;
   /** 团队模式（房间设置 team；匹配固定开启）——选人页 3 选 + 1 援助节奏 */
   team: boolean;
+  /** 地图阶段模式（房间设置 randomMap；切片 36）——true = 开箱抽取（两端播动画，
+   *  结果由 mapSeed 解析）；false = 房主选择（map-pick 实时广播、客座只读） */
+  randomMap: boolean;
+  /** 服务器权威种子（map-roll 广播；切片 36）——开箱抽取定格解析 + 对局 sim seed
+   *  （进 configHash 互验）。solo/local 恒 null（sim seed 用 1） */
+  mapSeed: number | null;
   /** 团队模式累计选人（单挑不填；切片 36 对局侧 3+1 装配消费） */
   localTeamPick: TeamPicks | null;
   peerTeamPick: TeamPicks | null;
@@ -56,6 +62,8 @@ export function makeFlow(): Flow {
     localPick: null,
     peerPick: null,
     team: false,
+    randomMap: false,
+    mapSeed: null,
     localTeamPick: null,
     peerTeamPick: null,
     mapId: 'KonohaMura',

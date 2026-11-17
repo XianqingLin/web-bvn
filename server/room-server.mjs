@@ -11,7 +11,9 @@
  *                     hello 计数清零；未准备回非致命 error（guest-not-ready）；
  *   3. hello 收齐 → 广播 start（第二段：进对局；与 begin 的 start 两段语义）；
  *   4. UI 同步类（cursor/map-pick）与对局类（input/hash/pick）原样透传给对端；
- *   5. 断线清理（netplay-design.md §10）：
+ *   5. 权威种子（切片 36，netplay-design §8/§9）：begin 时生成随机种子并广播
+ *      map-roll，两端共享——开箱抽取动画的定格结果与对局 sim seed 都由它解析；
+ *   6. 断线清理（netplay-design.md §10）：
  *      - 未开局客座掉线 → 房间保留，房主收 peer-lost + room-info，可继续等待/邀请；
  *      - 房主掉线或已开局后任何一方掉线 → 房间解散（peer-lost，房码失效）；
  *      - 已开局房间拒绝 join（复用 room-full），无重连。
@@ -168,6 +170,10 @@ wss.on('connection', (ws) => {
         room.helloed.clear(); // start 两段语义：begin 的 start 清零，hello 收齐再发第二次
         for (const p of room.players.values()) send(p, { t: 'start' });
         broadcastRoomInfo(room);
+        // 权威种子（切片 36）：两端共享同一 seed——开箱抽取定格结果本地按
+        // maps[seed % n] 解析（同 select 数据天然一致），并进 configHash 互验
+        const seed = randomInt(1, 2 ** 31);
+        for (const p of room.players.values()) send(p, { t: 'map-roll', seed });
         break;
       }
       case 'hello': {

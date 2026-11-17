@@ -126,6 +126,12 @@ export function sendCursor(
   socket.send(JSON.stringify({ t: 'cursor', player, stage, idx }));
 }
 
+/** 房主：地图轮盘切换/确认上行（切片 36；服务器透传给对端，客座只读实时跟随）。
+ *  map = 地图 id；轮盘随机项传 'random'（确认时由房主解析成具体 id 走最终 pick）。 */
+export function sendMapPick(socket: WsLike, player: PlayerSlot, map: string): void {
+  socket.send(JSON.stringify({ t: 'map-pick', player, map }));
+}
+
 /** lockstep 装配：LockstepClient（有 configHash 则发 hello 互验）→ 等 start 广播。 */
 export async function lockstart(
   socket: WsLike,

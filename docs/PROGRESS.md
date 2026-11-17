@@ -57,7 +57,7 @@
 | 33 | 联机迁移平台中转（方案 A）：RelaySocket + openPlatformSession + 嵌入构建（⚠ 同日晚方案 A 作废，处置见 §4.4 切片 34） | ✅/作废 | §三 |
 | 34 | 联机房间流：房间语义协议 + 房间页 + 方案 A 遗留处置 | ✅ | §三；§4.4 / [netplay-design.md](netplay-design.md) |
 | 35 | 联机房间流：选人页双光标（cursor 同步/选中即锁/团队 3+1）+ 对局侧 3+1 装配（尾巴） | ✅ | §三；§4.4 |
-| 36 | 联机房间流：地图阶段（房主选择 / 开箱抽取 + 服务器权威种子） | ⬜ | §4.4 |
+| 36 | 联机房间流：地图阶段（房主选择 / 开箱抽取 + 服务器权威种子） | ✅ | §4.4 |
 | 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ⬜ | §4.4 |
 | 38 | 联机房间流：平台接缝（身份凭证/邀请深链/资料接入） | ⬜ | §4.4 |
 | 39 | 本地双人：主菜单 LOCAL PLAY 入口（1v1/团队子菜单）+ 选人页双键盘双光标 + 对局双键盘输入源 | ✅ | §三 |
@@ -107,6 +107,7 @@
 - **切片 39**（✅ 2026-11-17）本地双人：① 菜单——LOCAL PLAY 顶层项（原版单人/双人并列形态）+ 1v1/团队两子项；进选人页前重置 `flow.player=1`（防联机客座残留）；② 选人页——复刻原版 `isVsPeople()` 双光标语义搬回同一台键盘：P1 = WASD 移动 + J 确认，P2 = 方向键移动 + 小键盘 1 确认，互不阻塞；鼠标不参与选人（一台机器只有一个鼠标，地图轮盘共用）；复用联机双光标状态结构（localLocked = P1 / peerLocked = P2）与锁定推进（选中即锁/随机项确认时解析/双方齐套本地推导/团队 3+1），仅去网络收发；锁定逻辑抽 lockOwn/lockPeer 供联机与本地共用；导航表按 row,col 行主序 + 阶段 token 门禁（装料/过渡窗键盘输入忽略）；地图阶段 = solo 鼠标轮盘共用 + P1 键盘（A/D 翻页 J 确认，地图归 P1 定同联机房主）；③ 对局——`LocalKeyboardSource`（P1/P2 键位图同帧进 sim），P2 键位补齐为小键盘方案（Numpad1攻击 2跳 3瞬步 4技 5必杀 6辅助，e.code 物理键位 NumLock 无关），spawnSim(false) 真对局（intro + KO → 结算立绘，CONTINUE 本地可用重开）；④ dev 直通 `?mode=local2p`（选人页目检，不自动确认）。偏离登记：地图阶段 P2 无键盘操作权（鼠标共用可越权点击，沙发社交默认容忍）；SIM 无改动（9 剧本哈希 + batch 基线零漂移复跑确认）。
 - **批次 41**（✅ 2026-11-17）本地双人实测三修：① 悬浮卡死——isApplyG:false 命中（白哉 tk 摔投/援助 atm1，全角色数据仅此二处）后 `recoverToNormal` 不复位 applyG → 空中受击计时恢复后重力门永久跳过悬浮卡死；修复 = recoverToNormal 恢复 `applyG=true`（原版 idle 链 setInAir 语义）；真实数据矩阵回归（byakuya 全招式 × 8 空中前置 → 落地回 idle）入 data/test/hurt-recovery.test.ts，core 另有合成回归；② 原版无惯性跳跃——起跳发射清 vx/dampX（原版 FighterMain.jump setVelocity(0,-jumpPower)；此前保留走跑 vx 致空中漂移 + 落地 labelLock 窗口无摩擦匀速滑行），批次 40"砍 3 位移"之滑行问题就此收口；③ 开场字样时机——INTRO_RESUME_TICKS 6→30（偏离登记：原版 0.1s 后字样即出，移植版镜头 3.5→1 缓动 ~0.5s，30 tick 让镜头回正再出字样）；另查明原版无 Round/Fight 播报语音（swc 资源仅有角色开场台词，移植版已播）。sim 变更，batch 基线 + ichigo-duel/intro-duel replay 基线重冻。
 - **批次 42**（✅ 2026-11-17）空中硬直恢复落地滞留 跳中：空中被打（硬直）计时在空中走完 → `recoverToNormal` 空中分支回 NORMAL+跳中 → 落地时 `onLanded` 状态门只认 JUMP_ING、无人接管 → 滞留 跳中（循环标签，endAction 不可达）：浮空姿势定格 + 行走门（站立/走 标签族）失效；修复 = `onLanded` 增按空中姿势标签（起跳/跳中/落，isAirPose）识别空中恢复落地，同走落地恢复分支（槽/jumpTimes/airHitTimes 重填）。回归 2 条入 core hurt-recovery.test.ts。新行为仅命中新场景：9 剧本 replay 哈希 + batch 基线零漂移复跑确认（无需重冻）。
+- **切片 36**（✅ 2026-11-17）地图阶段：① 服务器——begin 广播 start/room-info 后追加 map-roll { seed }（权威种子，randomInt(1,2³¹)；不区分 randomMap 设置恒发）；② flow 增 randomMap（room-info 快照随 team 同步）与 mapSeed（map-roll 到达写入；solo/local enter 时清残留）；③ 选人页地图阶段分流——**房主选择**：房主轮盘每次切换 map-pick 广播（随机项广播键 'random'，确认仍走 pick.map 房主侧解析），客座渲染同款只读轮盘实时跟随；**开箱抽取**：两端播同一动画（缩略图长条 = 地图序列×3，行程 easeInOutQuint ~3.4s + 定格高亮 0.8s ≈ 4.2s，偏离登记：单段缓动近似规格分段），定格 = maps[|seed|%n]，不可跳过/重抽，定格后两端各自独立进加载页（时长确定性一致，无需握手）；④ 种子进 configHash——battle spawnSim 与 hello 指纹改用 flow.mapSeed ?? 1（net 端双端一致；solo/local 恒 1，replay/batch 基线不动）。server 12 单测（map-roll 同种子断言 + map-pick 透传）。规格：netplay-design §8 实现定案段。
 
 ---
 
@@ -146,7 +147,7 @@
 |---|---|---|
 | 34 | 房间语义协议 + 房间页：room-server.mjs 扩展（room-info/ready/room-config/begin/掉线清理）+ NetMessage 词表扩展 + app RoomScene（房主常备/客座准备切换/开始门/公开-随机地图-团队三项设置/房间码/邀请操作占位）+ **方案 A 遗留处置**（NetScene 回自有服务器路径，platform.ts 回退或改造为凭证接缝） | ✅（2026-11-17） |
 | 35 | 联机选人页：SetupScene 双光标（cursor 消息同步/双色框/选中即锁/双方齐套本地推导推进/团队模式 3 选 + 1 援助/同角色允许）+ pick 按次序累计语义 + **对局侧 3+1 装配（尾巴）**：sim teams 装配/回合结束换人/终局流转 + render roster id-swap + HUD 换脸 | ✅（2026-11-17） |
-| 36 | 地图阶段：房主选择（map-pick 实时广播、客座只读）+ 开箱抽取（map-roll 服务器权威种子、~4s 动画、不可跳过/重抽、种子进 configHash） | ⬜ |
+| 36 | 地图阶段：房主选择（map-pick 实时广播、客座只读）+ 开箱抽取（map-roll 服务器权威种子、~4s 动画、不可跳过/重抽、种子进 configHash） | ✅（2026-11-17） |
 | 37 | 匹配与浏览：服务器匹配队列（queue/unqueue/matched）+ 公开房间列表轮询（list-rooms/room-list）+ app 匹配 UI（"匹配中" + 红 ✕ 取消）+ 浏览房间页 + VS 横幅（下限 2.5s、上限以建连就绪为准） | ⬜ |
 | 38 | 平台接缝：身份凭证服务器侧验证 + 邀请深链进房 + 平台昵称/头像资料接入（netplay-design §11 对齐点收口；凭证未定前按结构子集 duck typing 留接缝） | ⬜ |
 
@@ -168,6 +169,6 @@
 
 ## 五、下一步（按优先级）
 
-1. **联机房间流切片 36**（§4.4）——地图阶段（房主选择 map-pick 实时广播 / 开箱抽取服务器权威种子，种子进 configHash）；
-2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程公网验收；
+1. **联机房间流切片 37**（§4.4）——匹配与浏览：服务器匹配队列 + 公开房间列表轮询 + 匹配 UI + VS 横幅；
+2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程（含切片 36 地图阶段）公网验收；
 3. 阶段 4 余块（断线判负/录像/观战/街机）按 §4.3 顺序推进，开工前细化登记 §二。

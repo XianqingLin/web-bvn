@@ -161,13 +161,18 @@ test('房间全流程：ready → room-config → begin(start) → hello×2(star
   assert.equal(gInfo.settings.randomMap, true);
   assert.equal(gInfo.settings.public, false);
 
-  // begin → 双方 start（第一段：进选人页）+ 各自的快照回声
+  // begin → 双方 start（第一段：进选人页）+ 各自的快照回声 + 权威种子广播（切片 36）
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
   await guest.expect('start');
   const startedInfo = await guest.expect('room-info');
   assert.equal(startedInfo.started, true);
+  const roll = await host.expect('map-roll');
+  const gRoll = await guest.expect('map-roll');
+  assert.equal(typeof roll.seed, 'number');
+  assert.ok(roll.seed >= 1 && roll.seed < 2 ** 31);
+  assert.equal(gRoll.seed, roll.seed); // 两端共享同一种子
 
   // hello 收齐 → 双方 start（第二段：开跑）；hello 双向透传互验
   host.send({ t: 'hello', player: 1, configHash: 'x' });
@@ -198,7 +203,11 @@ test('begin 时客座未准备 → 非致命 error guest-not-ready，连接保�
   await host.expect('room-info');
   host.send({ t: 'begin' });
   await host.expect('start');
+  await host.expect('room-info');
+  await host.expect('map-roll');
   await guest.expect('start');
+  await guest.expect('room-info');
+  await guest.expect('map-roll');
   host.ws.close();
   guest.ws.close();
 });
@@ -262,8 +271,10 @@ test('已开局后客座掉线：房间解散（不保留空局）', async () =>
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
+  await host.expect('map-roll');
   await guest.expect('start');
   await guest.expect('room-info');
+  await guest.expect('map-roll');
 
   guest.ws.close();
   await host.expect('peer-lost');
@@ -284,8 +295,11 @@ test('已开局房间拒绝 join → room-full', async () => {
   await host.expect('room-info');
   host.send({ t: 'begin' });
   await host.expect('start');
+  await host.expect('room-info');
+  await host.expect('map-roll');
   await guest.expect('start');
   await guest.expect('room-info');
+  await guest.expect('map-roll');
 
   const probe = client(port);
   await probe.open;
@@ -297,7 +311,7 @@ test('已开局房间拒绝 join → room-full', async () => {
   guest.ws.close();
 });
 
-test('选人页透传：cursor 变更即广播 + 带累计锁定的 pick 原样转发（切片 35）', async () => {
+test('选人页透传：cursor/map-pick 变更即广播 + 带累计锁定的 pick 原样转发（切片 35/36）', async () => {
   const port = await serverPort(proc);
   const { host, guest } = await setupRoom(port);
   guest.send({ t: 'ready', ready: true });
@@ -306,12 +320,18 @@ test('选人页透传：cursor 变更即广播 + 带累计锁定的 pick 原样�
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
+  await host.expect('map-roll');
   await guest.expect('start');
   await guest.expect('room-info');
+  await guest.expect('map-roll');
 
   // 光标消息透传（服务器不解析 UI 同步类）
   host.send({ t: 'cursor', player: 1, stage: 'fighter', idx: 5 });
   assert.deepEqual(await guest.expect('cursor'), { t: 'cursor', player: 1, stage: 'fighter', idx: 5 });
+
+  // 房主轮盘切换透传（切片 36：客座只读实时跟随）
+  host.send({ t: 'map-pick', player: 1, map: 'KonohaMura' });
+  assert.deepEqual(await guest.expect('map-pick'), { t: 'map-pick', player: 1, map: 'KonohaMura' });
 
   // 累计锁定 pick 透传：locked 字段原样保留，locked 缺省的最终 pick 同样透传
   host.send({

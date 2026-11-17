@@ -24,9 +24,19 @@
  *  - 团队模式：每光标连续锁 3 名角色（selectTimesCount = 3）再进援助（1 名）；
  *    同角色允许（镜像对决合法，自身重复亦允许）；
  *  - pick 覆盖式累计上行（3s 重发兜底幂等）；地图尾沿用最终 pick（map 仅 P1，
- *    P2 收到即移交加载页；开箱抽取/实时跟随归切片 36）；
- *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/peer-lost 分派），
+ *    P2 收到即移交加载页）；
+ *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/map-pick/map-roll/peer-lost 分派），
  *    断线按 netplay-design §10 提示后回主菜单。
+ *
+ * 地图阶段（切片 36，规格 docs/netplay-design.md §8）：
+ *  - 房主选择（randomMap=false）：房主轮盘可操作，每次切换 map-pick 广播；
+ *    客座只读面板实时跟随（轮盘同款渲染、无交互），房主确认走最终 pick.map；
+ *  - 开箱抽取（randomMap=true）：两端播同一动画——CS:GO 式横向缩略图长条
+ *    滚动减速定格，定格结果 = maps[seed % n]（服务器权威种子 map-roll 广播，
+ *    begin 时到达；兼作对局 sim seed 进 configHash）；不可跳过/重抽，
+ *    定格后两端各自独立进加载页（时长确定性一致，无需握手）；
+ *  - 滚动演出 = easeInOutQuint 单段缓动（起步加速→高速→滑入停框近似规格分段），
+ *    行程 ~3.4s + 定格高亮 0.8s；地图名随居中项实时更新，定格播确认音。
  *
  * 本地双人（切片 39；复刻原版 isVsPeople() 语义，同一台键盘搬回来）：
  *  - 双光标各自键盘驱动：P1 = WASD 移动 + J 确认；P2 = 方向键移动 + 小键盘 1 确认；
@@ -41,6 +51,7 @@
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import {
   sendCursor,
+  sendMapPick,
   sendPick,
   type LockedPicks,
   type NetMessage,
@@ -120,8 +131,7 @@ export class SetupScene implements Scene {
 
   // —— 本地双人双键盘（切片 39）——
   /** 键盘导航列表（当前阶段格子按 row,col 排序；与渲染 entries 同源） */
-  private navList: SelectEntry[] = [];
-  /** 光标下标（navList 序；P1/P2 各一份，0 = 首格） */
+  private navList: SelectEntry[] = [];  /** 光标下标（navList 序；P1/P2 各一份，0 = 首格） */
   private keyIdxP1 = 0;
   private keyIdxP2 = 0;
   /** 阶段 token：renderPhase 递增，navList 就绪时登记——两者相等才接受键盘输入
@@ -138,6 +148,27 @@ export class SetupScene implements Scene {
   /** 离场定时器（断线回菜单） */
   private readonly timers: number[] = [];
 
+  // —— 地图开箱抽取（切片 36；randomMap=true 的联机地图阶段）——
+  /** 滚动动画状态（update 驱动；null = 非 roll 模式/未起播/已定格） */
+  private rollAnim: {
+    strip: Container;
+    label: Text;
+    dist: number;
+    startX: number;
+    startAt: number;
+    travelMs: number;
+    holdMs: number;
+    stride: number;
+    cellW: number;
+    /** 定格地图（select.maps 目标项；两端由同一 seed 解析，天然一致） */
+    target: { id: string; name: string };
+    /** 地图序列（strip 内按 index % maps.length 取名） */
+    maps: { id: string; name: string }[];
+    finished: boolean;
+  } | null = null;
+  /** 已进地图阶段但 map-roll 种子在途（到达后起播；正常在选人期已到，防御用） */
+  private rollPending = false;
+
   constructor(
     private readonly flow: Flow,
     /** 联机 socket（net 场景交接；solo/local 省略） */
@@ -146,6 +177,11 @@ export class SetupScene implements Scene {
 
   async enter(ctx: SceneCtx): Promise<void> {
     this.ctxRef = ctx;
+    // 非 net 流（solo/local 直进）：清联机会话残留（地图模式/种子归联机会话）
+    if (this.flow.mode !== 'net') {
+      this.flow.randomMap = false;
+      this.flow.mapSeed = null;
+    }
     // 对局音频（切片 27）：选人页 BGM（原版 SelectFighterStage BGM(select)）
     audioOf(ctx.ctx)?.bgm('select');
     const ui = new Container();
@@ -245,12 +281,14 @@ export class SetupScene implements Scene {
       assists: this.localLocked.assists.map((e) => e.id),
     };
     this.commitPicks();
-    if (this.flow.player === 1) {
+    if (this.flow.player === 1 && !this.flow.randomMap) {
       this.mapId = 'KonohaMura';
       this.mapChosen = true;
       this.netMapConfirmed(ctx);
     } else {
-      this.phase = 'map'; // 客座地图等待：真机对端 map pick 经消息泵到达后移交加载页
+      // 客座（房主选择路径）与开箱抽取（randomMap，两端）：地图阶段由消息泵驱动
+      // （map-pick 跟随 / map-roll 种子起播，泵接管时机早于本调用，种子已就位）
+      this.phase = 'map';
       this.renderPhase(ctx);
     }
   }
@@ -291,7 +329,8 @@ export class SetupScene implements Scene {
     // 联机/本地双人 fighter/assist 选中即锁无确认；地图仅房主可确认（客座只读等待）。
     if (this.phase === 'fighter' || this.phase === 'assist' || this.phase === 'map') {
       const mapHost = !net || this.flow.player === 1;
-      if ((this.phase === 'map' && mapHost) || (!net && !local2p && this.phase !== 'map')) {
+      const rollMode = this.phase === 'map' && net && this.flow.randomMap; // 开箱抽取自动推进，无确认按钮
+      if ((this.phase === 'map' && mapHost && !rollMode) || (!net && !local2p && this.phase !== 'map')) {
         const confirmLabel =
           this.phase === 'map'
             ? net
@@ -330,11 +369,19 @@ export class SetupScene implements Scene {
         }
       });
     } else if (this.phase === 'map') {
-      if (net && this.flow.player === 2) {
-        // 客座无操作权（房主选择路径）；实时跟随房主切换归切片 36（map-pick 广播）
+      if (net && this.flow.randomMap) {
+        // 开箱抽取（切片 36）：两端播同一动画，定格结果由服务器种子本地解析，不可跳过
+        this.renderMapRoll();
+      } else if (net && this.flow.player === 2) {
+        // 客座只读（房主选择路径）：map-pick 广播实时跟随房主切换
+        this.renderMaps(root, { interactive: false });
         if (this.status) this.status.text = '等待房主选择地图…';
       } else {
-        this.renderMaps(root);
+        this.renderMaps(root, { interactive: true });
+        if (net) {
+          // 房主（切片 36）：进图阶段即广播当前项（客座初始对齐），此后每次切换随发
+          this.sendMapPickSafe(this.currentMapKey());
+        }
       }
     } else {
       // exchange：联机交换等待（本端最终 pick 已上行，等对端确认）
@@ -663,6 +710,22 @@ export class SetupScene implements Scene {
     }
   }
 
+  /** 房主轮盘当前项的广播键（地图 id；随机项 'random'，确认时才解析）。 */
+  private currentMapKey(): string {
+    const e = this.mapEntries()[this.mapIndex];
+    return e?.id ?? 'random';
+  }
+
+  /** 房主地图切换上行（切片 36：服务器透传给对端，客座只读跟随）。 */
+  private sendMapPickSafe(map: string): void {
+    if (!this.socket || this.socket.readyState !== 1 || this.netDead) return;
+    try {
+      sendMapPick(this.socket, this.flow.player, map);
+    } catch {
+      /* 连接正在关闭 */
+    }
+  }
+
   /** 本端锁定（选中即锁，无反悔）：随机项此刻解析成具体角色后按最终项同步/同步上行。 */
   private lockEntry(ctx: SceneCtx, e: SelectEntry): void {
     if (this.netDead || this.done) return;
@@ -908,6 +971,12 @@ export class SetupScene implements Scene {
       case 'pick':
         this.onPeerPick(msg);
         break;
+      case 'map-pick':
+        this.onPeerMapPick(msg);
+        break;
+      case 'map-roll':
+        this.onMapRoll(msg);
+        break;
       case 'peer-lost':
         this.onNetDown();
         break;
@@ -967,6 +1036,28 @@ export class SetupScene implements Scene {
     }
   }
 
+  /** 房主轮盘切换跟随（切片 36，房主选择路径；客座只读，phase 须为 map 且非 roll 模式）。 */
+  private onPeerMapPick(msg: Extract<NetMessage, { t: 'map-pick' }>): void {
+    if (this.flow.mode !== 'net' || this.done || msg.player === this.flow.player) return;
+    if (this.flow.randomMap || this.phase !== 'map' || !this.mapPicSprite) return;
+    const entries = this.mapEntries();
+    const idx = entries.findIndex((e) => (e.id ?? 'random') === msg.map);
+    if (idx < 0) return;
+    this.mapIndex = idx;
+    this.showMapPic(this.mapPicSprite, entries);
+    if (this.status) this.status.text = `房主浏览：${entries[idx]!.name}（等待确认）`;
+  }
+
+  /** 服务器权威种子（切片 36，begin 时广播）：到达即记录；roll 模式地图阶段
+   *  已进入且种子在途时据此起播（正常在选人期已随缓冲补交到达，防御用）。 */
+  private onMapRoll(msg: Extract<NetMessage, { t: 'map-roll' }>): void {
+    this.flow.mapSeed = msg.seed;
+    if (this.rollPending && this.phase === 'map' && !this.done && !this.netDead) {
+      this.rollPending = false;
+      void this.startMapRoll(msg.seed);
+    }
+  }
+
   /** 对端盒显示对端当前阶段最近锁定项（覆盖快照最后一条）。 */
   private refreshPeerBoxLocked(): void {
     const ids = this.peerStageLocks();
@@ -1012,8 +1103,10 @@ export class SetupScene implements Scene {
     ];
   }
 
-  private renderMaps(root: Container): void {
+  private renderMaps(root: Container, opts: { interactive?: boolean } = {}): void {
     const ui = this.uiData!;
+    const net = this.flow.mode === 'net';
+    const interactive = opts.interactive !== false;
     const [px, py] = ui.select.mapPanelPos;
     // select_map PNG 画布原点 = 元件 bounds 左上（mc 原点在 PNG 内约 (78,0)）；
     // 面板挂载 x = 原版 mc.x(157) - PNG 内原点偏移(78)
@@ -1030,31 +1123,33 @@ export class SetupScene implements Scene {
     pic.width = 450;
     pic.height = 240;
     pic.position.set(...ui.select.mapPicOffset);
-    pic.eventMode = 'static';
-    pic.cursor = 'pointer';
+    if (interactive) {
+      pic.eventMode = 'static';
+      pic.cursor = 'pointer';
+    }
     panel.addChild(pic);
-    this.mapPicSprite = pic; // 键盘翻页重绘用（renderPhase 清空）
+    this.mapPicSprite = pic; // 键盘翻页/对端跟随重绘用（renderPhase 清空）
     const kuang = new Sprite(this.tex.select_map_kuang!);
     kuang.position.set(...ui.select.mapKuangOffset);
     panel.addChild(kuang);
 
-    // 点缩略图即确认（原版 kuang 语义；随机项确认时解析）
-    pic.on('pointertap', () => this.confirmMap(entries[this.mapIndex]!));
+    // 点缩略图即确认（原版 kuang 语义；随机项确认时解析）。客座只读无此交互
+    if (interactive) pic.on('pointertap', () => this.confirmMap(entries[this.mapIndex]!));
 
-    // 左右箭头热区（透明命中区，PNG 坐标）
+    // 左右箭头热区（透明命中区，PNG 坐标）；联机房主切换后 map-pick 广播
     const mkHit = (x: number, dir: -1 | 1) => {
       const hit = new Container();
       hit.position.set(x, 105);
-      hit.eventMode = 'static';
-      hit.cursor = 'pointer';
-      const g = new Graphics();
-      g.rect(0, 0, 55, 65).fill({ alpha: 0 });
-      hit.addChild(g);
-      hit.on('pointertap', () => {
-        this.mapIndex = (this.mapIndex + dir + entries.length) % entries.length;
-        audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版地图轮盘翻页音
-        this.showMapPic(pic, entries);
-      });
+      if (interactive) {
+        hit.eventMode = 'static';
+        hit.cursor = 'pointer';
+        hit.on('pointertap', () => {
+          this.mapIndex = (this.mapIndex + dir + entries.length) % entries.length;
+          audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版地图轮盘翻页音
+          this.showMapPic(pic, entries);
+          if (net) this.sendMapPickSafe(this.currentMapKey());
+        });
+      }
       panel.addChild(hit);
     };
     mkHit(5, -1); // 左箭头（PNG x≈18..57）
@@ -1107,6 +1202,120 @@ export class SetupScene implements Scene {
     if (this.mapNameLabel) this.mapNameLabel.text = e.name;
   }
 
+  // ---------- 地图开箱抽取（切片 36，netplay-design §8） ----------
+
+  /** 开箱抽取入口（两端同款）：种子未到先挂等待态，到即起播。 */
+  private renderMapRoll(): void {
+    if (this.flow.mapSeed == null) {
+      this.rollPending = true; // map-roll 到达后 onMapRoll 起播
+      if (this.status) this.status.text = '等待地图种子…';
+      return;
+    }
+    void this.startMapRoll(this.flow.mapSeed);
+  }
+
+  /** 起播：预载全部缩略图 → 组长条（地图序列重复 3 遍，定格实例取中段）→
+   *  update 按 easeInOutQuint 推进行程，定格高亮 holdMs 后两端各自进加载页。 */
+  private async startMapRoll(seed: number): Promise<void> {
+    const maps = this.select!.maps;
+    const token = this.loadToken;
+    const target = maps[Math.abs(Math.trunc(seed)) % maps.length]!;
+    if (this.status) this.status.text = '地图抽取中…';
+    // 缩略图全量预载（两端同 select 数据 → 同图集，动画后帧一致）
+    const texs = await Promise.all(
+      maps.map((m) => Assets.load<Texture>(`${ASSETS}/${this.uiData!.maps.dir}/${m.id}.png`)),
+    );
+    if (this.destroyedFlag || token !== this.loadToken || this.phase !== 'map') return;
+
+    const CELL_W = 300;
+    const CELL_H = 160;
+    const STRIDE = CELL_W + 24;
+    const CY = 300;
+    const CX = OX + STAGE_W / 2;
+    const targetCell = maps.length + Math.abs(Math.trunc(seed)) % maps.length; // 中段实例
+
+    // 裁剪：长条只露舞台区（滚出舞台外的格子不可见）
+    const mask = new Graphics();
+    mask.rect(OX, CY - 130, STAGE_W, 260).fill({ color: 0xffffff });
+    const strip = new Container();
+    strip.mask = mask;
+    for (let i = 0; i < maps.length * 3; i++) {
+      const k = i % maps.length;
+      const sp = new Sprite(texs[k]!);
+      sp.width = CELL_W;
+      sp.height = CELL_H;
+      sp.position.set(i * STRIDE, 0);
+      strip.addChild(sp);
+    }
+    strip.position.set(0, CY - CELL_H / 2);
+    this.phaseRoot!.addChild(mask, strip);
+
+    // 中央高亮框 + 居中项名牌（复用地图轮盘名牌位）
+    const frame = new Graphics();
+    frame
+      .rect(CX - CELL_W / 2 - 6, CY - CELL_H / 2 - 6, CELL_W + 12, CELL_H + 12)
+      .stroke({ width: 4, color: 0xffd54f, alpha: 0.95 });
+    this.phaseRoot!.addChild(frame);
+    const [tx, ty] = this.uiData!.select.mapTextPos;
+    const label = new Text('', {
+      fontFamily: 'system-ui, "Microsoft YaHei", sans-serif',
+      fontSize: 14,
+      fill: 0xffffff,
+      stroke: { color: 0x000000, width: 2 },
+    });
+    label.anchor.set(0.5, 0);
+    label.position.set(OX + tx + 183 / 2, ty + 6);
+    this.phaseRoot!.addChild(label);
+
+    this.rollAnim = {
+      strip,
+      label,
+      // 起步第 1 格居中 → 定格目标格居中（行程穿过整圈 + 目标位，~4.4k px）
+      startX: CX - CELL_W / 2 - STRIDE,
+      dist: -(targetCell - 1) * STRIDE,
+      startAt: performance.now(),
+      travelMs: 3400,
+      holdMs: 800,
+      stride: STRIDE,
+      cellW: CELL_W,
+      target,
+      maps,
+      finished: false,
+    };
+  }
+
+  /** 缓动：easeInOutQuint——起步加速、中段高速、长尾滑入停框（规格 §8 分段的
+   *  单段近似；登记偏离：分段边界不逐一复刻，总时长 ~4.2s 吻合"约 4 秒"）。 */
+  private static readonly quintInOut = (u: number): number =>
+    u < 0.5 ? 16 * u ** 5 : 1 - (-2 * u + 2) ** 5 / 2;
+
+  /** 滚动推进（update 调用）：行程结束定格，holdMs 计满播确认音并移交加载页。 */
+  private tickRoll(now: number): void {
+    const r = this.rollAnim;
+    if (!r || r.finished) return;
+    const cx = OX + STAGE_W / 2;
+    const t = now - r.startAt;
+    if (t <= r.travelMs) {
+      const u = Math.max(0, Math.min(1, t / r.travelMs));
+      const x = r.startX + r.dist * SetupScene.quintInOut(u);
+      r.strip.x = x;
+      // 名牌随居中项更新（strip 内 index → maps 序取模）
+      const i = Math.round((cx - r.cellW / 2 - x) / r.stride);
+      const m = r.maps[((i % r.maps.length) + r.maps.length) % r.maps.length];
+      r.label.text = m?.name ?? '';
+    } else {
+      r.strip.x = r.startX + r.dist; // 定格：目标格居中
+      r.label.text = r.target.name;
+    }
+    if (t >= r.travelMs + r.holdMs) {
+      r.finished = true;
+      audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim（定格确认音）
+      if (this.status) this.status.text = `地图：${r.target.name}`;
+      this.flow.mapId = r.target.id;
+      this.gotoLoading(); // 两端时长确定性一致，各自独立移交（无需握手）
+    }
+  }
+
   // ---------- 交换与开打 ----------
 
   /** 单机确认时的最终选人（随机项此时解析；联机在锁定时已解析）。 */
@@ -1143,6 +1352,8 @@ export class SetupScene implements Scene {
 
   update(dtMs: number): void {
     tickTweens(dtMs);
+    // 开箱抽取滚动推进（切片 36；定格后移交加载页，本场景 done 退出）
+    this.tickRoll(performance.now());
     // 联机 3s 重发兜底（覆盖语义幂等；对端收齐后进下一阶段，残余重发无害）：
     // 选人阶段（含地图等待）重发累计锁定，交换中重发最终 pick（含地图）
     if (this.flow.mode === 'net' && this.socket && !this.done && !this.netDead) {
@@ -1159,6 +1370,8 @@ export class SetupScene implements Scene {
     this.destroyedFlag = true;
     this.loadToken++;
     this.ctxRef = null;
+    this.rollAnim = null;
+    this.rollPending = false;
     window.removeEventListener('keydown', this.onKeyLocal);
     for (const id of this.timers) window.clearTimeout(id);
     this.timers.length = 0;
