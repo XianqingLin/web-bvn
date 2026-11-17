@@ -58,7 +58,7 @@
 | 34 | 联机房间流：房间语义协议 + 房间页 + 方案 A 遗留处置 | ✅ | §三；§4.4 / [netplay-design.md](netplay-design.md) |
 | 35 | 联机房间流：选人页双光标（cursor 同步/选中即锁/团队 3+1）+ 对局侧 3+1 装配（尾巴） | ✅ | §三；§4.4 |
 | 36 | 联机房间流：地图阶段（房主选择 / 开箱抽取 + 服务器权威种子） | ✅ | §4.4 |
-| 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ⬜ | §4.4 |
+| 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ✅ | §4.4 |
 | 38 | 联机房间流：平台接缝（身份凭证/邀请深链/资料接入） | ⬜ | §4.4 |
 | 39 | 本地双人：主菜单 LOCAL PLAY 入口（1v1/团队子菜单）+ 选人页双键盘双光标 + 对局双键盘输入源 | ✅ | §三 |
 
@@ -108,6 +108,7 @@
 - **批次 41**（✅ 2026-11-17）本地双人实测三修：① 悬浮卡死——isApplyG:false 命中（白哉 tk 摔投/援助 atm1，全角色数据仅此二处）后 `recoverToNormal` 不复位 applyG → 空中受击计时恢复后重力门永久跳过悬浮卡死；修复 = recoverToNormal 恢复 `applyG=true`（原版 idle 链 setInAir 语义）；真实数据矩阵回归（byakuya 全招式 × 8 空中前置 → 落地回 idle）入 data/test/hurt-recovery.test.ts，core 另有合成回归；② 原版无惯性跳跃——起跳发射清 vx/dampX（原版 FighterMain.jump setVelocity(0,-jumpPower)；此前保留走跑 vx 致空中漂移 + 落地 labelLock 窗口无摩擦匀速滑行），批次 40"砍 3 位移"之滑行问题就此收口；③ 开场字样时机——INTRO_RESUME_TICKS 6→30（偏离登记：原版 0.1s 后字样即出，移植版镜头 3.5→1 缓动 ~0.5s，30 tick 让镜头回正再出字样）；另查明原版无 Round/Fight 播报语音（swc 资源仅有角色开场台词，移植版已播）。sim 变更，batch 基线 + ichigo-duel/intro-duel replay 基线重冻。
 - **批次 42**（✅ 2026-11-17）空中硬直恢复落地滞留 跳中：空中被打（硬直）计时在空中走完 → `recoverToNormal` 空中分支回 NORMAL+跳中 → 落地时 `onLanded` 状态门只认 JUMP_ING、无人接管 → 滞留 跳中（循环标签，endAction 不可达）：浮空姿势定格 + 行走门（站立/走 标签族）失效；修复 = `onLanded` 增按空中姿势标签（起跳/跳中/落，isAirPose）识别空中恢复落地，同走落地恢复分支（槽/jumpTimes/airHitTimes 重填）。回归 2 条入 core hurt-recovery.test.ts。新行为仅命中新场景：9 剧本 replay 哈希 + batch 基线零漂移复跑确认（无需重冻）。
 - **切片 36**（✅ 2026-11-17）地图阶段：① 服务器——begin 广播 start/room-info 后追加 map-roll { seed }（权威种子，randomInt(1,2³¹)；不区分 randomMap 设置恒发）；② flow 增 randomMap（room-info 快照随 team 同步）与 mapSeed（map-roll 到达写入；solo/local enter 时清残留）；③ 选人页地图阶段分流——**房主选择**：房主轮盘每次切换 map-pick 广播（随机项广播键 'random'，确认仍走 pick.map 房主侧解析），客座渲染同款只读轮盘实时跟随；**开箱抽取**：两端播同一动画（缩略图长条 = 地图序列×3，行程 easeInOutQuint ~3.4s + 定格高亮 0.8s ≈ 4.2s，偏离登记：单段缓动近似规格分段），定格 = maps[|seed|%n]，不可跳过/重抽，定格后两端各自独立进加载页（时长确定性一致，无需握手）；④ 种子进 configHash——battle spawnSim 与 hello 指纹改用 flow.mapSeed ?? 1（net 端双端一致；solo/local 恒 1，replay/batch 基线不动）。server 12 单测（map-roll 同种子断言 + map-pick 透传）。规格：netplay-design §8 实现定案段。
+- **切片 37**（✅ 2026-11-17）匹配队列 + 浏览房间 + VS 横幅：① 服务器——per-连接状态由闭包变量改记录对象（配对需跨连接写槽位）；queue 入队满 2 即配对（FIFO 序定 P1/P2）、unqueue/掉线/自行入房出队；**配对即开局**（偏离登记：原定"matched 后走 create/join 等价路径"收敛为服务器直接开房置开局段——双方同一条连接收 matched+start，免房间页/准备门，少两轮 ready/begin 往返）；matched { room, player, team:true, seed, opponent:{name} }（seed 即权威抽取种子兼 sim seed，匹配路径无独立 map-roll）；list-rooms 轮询 → room-list { room, host, team, joinable, started }（公开房快照，started 区分已满/已开局）；② app——net-common.ts 抽提服务器地址行/建连/昵称助手（NetScene 收敛为创建+房码加入页）；MatchScene（随机匹配页：待机 → 匹配中按钮 + 红 ✕ 滑出一次点击取消 → VS 横幅（buildVsBanner 导出复用，头像暂以位次色块占位——平台头像归切片 38）→ 横幅满 2.5s 且 start 到达移交选人页；断线/对端掉线 → "连接失败，正在重新匹配" 1.2s 自动重连重排，横幅期 ✕ 仍可取消）；BrowseScene（浏览房间页：2.5s 轮询 + 行点击加入，加入失败恢复泵轮询，错误码原样提示）；菜单 NET PLAY 子菜单 4 项（创建/浏览/随机匹配/加入房间——房码入口保留作私人房与切片 38 邀请深链兜底）；dev 直通 ?mode=match / ?mode=browse。③ server 18 单测（配对种子/位次/固定 team、退队与掉线出队、列表过滤、在房 queue 忽略；测试助手修复：next 超时残留死 waiter 吞后续消息）。SIM 零改动：replay 9 剧本 + batch 基线零漂移复跑确认。规格：netplay-design §6/§9 实现定案段。
 
 ---
 
@@ -148,7 +149,7 @@
 | 34 | 房间语义协议 + 房间页：room-server.mjs 扩展（room-info/ready/room-config/begin/掉线清理）+ NetMessage 词表扩展 + app RoomScene（房主常备/客座准备切换/开始门/公开-随机地图-团队三项设置/房间码/邀请操作占位）+ **方案 A 遗留处置**（NetScene 回自有服务器路径，platform.ts 回退或改造为凭证接缝） | ✅（2026-11-17） |
 | 35 | 联机选人页：SetupScene 双光标（cursor 消息同步/双色框/选中即锁/双方齐套本地推导推进/团队模式 3 选 + 1 援助/同角色允许）+ pick 按次序累计语义 + **对局侧 3+1 装配（尾巴）**：sim teams 装配/回合结束换人/终局流转 + render roster id-swap + HUD 换脸 | ✅（2026-11-17） |
 | 36 | 地图阶段：房主选择（map-pick 实时广播、客座只读）+ 开箱抽取（map-roll 服务器权威种子、~4s 动画、不可跳过/重抽、种子进 configHash） | ✅（2026-11-17） |
-| 37 | 匹配与浏览：服务器匹配队列（queue/unqueue/matched）+ 公开房间列表轮询（list-rooms/room-list）+ app 匹配 UI（"匹配中" + 红 ✕ 取消）+ 浏览房间页 + VS 横幅（下限 2.5s、上限以建连就绪为准） | ⬜ |
+| 37 | 匹配与浏览：服务器匹配队列（queue/unqueue/matched）+ 公开房间列表轮询（list-rooms/room-list）+ app 匹配 UI（"匹配中" + 红 ✕ 取消）+ 浏览房间页 + VS 横幅（下限 2.5s、上限以建连就绪为准） | ✅（2026-11-17） |
 | 38 | 平台接缝：身份凭证服务器侧验证 + 邀请深链进房 + 平台昵称/头像资料接入（netplay-design §11 对齐点收口；凭证未定前按结构子集 duck typing 留接缝） | ⬜ |
 
 固定属性：匹配默认**团队模式开启 + 强制随机地图**。异常流按 netplay-design §10 随对应切片实现（对局中掉线判负归 §4.3 块 1）。
@@ -169,6 +170,6 @@
 
 ## 五、下一步（按优先级）
 
-1. **联机房间流切片 37**（§4.4）——匹配与浏览：服务器匹配队列 + 公开房间列表轮询 + 匹配 UI + VS 横幅；
-2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程（含切片 36 地图阶段）公网验收；
+1. **联机房间流切片 38**（§4.4）——平台接缝：身份凭证服务器侧验证 + 邀请深链进房 + 平台昵称/头像资料接入（VS 横幅头像占位在此收口）；
+2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程（房间/匹配全链，含切片 36 地图阶段与切片 37 匹配）公网验收；
 3. 阶段 4 余块（断线判负/录像/观战/街机）按 §4.3 顺序推进，开工前细化登记 §二。

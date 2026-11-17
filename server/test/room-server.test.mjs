@@ -45,7 +45,12 @@ function client(port) {
   });
   const next = (timeout = 2000) =>
     new Promise((res, rej) => {
-      const timer = setTimeout(() => rej(new Error('等待消息超时')), timeout);
+      const timer = setTimeout(() => {
+        // 超时必须摘除 waiter：残留的死 waiter 会吞掉后续消息（切片 37 测试教训）
+        const i = waiters.indexOf(deliver);
+        if (i >= 0) waiters.splice(i, 1);
+        rej(new Error('等待消息超时'));
+      }, timeout);
       const deliver = (msg) => {
         clearTimeout(timer);
         res(msg);
@@ -359,4 +364,233 @@ test('昵称清洗：trim + 截断 + 空回退', async () => {
   assert.equal(names[2], 'a'.repeat(20));
   host.ws.close();
   guest.ws.close();
+});
+
+// ---------- 切片 37：匹配队列 + 浏览列表 ----------
+
+test('queue×2 → matched（同房/位次/固定 team/权威 seed）+ start，hello 收齐开跑', async () => {
+  const port = await serverPort(proc);
+  const a = client(port);
+  await a.open;
+  a.send({ t: 'queue', name: '甲' });
+  const b = client(port);
+  await b.open;
+  b.send({ t: 'queue', name: '乙' });
+
+  const ma = await a.expect('matched');
+  const mb = await b.expect('matched');
+  assert.equal(ma.room, mb.room);
+  assert.equal(ma.player, 1);
+  assert.equal(mb.player, 2);
+  assert.equal(ma.team, true); // 匹配固定团队模式
+  assert.ok(ma.seed >= 1 && ma.seed < 2 ** 31);
+  assert.equal(mb.seed, ma.seed); // 同一颗权威种子
+  assert.equal(ma.opponent.name, '乙');
+  assert.equal(mb.opponent.name, '甲');
+
+  // 免房间页：matched 后直接 start（开局段），hello 收齐再 start（开跑段）
+  await a.expect('start');
+  await b.expect('start');
+  a.send({ t: 'hello', player: 1, configHash: 'x' });
+  assert.equal((await b.next()).t, 'hello');
+  b.send({ t: 'hello', player: 2, configHash: 'x' });
+  assert.equal((await a.next()).t, 'hello');
+  await a.expect('start');
+  await b.expect('start');
+
+  // 对局类透传照常
+  a.send({ t: 'input', tick: 3, mask: 1 });
+  assert.deepEqual(await b.expect('input'), { t: 'input', tick: 3, mask: 1 });
+
+  // matched 房即已开局：第三者 join 被拒（复用 room-full）
+  const probe = client(port);
+  await probe.open;
+  probe.send({ t: 'join', room: ma.room });
+  assert.equal((await probe.expect('error')).code, 'room-full');
+  await probe.closed();
+
+  a.ws.close();
+  b.ws.close();
+});
+
+test('matched 房一方掉线 → 对方 peer-lost（开局段即解散）', async () => {
+  const port = await serverPort(proc);
+  const a = client(port);
+  await a.open;
+  a.send({ t: 'queue', name: '甲' });
+  const b = client(port);
+  await b.open;
+  b.send({ t: 'queue', name: '乙' });
+  await a.expect('matched');
+  await b.expect('matched');
+  await a.expect('start');
+  await b.expect('start');
+
+  b.ws.close();
+  const lost = await a.expect('peer-lost');
+  assert.equal(lost.t, 'peer-lost');
+  a.ws.close();
+});
+
+test('unqueue 退队：不配对，重新排队后可配对', async () => {
+  const port = await serverPort(proc);
+  const noMatch = async (c) => {
+    await assert.rejects(() => c.next(150), /超时/);
+  };
+  const a = client(port);
+  await a.open;
+  a.send({ t: 'queue', name: '甲' });
+  await noMatch(a); // 独自排队不配对
+
+  a.send({ t: 'unqueue' });
+  await new Promise((r) => setTimeout(r, 50));
+
+  // 退队后有人入队也不会拉回甲
+  const c = client(port);
+  await c.open;
+  c.send({ t: 'queue', name: '丙' });
+  await noMatch(c);
+
+  // 甲重新排队 → 立即与丙配对
+  a.send({ t: 'queue', name: '甲' });
+  const ma = await a.expect('matched');
+  const mc = await c.expect('matched');
+  assert.equal(ma.opponent.name, '丙');
+  assert.equal(ma.player, 2); // 丙先入队 → 丙 P1 / 甲 P2（FIFO 配对序）
+  assert.equal(mc.player, 1);
+  await a.expect('start');
+  await c.expect('start');
+  a.ws.close();
+  c.ws.close();
+});
+
+test('排队中掉线：静默出队，其余人可继续配对', async () => {
+  const port = await serverPort(proc);
+  const a = client(port);
+  await a.open;
+  a.send({ t: 'queue', name: '甲' });
+  const b = client(port);
+  await b.open;
+  b.send({ t: 'queue', name: '乙' });
+  await a.expect('matched'); // 先正常配对一次，验证队列干净
+  await b.expect('matched');
+  await a.expect('start');
+  await b.expect('start');
+  a.ws.close();
+  b.ws.close();
+
+  // 排队后掉线，不阻塞后续配对
+  const c = client(port);
+  await c.open;
+  c.send({ t: 'queue', name: '丙' });
+  c.ws.close();
+  await new Promise((r) => setTimeout(r, 50));
+
+  const d = client(port);
+  await d.open;
+  d.send({ t: 'queue', name: '丁' });
+  const e = client(port);
+  await e.open;
+  e.send({ t: 'queue', name: '戊' });
+  const md = await d.expect('matched');
+  await e.expect('matched');
+  assert.equal(md.opponent.name, '戊');
+  d.ws.close();
+  e.ws.close();
+});
+
+test('list-rooms：只列公开房（私人房不出现），joinable 反映满员/开局', async () => {
+  const port = await serverPort(proc);
+  const watcher = client(port);
+  await watcher.open;
+
+  // 无房
+  watcher.send({ t: 'list-rooms' });
+  assert.deepEqual((await watcher.expect('room-list')).rooms, []);
+
+  // 公开房出现（空位可加入）
+  const host = client(port);
+  await host.open;
+  host.send({ t: 'create', name: '房主' });
+  await host.expect('welcome');
+  await host.expect('room-info');
+  host.send({ t: 'room-config', settings: { public: true, team: true } });
+  await host.expect('room-info');
+  watcher.send({ t: 'list-rooms' });
+  let list = (await watcher.expect('room-list')).rooms;
+  assert.equal(list.length, 1);
+  assert.equal(list[0].host, '房主');
+  assert.equal(list[0].team, true);
+  assert.equal(list[0].joinable, true);
+
+  // 私人房不出现
+  const priv = client(port);
+  await priv.open;
+  priv.send({ t: 'create', name: '私人' });
+  await priv.expect('welcome');
+  await priv.expect('room-info');
+  watcher.send({ t: 'list-rooms' });
+  list = (await watcher.expect('room-list')).rooms;
+  assert.equal(list.length, 1);
+
+  // 满员 → joinable=false
+  const guest = client(port);
+  await guest.open;
+  guest.send({ t: 'join', room: list[0].room, name: '客' });
+  await guest.expect('welcome');
+  await guest.expect('room-info');
+  await host.expect('room-info');
+  watcher.send({ t: 'list-rooms' });
+  list = (await watcher.expect('room-list')).rooms;
+  assert.equal(list.length, 1);
+  assert.equal(list[0].joinable, false);
+
+  // 开局 → joinable=false
+  guest.send({ t: 'ready', ready: true });
+  await guest.expect('room-info');
+  await host.expect('room-info');
+  host.send({ t: 'begin' });
+  await host.expect('start');
+  watcher.send({ t: 'list-rooms' });
+  list = (await watcher.expect('room-list')).rooms;
+  assert.equal(list.length, 1);
+  assert.equal(list[0].joinable, false);
+
+  watcher.ws.close();
+  host.ws.close();
+  guest.ws.close();
+});
+
+test('在房时 queue 被忽略；create/join 会出队', async () => {
+  const port = await serverPort(proc);
+  // 已在房的连接 queue → 不进队列
+  const host = client(port);
+  await host.open;
+  host.send({ t: 'create', name: '房主' });
+  await host.expect('welcome');
+  await host.expect('room-info');
+  host.send({ t: 'queue', name: '房主' });
+  const other = client(port);
+  await other.open;
+  other.send({ t: 'queue', name: '乙' });
+  await new Promise((r) => setTimeout(r, 50));
+  // 房主在房未配对；乙独占队列等下一个
+  const third = client(port);
+  await third.open;
+  third.send({ t: 'queue', name: '丙' });
+  const mo = await other.expect('matched');
+  assert.equal(mo.opponent.name, '丙');
+  other.ws.close();
+  third.ws.close();
+
+  // 排队后 create → 出队（乙若仍在队会配给后续，这里直接验证 create 成功即可）
+  const q = client(port);
+  await q.open;
+  q.send({ t: 'queue', name: '丁' });
+  await new Promise((r) => setTimeout(r, 20));
+  q.send({ t: 'create', name: '丁' });
+  const w = await q.expect('welcome');
+  assert.match(w.room, /^[A-Z2-9]{4}$/);
+  q.ws.close();
+  host.ws.close();
 });

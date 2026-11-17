@@ -25,6 +25,8 @@ import { ASSETS, loadUi, type UiData } from '../data.js';
 import { FrameStream } from './stream.js';
 import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
+import { BrowseScene } from './browse.js';
+import { MatchScene } from './match.js';
 
 /** 原版 MainGame.VERSION 同位常量（仓库无版本管线，发布时更新）。 */
 const VERSION = 'BVN Web v0.0.0';
@@ -359,6 +361,22 @@ export class MenuScene implements Scene {
             action: () => {
               this.flow.mode = 'net';
               this.switchTo?.(new NetScene(this.flow, { action: 'create' }));
+            },
+          },
+          {
+            en: 'BROWSE ROOMS',
+            cn: '浏览房间',
+            action: () => {
+              this.flow.mode = 'net';
+              this.switchTo?.(new BrowseScene(this.flow));
+            },
+          },
+          {
+            en: 'QUICK MATCH',
+            cn: '随机匹配',
+            action: () => {
+              this.flow.mode = 'net';
+              this.switchTo?.(new MatchScene(this.flow));
             },
           },
           {

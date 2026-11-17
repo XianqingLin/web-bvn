@@ -110,6 +110,23 @@ export function sendBegin(socket: WsLike): void {
   socket.send(JSON.stringify({ t: 'begin' }));
 }
 
+// ---------- 匹配与浏览客户端助手（切片 37） ----------
+
+/** 加入匹配队列（服务器两两配对 → matched + start；在房/已排队时忽略）。 */
+export function sendQueue(socket: WsLike, name?: string): void {
+  socket.send(JSON.stringify({ t: 'queue', name }));
+}
+
+/** 退出匹配队列。 */
+export function sendUnqueue(socket: WsLike): void {
+  socket.send(JSON.stringify({ t: 'unqueue' }));
+}
+
+/** 请求公开房间列表（浏览页轮询）。 */
+export function sendListRooms(socket: WsLike): void {
+  socket.send(JSON.stringify({ t: 'list-rooms' }));
+}
+
 /** 发送本端选人结果（服务器透传给对端）。累计锁定与最终结果共用本消息。 */
 export function sendPick(socket: WsLike, player: PlayerSlot, pick: PickInfo): void {
   socket.send(JSON.stringify({ t: 'pick', player, ...pick }));

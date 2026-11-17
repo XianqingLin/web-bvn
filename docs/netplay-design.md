@@ -72,6 +72,13 @@ Menu → **Matchmaking（匹配中）** → VS 横幅 → SelectFighter → …
   - 该横幅同时复用为对局前 VS 预告画面。
 - **建连失败**：提示"连接失败，正在重新匹配"，自动回到匹配中状态继续排队（用户可随时 ✕ 取消）。
 
+实现定案（2026-11-17，切片 37）：
+
+- **配对即开局**（偏离本节上文"matched 后双方以房间码走 create/join 等价路径"）：服务器配对时直接开好房间并置为开局段，双方在同一条连接上收 `matched` + `start`——免房间页/准备门，少两轮 ready/begin 往返；房间机器完全共用（hello 收齐仍发第二段 start 开跑）。偏离理由：排队双方连接已在手，重走 join 是纯开销。
+- **种子随 matched 携带**：`matched { seed }` 即权威种子（兼作 sim seed，进 configHash），匹配路径无独立 map-roll 消息；matched 固定 `team: true`。
+- **VS 横幅头像**暂以位次色块占位（P1 蓝/P2 粉，同选人页色族）——平台头像资料接入归切片 38；横幅构建函数导出复用（对局前预告）。
+- **浏览列表快照字段**：`room-list { room, host, team, joinable, started }`——joinable=false 时以 started 区分"已满/已开局"展示。
+
 ## 7. 选人与援助（联机版双光标）
 
 机制**复刻原版本地双人**（`SelectFighterStage.initSelecter`：`isVsPeople()` 时 P1/P2 光标同时存在、各自操作、互不阻塞），从"同一台键盘"搬到"两台客户端"：
@@ -120,9 +127,9 @@ Menu → **Matchmaking（匹配中）** → VS 横幅 → SelectFighter → …
   room-info     服务器 → 房内成员：成员昵称/准备状态/设置快照（入房即发，变更即发）
   ready         客座 → 服务器：准备状态切换 { ready: boolean }
   begin         房主 → 服务器：请求开始；服务器校验客座已准备 → 广播 start
-  list-rooms / room-list   浏览列表请求/应答（轮询）
+  list-rooms / room-list   浏览列表请求/应答（轮询；快照 { room, host, team, joinable, started }）
   queue / unqueue          加入/退出匹配队列
-  matched       服务器 → 双方：匹配成功 { room, opponent: {id, name}, team, seed }，随后走建房入房常规流程
+  matched       服务器 → 双方：匹配成功 { room, player, team, seed, opponent: { name } }，随后直接 start（切片 37 实现定案：配对即开局，见 §6）
 
 UI 同步（透传给对端）
   cursor        选人/援助阶段光标位置 { stage: 'fighter'|'assist', idx, player }
@@ -136,7 +143,7 @@ UI 同步（透传给对端）
 - `input/hash/peer-lost` 与对局期语义**零改动**；
 - `seed`（开箱地图、以及既有对局 seed）统一由服务器权威生成，进 `configHash`；
 - 团队模式 roster 进 `configHash`（切片 35 尾巴）：hello 的 `configHash` 覆盖出场序 roster id 表——两端由同一累计选人 flow 装配，序天然一致，不一致即开局报错而非中途失步；
-- 匹配成功后"建连"复用建房/入房流程（`matched` → 双方以房间码走 create/join 等价路径），不另起一套连接。
+- 匹配成功后"建连"复用建房/入房的同一套房间机器（不另起一套连接；2026-11-17 切片 37 定案：服务器配对即装配开局段，见 §6 实现定案）。
 
 ## 10. 异常流（定案）
 

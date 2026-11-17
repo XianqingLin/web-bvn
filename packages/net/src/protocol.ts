@@ -1,10 +1,9 @@
 /**
- * lockstep + 房间协议（切片 6/7 基础；切片 34 房间语义扩展）。
+ * lockstep + 房间协议（切片 6/7 基础；切片 34 房间语义扩展；切片 37 匹配与浏览）。
  * 服务器解析连接编排与房间语义（create/join/welcome/room-info/room-config/
- * ready/begin/hello/start/error），UI 同步类（cursor/map-pick）与对局类
- * （input/hash/pick）原样透传给同房间对端，不解析。
- *
- * 匹配队列词表（queue/unqueue/matched/list-rooms/room-list）归切片 37，届时补充。
+ * ready/begin/hello/start/error）与匹配语义（queue/unqueue/matched/list-rooms/
+ * room-list），UI 同步类（cursor/map-pick）与对局类（input/hash/pick）原样
+ * 透传给同房间对端，不解析。
  */
 import { fnv1a, stableStringify, type ButtonMask } from '@bvn/core';
 
@@ -44,11 +43,39 @@ export interface RoomMemberInfo {
   ready: boolean;
 }
 
+// ---------- 匹配与浏览（切片 37，netplay-design §5/§6/§9） ----------
+
+/** room-list 的房间条目（公开房间快照；轮询应答）。 */
+export interface RoomListEntry {
+  /** 房间码 */
+  room: string;
+  /** 房主昵称 */
+  host: string;
+  /** 团队模式标记 */
+  team: boolean;
+  /** 可加入（未开局且未满员） */
+  joinable: boolean;
+  /** 已开局（joinable=false 时区分"已满/已开局"展示用） */
+  started: boolean;
+}
+
 export type NetMessage =
   /** 客户端 → 服务器：创建房间（成为 P1）。name = 显示昵称 */
   | { t: 'create'; name?: string }
   /** 客户端 → 服务器：加入房间（成为 P2）。已开局房间拒绝（复用 room-full） */
   | { t: 'join'; room: string; name?: string }
+  /** 客户端 → 服务器：加入匹配队列（排队满 2 人即配对）；在房/已排队时忽略 */
+  | { t: 'queue'; name?: string }
+  /** 客户端 → 服务器：退出匹配队列 */
+  | { t: 'unqueue' }
+  /** 客户端 → 服务器：公开房间列表请求（浏览页轮询） */
+  | { t: 'list-rooms' }
+  /** 服务器 → 客户端：匹配成功。房间已由服务器开好并直接置为开局段
+   *  （免房间页/准备门——匹配固定 team=true + 随机地图），start 紧随其后；
+   *  seed = 权威抽取种子（兼作 sim seed，进 configHash，切片 36 语义） */
+  | { t: 'matched'; room: string; player: PlayerSlot; team: boolean; seed: number; opponent: { name: string } }
+  /** 服务器 → 客户端：公开房间列表快照（list-rooms 的应答） */
+  | { t: 'room-list'; rooms: RoomListEntry[] }
   /** 服务器 → 客户端：入房成功，分配位次与房间号 */
   | { t: 'welcome'; player: PlayerSlot; room: string }
   /** 服务器 → 客户端：入房失败（room-not-found / room-full），随后关闭连接；

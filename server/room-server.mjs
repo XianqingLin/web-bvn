@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * 房间服务器（切片 7 基础；切片 34 房间语义扩展）。只做房间编排与输入中继，不跑模拟。
+ * 房间服务器（切片 7 基础；切片 34 房间语义扩展；切片 37 匹配队列与浏览列表）。
+ * 只做房间编排与输入中继，不跑模拟。
  *
  * 职责：
  *   1. create/join（带昵称）→ 分配位次入房，welcome + room-info 快照；
@@ -13,7 +14,13 @@
  *   4. UI 同步类（cursor/map-pick）与对局类（input/hash/pick）原样透传给对端；
  *   5. 权威种子（切片 36，netplay-design §8/§9）：begin 时生成随机种子并广播
  *      map-roll，两端共享——开箱抽取动画的定格结果与对局 sim seed 都由它解析；
- *   6. 断线清理（netplay-design.md §10）：
+ *   6. 匹配队列（切片 37，netplay-design §6/§9）：queue 入队，满 2 即配对——
+ *      服务器开好房间并直接置为开局段（免房间页/准备门，匹配固定
+ *      team=true + 随机地图），双方收 matched（含权威 seed）+ start；
+ *      unqueue 退队；掉线自动出队；已配对的种子兼作 sim seed 进 configHash；
+ *   7. 浏览列表（切片 37，netplay-design §5）：list-rooms 轮询 → room-list
+ *      快照（公开房：房主昵称/团队标记/可加入状态），服务器不做主动推送；
+ *   8. 断线清理（netplay-design.md §10）：
  *      - 未开局客座掉线 → 房间保留，房主收 peer-lost + room-info，可继续等待/邀请；
  *      - 房主掉线或已开局后任何一方掉线 → 房间解散（peer-lost，房码失效）；
  *      - 已开局房间拒绝 join（复用 room-full），无重连。
@@ -41,6 +48,18 @@ function cleanName(raw, slot) {
   return s || `玩家${slot}`;
 }
 
+/**
+ * 每连接状态（切片 37 由闭包变量改为记录对象：匹配配对要跨连接写槽位）。
+ * @type {{
+ *   ws: import('ws').WebSocket,
+ *   room: ReturnType<typeof newRoom> | null,
+ *   player: 0 | 1 | 2,
+ *   queued: boolean,
+ *   queueName: string,
+ * }}
+ */
+// （类型仅为注释说明；运行时是普通对象）
+
 /** @type {Map<string, {
  *   id: string,
  *   players: Map<number, import('ws').WebSocket>,
@@ -52,6 +71,9 @@ function cleanName(raw, slot) {
  *   dead: boolean,
  * }>} */
 const rooms = new Map();
+
+/** 匹配队列（FIFO，存每连接记录；满 2 即配对，切片 37）。 @type {object[]} */
+const matchQueue = [];
 
 function send(ws, msg) {
   if (ws.readyState === 1) ws.send(JSON.stringify(msg));
@@ -81,6 +103,22 @@ function broadcastRoomInfo(room) {
   for (const p of room.players.values()) send(p, roomInfoMsg(room));
 }
 
+/** 公开房间快照（浏览列表；started 房也列出但 joinable=false，§5 可加入/已满状态）。 */
+function roomListMsg() {
+  const list = [];
+  for (const room of rooms.values()) {
+    if (room.dead || !room.settings.public) continue;
+    list.push({
+      room: room.id,
+      host: room.names.get(1) ?? '玩家1',
+      team: room.settings.team,
+      joinable: !room.started && room.players.size < 2,
+      started: room.started,
+    });
+  }
+  return { t: 'room-list', rooms: list };
+}
+
 /** 解散房间：通知剩余成员后销毁，房码失效（their ws 之后 close 不再处理）。 */
 function dissolve(room) {
   room.dead = true;
@@ -89,11 +127,66 @@ function dissolve(room) {
   room.players.clear();
 }
 
+/** 出队（掉线/unqueue/自行入房共用）。 */
+function unqueue(conn) {
+  if (!conn.queued) return;
+  conn.queued = false;
+  const i = matchQueue.indexOf(conn);
+  if (i >= 0) matchQueue.splice(i, 1);
+}
+
+/**
+ * 配对（切片 37）：出队两个存活连接 → 开房并直接置为开局段。
+ * 匹配固定属性（netplay-design §6）：team=true + randomMap=true，不提供选项；
+ * 免房间页/准备门（偏离登记：设计稿"matched 后走 create/join 等价路径"收敛为
+ * 服务器直接装配——同一条连接、同一套房间机器，少两轮 ready/begin 往返）。
+ */
+function matchPair() {
+  for (let i = matchQueue.length - 1; i >= 0; i--) {
+    if (matchQueue[i].ws.readyState !== 1) {
+      matchQueue[i].queued = false;
+      matchQueue.splice(i, 1);
+    }
+  }
+  while (matchQueue.length >= 2) {
+    const a = matchQueue.shift();
+    const b = matchQueue.shift();
+    a.queued = false;
+    b.queued = false;
+    const room = {
+      id: newRoomCode(rooms),
+      players: new Map([
+        [1, a.ws],
+        [2, b.ws],
+      ]),
+      names: new Map([
+        [1, a.queueName],
+        [2, b.queueName],
+      ]),
+      ready: new Map(),
+      helloed: new Set(),
+      settings: { public: false, randomMap: true, team: true },
+      started: true, // 出生即开局段：matched → start 直进选人页
+      dead: false,
+    };
+    rooms.set(room.id, room);
+    a.room = room;
+    a.player = 1;
+    b.room = room;
+    b.player = 2;
+    const seed = randomInt(1, 2 ** 31); // 权威种子：兼作 sim seed（切片 36 语义）
+    const common = { t: 'matched', room: room.id, team: true, seed };
+    send(a.ws, { ...common, player: 1, opponent: { name: b.queueName } });
+    send(b.ws, { ...common, player: 2, opponent: { name: a.queueName } });
+    for (const ws of room.players.values()) send(ws, { t: 'start' });
+  }
+}
+
 const wss = new WebSocketServer({ port });
 
 wss.on('connection', (ws) => {
-  let room = null;
-  let player = 0;
+  /** 每连接记录（闭包内使用；跨连接访问仅发生在 matchPair 装配槽位处） */
+  const conn = { ws, room: null, player: 0, queued: false, queueName: '' };
 
   ws.on('message', (data) => {
     let msg;
@@ -102,11 +195,14 @@ wss.on('connection', (ws) => {
     } catch {
       return;
     }
+    const room = conn.room;
+    const player = conn.player;
     switch (msg.t) {
       case 'create': {
         if (room) return;
+        unqueue(conn); // 有了别的入房路径，不再参与匹配
         const id = newRoomCode(rooms);
-        room = {
+        const r = {
           id,
           players: new Map([[1, ws]]),
           names: new Map([[1, cleanName(msg.name, 1)]]),
@@ -116,14 +212,16 @@ wss.on('connection', (ws) => {
           started: false,
           dead: false,
         };
-        rooms.set(id, room);
-        player = 1;
-        send(ws, { t: 'welcome', player, room: id });
-        broadcastRoomInfo(room);
+        rooms.set(id, r);
+        conn.room = r;
+        conn.player = 1;
+        send(ws, { t: 'welcome', player: 1, room: id });
+        broadcastRoomInfo(r);
         break;
       }
       case 'join': {
         if (room) return;
+        unqueue(conn); // 有了别的入房路径，不再参与匹配
         const r = rooms.get(String(msg.room ?? '').trim().toUpperCase());
         if (!r) {
           send(ws, { t: 'error', code: 'room-not-found', message: `房间不存在：${msg.room}` });
@@ -138,10 +236,26 @@ wss.on('connection', (ws) => {
         }
         r.players.set(2, ws);
         r.names.set(2, cleanName(msg.name, 2));
-        room = r;
-        player = 2;
-        send(ws, { t: 'welcome', player, room: r.id });
+        conn.room = r;
+        conn.player = 2;
+        send(ws, { t: 'welcome', player: 2, room: r.id });
         broadcastRoomInfo(r);
+        break;
+      }
+      case 'queue': {
+        if (room || conn.queued) return; // 在房/已在队：忽略（幂等）
+        conn.queued = true;
+        conn.queueName = cleanName(msg.name, matchQueue.length + 1);
+        matchQueue.push(conn);
+        matchPair();
+        break;
+      }
+      case 'unqueue': {
+        unqueue(conn);
+        break;
+      }
+      case 'list-rooms': {
+        send(ws, roomListMsg());
         break;
       }
       case 'room-config': {
@@ -197,19 +311,21 @@ wss.on('connection', (ws) => {
         break;
       }
       default:
-        break; // welcome/error/start/room-info/map-roll 由服务器产生，客户端发来的一律忽略
+        break; // welcome/error/start/room-info/map-roll/matched/room-list 由服务器产生，客户端发来的一律忽略
     }
   });
 
   ws.on('close', () => {
+    unqueue(conn); // 排队中掉线：静默出队
+    const room = conn.room;
     if (!room || room.dead) return;
-    room.players.delete(player);
-    room.helloed.delete(player);
-    room.names.delete(player);
-    room.ready.delete(player);
-    // 已开局（begin 之后）任何一方掉线都解散；未开局只有房主掉线解散，
+    room.players.delete(conn.player);
+    room.helloed.delete(conn.player);
+    room.names.delete(conn.player);
+    room.ready.delete(conn.player);
+    // 已开局（begin/配对之后）任何一方掉线都解散；未开局只有房主掉线解散，
     // 客座掉线房间保留（房主收 peer-lost + room-info，可继续等待/邀请）
-    if (player === 1 || room.started) {
+    if (conn.player === 1 || room.started) {
       dissolve(room);
       return;
     }
