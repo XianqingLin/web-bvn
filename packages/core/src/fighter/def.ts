@@ -227,6 +227,9 @@ export const ActionState = {
   /** 开场语音动作中（原版 FighterMcCtrler.sayIntro actionState=60；
    *  开局特写演出的 say 步等待门，intro 切片） */
   INTRO_ING: 60,
+  /** 胜利动作中（原版 FighterActionState.WIN_ING=61；团队回合结束演出期
+   *  胜方 goFrame("胜利") + win()；仅 team 模式回合结束置位） */
+  WIN_ING: 61,
 } as const;
 
 /** 循环播放的动作标签（其余标签播完即结束动作）。

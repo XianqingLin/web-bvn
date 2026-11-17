@@ -297,6 +297,37 @@ test('已开局房间拒绝 join → room-full', async () => {
   guest.ws.close();
 });
 
+test('选人页透传：cursor 变更即广播 + 带累计锁定的 pick 原样转发（切片 35）', async () => {
+  const port = await serverPort(proc);
+  const { host, guest } = await setupRoom(port);
+  guest.send({ t: 'ready', ready: true });
+  await guest.expect('room-info');
+  await host.expect('room-info');
+  host.send({ t: 'begin' });
+  await host.expect('start');
+  await host.expect('room-info');
+  await guest.expect('start');
+  await guest.expect('room-info');
+
+  // 光标消息透传（服务器不解析 UI 同步类）
+  host.send({ t: 'cursor', player: 1, stage: 'fighter', idx: 5 });
+  assert.deepEqual(await guest.expect('cursor'), { t: 'cursor', player: 1, stage: 'fighter', idx: 5 });
+
+  // 累计锁定 pick 透传：locked 字段原样保留，locked 缺省的最终 pick 同样透传
+  host.send({
+    t: 'pick',
+    player: 1,
+    fighter: 'ichigo',
+    assist: 'gaara',
+    locked: { fighters: ['ichigo', 'naruto'], assists: [] },
+  });
+  const pick = await guest.expect('pick');
+  assert.deepEqual(pick.locked, { fighters: ['ichigo', 'naruto'], assists: [] });
+
+  host.ws.close();
+  guest.ws.close();
+});
+
 test('昵称清洗：trim + 截断 + 空回退', async () => {
   const port = await serverPort(proc);
   const { host, guest } = await setupRoom(port, { hostName: '  ', guestName: 'a'.repeat(30) });

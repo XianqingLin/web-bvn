@@ -126,6 +126,8 @@ export class RoomScene implements Scene {
           settings: msg.settings as RoomSettings,
           players: msg.players as RoomMemberInfo[],
         };
+        // 团队模式随快照同步（选人页 3+1 节奏依据；切片 35）
+        this.flow.team = (msg.settings as RoomSettings).team === true;
         this.render();
         break;
       case 'error':

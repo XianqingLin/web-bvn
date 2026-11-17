@@ -1,4 +1,4 @@
-import { advancePlayerInput, Btn, InputView, type InputFrame } from './input.js';
+import { advancePlayerInput, createPlayerInput, Btn, InputView, type InputFrame } from './input.js';
 import { behaviorHash, hashState, stableStringify } from './serialize.js';
 import {
   createInitialState,
@@ -7,12 +7,14 @@ import {
   ENERGY_MAX,
   FZQI_ADD_PERFRAME,
   FZQI_MAX,
+  JUMP_TIMES_START,
   PLAYFIELD_HALF_WIDTH,
   type AssisterState,
   type AttackerState,
   type BulletState,
   type CutinLockState,
   type FighterState,
+  type RoundEndState,
   type SimConfig,
   type SimState,
   type StageState,
@@ -20,6 +22,7 @@ import {
 import {
   ActionState,
   currentBodyRect,
+  defaultSlots,
   isAttackingState,
   rectsOverlap,
   SPEED_PLUS,
@@ -154,6 +157,19 @@ const INTRO_START_TICKS = 156;
 /** 字样段（step 7）：出场后不可跳（原版 _step<5 才可 skip） */
 const INTRO_STEP_START = 7;
 
+// —— 团队回合结束演出（切片 36，原版 GameEndCtrler） ——
+/**
+ * 回合结束演出时长（原版胜利动作 hold 3s × FPS_GAME=60）。原版的 showEnd KO
+ * 字样 UI（10s 上限，动画完成回调提前）与 transIn 转场不建模——port 以固定
+ * 3s 胜利动作 + 全程可跳（原版仅 step2 可跳，偏离记录）折算。
+ */
+const ROUND_END_TICKS = 180;
+/**
+ * 胜方回合间血量回复比例（原版 0.165×(timeRate+1)，timeRate = 剩余回合时间比；
+ * 移植版无回合计时器 → timeRate=1 → 0.33。比例量不折算，偏离记录）。
+ */
+const WIN_RECOVER_LOST_RATE = 0.33;
+
 // —— 气回充（原版 FighterMain doQiAdd 系；qi 是资源量，速率不折算） ——
 /** 近战命中回气：非必杀 power×0.16，封顶 15（原版 QI_ADD_HIT_MAX） */
 const HIT_QI_RATE = 0.16;
@@ -255,6 +271,17 @@ export class Sim {
   constructor(config: SimConfig) {
     this.state = createInitialState(config);
     this.training = config.training ?? false;
+    if (config.teams) {
+      // roster 校验（装配错误尽早炸）：id 必须唯一且都能在 config.fighters 寻址
+      const known = new Set(config.fighters.map((fc) => fc.id));
+      const roster = [...config.teams.p1, ...config.teams.p2];
+      if (
+        roster.length !== new Set(roster).size ||
+        roster.some((id) => !known.has(id))
+      ) {
+        throw new Error('SimConfig.teams roster must reference unique config.fighters ids');
+      }
+    }
     this.formsById = new Map();
     this.triggerIndex = new Map();
     for (const fc of config.fighters) {
@@ -393,6 +420,12 @@ export class Sim {
       this.stepInputs(inputs);
       return this.stepOutput();
     }
+    if (this.state.roundEnd != null) {
+      // 团队回合结束演出（切片 36，原版 GameEndCtrler.render + actionEnable=false）：
+      // 败方死亡动画/胜方胜利动作播完 → 换人或终局；物理/推挤/命中/计时停走。
+      this.tickRoundEnd(inputs);
+      return this.stepOutput();
+    }
     if (this.state.intro != null) {
       // 开局特写演出（intro 切片，原版 actionEnable=false 冻结语义）：输入/物理/
       // 推挤/命中/回合计时停走，角色时间轴 30Hz 推进 + 能量/辅助气回充照跑
@@ -526,12 +559,18 @@ export class Sim {
     if (intro == null) return;
     const f1 = this.state.fighters[0]!;
     const f2 = this.state.fighters[1] ?? null;
+    // 团队换人跳侧（原版 renderStart1v1 introTeamId==1 分支）：P1 入场（skip=1）
+    // 的 say 段播完后直入 resume，P2 的 focus/say/gap 全部跳过
+    const advance = (): void => {
+      intro.step += 1;
+      if (intro.step === 2 && intro.skip === 1) intro.step = 6;
+    };
     if (intro.step === 1 || intro.step === 4) {
       const f = intro.step === 1 ? f1 : f2;
       if (f !== null && f.actionState === ActionState.INTRO_ING && f.actLabel === '开场') {
         return; // 仍在播
       }
-      intro.step += 1;
+      advance();
       return;
     }
     if (intro.step === INTRO_STEP_START) {
@@ -545,10 +584,10 @@ export class Sim {
     }
     // 步进 + say 步进入副作用（缺 开场 标签 = 跳过该步——原版此情形软锁，偏离）
     intro.hold = 0;
-    intro.step += 1;
+    advance();
     if (intro.step === 1 || intro.step === 4) {
       const f = intro.step === 1 ? f1 : f2;
-      if (f === null || !sayIntro(f, this.defOf(f))) intro.step += 1;
+      if (f === null || !sayIntro(f, this.defOf(f))) advance();
     }
   }
 
@@ -570,6 +609,316 @@ export class Sim {
     }
     // 字段卸下（undefined；JSON 序列化省略——见 SimState.intro 注）
     this.state.intro = undefined;
+  }
+
+  // —— 团队回合结束/换人（切片 36，原版 GameCtrler.startNextTeamFight/nextFighter
+  //    + GameEndCtrler + GameStage.resetFight + GameStartCtrler.start1v1） ——
+
+  /**
+   * 团队模式 KO → 回合结束演出置位（原版 doGameEnd → GameEndCtrler.initlize）。
+   * 非 team 模式/演出已置位不重复置位——1v1 的结束判定仍归 app 层 checkKo。
+   * 胜方同 tick 亦死（双 KO）→ draw（原版 isDrawGame）。
+   */
+  private maybeBeginRoundEnd(loser: FighterState): void {
+    const teams = this.state.match.teams;
+    if (!teams || this.state.roundEnd != null) return;
+    const loserSide = teams.p1.some((s) => s.id === loser.id) ? 1 : 2;
+    const winnerSide: 1 | 2 = loserSide === 1 ? 2 : 1;
+    const winner = this.state.fighters.find((f) => f.id !== loser.id) ?? null;
+    const loserSlot = (loserSide === 1 ? teams.p1 : teams.p2).find(
+      (s) => s.id === loser.id,
+    );
+    this.state.roundEnd = {
+      winnerSide,
+      winnerId: winner?.id ?? -1,
+      loserId: loser.id,
+      loserQi: loser.qi,
+      loserComicType: loserSlot?.comicType ?? -1,
+      draw: winner !== null && winner.hp <= 0,
+      winApplied: false,
+      hold: 0,
+      over: false,
+    };
+    this.emit('round:end', { round: this.state.match.round, winner: winnerSide });
+  }
+
+  /**
+   * 回合结束演出 tick（原版 GameEndCtrler.render 步进）：输入采样照常（批次 35
+   * 教训）、回气/buff 照跑、角色时间轴 30Hz 推进（败方死亡动画/胜方胜利动作）、
+   * 被动物理（胜方空中自然落地——原版 actionEnable=false 只封输入，物理照常）；
+   * 意图/命中/推挤/道具/计时停走。hold 计满 → 换人或终局。
+   */
+  private tickRoundEnd(inputs: InputFrame): void {
+    const re = this.state.roundEnd!;
+    this.stepInputs(inputs);
+    if (!re.over) {
+      // 跳过（原版 GameEndCtrler.skip 仅 step2 可跳；port 全程可跳，偏离记录）
+      if (this.views.some((v) => v.justDown(Btn.back))) re.hold = ROUND_END_TICKS;
+      // 胜方胜利动作 + 血量恢复（原版 case1：isAllowWinState 等待——必杀/万解
+      // 施法中不切入，收尾后再落 WIN；恢复 = addHpLosePercent(0.33)，无回合
+      // 计时器的折算，偏离记录）
+      const winner = this.state.fighters.find((f) => f.id === re.winnerId) ?? null;
+      if (
+        !re.draw &&
+        winner !== null &&
+        winner.hp > 0 &&
+        !re.winApplied &&
+        !this.isBishaOrWanKaiState(winner.actionState)
+      ) {
+        re.winApplied = true;
+        winner.actionState = ActionState.WIN_ING;
+        setLabel(winner, this.defOf(winner), '胜利');
+        winner.hp = Math.min(
+          winner.hpMax,
+          winner.hp + (winner.hpMax - winner.hp) * WIN_RECOVER_LOST_RATE,
+        );
+      }
+    }
+    // 回气/buff 照跑（原版冻结期 renderAnimate 无条件）
+    for (const f of this.state.fighters) this.stepFighterFlow(f);
+    // 被动物理（无输入位移；道具/辅助/推挤/抓取停走——清场前冻结）
+    for (const f of this.state.fighters) this.stepPassivePhysics(f);
+    // 角色时间轴 30Hz 推进（胜利/死亡动画；帧触发器照常——胜利标签的
+    // 贴帧音/收招触发在此到来）
+    if (this.state.tick % 2 === 0) this.stepAnimation();
+    if (re.over) return; // 终局已发，冻结待 app 切结算
+    if (re.winApplied || re.draw) re.hold += 1;
+    if (re.hold >= ROUND_END_TICKS) this.advanceRoundEnd(re);
+  }
+
+  /** 必杀/万解施法态（原版 FighterActionState.allowGhostStep 的排除集）。 */
+  private isBishaOrWanKaiState(v: number): boolean {
+    return (
+      v === ActionState.BISHA_ING ||
+      v === ActionState.BISHA_SUPER_ING ||
+      v === ActionState.WAN_KAI_ING
+    );
+  }
+
+  /**
+   * 演出期被动物理（stepPhysics 的无输入子集：速度衰减/重力/落地；原版 KO 后
+   * actionEnable=false 只封输入位移，物理照常——胜方空中自然落地、尸体沉降）。
+   * 不含行走/瞬身步/道具/推挤/抓取/牵引边界（演出期冻结，清场前无意义）。
+   */
+  private stepPassivePhysics(f: FighterState): void {
+    const wasAirborne = !f.onGround;
+    f.vx = wake(f.vx, f.dampX);
+    f.vy = wake(f.vy, f.dampY);
+    f.x += f.vx;
+    f.y += f.vy;
+    const airborne = this.resolveLanding(f, this.state.stage);
+    if (airborne) {
+      if (f.applyG && f.vy >= 0) {
+        f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
+        f.y += f.gRamp;
+      } else if (f.vy < 0) {
+        f.gRamp = 0;
+      }
+      f.onGround = false;
+    } else {
+      f.gRamp = GRAVITY_START;
+      if (wasAirborne) onLanded(f, this.defOf(f));
+      f.onGround = true;
+    }
+  }
+
+  /** 演出计满分流：换人入场或终局（原版 GameCtrler.runNext）。 */
+  private advanceRoundEnd(re: RoundEndState): void {
+    const teams = this.state.match.teams!;
+    if (re.draw) {
+      // 平局（原版 startNextTeamFight drawGame 分支）：双侧均有备 → 双方换人
+      // 全量开场；一侧耗尽 → 该侧判负终局；双侧耗尽 → 按胜方侧判定（原版该
+      // 边角以尸体重启回合，视为缺陷修正，偏离记录）
+      const dead1 = this.state.fighters.find((f) => teams.p1.some((s) => s.id === f.id))?.id;
+      const dead2 = this.state.fighters.find((f) => teams.p2.some((s) => s.id === f.id))?.id;
+      const has1 = dead1 !== undefined && teams.pending1.length > 0;
+      const has2 = dead2 !== undefined && teams.pending2.length > 0;
+      if (!has1 || !has2) {
+        this.finishMatch(has1 ? 1 : 2);
+        return;
+      }
+      // 气继承：双侧都以记录的败方气量为基准（原版 draw 分支 lastLoserData
+      // 指向首个败者，偏离记录：后死者气量丢弃）
+      this.rotateIn(1, dead1, re.loserQi, re.loserComicType);
+      this.rotateIn(2, dead2, re.loserQi, re.loserComicType);
+      this.repositionRound();
+      this.state.roundEnd = undefined;
+      this.state.match.round += 1;
+      this.state.match.roundFrame = 0;
+      this.clearField();
+      this.beginIntro(0);
+      this.emit('round:start', { round: this.state.match.round });
+      return;
+    }
+    const loserSide: 1 | 2 = teams.p1.some((s) => s.id === re.loserId) ? 1 : 2;
+    const pending = loserSide === 1 ? teams.pending1 : teams.pending2;
+    if (pending.length === 0) {
+      // 败方无备可选 → 终局（原版 nextFighter 返回 false → fightFinish）
+      this.finishMatch(re.winnerSide);
+      return;
+    }
+    this.rotateIn(loserSide, re.loserId, re.loserQi, re.loserComicType);
+    this.repositionRound();
+    this.state.roundEnd = undefined;
+    this.state.match.round += 1;
+    this.state.match.roundFrame = 0;
+    this.clearField();
+    // 换人开场：入场方 = 败方侧（原版 introTeamId = loseTeam），获得特写/开场
+    this.beginIntro(loserSide);
+    this.emit('round:start', { round: this.state.match.round });
+  }
+
+  /**
+   * 终局（原版 fightFinish）：match:over 表现事件 + 冻结待 app 切结算。
+   * 演出态保留（over=true），tickRoundEnd 继续跑动画直至场景切换。
+   */
+  private finishMatch(winner: 1 | 2): void {
+    const re = this.state.roundEnd!;
+    re.over = true;
+    if (winner === 1) this.state.match.p1Wins += 1;
+    else this.state.match.p2Wins += 1;
+    this.emit('match:over', { winner });
+  }
+
+  /**
+   * 换人入场（原版 GameCtrler.nextFighter + FighterMain 新实例）：败方位替换为
+   * roster 下一名。气量继承（原版 lastLoserQi + 同 comicType +100，封顶 300）；
+   * 能量/辅助气/动作槽全部新起（原版新 FighterMain 实例语义）。
+   * @returns 入场 fighter id
+   */
+  private rotateIn(
+    side: 1 | 2,
+    deadId: number,
+    qiCarry: number,
+    qiComicType: number,
+  ): number {
+    const teams = this.state.match.teams!;
+    const pending = side === 1 ? teams.pending1 : teams.pending2;
+    const slots = side === 1 ? teams.p1 : teams.p2;
+    const nextId = pending.shift()!;
+    const slot = slots.find((s) => s.id === nextId)!;
+    const idx = this.state.fighters.findIndex((f) => f.id === deadId);
+    const def = this.defById(slot.id, slot.formIndex);
+    // 血量取槽位抄录值（TeamSlot.hp = 出生 hp，原版 nextFighter 新建
+    // FighterMain 用 config hp；随状态走，fromState 恢复无需重新注入配置）
+    const cfgHp = slot.hp;
+    this.state.fighters[idx] = {
+      id: slot.id,
+      x: slot.x,
+      y: slot.y ?? this.state.stage.groundY,
+      vx: 0,
+      vy: 0,
+      dampX: 0,
+      dampY: 0,
+      gRamp: GRAVITY_START,
+      facing: side === 1 ? 1 : -1,
+      hp: cfgHp,
+      qi: Math.min(
+        300,
+        qiCarry + (slot.comicType !== undefined && slot.comicType === qiComicType ? 100 : 0),
+      ),
+      actionState: 0,
+      onGround: true,
+      actLabel: null,
+      animFrame: 0,
+      labelLock: 0,
+      mcHold: false,
+      attackId: null,
+      hurtTimer: 0,
+      steelBody: false,
+      energy: ENERGY_MAX,
+      energyOverload: false,
+      energyGap: 0,
+      isAllowBeHit: true,
+      beHitGap: 0,
+      isCross: false,
+      applyG: true,
+      airMove: false,
+      touchFloor: null,
+      hpMax: cfgHp,
+      airHitTimes: 1,
+      hurtAction: null,
+      lastHurtHitId: null,
+      lastDefHitId: null,
+      hitTargetChecker: null,
+      hitTarget: null,
+      moveTarget: null,
+      formIndex: slot.formIndex,
+      jumpTimes: JUMP_TIMES_START,
+      jumpDelay: 0,
+      ghostTicks: 0,
+      ghostType: 0,
+      ghostCooldown: 0,
+      fzqi: FZQI_MAX,
+      assistId: slot.assistId,
+      buffs: { speedUp: null, attackUp: null, defenseUp: null },
+      slots: defaultSlots(def),
+      input: createPlayerInput(),
+    };
+    this.emit('fighter:enter', { fighter: slot.id, side });
+    return slot.id;
+  }
+
+  /** 按 id + 形态下标取 def（rotateIn 用；FighterState 尚未构造）。 */
+  private defById(id: number, formIndex: number): FighterDef | null {
+    const forms = this.formsById.get(id);
+    if (!forms || forms.length === 0) return null;
+    return forms[Math.min(formIndex, forms.length - 1)] ?? null;
+  }
+
+  /**
+   * 回合重定位（原版 GameStage.resetFight）：双方回出生点、面向对手。胜方血量
+   * 保持——原版 resetFighterHp 双方满血 + lastWinnerHp 回填的净效果即胜方持有
+   * 恢复后血量、入场者满血（rotateIn 已按满血构造）。
+   */
+  private repositionRound(): void {
+    const teams = this.state.match.teams!;
+    for (const f of this.state.fighters) {
+      const isP1 = teams.p1.some((s) => s.id === f.id);
+      const slot = (isP1 ? teams.p1 : teams.p2).find((s) => s.id === f.id)!;
+      f.x = slot.x;
+      f.y = slot.y ?? this.state.stage.groundY;
+      f.facing = isP1 ? 1 : -1;
+      f.vx = 0;
+      f.vy = 0;
+      f.dampX = 0;
+      f.dampY = 0;
+      f.gRamp = GRAVITY_START;
+      f.onGround = true;
+    }
+  }
+
+  /** 回合清场（原版 resetFight 重建舞台的实体侧）：道具/辅助/冻结锁清除，
+   *  despawn 事件照发（渲染层精灵对齐快照）。 */
+  private clearField(): void {
+    for (const b of this.state.bullets) {
+      this.emit('entity:despawn', { kind: 'bullet', id: b.id });
+    }
+    for (const a of this.state.attackers) {
+      this.emit('entity:despawn', { kind: 'attacker', id: a.id });
+    }
+    for (const a of this.state.assisters) {
+      this.emit('entity:despawn', { kind: 'assister', id: a.id });
+    }
+    this.state.bullets = [];
+    this.state.attackers = [];
+    this.state.assisters = [];
+    this.state.cutinLock = null;
+  }
+
+  /**
+   * 换人开场（原版 doBuildNextRound → start1v1(p1, p2, loseTeam)）：introTeamId
+   * = 入场方（败方侧）——入场方获得特写/开场，胜方跳过（skip 语义见 IntroState）；
+   * 平局全量开场。BGM 按入场方切换（原版 playFightBGM(pN.data.id)）
+   * 由 app 消费 fighter:enter 事件完成。
+   */
+  private beginIntro(skipSide: 0 | 1 | 2): void {
+    this.state.intro =
+      skipSide === 2
+        ? { step: 3, hold: 0, skip: 2 }
+        : skipSide === 1
+          ? { step: 0, hold: 0, skip: 1 }
+          : { step: 0, hold: 0 };
   }
 
   private emit(type: string, payload: Record<string, unknown>): void {
@@ -2164,6 +2513,15 @@ export class Sim {
       // 移植版统一提前到 KO 时刻——偏离记录）
       this.emit('voice', { fighter: target.id, kind: 'die' });
       this.emit('fighter:ko', { fighter: target.id });
+      // 团队回合结束（切片 36）：同 tick 胜方亦死（多命中结算序）→ 转平局
+      if (
+        this.state.roundEnd != null &&
+        this.state.roundEnd.winnerId === target.id
+      ) {
+        this.state.roundEnd.draw = true;
+      } else {
+        this.maybeBeginRoundEnd(target);
+      }
       return;
     }
     if (blocking) {
@@ -2178,6 +2536,15 @@ export class Sim {
           target.hp = 0;
           enterDead(target, targetDef);
           this.emit('fighter:ko', { fighter: target.id });
+          // 团队回合结束（切片 36）：同 tick 胜方亦死（多命中结算序）→ 转平局
+          if (
+            this.state.roundEnd != null &&
+            this.state.roundEnd.winnerId === target.id
+          ) {
+            this.state.roundEnd.draw = true;
+          } else {
+            this.maybeBeginRoundEnd(target);
+          }
           return;
         }
         target.energy = 0;

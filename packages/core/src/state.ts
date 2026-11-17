@@ -298,6 +298,8 @@ export interface MatchState {
   roundFrame: number;
   p1Wins: number;
   p2Wins: number;
+  /** 团队模式 roster/换人状态（team 模式才有；undefined = 1v1，JSON 省略零漂移） */
+  teams?: TeamsState | undefined;
 }
 
 /**
@@ -364,6 +366,70 @@ export interface AssisterState {
 export interface IntroState {
   step: number;
   hold: number;
+  /**
+   * 团队换人开场跳侧（原版 GameStartCtrler.start1v1 的 introTeamId）：
+   * 值 = 入场方（获得特写/开场的一侧），另一侧跳过 focus/say。1 = P1 入场
+   * （step 0..2 后跳 6）；2 = P2 入场（step 从 3 起）；缺省 = 双方全量开场
+   * （0..7）。仅 team 模式换人开场设置；缺省时 JSON 序列化省略（零漂移）。
+   */
+  skip?: 1 | 2 | undefined;
+}
+
+/**
+ * 团队 roster 槽位（3+1 的 3 名出场序；原版 GameRunFighterGroup 的静态侧）。
+ * 配置静态值在开局时抄进 MatchState.teams——换人入场（buildNextRound 后的
+ * 新 FighterState 构造）只依赖 SimState，fromState 恢复无需重新注入配置。
+ */
+export interface TeamSlot {
+  id: number;
+  /** 出场出生点（原版 resetFight 的 map.p1pos/p2pos，roster 全员同点） */
+  x: number;
+  y?: number;
+  /** comicType（0=死神 1=火影，select.json chars[].comicType）：换人气继承
+   *  同系 +100 加成判定（原版 lastLoserData.comicType == data.comicType） */
+  comicType?: number;
+  /** 辅助 id（per-side 共享一名，原版 3 名成员共用 group 的 assist） */
+  assistId: string | null;
+  /** 出场形态（forms 数组下标，原版 fighter.xml startFrame 进场形态） */
+  formIndex: number;
+  /** 血量上限（= 出生 hp；换人入场 FighterState 的 hp/hpMax 基准） */
+  hp: number;
+}
+
+/** 团队模式 roster/换人状态（原版 GameRunDataVO 两队 FighterGroup + pending）。 */
+export interface TeamsState {
+  /** 出场序 roster（队首 = 当前出战者；被换下者不回收——原版 removeCurrentFighter） */
+  p1: TeamSlot[];
+  p2: TeamSlot[];
+  /** 待出场 id 队列（roster 出场序，与 pN[0] 不重合） */
+  pending1: number[];
+  pending2: number[];
+}
+
+/**
+ * 团队回合结束/换人演出（原版 GameEndCtrler.render 状态机的 port；
+ * 仅 team 模式 KO 置位，1v1 结束判定仍归 app 层）。step 语义（port 折算）：
+ * winApplied 前等胜方必杀/万解收尾（原版 isAllowWinState 等待门）→ 落
+ * WIN + 胜利 + 血量恢复（原版 case1）→ hold 计满换人/终局（原版 case2/3 +
+ * runNext）。
+ */
+export interface RoundEndState {
+  /** 本轮胜方（1/2） */
+  winnerSide: 1 | 2;
+  winnerId: number;
+  loserId: number;
+  /** KO 时败方气量（换人气继承基准，原版 lastLoserQi） */
+  loserQi: number;
+  /** KO 时败方 comicType（同系加成判定，原版 lastLoserData.comicType） */
+  loserComicType: number;
+  /** 平局（同 tick 双 KO / 胜方亦死；原版 isDrawGame → 双方换人） */
+  draw: boolean;
+  /** 胜方 WIN 状态已落（false = 仍在等必杀/万解收尾） */
+  winApplied: boolean;
+  /** winApplied 起已走演出 tick（原版 holdFrame 3s × FPS_GAME=60 折算） */
+  hold: number;
+  /** true = 胜方侧无人可换，match:over 已发，冻结待 app 切结算 */
+  over: boolean;
 }
 
 /**
@@ -405,6 +471,11 @@ export interface SimState {
    *  undefined 被 JSON 序列化省略（stableStringify/pruneEmpty）——
    *  全量哈希与行为哈希零漂移，既有 replay/batch 基线不受影响 */
   intro?: IntroState | undefined;
+  /**
+   * 团队回合结束/换人演出（team 模式 KO 置位；换人完成/终局后卸下。
+   * undefined 被 JSON 序列化省略——1v1 全量哈希零漂移，见 SimState.intro 注）
+   */
+  roundEnd?: RoundEndState | undefined;
   /** 特写冻结锁（null = 无演出冻结） */
   cutinLock: CutinLockState | null;
   /** 打击停顿（hitstop，修复批次 35）：>0 时整局停走（原版 EffectCtrler.freeze →
@@ -435,6 +506,11 @@ export interface FighterConfig {
   formIndex?: number;
   /** 辅助 id（SimConfig.assistants 注册表寻址；缺省 = 无辅助） */
   assistId?: string;
+  /**
+   * comicType（0=死神 1=火影，select.json chars[].comicType；缺省 = 无加成）。
+   * 仅 team 模式换人气继承加成判定消费（原版 lastLoserData.comicType 比较）。
+   */
+  comicType?: number;
 }
 
 export interface SimConfig {
@@ -455,6 +531,13 @@ export interface SimConfig {
    * batch 基线配置不传，intro 恒 null 零漂移。
    */
   intro?: boolean;
+  /**
+   * 团队模式 roster（3+1 的 3 名出场序，per side；缺省 = 1v1）。存在时：
+   * config.fighters 须含全部 roster id（可含 3+1 之外的多余项——忽略），
+   * 只有各队队首进入 SimState.fighters，其余进 MatchState.teams 槽位；
+   * 换人/终局流转在 sim 内确定性推进（切片 36）。
+   */
+  teams?: { p1: number[]; p2: number[] };
 }
 
 /** 骨架默认配置：P1/P2 在空地图两侧对峙（合成舞台，与真实地图数据无关）。 */
@@ -476,7 +559,37 @@ export function createDefaultConfig(seed: number): SimConfig {
 }
 
 export function createInitialState(config: SimConfig): SimState {
+  // team 模式：roster 槽位抄进 MatchState（出场序），仅各队队首进 fighters
+  //（sim 是严格的 2 活跃角色模型；待出场者由换人流程构造全新 FighterState）
+  const teams: TeamsState | undefined = config.teams
+    ? (() => {
+        const byId = new Map(config.fighters.map((fc) => [fc.id, fc]));
+        const slotOf = (id: number): TeamSlot => {
+          const fc = byId.get(id);
+          if (!fc) throw new Error(`teams roster id ${id} missing from config.fighters`);
+          return {
+            id: fc.id,
+            x: fc.x,
+            ...(fc.y !== undefined ? { y: fc.y } : {}),
+            ...(fc.comicType !== undefined ? { comicType: fc.comicType } : {}),
+            assistId: fc.assistId ?? null,
+            formIndex: fc.formIndex ?? 0,
+            hp: fc.hp ?? DEFAULT_HP,
+          };
+        };
+        return {
+          p1: config.teams.p1.map(slotOf),
+          p2: config.teams.p2.map(slotOf),
+          pending1: config.teams.p1.slice(1),
+          pending2: config.teams.p2.slice(1),
+        };
+      })()
+    : undefined;
+  const activeIds = config.teams
+    ? new Set([config.teams.p1[0]!, config.teams.p2[0]!])
+    : null;
   const fighters: FighterState[] = [...config.fighters]
+    .filter((fc) => activeIds === null || activeIds.has(fc.id))
     .sort((a, b) => a.id - b.id)
     .map((fc, i) => ({
       id: fc.id,
@@ -538,7 +651,14 @@ export function createInitialState(config: SimConfig): SimState {
     attackers: [],
     assisters: [],
     nextEntityId: 1,
-    match: { round: 1, roundFrame: 0, p1Wins: 0, p2Wins: 0 },
+    match: {
+      round: 1,
+      roundFrame: 0,
+      p1Wins: 0,
+      p2Wins: 0,
+      // teams 缺省不落键——1v1 全量哈希零漂移（见 SimState.intro 注）
+      ...(teams !== undefined ? { teams } : {}),
+    },
     // intro 缺省时字段不落键（undefined）——全量状态哈希零漂移（见 SimState 注）
     ...(config.intro === true ? { intro: { step: 0, hold: 0 } as IntroState } : {}),
     cutinLock: null,

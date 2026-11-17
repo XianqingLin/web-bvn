@@ -11,6 +11,18 @@ import { fnv1a, stableStringify, type ButtonMask } from '@bvn/core';
 /** 玩家位次（= sim 里的 fighter id；create→1，join→2）。 */
 export type PlayerSlot = 1 | 2;
 
+/**
+ * 选人页累计锁定快照（切片 35）：按锁定次序的 id 列表。
+ * 覆盖语义——对端只保留最新一条（与 cursor 同待遇，不依赖可靠有序通道，
+ * 3s 重发兜底幂等）。
+ */
+export interface LockedPicks {
+  /** 角色段（团队 ≤3 / 单挑 ≤1） */
+  fighters: string[];
+  /** 辅助段（≤1） */
+  assists: string[];
+}
+
 // ---------- 房间语义（切片 34；服务器解析，快照经 room-info 广播） ----------
 
 /** 房间设置（房主可改；room-info 携带完整快照，变更实时广播）。 */
@@ -53,9 +65,10 @@ export type NetMessage =
   | { t: 'begin' }
   /** 客户端 → 对端（经服务器透传）：本端配置指纹，两端互验防错配 */
   | { t: 'hello'; player: PlayerSlot; configHash: string }
-  /** 客户端 → 对端（经服务器透传）：本端选人结果（切片 14，选人场景用）；
-   *  map 仅 P1（create 方）携带，两端地图以 P1 选择为准 */
-  | { t: 'pick'; player: PlayerSlot; fighter: string; assist: string; map?: string }
+  /** 客户端 → 对端（经服务器透传）：选人页累计锁定（切片 35，选中即锁逐次上行）
+   *  或最终选人结果（fighter/assist/map 语义，切片 14 地图尾仍沿用：map 仅 P1 携带）。
+   *  带 locked 时 fighter/assist = 首名锁定项（冗余便于日志与旧读者）。 */
+  | { t: 'pick'; player: PlayerSlot; fighter: string; assist: string; map?: string; locked?: LockedPicks }
   /** 服务器 → 双方：阶段推进广播（两段语义：begin 后 = 进选人页；hello 收齐后 = 开跑） */
   | { t: 'start' }
   /** 单端单 tick 输入位图（lockstep 唯一的高频消息） */
@@ -73,7 +86,8 @@ export type NetMessage =
   | { t: 'map-roll'; seed: number };
 
 /**
- * 对局配置指纹：seed + 舞台 + 角色标识（+ 辅助，切片 14 联机注入）。
+ * 对局配置指纹：seed + 舞台 + 角色标识（+ 辅助，切片 14 联机注入；
+ * + 团队 roster，切片 36 团队联机注入——roster id 表，两端装配序一致）。
  * 两端 hello 互验，不一致立刻报错而非跑到中途失步。
  */
 export function makeConfigHash(info: {
@@ -81,6 +95,7 @@ export function makeConfigHash(info: {
   stage: unknown;
   fighters: readonly unknown[];
   assists?: readonly unknown[];
+  teams?: unknown;
 }): string {
   return fnv1a(stableStringify(info));
 }

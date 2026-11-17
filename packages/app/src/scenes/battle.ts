@@ -24,7 +24,7 @@ import {
   type BattleAudioBinding,
   type TimelineAudioBinding,
 } from '../audio.js';
-import { picksOf, type Flow } from '../flow.js';
+import type { Flow } from '../flow.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -71,11 +71,30 @@ class KeyboardSource implements InputSource {
   }
 }
 
+/** roster 成员（team 模式 3+1 的 3 名；1v1 单名）。comicType 进 sim 配置
+ *  （换人气继承同系加成判定）与 HUD 能量标签。 */
+export interface RosterEntry {
+  pack: FighterPack;
+  comicType: number;
+}
+
+/**
+ * fighter id 分配（切片 36）：p1 roster → 1,3,5；p2 roster → 2,4,6（出场序）。
+ * 首名 = 开局出战者（id 1/2），其余为 bench（sim 内换人替换 FighterState）。
+ */
+export function fighterId(side: 1 | 2, index: number): number {
+  return side === 1 ? 1 + index * 2 : 2 + index * 2;
+}
+
 /** 一场对局的静态装配（切片 31：LoadingScene 分帧装载产物，进战斗零装载）。 */
 interface BattleRig {
   map: MapPack;
-  p1: FighterPack;
-  p2: FighterPack;
+  /** 出场序 roster（team 模式 ≤3 名；1v1 单名） */
+  p1: RosterEntry[];
+  p2: RosterEntry[];
+  /** per-side 辅助 id（team 模式 3 名成员共用；原版 group 一名 assist） */
+  p1Assist: string;
+  p2Assist: string;
   assists: Record<string, AssistPack>;
 }
 
@@ -100,6 +119,10 @@ export class BattleScene implements Scene {
   private simTick = 0;
   /** 开局演出活跃（最新快照 intro ≠ null；ESC 跳过/返回菜单分流） */
   private introActive = false;
+  /** 团队回合结束演出活跃（最新快照 roundEnd ≠ null；ESC 不返回菜单） */
+  private roundEndActive = false;
+  /** 团队 match:over 已消费（每局一次终局流转） */
+  private matchOverSeen = false;
   private stalledSince = -1;
   private peerLostFlag = false;
   private keys = new Set<string>();
@@ -120,7 +143,6 @@ export class BattleScene implements Scene {
 
   async enter(ctx: SceneCtx): Promise<void> {
     this.ctx = ctx;
-    const { p1 } = picksOf(this.flow);
     const rig = this.loadout.rig;
     const map = rig.map;
     // 渲染器由 LoadingScene 装载并 prime（块 9）：进场零装载、首帧无黑边
@@ -136,24 +158,31 @@ export class BattleScene implements Scene {
         resolve: (cls: string) => audio.voiceUrl(pack.swf, cls),
       });
       this.audioBinding = {
-        fighters: { 1: mkSlot(rig.p1), 2: mkSlot(rig.p2) },
+        fighters: Object.fromEntries(
+          [...rig.p1.map((e, i) => [fighterId(1, i), mkSlot(e.pack)]),
+           ...rig.p2.map((e, i) => [fighterId(2, i), mkSlot(e.pack)])],
+        ),
       };
       // 贴帧音绑定（切片 28）：swf 基名寻址（形态角色共用基础包）；辅助缺包 = 无音安全跳过
       this.timelineBinding = {
-        fighters: { 1: rig.p1.swf, 2: rig.p2.swf },
+        fighters: Object.fromEntries(
+          [...rig.p1.map((e, i) => [fighterId(1, i), e.pack.swf]),
+           ...rig.p2.map((e, i) => [fighterId(2, i), e.pack.swf])],
+        ),
         assists: Object.fromEntries(
           Object.keys(rig.assists).map((id) => [id, id]),
         ),
       };
-      audio.fightBgm(p1.fighter, this.flow.mapId);
+      audio.fightBgm(rig.p1[0]!.pack.id, this.flow.mapId);
     }
 
     // —— 键盘 ——
-    // ESC 双语义：开局演出期间 = 跳过演出（Btn.back 进 sim 位图，lockstep 同步）；
-    // 演出外 = 返回菜单。introActive 由快照驱动（update 循环刷新）。
+    // ESC 双语义：开局演出/团队回合结束演出期间 = 跳过演出（Btn.back 进 sim
+    // 位图，lockstep 同步）；演出外 = 返回菜单。introActive/roundEndActive
+    // 由快照驱动（update 循环刷新）。
     const onKeyDown = (e: KeyboardEvent) => {
       this.keys.add(e.code);
-      if (e.code === 'Escape' && !this.introActive) this.leave();
+      if (e.code === 'Escape' && !this.introActive && !this.roundEndActive) this.leave();
     };
     const onKeyUp = (e: KeyboardEvent) => this.keys.delete(e.code);
     window.addEventListener('keydown', onKeyDown);
@@ -192,12 +221,31 @@ export class BattleScene implements Scene {
     this.spawnSim(true);
   }
 
-  /** sim 装配：选人 → 双角色 + 双辅助注册表（solo 双方同配）。
+  /** sim 装配：rig roster → 全员 FighterConfig（team ≤3+≤3 / 1v1 各一名）+
+   *  双辅助注册表（solo 双方同配）。team 模式加 teams roster（出场序）——
+   *  换人/终局流转在 sim 内确定性推进（切片 36）。
    *  intro：非训练模式带开局特写演出（原版 TRAINING 无开场语义，intro 切片）。 */
   private spawnSim(training: boolean): void {
     const rig = this.loadout.rig;
-    const { p1, p2 } = picksOf(this.flow);
     const st = rig.map.stage;
+    const fcOf = (side: 1 | 2, i: number) => {
+      const e = (side === 1 ? rig.p1 : rig.p2)[i]!;
+      const spawn =
+        side === 1
+          ? { x: rig.map.p1Spawn?.x ?? 300, y: rig.map.p1Spawn?.y ?? st.groundY }
+          : { x: rig.map.p2Spawn?.x ?? 700, y: rig.map.p2Spawn?.y ?? st.groundY };
+      return {
+        id: fighterId(side, i),
+        ...spawn,
+        def: e.pack.def,
+        forms: e.pack.forms,
+        formIndex: e.pack.forms.indexOf(e.pack.def),
+        assistId: side === 1 ? rig.p1Assist : rig.p2Assist,
+        comicType: e.comicType,
+      };
+    };
+    const p1Fcs = rig.p1.map((_, i) => fcOf(1, i));
+    const p2Fcs = rig.p2.map((_, i) => fcOf(2, i));
     this.sim = new Sim({
       seed: 1,
       stage: st,
@@ -205,26 +253,11 @@ export class BattleScene implements Scene {
       // intro：非训练模式带开局特写演出（原版 TRAINING 无开场语义，intro 切片）；
       // dev 直通 &intro=1 训练局也带演出（冒烟/目检用，正式入口不传）
       intro: !training || new URLSearchParams(location.search).has('intro'),
-      fighters: [
-        {
-          id: 1,
-          x: rig.map.p1Spawn?.x ?? 300,
-          y: rig.map.p1Spawn?.y ?? st.groundY,
-          def: rig.p1.def,
-          forms: rig.p1.forms,
-          formIndex: rig.p1.forms.indexOf(rig.p1.def),
-          assistId: p1.assist,
-        },
-        {
-          id: 2,
-          x: rig.map.p2Spawn?.x ?? 700,
-          y: rig.map.p2Spawn?.y ?? st.groundY,
-          def: rig.p2.def,
-          forms: rig.p2.forms,
-          formIndex: rig.p2.forms.indexOf(rig.p2.def),
-          assistId: p2.assist,
-        },
-      ],
+      fighters: [...p1Fcs, ...p2Fcs],
+      // teams 缺省不落键（1v1 零漂移；sim 侧换人/终局以 teams 存在性为门）
+      ...(this.flow.team
+        ? { teams: { p1: p1Fcs.map((f) => f.id), p2: p2Fcs.map((f) => f.id) } }
+        : {}),
       assistants: Object.fromEntries(Object.entries(rig.assists).map(([id, a]) => [id, a.def])),
     });
     this.simTick = 0;
@@ -232,6 +265,7 @@ export class BattleScene implements Scene {
 
   private async enterNet(map: MapPack): Promise<void> {
     const flow = this.flow;
+    const rig = this.loadout.rig;
     this.spawnSim(false);
     this.netKeymap = flow.roleKeymapP2 ? KEYMAP_P2 : KEYMAP_P1;
     this.renderer!.setHint(
@@ -241,8 +275,20 @@ export class BattleScene implements Scene {
     const configHash = makeConfigHash({
       seed: 1,
       stage: map.stage,
-      fighters: [picksOf(flow).p1.fighter, picksOf(flow).p2.fighter],
-      assists: [picksOf(flow).p1.assist, picksOf(flow).p2.assist],
+      fighters: [
+        ...rig.p1.map((e) => e.pack.id),
+        ...rig.p2.map((e) => e.pack.id),
+      ],
+      assists: [rig.p1Assist, rig.p2Assist],
+      // 团队 roster 指纹（出场序 id 表；两端由同一 flow 装配，序一致）
+      ...(flow.team
+        ? {
+            teams: {
+              p1: rig.p1.map((_, i) => fighterId(1, i)),
+              p2: rig.p2.map((_, i) => fighterId(2, i)),
+            },
+          }
+        : {}),
     });
 
     const { client } = await lockstart(this.socket as unknown as WsLike, flow.player, {
@@ -280,6 +326,7 @@ export class BattleScene implements Scene {
       }
       this.renderer.onSnapshot(snap);
       this.introActive = snap.state.intro != null;
+      this.roundEndActive = snap.state.roundEnd != null;
       this.audio?.handleSimEvents(snap.events, this.audioBinding);
       this.audio?.handleTimelineFrames(snap, this.timelineBinding);
       this.simTick++;
@@ -304,10 +351,18 @@ export class BattleScene implements Scene {
     if (stepped || this.acc > 0) this.renderer.update(this.acc);
   }
 
-  /** KO 表现事件 → 结算（每局一次；训练模式回血不会 KO）。
-   *  net：KO 演出 1.2s 后进结算立绘（原版 KO → WinnerStage 语义）；
-   *  solo（训练模式）：维持对局浮层——训练语义不打断练习（切片 29 偏离登记）。 */
+  /**
+   * KO/终局表现事件 → 结算流转（训练模式回血 sim 门控不 KO）。
+   * 1v1：KO 演出 1.2s 后进结算立绘（原版 KO → WinnerStage 语义）；
+   * 团队：fighter:ko 不切场景（sim 内部走回合结束/换人，切片 36），
+   * 终局 match:over 事件后 600ms 进结算立绘（原版 fightFinish 终局流转）；
+   * solo（训练模式）：维持对局浮层——训练语义不打断练习（切片 29 偏离登记）。
+   */
   private checkKo(events: SimSnapshot['events']): void {
+    if (this.flow.team) {
+      this.checkMatchOver(events);
+      return;
+    }
     if (this.koSeen) return;
     for (const ev of events) {
       if (ev.type !== 'fighter:ko') continue;
@@ -325,6 +380,24 @@ export class BattleScene implements Scene {
           });
         }, 1200);
       }
+      break;
+    }
+  }
+
+  /** 团队终局事件（原版 fightFinish → WinnerStage）：match:over → 结算立绘。 */
+  private checkMatchOver(events: SimSnapshot['events']): void {
+    if (this.matchOverSeen) return;
+    for (const ev of events) {
+      if (ev.type !== 'match:over') continue;
+      const winner = ev.payload['winner'];
+      if (typeof winner !== 'number') continue;
+      this.matchOverSeen = true;
+      window.setTimeout(() => {
+        if (this.dead) return;
+        void import('./winner.js').then(({ WinnerScene }) => {
+          this.ctx?.switchTo(new WinnerScene(this.flow, winner as 1 | 2, this.socket));
+        });
+      }, 600);
       break;
     }
   }

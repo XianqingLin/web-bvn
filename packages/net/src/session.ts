@@ -1,23 +1,26 @@
 /**
- * 会话助手（切片 7；切片 14 拆段支持选人流程）。
+ * 会话助手（切片 7；切片 14 拆段支持选人流程；切片 35 双光标上行）。
  *
  * 联机生命周期与 socket 的 onmessage 单槽对应，按阶段接管：
  *   joinRoom      create/join → welcome（入房）
  *   sendReady/sendRoomConfig/sendBegin   房间语义上行（切片 34 房间页用）
- *   sendPick/waitPeerPick   选人结果交换（服务器透传 pick）
+ *   sendCursor/sendPick    选人页双光标上行（光标变更即广播；累计锁定覆盖式重发，
+ *                          接收侧由场景自管消息泵——SetupScene 常驻 onmessage 分派）
  *   lockstart     LockstepClient 接管（自动发 hello 互验）→ 等 start 广播
  * startSession = 三段一步到位（无选人流程的兼容入口）。
  */
-import type { PlayerSlot, RoomSettings } from './protocol.js';
+import type { LockedPicks, PlayerSlot, RoomSettings } from './protocol.js';
 import { LockstepClient, type LockstepOptions } from './lockstep.js';
 import { wsTransport, type WsLike } from './transport.js';
 
-/** 本端选人结果（切片 14）：fighter = 角色包 id；assist = 辅助包 id；
- *  map 仅 P1 携带（两端地图以 P1 选择为准）。 */
+/** 本端选人结果（切片 14；切片 35 扩展）：fighter = 角色包 id；assist = 辅助包 id；
+ *  map 仅 P1 携带（两端地图以 P1 选择为准）；
+ *  locked = 选人页累计锁定快照（覆盖语义，选中即锁逐次上行）。 */
 export interface PickInfo {
   fighter: string;
   assist: string;
   map?: string | undefined;
+  locked?: LockedPicks | undefined;
 }
 
 export interface SessionOptions {
@@ -107,34 +110,20 @@ export function sendBegin(socket: WsLike): void {
   socket.send(JSON.stringify({ t: 'begin' }));
 }
 
-/** 发送本端选人结果（服务器透传给对端）。 */
+/** 发送本端选人结果（服务器透传给对端）。累计锁定与最终结果共用本消息。 */
 export function sendPick(socket: WsLike, player: PlayerSlot, pick: PickInfo): void {
   socket.send(JSON.stringify({ t: 'pick', player, ...pick }));
 }
 
-/** 等对端选人结果。resolve 后清空 onmessage，交还下一阶段接管。 */
-export function waitPeerPick(socket: WsLike, timeoutMs = 120_000): Promise<PickInfo> {
-  return new Promise<PickInfo>((res, rej) => {
-    const timer = setTimeout(() => {
-      socket.onmessage = null;
-      rej(new Error('waitPeerPick：等待对端选人超时'));
-    }, timeoutMs);
-    socket.onmessage = (ev) => {
-      let msg: { t?: string; player?: PlayerSlot; fighter?: string; assist?: string; map?: string };
-      try {
-        msg = JSON.parse(
-          typeof ev.data === 'string' ? ev.data : (ev.data as { toString(): string }).toString(),
-        );
-      } catch {
-        return;
-      }
-      if (msg.t === 'pick') {
-        clearTimeout(timer);
-        socket.onmessage = null;
-        res({ fighter: msg.fighter!, assist: msg.assist!, map: msg.map });
-      }
-    };
-  });
+/** 选人/援助阶段光标位置上行（切片 35：变更即广播，服务器透传给对端；
+ *  新位置覆盖旧位置，不依赖可靠有序通道）。 */
+export function sendCursor(
+  socket: WsLike,
+  player: PlayerSlot,
+  stage: 'fighter' | 'assist',
+  idx: number,
+): void {
+  socket.send(JSON.stringify({ t: 'cursor', player, stage, idx }));
 }
 
 /** lockstep 装配：LockstepClient（有 configHash 则发 hello 互验）→ 等 start 广播。 */

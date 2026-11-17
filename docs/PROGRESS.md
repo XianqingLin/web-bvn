@@ -56,7 +56,7 @@
 | 32 | 阶段 4·intro：开局特写+语音演出（GameStartCtrler.start1v1 收编，Btn.back 元层键） | ✅ | §三；规格 DESIGN §3.5/§5 |
 | 33 | 联机迁移平台中转（方案 A）：RelaySocket + openPlatformSession + 嵌入构建（⚠ 同日晚方案 A 作废，处置见 §4.4 切片 34） | ✅/作废 | §三 |
 | 34 | 联机房间流：房间语义协议 + 房间页 + 方案 A 遗留处置 | ✅ | §三；§4.4 / [netplay-design.md](netplay-design.md) |
-| 35 | 联机房间流：选人页双光标（cursor 同步/选中即锁/团队 3+1） | ⬜ | §4.4 |
+| 35 | 联机房间流：选人页双光标（cursor 同步/选中即锁/团队 3+1）+ 对局侧 3+1 装配（尾巴） | ✅ | §三；§4.4 |
 | 36 | 联机房间流：地图阶段（房主选择 / 开箱抽取 + 服务器权威种子） | ⬜ | §4.4 |
 | 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ⬜ | §4.4 |
 | 38 | 联机房间流：平台接缝（身份凭证/邀请深链/资料接入） | ⬜ | §4.4 |
@@ -101,6 +101,8 @@
 - **批次 40**（✅ 2026-11-16）蓝染实测三连：① pixi 8.22.0 高级混合打包缺陷（补 `import 'pixi.js/advanced-blend-modes'` + `useBackBuffer: true`）；② 攻击起手清残速（NORMAL 起手清 vx/dampX，链段衔接与空中攻击不动）——sim 变更双基线重冻；③ shine 触发补消费。砍 3 位移不改（数据忠实，滑行修复后复测）。
 - **切片 33**（✅ 2026-11-16，⚠ 同日晚方案 A 作废）联机迁移平台中转：RelaySocket 适配层（welcome/start 本地合成、peer-lost 差分、pick/input/hash 透传）+ openPlatformSession + app 接线 + 嵌入构建（prepare-dist、相对路径）+ net 18 单测。**方案 A 作废后迁移代码留存，处置归切片 34**（room-server.mjs 回归游戏自有定位）。顺手修复：waitPeerPick 丢 pick.map。
 - **切片 34**（✅ 2026-11-17）房间语义协议 + 房间页 + 方案 A 遗留处置：① room-server.mjs 扩展（room-info 快照广播/room-config/ready/begin 校验准备门/掉线清理按 §10；start 两段语义：begin=进选人、hello 收齐=开跑）+ protocol.ts 词表（房间语义 4 条 + UI 同步占位 cursor/map-pick/map-roll）+ session.ts 房间助手 + server 11 单测（node --test 子进程起服）；② app：NetScene 回自有服务器路径（serverUrl localStorage 记忆 + BufferedSocket 包装）+ RoomScene 房间页（房主常备/开始门/三项设置/客座准备切换/房间码/邀请占位，room-info 快照驱动渲染）；③ 方案 A 处置：platform.ts + platform.test.ts 删除（回退），RelaySocket 的 pick 竞态兜底收编为 BufferedSocket（net 6 单测，含 2 条竞态回归自 platform.test 移植）。实现取舍：快照单一通道（room-config 仅上行，状态统一经 room-info）；房间默认设置 private+房主选图+单挑（设计稿未定案）。
+- **切片 35**（✅ 2026-11-17）选人页双光标：① SetupScene 联机分支重构——本端光标跟随鼠标 hover（原版键盘驱动不移植，netplay-design §7 已注明），hover 变更即 cursor 广播（去重 + 安全发送）；对端光标以对侧纹理渲染、对端展示盒实时跟随其光标；② 选中即锁：点击即锁定无反悔，随机项此刻解析成具体角色后按最终项同步，锁满份额后本端光标冻结；双色锁定框（P1 蓝/P2 粉，本端内框/对端外框）；③ 双方齐套本地推导推进（角色 → 援助 → 地图），地图尾沿用最终 pick（map 仅 P1，P2 选满收到即进加载页，两端完整性守卫防误放行）；④ 团队模式 3 选 + 1 援助（selectTimesCount=3，同角色/自身重复允许），pick 改累计快照覆盖式上行（fighters[]/assists[] 按锁定次序，3s 重发幂等），flow 增 team/localTeamPick/peerTeamPick；⑤ 断线按 §10 提示后回主菜单（消息泵常驻接管 socket，移交加载页时脱钩）；随机项联机解禁（原禁用）。遗留：对局侧 3+1 装配未接（原版 GameRunFighterGroup/换人 ~250 行），团队累计选人暂以首名进 1v1 对局（→ 切片 35 尾巴已接）；地图阶段实时跟随/开箱抽取归切片 36。server 补 cursor/locked-pick 透传单测（12 条）。
+- **切片 35 尾巴**（✅ 2026-11-17）对局侧团队 3+1 装配：① core——`SimConfig.teams { p1, p2 }`（出场序 id 表，构造器校验唯一且可寻址）→ `MatchState.teams` 槽位抄录（`TeamSlot` 含 x/y/comicType/assistId/formIndex/hp，换人只依赖 SimState、fromState 免重注入）+ 仅队首进 fighters（严格 2 活跃模型）+ `SimState.roundEnd` 状态机（KO 即置位——1v1 不置零漂移；等胜方收尾 isAllowWinState 门 → WIN_ING+胜利+血量恢复 0.33 → hold 180 计满；Btn.back 全程可跳）+ `rotateIn` 换人（pending 出队、全新满血 FighterState、气继承 lastLoserQi+同 comicType+100 封顶 300、双方回出生点、清场 despawn、beginIntro(入场方)）+ draw 同拍双 KO 改判与双侧轮换 + 终局 `match:over`+over 冻结；② render——roster 全员精灵按 fighter id 预载 id-swap（bench 不可见复用 + 入场即换免重绑图集）+ HUD teamFighters 大脸/能量标签按 id 寻址换脸；③ app——fighterId(side,i)=1,3,5/2,4,6 交错编号即 sim id，roster 全员 FighterConfig + teams 装配（solo/net 双路径），team 模式 fighter:ko 不切场景、match:over 后 600ms 进结算，ESC 演出期=跳过/演出外=返回菜单；configHash 增 teams 指纹（roster 序两端一致）。core 8 单测（装配/KO→换人/气继承同系加成/skip/败方耗尽/两轮打满/确定性/1v1 零漂移）。规格 DESIGN §3.5 团队回合流（偏离登记：固定 180 tick 演出+全程可跳、无计时器恢复常数 0.33、draw 双侧轮换以首个败方气计、入场方 focus 时序 ±18 tick）。
 
 ---
 
@@ -139,7 +141,7 @@
 | 切片 | 内容 | 状态 |
 |---|---|---|
 | 34 | 房间语义协议 + 房间页：room-server.mjs 扩展（room-info/ready/room-config/begin/掉线清理）+ NetMessage 词表扩展 + app RoomScene（房主常备/客座准备切换/开始门/公开-随机地图-团队三项设置/房间码/邀请操作占位）+ **方案 A 遗留处置**（NetScene 回自有服务器路径，platform.ts 回退或改造为凭证接缝） | ✅（2026-11-17） |
-| 35 | 联机选人页：SetupScene 双光标（cursor 消息同步/双色框/选中即锁/双方齐套本地推导推进/团队模式 3 选 + 1 援助/同角色允许）+ pick 按次序累计语义 | ⬜ |
+| 35 | 联机选人页：SetupScene 双光标（cursor 消息同步/双色框/选中即锁/双方齐套本地推导推进/团队模式 3 选 + 1 援助/同角色允许）+ pick 按次序累计语义 + **对局侧 3+1 装配（尾巴）**：sim teams 装配/回合结束换人/终局流转 + render roster id-swap + HUD 换脸 | ✅（2026-11-17） |
 | 36 | 地图阶段：房主选择（map-pick 实时广播、客座只读）+ 开箱抽取（map-roll 服务器权威种子、~4s 动画、不可跳过/重抽、种子进 configHash） | ⬜ |
 | 37 | 匹配与浏览：服务器匹配队列（queue/unqueue/matched）+ 公开房间列表轮询（list-rooms/room-list）+ app 匹配 UI（"匹配中" + 红 ✕ 取消）+ 浏览房间页 + VS 横幅（下限 2.5s、上限以建连就绪为准） | ⬜ |
 | 38 | 平台接缝：身份凭证服务器侧验证 + 邀请深链进房 + 平台昵称/头像资料接入（netplay-design §11 对齐点收口；凭证未定前按结构子集 duck typing 留接缝） | ⬜ |
@@ -162,6 +164,6 @@
 
 ## 五、下一步（按优先级）
 
-1. **联机房间流切片 35**（§4.4）——选人页双光标（cursor 消息同步/选中即锁/双方齐套本地推导推进/团队 3+1）；
+1. **联机房间流切片 36**（§4.4）——地图阶段（房主选择 map-pick 实时广播 / 开箱抽取服务器权威种子，种子进 configHash）；
 2. 切片 34~38 完成后 **真机体验验证**（§4.1）按新流程公网验收；
 3. 阶段 4 余块（断线判负/录像/观战/街机/本地双人）按 §4.3 顺序推进，开工前细化登记 §二。

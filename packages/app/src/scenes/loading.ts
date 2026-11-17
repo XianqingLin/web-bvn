@@ -43,8 +43,8 @@ import {
   type MapPack,
   type UiData,
 } from '../data.js';
-import { picksOf, type Flow } from '../flow.js';
-import { BattleScene, type BattleLoadout } from './battle.js';
+import { picksOf, teamPicksOf, type Flow } from '../flow.js';
+import { BattleScene, fighterId, type BattleLoadout, type RosterEntry } from './battle.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
@@ -150,7 +150,17 @@ export class LoadingScene implements Scene {
 
   private async runQueue(ctx: SceneCtx, data: LoadingData): Promise<void> {
     try {
-      const { p1, p2 } = picksOf(this.flow);
+      // 团队模式（切片 36）：累计选人按锁定次序组 roster（≤3 名/侧，per-side
+      // 辅助取首名）；1v1 单名回退（picksOf）
+      const sidePicks = this.flow.team
+        ? teamPicksOf(this.flow)
+        : (() => {
+            const { p1, p2 } = picksOf(this.flow);
+            return {
+              p1: { fighters: [p1.fighter], assist: p1.assist },
+              p2: { fighters: [p2.fighter], assist: p2.assist },
+              };
+          })();
       const select = await loadSelect(ctx.ctx);
       const uiData = await loadUi(ctx.ctx);
       const entryOf = (id: string) => select.chars.find((c) => c.id === id);
@@ -160,8 +170,10 @@ export class LoadingScene implements Scene {
       const assistNameOf = (id: string) => select.assists.find((c) => c.id === id)?.name ?? id;
       const mapName = select.maps.find((m) => m.id === this.flow.mapId)?.name ?? this.flow.mapId;
 
-      let p1Pack: FighterPack | null = null;
-      let p2Pack: FighterPack | null = null;
+      // 角色包按 id 缓存：同一 id 可在 roster 内/跨侧重复选（两个 fighter id
+      // 共享同一 FighterPack；def/forms 只读共享安全）
+      const packCache = new Map<string, FighterPack>();
+      const uniqueFighterIds = [...new Set([...sidePicks.p1.fighters, ...sidePicks.p2.fighters])];
       const assistList: AssistPack[] = [];
       let map: MapPack | null = null;
       let bisha: BishaData | null = null;
@@ -169,19 +181,13 @@ export class LoadingScene implements Scene {
       let hud: import('@bvn/render').HudData | null = null;
 
       const queue: { msg: string; run: () => Promise<void> }[] = [
-        {
-          msg: `正在加载角色：${nameOf(p1.fighter)}`,
+        ...uniqueFighterIds.map((id) => ({
+          msg: `正在加载角色：${nameOf(id)}`,
           run: async () => {
-            p1Pack = await loadFighterPack(ctx.ctx, p1.fighter, swfOf(p1.fighter), startOf(p1.fighter));
+            packCache.set(id, await loadFighterPack(ctx.ctx, id, swfOf(id), startOf(id)));
           },
-        },
-        {
-          msg: `正在加载角色：${nameOf(p2.fighter)}`,
-          run: async () => {
-            p2Pack = await loadFighterPack(ctx.ctx, p2.fighter, swfOf(p2.fighter), startOf(p2.fighter));
-          },
-        },
-        ...[...new Set([p1.assist, p2.assist])].map((id) => ({
+        })),
+        ...[...new Set([sidePicks.p1.assist, sidePicks.p2.assist])].map((id) => ({
           msg: `正在加载辅助角色：${assistNameOf(id)}`,
           run: async () => {
             assistList.push(await loadAssistPack(ctx.ctx, id));
@@ -197,7 +203,7 @@ export class LoadingScene implements Scene {
           // 原版 SoundCtrler.loadFightBGM：加载页预解码战斗曲（KO 重开/进图不卡解码）
           msg: '正在加载BGM',
           run: async () => {
-            await audioOf(ctx.ctx)?.preloadFightBgm(p1.fighter, this.flow.mapId);
+            await audioOf(ctx.ctx)?.preloadFightBgm(sidePicks.p1.fighters[0]!, this.flow.mapId);
             bisha = await loadBisha(ctx.ctx);
             hitspark = await loadHitspark(ctx.ctx);
             hud = await loadHud(ctx.ctx);
@@ -221,27 +227,48 @@ export class LoadingScene implements Scene {
       cur++;
       this.setItem('正在加载资源', cur);
       const renderer = new BattleRenderer(ctx.pixi);
-      renderer.setStageVisible(false); // 装载期隐藏世界/HUD 层（加载画面之下不露地图）
+      renderer.setStageVisible(false); // 装载期隐藏世界/HUD 隐藏层（加载画面之下不露地图）
       this.renderer = renderer;
       // 渲染层直挂 pixi.stage（晚于 uiRoot）→ 重提 uiRoot 到顶，加载画面不被盖住
       const host = ctx.ctx.peek<SceneHost>('scenes');
       if (host) ctx.pixi.stage.addChild(host.uiRoot);
+      const mkRoster = (ids: string[]): RosterEntry[] =>
+        ids.map((id) => ({
+          pack: packCache.get(id)!,
+          comicType: entryOf(id)?.comicType ?? 0,
+        }));
       const rig = {
         map: map!,
-        p1: p1Pack!,
-        p2: p2Pack!,
+        p1: mkRoster(sidePicks.p1.fighters),
+        p2: mkRoster(sidePicks.p2.fighters),
+        p1Assist: sidePicks.p1.assist,
+        p2Assist: sidePicks.p2.assist,
         assists: Object.fromEntries(assistList.map((a) => [a.id, a])),
       };
+      const hudFace = (id: string, assistId: string) => ({
+        faceUrl: uiFaceUrl(uiData, id, '_m'),
+        assistFaceUrl: uiFaceUrl(uiData, assistId, ''),
+        comicType: entryOf(id)?.comicType ?? 0,
+      });
       await renderer.load(
         {
           baseUrl: ASSETS,
+          // roster 全员精灵（team bench 预载；id-swap：入场即换无需重绑图集）
           fighters: [
-            { slot: 1, atlasId: rig.p1.id, formIndex: rig.p1.def.formIndex },
-            { slot: 2, atlasId: rig.p2.id, formIndex: rig.p2.def.formIndex },
+            ...rig.p1.map((e, i) => ({
+              slot: fighterId(1, i),
+              atlasId: e.pack.id,
+              formIndex: e.pack.def.formIndex,
+            })),
+            ...rig.p2.map((e, i) => ({
+              slot: fighterId(2, i),
+              atlasId: e.pack.id,
+              formIndex: e.pack.def.formIndex,
+            })),
           ],
           assisters: [
-            { ownerId: 1, atlasId: p1.assist },
-            { ownerId: 2, atlasId: p2.assist },
+            { ownerId: 1, atlasId: rig.p1Assist },
+            { ownerId: 2, atlasId: rig.p2Assist },
           ],
           mapAtlasId: rig.map.id,
           mapBottomOffset: rig.map.pkg.bottomOffset,
@@ -249,7 +276,9 @@ export class LoadingScene implements Scene {
           fireAtlases: {
             // 键 = 出场者 atlasId（render 侧按精灵 atlasId 查），值 = fire 图集 id（swf 基名）
             fighter: Object.fromEntries(
-              [rig.p1, rig.p2].filter((p) => p.hasFires).map((p) => [p.id, p.swf]),
+              [...rig.p1, ...rig.p2]
+                .filter((e) => e.pack.hasFires)
+                .map((e) => [e.pack.id, e.pack.swf]),
             ),
             assister: Object.fromEntries(
               assistList.filter((a) => a.hasFires).map((a) => [a.id, a.id]),
@@ -262,24 +291,35 @@ export class LoadingScene implements Scene {
             // 血条大脸 = select id+'_m'（102×64）；辅助脸 = 辅助 id 50×50 网格脸
             //（原版 getFighterFace 缺省 size）；能量标签帧 = comicType（0=死神 1=火影）
             fighters: {
-              p1: {
-                faceUrl: uiFaceUrl(uiData, p1.fighter, '_m'),
-                assistFaceUrl: uiFaceUrl(uiData, p1.assist, ''),
-                comicType: entryOf(p1.fighter)?.comicType ?? 0,
-              },
-              p2: {
-                faceUrl: uiFaceUrl(uiData, p2.fighter, '_m'),
-                assistFaceUrl: uiFaceUrl(uiData, p2.assist, ''),
-                comicType: entryOf(p2.fighter)?.comicType ?? 0,
-              },
+              p1: hudFace(sidePicks.p1.fighters[0]!, sidePicks.p1.assist),
+              p2: hudFace(sidePicks.p2.fighters[0]!, sidePicks.p2.assist),
             },
+            // 团队 roster 大脸/能量标签（按 fighter id 寻址；换人切换消费）
+            ...(this.flow.team
+              ? {
+                  teamFighters: Object.fromEntries(
+                    [
+                      ...rig.p1.map((e, i) => [
+                        fighterId(1, i),
+                        hudFace(e.pack.id, sidePicks.p1.assist),
+                      ]),
+                      ...rig.p2.map((e, i) => [
+                        fighterId(2, i),
+                        hudFace(e.pack.id, sidePicks.p2.assist),
+                      ]),
+                    ],
+                  ),
+                }
+              : {}),
           },
         },
         (p) => {
           this.target = (cur - 1 + p) / this.total;
         },
       );
-      if (this.destroyed) return;
+      if (this.destroyed) {
+        return;
+      }
       renderer.prime(); // 首帧定位：修换场景首帧 world@原点 / bg 未 cover 的"进场黑边"
       this.loadout = { rig, renderer };
       this.renderer = null; // 所有权移交

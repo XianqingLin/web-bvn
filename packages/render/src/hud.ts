@@ -119,6 +119,12 @@ export interface HudFighterSpec {
 export interface HudSpec {
   data: HudData;
   fighters: { p1: HudFighterSpec; p2: HudFighterSpec };
+  /**
+   * 团队 roster 大脸/能量标签（切片 36）：fighter id → 装配（roster 全员）；
+   * 缺省 = 1v1 静态消费 fighters.p1/p2。存在时 update 按快照 match.teams
+   * 解析各侧出战者，切脸/能量标签帧随之切换（faces 预载免异步闪白）。
+   */
+  teamFighters?: Record<number, HudFighterSpec> | undefined;
 }
 
 /** 单侧 HUD 动态件句柄（build 顺序：hp → energy → qi → hits 逐块填充） */
@@ -204,6 +210,13 @@ export class FightHud {
   private hpBars: { p1: Container; p2: Container } | null = null;
   /** 开局字样（startKOmc；intro 切片，updateStartKO 驱动） */
   private startKO: Sprite | null = null;
+  /** 团队换人（切片 36）：双侧大脸/能量标签可换件 + roster 脸纹理缓存 */
+  private faceSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
+  private energyLabelSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
+  private teamFaceTex = new Map<number, Texture>();
+  private activeFace: { 1: number | null; 2: number | null } = { 1: null, 2: null };
+  /** fighter id → 所属侧（团队换人后 onHit 归侧；1v1 恒空） */
+  private sideOf = new Map<number, 1 | 2>();
   private viewW = 1000;
   private viewH = 600;
   private fitZoom = 1;
@@ -222,6 +235,15 @@ export class FightHud {
       } else {
         this.frames.set(name, await this.loadFrames(`${baseUrl}/${path}`));
       }
+    }
+    // 团队 roster 大脸预载（切片 36）：换人切脸同步换纹理，免异步闪白
+    if (this.spec.teamFighters) {
+      await Promise.all(
+        Object.entries(this.spec.teamFighters).map(async ([id, f]) => {
+          if (!f.faceUrl) return;
+          this.teamFaceTex.set(Number(id), await Assets.load<Texture>(f.faceUrl));
+        }),
+      );
     }
     this.build();
   }
@@ -274,12 +296,12 @@ export class FightHud {
     bar2.scale.x = -1;
     this.hpBars = { p1: bar1, p2: bar2 };
     // —— 大脸（mc_035 等价物；P2 镜像 = 原版 face2 a=-1，setDirect 为空操作）——
-    const face1 = this.buildFace(this.spec.fighters.p1.faceUrl);
-    const face2 = this.buildFace(this.spec.fighters.p2.faceUrl);
+    const face1 = this.buildFace(this.spec.fighters.p1.faceUrl, 1);
+    const face2 = this.buildFace(this.spec.fighters.p2.faceUrl, 2);
     face2.scale.x = -1;
     // —— 能量条（mc_032 等价物；P2 容器镜像 + 标签双翻）——
-    const en1 = this.buildEnergy(s1, this.spec.fighters.p1.comicType, 1);
-    const en2 = this.buildEnergy(s2, this.spec.fighters.p2.comicType, -1);
+    const en1 = this.buildEnergy(s1, 1, this.spec.fighters.p1.comicType, 1);
+    const en2 = this.buildEnergy(s2, 2, this.spec.fighters.p2.comicType, -1);
     en2.scale.x = -1;
     // —— 计时板（mc_038；单局恒显 ∞）——
     const time = new Container();
@@ -347,7 +369,7 @@ export class FightHud {
     return g;
   }
 
-  private buildFace(faceUrl: string | null): Container {
+  private buildFace(faceUrl: string | null, side: 1 | 2): Container {
     // mc_034（hpbar_facemc）SWF 深度序（XFL 图层自上而下：图层4 picture_090 →
     // 图层3 mask → 被动条 sp → 图层2 ct 脸槽 → 图层1 黑底矩形）：
     // 黑底 + 脸槽被六边形 mask 裁剪，picture_090 框在顶层不被裁（内部为半透明
@@ -371,6 +393,7 @@ export class FightHud {
         sp.texture = t; // _m 图恰为 102×64，与 picture_090 同画布 1:1
       });
       inner.addChild(sp);
+      this.faceSp[side] = sp; // 团队换人切脸件（applyActiveFace 换纹理）
     }
     const mask = new Graphics();
     mask
@@ -383,7 +406,7 @@ export class FightHud {
     return g;
   }
 
-  private buildEnergy(side: SideHud, comicType: number, direct: 1 | -1): Container {
+  private buildEnergy(side: SideHud, sideNum: 1 | 2, comicType: number, direct: 1 | -1): Container {
     const d = this.data;
     const g = new Container();
     // bg 三段式（宽屏延伸切片）：左斜盖 0-12 / 纯槽中段 12-128 / 右端块 128-140，
@@ -406,6 +429,7 @@ export class FightHud {
     const label = this.frameSprite('energy-label', comicType);
     label.position.set(d.hp.energy.labelPos[0], d.hp.energy.labelPos[1]);
     if (direct === -1) label.scale.x = -1;
+    this.energyLabelSp[sideNum] = label; // 团队换人切标签件（applyActiveFace 换帧）
     g.addChild(bgLeft, bgMid, bgRight, fill, label);
     side.energy = {
       bgMid,
@@ -604,10 +628,15 @@ export class FightHud {
 
   // ---------- 动态更新 ----------
 
-  /** hit:connect 桥（renderer 事件消费调用）。attacker = fighter id 1/2。 */
+  /**
+   * hit:connect 桥（renderer 事件消费调用）。attacker = fighter id（1/2 或
+   * 团队换人后的 roster id——sideOf 映射归侧，update 按快照刷新）。
+   */
   onHit(attacker: number): void {
-    if (attacker !== 1 && attacker !== 2) return;
-    const s = this.sides[attacker === 1 ? 1 : 2];
+    const side =
+      attacker === 1 ? 1 : attacker === 2 ? 2 : (this.sideOf.get(attacker) ?? null);
+    if (side === null) return;
+    const s = this.sides[side];
     s.hits.count++;
     // 原版 addHits：hits > 1 才显示（首击不弹连击数）
     if (s.hits.count >= 2) this.showHits(s);
@@ -639,11 +668,38 @@ export class FightHud {
   /** 每渲染帧更新（原版 60Hz render 语义；dtMs 供 READY 动画/淡出推进）。 */
   update(snap: SimSnapshot, dtMs: number): void {
     const fs = snap.state.fighters;
-    const f1 = fs.find((f) => f.id === 1);
-    const f2 = fs.find((f) => f.id === 2);
+    const teams = snap.state.match.teams;
+    let f1: (typeof fs)[number] | undefined;
+    let f2: (typeof fs)[number] | undefined;
+    if (teams != null && this.spec.teamFighters) {
+      // 团队换人（切片 36）：按快照 roster 解析各侧出战者；连击归侧映射 +
+      // 出战者切换时换大脸/能量标签帧
+      this.sideOf.clear();
+      for (const s of teams.p1) this.sideOf.set(s.id, 1);
+      for (const s of teams.p2) this.sideOf.set(s.id, 2);
+      f1 = fs.find((f) => teams.p1.some((s) => s.id === f.id));
+      f2 = fs.find((f) => teams.p2.some((s) => s.id === f.id));
+      this.applyActiveFace(1, f1?.id ?? null);
+      this.applyActiveFace(2, f2?.id ?? null);
+    } else {
+      f1 = fs.find((f) => f.id === 1);
+      f2 = fs.find((f) => f.id === 2);
+    }
     if (f1) this.updateSide(this.sides[1]!, f1, f2 ?? f1, dtMs);
     if (f2) this.updateSide(this.sides[2]!, f2, f1 ?? f2, dtMs);
     this.updateStartKO(snap);
+  }
+
+  /** 出战者切换：换大脸纹理 + 能量标签帧（团队 roster 预载纹理同步切换）。 */
+  private applyActiveFace(side: 1 | 2, id: number | null): void {
+    if (id === null || this.activeFace[side] === id) return;
+    const spec = this.spec.teamFighters?.[id];
+    if (!spec) return;
+    this.activeFace[side] = id;
+    const face = this.faceSp[side];
+    if (face) face.texture = this.teamFaceTex.get(id) ?? Texture.EMPTY;
+    const label = this.energyLabelSp[side];
+    if (label) label.texture = this.frame('energy-label', spec.comicType) ?? label.texture;
   }
 
   /** 开局字样（intro 切片，原版 FightUI.showStart/renderStartAndKO）：

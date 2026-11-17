@@ -1048,6 +1048,7 @@ export class BattleRenderer {
     const next = this.next;
 
     // —— 战斗体：位置插值，朝向/动画帧取最新 ——
+    const activeIds = new Set(next.state.fighters.map((f) => f.id));
     for (const f of next.state.fighters) {
       const sp = this.sprites.get(f.id);
       if (!sp) continue;
@@ -1055,6 +1056,7 @@ export class BattleRenderer {
       const ix = p.x + (f.x - p.x) * alpha;
       const iy = p.y + (f.y - p.y) * alpha;
 
+      sp.root.visible = true;
       sp.root.position.set(ix, iy);
       if (sp.appliedFacing !== f.facing) {
         sp.root.scale.x = f.facing;
@@ -1062,6 +1064,14 @@ export class BattleRenderer {
       }
       // 内层帧 = 最新快照
       this.applyFrame(sp, f.actLabel !== null ? f.animFrame : 0);
+    }
+    // 团队 bench（切片 36）：快照缺席的角色精灵隐藏（换人入场后复显——
+    // roster 全员预载、id 定精灵，入场即换无需重绑图集）
+    for (const [id, sp] of this.sprites) {
+      if (!activeIds.has(id) && sp.root.visible) {
+        sp.root.visible = false;
+        sp.appliedPng = -1;
+      }
     }
 
     this.updateAttackers(prev, next, alpha);

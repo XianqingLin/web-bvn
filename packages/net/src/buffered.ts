@@ -35,7 +35,7 @@ export class BufferedSocket implements WsLike {
     };
   }
 
-  /** joinRoom/RoomScene/SetupScene/waitPeerPick 均按此属性接管消息。 */
+  /** joinRoom/RoomScene/SetupScene/lockstart 均按此属性接管消息。 */
   get onmessage(): ((ev: { data: unknown }) => void) | null {
     return this.handler;
   }
