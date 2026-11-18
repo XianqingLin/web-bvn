@@ -13,7 +13,7 @@
  *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）
  */
 import { Application } from 'pixi.js';
-import { connectXlp } from '@xlp/game-sdk';
+import { connectGameDock } from '@gamedock/game-sdk';
 import { AppHost } from './host.js';
 import { AudioSubsystem } from './audio.js';
 import { SceneHost } from './scenes/scene.js';
@@ -50,7 +50,7 @@ async function boot(): Promise<void> {
 
   // 平台握手（不在平台内运行时进 standalone；联机走自有服务器，平台账号仅作昵称显示）
   const flow = makeFlow();
-  flow.xlp = await connectXlp();
+  flow.dock = await connectGameDock();
 
   // —— 场景入口（dev 直通参数见文件头） ——
   const params = new URLSearchParams(location.search);

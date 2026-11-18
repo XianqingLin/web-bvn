@@ -2,7 +2,7 @@
  * 场景间共享的对局流程状态（切片 14；切片 34 回归自有 room-server 路径）。
  * 一个 Flow 贯穿 菜单→房间→选人→战斗→结算 的单次流转；回菜单即废弃。
  */
-import type { XlpSdk } from '@xlp/game-sdk';
+import type { GameDockSdk } from '@gamedock/game-sdk';
 
 export interface Pick {
   fighter: string;
@@ -22,8 +22,8 @@ export interface Flow {
   serverUrl: string;
   /** 本端显示昵称（房间页/VS 横幅；平台昵称，standalone 回退"玩家N"） */
   name: string;
-  /** 平台 SDK（boot 时 connectXlp；standalone 时联机走自有服务器，账号信息仅作显示） */
-  xlp: XlpSdk | null;
+  /** 平台 SDK（boot 时 connectGameDock；standalone 时联机走自有服务器，账号信息仅作显示） */
+  dock: GameDockSdk | null;
   /** 联机位次（服务器分配：create→1 / join→2；solo 恒 1） */
   player: 1 | 2;
   /** 房间码（联机；自有服务器 4 位码） */
@@ -58,7 +58,7 @@ export function makeFlow(): Flow {
     // 构建期默认（.env.production，正式构建烘入云服务器）> dev 本地默认
     serverUrl: localStorage.getItem('bvn.server') ?? import.meta.env.VITE_ROOM_SERVER ?? 'ws://localhost:8787',
     name: '',
-    xlp: null,
+    dock: null,
     player: 1,
     room: '',
     localPick: null,

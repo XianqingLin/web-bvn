@@ -56,7 +56,7 @@ export class BrowseScene implements Scene {
     title.position.set(UI_W / 2, 100);
     ui.addChild(title);
 
-    const accountText = makeLabel(this.flow.xlp?.user ? `账号：${this.flow.xlp.user.username}` : '', {
+    const accountText = makeLabel(this.flow.dock?.user ? `账号：${this.flow.dock.user.username}` : '', {
       size: 15,
       color: 0x8fd0ff,
     });

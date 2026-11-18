@@ -114,8 +114,8 @@ export class MatchScene implements Scene {
     title.position.set(UI_W / 2, 100);
     ui.addChild(title);
 
-    const xlp = this.flow.xlp;
-    const accountText = makeLabel(xlp?.user ? `账号：${xlp.user.username}` : '', {
+    const dock = this.flow.dock;
+    const accountText = makeLabel(dock?.user ? `账号：${dock.user.username}` : '', {
       size: 15,
       color: 0x8fd0ff,
     });

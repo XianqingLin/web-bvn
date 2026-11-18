@@ -53,5 +53,5 @@ export function makeServerLabel(flow: Flow, domHost: HTMLElement): Text {
 
 /** 本端显示昵称（平台资料 duck typing；standalone 回退空串由服务器清洗）。 */
 export function displayName(flow: Flow): string {
-  return flow.xlp?.user?.username ?? '';
+  return flow.dock?.user?.username ?? '';
 }
