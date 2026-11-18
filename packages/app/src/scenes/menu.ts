@@ -200,7 +200,7 @@ export class MenuScene implements Scene {
     root.addChild(version);
 
     // 流帧：预取头几帧后开播
-    this.stream = new FrameStream({ dir: title.dir, frames: title.frames });
+    this.stream = new FrameStream({ dir: title.dir, frames: title.frames, from: title.introFrom, to: title.menuStop });
     this.stream.ensure(title.introFrom, 5);
     await this.waitFrames(title.introFrom, 4);
     if (this.destroyed) return;
@@ -246,8 +246,14 @@ export class MenuScene implements Scene {
           // 纹理就绪才推进（sprite 始终显示 this.frame 的纹理，release 窗口才是安全的）
           this.frame = f;
           this.frameSprite.texture = tex;
+        } else if (this.stream.failed(f)) {
+          this.frame = f; // 失败帧视为已过（保持上一帧画面；与 logo/winner 场景同语义，防卡死）
         } else {
-          this.stream.ensure(f, 4); // 停帧等待加载
+          // 停帧等待：回退本次累积，播放头冻结在 frame+1。若放任 acc 累积，
+          // f 会冲到 stop，ensure(f,4) 预取的远端帧落在 release 常驻窗之外
+          // （加载完即销毁→重取风暴→连接池饿死 frame+1 → 永久停帧；高延迟部署必现）
+          this.acc -= dtMs;
+          this.stream.ensure(this.frame + 1, 4);
         }
       }
       // menu 段播完定格（intro 段定格仍留在 'intro' 等点击，原版帧脚本 stop 语义）
@@ -305,7 +311,8 @@ export class MenuScene implements Scene {
         const tex = this.stream.get(first);
         if (tex) return;
       }
-      if (this.destroyed) return;
+      // 首帧达重试上限仍失败：放弃等待（enter 处有 Texture.WHITE 回退），防永久卡死
+      if (this.destroyed || this.stream?.permanentlyFailed(first)) return;
       await new Promise((r) => window.setTimeout(r, 50));
     }
   }

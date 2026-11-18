@@ -42,7 +42,7 @@ export class LogoScene implements Scene {
     this.frameSprite = sprite;
     ctx.root.addChild(sprite);
 
-    this.stream = new FrameStream({ dir: logo.dir, frames: logo.frames });
+    this.stream = new FrameStream({ dir: logo.dir, frames: logo.frames, from: logo.from });
     this.stream.ensure(logo.from, 5);
     // 等首帧就绪再开播（黑底期间）
     for (;;) {
@@ -53,7 +53,7 @@ export class LogoScene implements Scene {
           break;
         }
       }
-      if (this.destroyed) return;
+      if (this.destroyed || this.stream.permanentlyFailed(logo.from)) break;
       await new Promise((r) => window.setTimeout(r, 50));
     }
     this.frame = logo.from;
@@ -73,7 +73,10 @@ export class LogoScene implements Scene {
       } else if (this.stream.failed(f)) {
         this.frame = f; // 失败帧视为已过（保持上一帧画面，防卡死）
       } else {
-        this.stream.ensure(f, 4);
+        // 停帧等待：回退本次累积，播放头冻结在 frame+1（防 acc 债务把预取窗推出
+        // release 常驻窗 → 加载完即销毁的重取风暴 → 连接池饿死；同 menu.ts 语义）
+        this.acc -= dtMs;
+        this.stream.ensure(this.frame + 1, 4);
       }
     }
     if (this.frame >= logo.stop) {

@@ -1,7 +1,11 @@
 /**
  * 通用流帧播放器（TitleStream 泛化，切片 29 菜单流打磨：logo/winner 演出复用）。
- * 单帧解码显存可观（winner 帧 2013×1168 ~9MB），常驻小窗口 + 预取，同 menu.ts 播放语义：
+ * 单帧解码显存可观（winner 帧 2013×1168 ~9MB），解码纹理常驻小窗口 + 预取，同 menu.ts 播放语义：
  * 纹理就绪才推进播放头，身后帧 release。
+ *
+ * 两层缓存（2026-11-17：部署环境逐帧边播边下载供不上 30fps）：
+ * 压缩帧全量预下载为 blob（总量 ~MB 级，网络层一次性吃完延迟），
+ * 解码纹理按需从本地 blob 生成（几十 ms 级，走小窗常驻控显存）。
  */
 import { ImageSource, Texture } from 'pixi.js';
 import { ASSETS } from '../data.js';
@@ -11,33 +15,61 @@ export interface StreamSpec {
   dir: string;
   /** 帧总数（PNG/WebP 序号 1..frames） */
   frames: number;
+  /** 实际显示下界（缺省 1）：预下载/预取只覆盖 [from, to]，区间外帧不拉不存
+   *  （2026-11-17：menu 帧流 1、76-90 从不显示却占 ~1.6MB，3Mbps 下 ≈4.5s） */
+  from?: number;
+  /** 实际显示上界（缺省 frames） */
+  to?: number;
 }
 
 export class FrameStream {
+  /** 失败冷却：冷却期内 failed(i)=true（播放头"视为已过"防卡死），冷却过允许重试；
+   *  累计失败达上限后永久视为失败（真坏帧不无限重试）。 */
+  private static readonly RETRY_COOLDOWN_MS = 2000;
+  private static readonly RETRY_MAX = 5;
+  /** 解码纹理（小窗常驻，release 逐出） */
   private readonly cache = new Map<number, Texture>();
+  /** 解码中的纹理 */
   private readonly loading = new Map<number, Promise<Texture | null>>();
-  private readonly failedFrames = new Set<number>();
+  /** 压缩帧 blob（全量常驻，总量 MB 级） */
+  private readonly blobs = new Map<number, Promise<Blob | null>>();
+  private readonly failedAt = new Map<number, number>();
+  private readonly failedCount = new Map<number, number>();
   private dead = false;
 
-  constructor(private readonly info: StreamSpec) {}
+  constructor(private readonly info: StreamSpec) {
+    // 全量预下载压缩帧：播放瓶颈在逐帧网络延迟（部署环境 ~150ms/帧，30fps 供不上），
+    // 开播前把整条流 ~MB 级压缩体一次性吃下，之后解码走本地 blob 不再占连接。
+    // 只拉实际显示区间 [from, to]（menu 帧流帧 1、76-90 从不显示）。
+    const from = info.from ?? 1;
+    const to = info.to ?? info.frames;
+    for (let i = from; i <= to; i++) this.blob(i);
+  }
 
-  /** 触发 [i, i+ahead] 加载；返回 i 是否已可用。 */
+  /** 触发 [i, i+ahead] 解码；返回 i 是否已可用。 */
   ensure(i: number, ahead = 5): boolean {
-    const to = Math.min(i + ahead, this.info.frames);
-    for (let k = Math.max(1, i); k <= to; k++) this.load(k);
+    const to = Math.min(i + ahead, this.info.to ?? this.info.frames);
+    for (let k = Math.max(this.info.from ?? 1, i); k <= to; k++) this.load(k);
     return this.cache.has(i);
   }
 
-  /** 加载失败帧（不重试，播放停在该帧前一位并保持背景）。 */
+  /** 近期失败帧（冷却期内或已达重试上限）——播放头"视为已过"用。 */
   failed(i: number): boolean {
-    return this.failedFrames.has(i);
+    return this.failedCount.has(i)
+      && (this.failedCount.get(i)! >= FrameStream.RETRY_MAX
+        || Date.now() - this.failedAt.get(i)! < FrameStream.RETRY_COOLDOWN_MS);
+  }
+
+  /** 达到重试上限的永久失败帧——等待循环据此放弃（防永久卡死）。 */
+  permanentlyFailed(i: number): boolean {
+    return (this.failedCount.get(i) ?? 0) >= FrameStream.RETRY_MAX;
   }
 
   get(i: number): Texture | undefined {
     return this.cache.get(i);
   }
 
-  /** 释放窗口外帧（全分辨率解码帧 ~9MB 显存，常驻窗必须小）。 */
+  /** 释放窗口外解码帧（全分辨率解码帧 ~9MB 显存，常驻窗必须小）；blob 常驻不逐出。 */
   release(keep: (i: number) => boolean): void {
     for (const [i, tex] of this.cache) {
       if (!keep(i) && !this.loading.has(i)) {
@@ -54,18 +86,22 @@ export class FrameStream {
       else this.cache.delete(i); // 保留显示中纹理的所有权（调用方接管销毁）
     }
     if (!keep) this.cache.clear();
+    this.blobs.clear();
   }
 
   private load(i: number): Promise<Texture | null> {
-    if (this.failedFrames.has(i)) return Promise.resolve(null);
+    // 已缓存直接复用：ensure 每 tick 都会覆盖预取窗口，不查缓存会对已缓存帧
+    // 发起重复解码（小窗语义下还会与 release 互相踩：刚解码完即被逐出再解码）。
+    const cached = this.cache.get(i);
+    if (cached) return Promise.resolve(cached);
+    if (this.failed(i)) return Promise.resolve(null);
     let p = this.loading.get(i);
     if (!p) {
-      p = fetch(`${ASSETS}/${this.info.dir}/${i}.webp`)
-        .then((r) => {
-          if (!r.ok) throw new Error(`${r.status}`);
-          return r.blob();
+      p = this.blob(i)
+        .then((b) => {
+          if (!b) throw new Error('blob unavailable');
+          return createImageBitmap(b);
         })
-        .then((b) => createImageBitmap(b))
         .then((bmp) => {
           if (this.dead) {
             bmp.close();
@@ -76,11 +112,34 @@ export class FrameStream {
           return tex;
         })
         .catch(() => {
-          this.failedFrames.add(i);
+          // 瞬时失败（网络抖动/连接被掐）只进冷却，冷却后 ensure 再触及时重试
+          if (!this.dead) {
+            this.failedAt.set(i, Date.now());
+            this.failedCount.set(i, (this.failedCount.get(i) ?? 0) + 1);
+          }
           return null;
         })
         .finally(() => this.loading.delete(i));
       this.loading.set(i, p);
+    }
+    return p;
+  }
+
+  private blob(i: number): Promise<Blob | null> {
+    let p = this.blobs.get(i);
+    if (!p) {
+      p = fetch(`${ASSETS}/${this.info.dir}/${i}.webp`)
+        .then((r) => {
+          if (!r.ok) throw new Error(`${r.status}`);
+          return r.blob();
+        })
+        .catch(() => {
+          // 失败即移除缓存项（冷却后可重试）；失败计数在解码层统一记，
+          // 避免 blob→解码双路径重复累计提前耗尽重试次数
+          if (!this.dead) this.blobs.delete(i);
+          return null;
+        });
+      this.blobs.set(i, p);
     }
     return p;
   }
