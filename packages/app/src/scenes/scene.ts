@@ -47,12 +47,11 @@ export class SceneHost implements Subsystem {
   }
 
   private onResize(): void {
-    const zoom = Math.min(this.app.renderer.width / UI_W, this.app.renderer.height / UI_H);
+    // screen 是 CSS 逻辑尺寸;renderer.width/height 是乘过 DPR 的物理像素。
+    const { width, height } = this.app.renderer.screen;
+    const zoom = Math.min(width / UI_W, height / UI_H);
     this.uiRoot.scale.set(zoom);
-    this.uiRoot.position.set(
-      (this.app.renderer.width - UI_W * zoom) / 2,
-      (this.app.renderer.height - UI_H * zoom) / 2,
-    );
+    this.uiRoot.position.set((width - UI_W * zoom) / 2, (height - UI_H * zoom) / 2);
   }
 
   init(ctx: Ctx): void {

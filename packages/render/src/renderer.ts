@@ -309,7 +309,7 @@ export class BattleRenderer {
   private camY = LOGICAL_H / 2;
   private zoomFactor = 1;
   private zoomTarget = 1;
-  /** 世界容器宽（屏幕像素）：缩放 = worldW / LOGICAL_W */
+  /** 世界容器宽（屏幕 CSS 逻辑像素）：缩放 = worldW / LOGICAL_W */
   private viewW = LOGICAL_W;
   private viewH = LOGICAL_H;
 
@@ -366,8 +366,9 @@ export class BattleRenderer {
   }
 
   private onResize(): void {
-    this.viewW = this.app.renderer.width;
-    this.viewH = this.app.renderer.height;
+    // 布局使用 CSS 逻辑尺寸,不能把乘过 DPR 的画布物理像素当成游戏坐标。
+    this.viewW = this.app.renderer.screen.width;
+    this.viewH = this.app.renderer.screen.height;
   }
 
   /** 加载战斗素材（app await；onProgress = 分步进度回报 0..1，加载页进度条消费，块 9）。 */

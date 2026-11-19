@@ -35,8 +35,31 @@ async function boot(): Promise<void> {
   const host = document.getElementById('stage');
   if (!host) throw new Error('#stage 缺失');
   host.appendChild(app.canvas);
+  app.canvas.style.display = 'block';
   app.canvas.style.width = '100%';
   app.canvas.style.height = '100%';
+
+  // CSS 尺寸决定可见画面,renderer.resolution 决定实际渲染像素。
+  // 场景仍使用 1000×600 逻辑坐标,避免大窗口只是把低分辨率画布拉伸发虚。
+  const resizeRenderer = () => {
+    const width = host.clientWidth;
+    const height = host.clientHeight;
+    if (width <= 0 || height <= 0) return;
+    const resolution = Math.min(window.devicePixelRatio || 1, 2);
+    if (
+      app.renderer.screen.width === width &&
+      app.renderer.screen.height === height &&
+      app.renderer.resolution === resolution
+    ) {
+      return;
+    }
+    app.renderer.resize(width, height, resolution);
+  };
+  resizeRenderer();
+  const resizeObserver = new ResizeObserver(resizeRenderer);
+  resizeObserver.observe(host);
+  // 屏幕 DPR 变化不一定改变宿主 CSS 尺寸,窗口 resize 时再核对一次。
+  window.addEventListener('resize', resizeRenderer);
 
   const appHost = new AppHost();
   const scenes = new SceneHost(app);
