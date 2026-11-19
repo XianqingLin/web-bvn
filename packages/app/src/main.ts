@@ -51,6 +51,8 @@ async function boot(): Promise<void> {
   // 平台握手（不在平台内运行时进 standalone；联机走自有服务器，平台账号仅作昵称显示）
   const flow = makeFlow();
   flow.dock = await connectGameDock();
+  // 上报舞台尺寸：平台运行页据此信箱式收紧 iframe，消除固定比例周围的空白（standalone 为 no-op）
+  flow.dock.reportViewport(1000, 600);
 
   // —— 场景入口（dev 直通参数见文件头） ——
   const params = new URLSearchParams(location.search);
