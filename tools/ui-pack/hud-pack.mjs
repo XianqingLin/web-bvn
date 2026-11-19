@@ -97,6 +97,8 @@ async function sameImage(a, b) {
 rmSync(OUT_ASSETS, { recursive: true, force: true });
 mkdirSync(OUT_ASSETS, { recursive: true });
 const el = {};
+/** startKOmc Round 数字合成规格（数字块产出；无则 baked 不含该字段） */
+let startKONumSpec = null;
 async function put(name, src) {
   copyFileSync(src, join(OUT_ASSETS, `${name}.png`));
   el[name] = `ui/hud/${name}.png`;
@@ -205,6 +207,120 @@ await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
     copyFileSync(join(dir, `${i + 10}.png`), join(OUT_ASSETS, 'startko', `${i + 1}.png`));
   }
   el['startko'] = 'ui/hud/startko';
+
+  // —— Round 数字（nummc 收编修正，批次 43）——
+  // 原版 nummc（mc_041）由 mc_043 帧脚本 nummc.gotoAndPlay("r"+$round) 控制
+  // （FightUI.showStart: startKOmc.$round = round）：数字 1..5 = 静态位图
+  // （swf id 182/185/188/191/194，画布锚 mc_041(10,2)）+ 实例级遮罩揭示动画。
+  // FFDec 帧导出不执行脚本 → 原始嵌套时间轴被烘进位图（数字 1 于资产帧
+  // 18-43、数字 2 于 44-45），第二回合起字样错轮、回合 1 末尾还闪数字 2。
+  // 修正：字样帧位图数字区擦除 + 数字位图独立导出逐帧合成（数字窗口 =
+  // 揭示 18-27 + 稳定 28-45；帧 46+ Fight! 文本侵入数字矩形故不擦）。
+  // 偏离登记（2026-11-19）：① 数字 2-5 的揭示借数字 1 的逐帧 alpha 遮罩
+  // （原版为遮罩扫掠纯 alpha 语义，揭示瞬间的加色闪光 RGB 无法由 alpha
+  // 遮罩复原，~0.3s 微差）；② 原版 round≥5 用 start_final 段（XFL 另段未
+  // 收编）→ 恒用 start 段，数字按 min(round,5) 封顶（3v3 最多 5 回合）。
+  const NUM = {
+    /** 数字擦除区（字样画布坐标；词右缘 x431、数字画布 x[441,527] y[340,457]
+     *  + 揭示闪光 y~296 起外扩） */
+    erase: { x0: 433, y0: 290, x1: 540, y1: 460 },
+    /** 数字帧合成画布（数字位图锚 (441,340) 的外扩裁剪）与摆放点 */
+    crop: { x0: 441, y0: 290, w: 87, h: 171 },
+    /** 数字显示窗口（资产帧号）：揭示 18-27 + 稳定 28-45 */
+    from: 18,
+    to: 45,
+    /** swf 位图 id = 数字 1..5（-selectid image:png_gif_jpeg_alpha 导出，
+     *  JPEG3 alpha 噪点以分离 alpha 通道规避） */
+    ids: [182, 185, 188, 191, 194],
+    /** 揭示遮罩参照 alpha（a_stable=0 的闪光区按 a_k/REF 计） */
+    flashRef: 200,
+  };
+  const pngOf = (assetFrame) => join(dir, `${assetFrame + 9}.png`); // 资产帧 N ↔ PNG N+9
+  const cropRaw = async (path) => {
+    const { data, info } = await sharp(path)
+      .extract({ left: NUM.crop.x0, top: NUM.crop.y0, width: NUM.crop.w, height: NUM.crop.h })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    return data;
+  };
+  // 揭示遮罩（数字 1 逐帧 alpha ÷ 稳定帧 alpha；闪光区按 flashRef）
+  const aStable = await cropRaw(pngOf(28));
+  const masks = [];
+  for (let n = NUM.from; n <= 27; n++) {
+    const aK = await cropRaw(pngOf(n));
+    const mask = Buffer.alloc(NUM.crop.w * NUM.crop.h);
+    for (let i = 0; i < mask.length; i++) {
+      const s = aStable[i * 4 + 3];
+      const k = aK[i * 4 + 3];
+      mask[i] = s > 0 ? Math.min(255, Math.round((k / s) * 255)) : Math.min(255, Math.round((k / NUM.flashRef) * 255));
+    }
+    masks.push(mask);
+  }
+  // 数字位图导出 + RGBA 组合（jpg 色 + alpha.png 第 4 通道）
+  const numDir = join(SCRATCH, 'numimg');
+  rmSync(numDir, { recursive: true, force: true });
+  run(FFDEC, ['-selectid', NUM.ids.join(','), '-format', 'image:png_gif_jpeg_alpha', '-export', 'image', numDir, FIGHT_SWF]);
+  const glyphOf = async (id) => {
+    const rgb = await sharp(join(numDir, `${id}.jpg`)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const al = await sharp(join(numDir, `${id}.alpha.png`)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const out = Buffer.alloc(rgb.info.width * rgb.info.height * 4);
+    for (let i = 0; i < rgb.info.width * rgb.info.height; i++) {
+      out[i * 4] = rgb.data[i * 4];
+      out[i * 4 + 1] = rgb.data[i * 4 + 1];
+      out[i * 4 + 2] = rgb.data[i * 4 + 2];
+      out[i * 4 + 3] = al.data[i * 4 + 3];
+    }
+    return { data: out, w: rgb.info.width, h: rgb.info.height };
+  };
+  // 帧位图擦除（资产帧 18..45 = 输出 PNG N..；先于数字合成完成即可）
+  for (let n = NUM.from; n <= NUM.to; n++) {
+    const p = join(OUT_ASSETS, 'startko', `${n}.png`);
+    const { data, info } = await sharp(p).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    for (let y = NUM.erase.y0; y <= NUM.erase.y1; y++) {
+      for (let x = NUM.erase.x0; x <= NUM.erase.x1; x++) data[(y * info.width + x) * 4 + 3] = 0;
+    }
+    await sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } }).png().toFile(p);
+  }
+  // 数字合成帧：startko-num/<资产帧号> 连续铺 5 组（运行时按 round 选组）
+  const numOut = join(OUT_ASSETS, 'startko-num');
+  mkdirSync(numOut, { recursive: true });
+  const per = NUM.to - NUM.from + 1;
+  for (let d = 1; d <= NUM.ids.length; d++) {
+    const g = await glyphOf(NUM.ids[d - 1]);
+    if (g.w > NUM.crop.w || g.h > NUM.crop.h - 50) {
+      throw new Error(`数字 ${d} 位图 ${g.w}×${g.h} 超出合成画布 ${NUM.crop.w}×${NUM.crop.h}`);
+    }
+    for (let n = NUM.from; n <= NUM.to; n++) {
+      const canvas = Buffer.alloc(NUM.crop.w * NUM.crop.h * 4);
+      const gx = 0; // 数字锚 (441,340) − 裁剪原点 (441,290)
+      const gy = 50;
+      const useMask = n <= 27;
+      for (let y = 0; y < g.h; y++) {
+        for (let x = 0; x < g.w; x++) {
+          const gi = (y * g.w + x) * 4;
+          const ci = ((y + gy) * NUM.crop.w + (x + gx)) * 4;
+          const m = useMask ? masks[n - NUM.from][y * NUM.crop.w + x] / 255 : 1;
+          canvas[ci] = g.data[gi];
+          canvas[ci + 1] = g.data[gi + 1];
+          canvas[ci + 2] = g.data[gi + 2];
+          canvas[ci + 3] = Math.round((g.data[gi + 3] / 255) * m * 255);
+        }
+      }
+      const idx = (d - 1) * per + (n - NUM.from) + 1;
+      await sharp(canvas, { raw: { width: NUM.crop.w, height: NUM.crop.h, channels: 4 } })
+        .png()
+        .toFile(join(numOut, `${idx}.png`));
+    }
+  }
+  el['startko-num'] = 'ui/hud/startko-num';
+  startKONumSpec = {
+    pos: [NUM.crop.x0, NUM.crop.y0],
+    from: NUM.from,
+    to: NUM.to,
+    digits: NUM.ids.length,
+    frames: per,
+  };
 }
 
 // ---------- 3. baked/hud.json ----------
@@ -278,8 +394,17 @@ const doc = {
   readyAnim: { frames: 20, fps: 30 },
   /** 开局字样（startKOmc start+fight 段）：79 帧 @30fps（core 冻结期 30Hz 步进，
    * 78 步走完 → 156 sim ticks）；canvasOrigin = PNG(0,0) 在 mc_043 局部坐标；
-   * pos = ui_fight 舞台摆放点（startKOmc@(0,0) + showStart y=-50 + 原点换算） */
-  startKO: { frames: 79, fps: 30, canvasOrigin: [13, 103], pos: [13, 53] },
+   * pos = ui_fight 舞台摆放点（startKOmc@(0,0) + showStart y=-50 + 原点换算）；
+   * num = Round 数字合成帧（nummc 收编修正）：pos = 数字画布相对 startKO 摆放点
+   * 的偏移，帧窗口 [from,to]（资产帧号），frames = 每数字帧数，digits = 数字数
+   * （1..digits 按 min(round,5) 选组） */
+  startKO: {
+    frames: 79,
+    fps: 30,
+    canvasOrigin: [13, 103],
+    pos: [13, 53],
+    ...(startKONumSpec ? { num: startKONumSpec } : {}),
+  },
 };
 
 mkdirSync(dirname(OUT_BAKED), { recursive: true });

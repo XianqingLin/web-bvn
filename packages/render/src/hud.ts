@@ -25,9 +25,11 @@
  *     scale 恒 1；横线条纹理拉伸不可感知，与切人横幅/bgFixed 同款适配）。
  *
  * 遗留（未收编，登记 PROGRESS 遗留池）：startKOmc 结算段（KO/timeover/winner/
- * drawgame——回合结算流程未接）、win 胜利星（p1Wins/p2Wins 恒 0 不显示）、
- * scoremc、被动条 sp、回合数字 shape_007。开局段（start+fight）已收编（intro
- * 切片：core 冻结期快照驱动，intro.step===7 期间 30Hz 流帧）。
+ * drawgame——回合结算流程未接）与 start_final 段（round≥5）、win 胜利星
+ * （p1Wins/p2Wins 恒 0 不显示）、scoremc、被动条 sp、回合数字 shape_007。开局段
+ * （start+fight）已收编（intro 切片：core 冻结期快照驱动，intro.step===7 期间
+ * 30Hz 流帧；Round 数字 = nummc 收编修正，批次 43——帧位图数字区烘焙擦除 +
+ * startko-num 合成帧按 min(round,5) 选组叠放）。
  */
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
@@ -101,8 +103,18 @@ export interface HudData {
   winAnim: { frames: number; bleach: [number, number]; naruto: [number, number]; fps: number };
   readyAnim: { frames: number; fps: number };
   /** 开局字样（startKOmc start+fight 段；canvasOrigin = PNG(0,0) 的 mc_043 局部
-   *  坐标，pos = ui_fight 舞台摆放点——烘焙时已换算，见 hud-pack.mjs） */
-  startKO: { frames: number; fps: number; canvasOrigin: [number, number]; pos: [number, number] };
+   *  坐标，pos = ui_fight 舞台摆放点——烘焙时已换算，见 hud-pack.mjs）。
+   *  num = Round 数字合成帧（nummc 收编修正，批次 43）：原版 nummc 由帧脚本
+   *  gotoAndPlay("r"+$round) 控制显示当前回合数字，帧导出无法执行脚本 → 帧位图
+   *  的数字区已烘焙擦除，数字帧独立合成（startko-num/<组×帧数+帧内序>），运行时
+   *  按 min(round,5) 选组叠放（pos = 数字画布相对 pos 的偏移）。 */
+  startKO: {
+    frames: number;
+    fps: number;
+    canvasOrigin: [number, number];
+    pos: [number, number];
+    num?: { pos: [number, number]; from: number; to: number; digits: number; frames: number };
+  };
 }
 
 /** HUD 单侧角色装配（app 按选人结果组装；slot 1/2） */
@@ -210,6 +222,8 @@ export class FightHud {
   private hpBars: { p1: Container; p2: Container } | null = null;
   /** 开局字样（startKOmc；intro 切片，updateStartKO 驱动） */
   private startKO: Sprite | null = null;
+  /** 开局字样 Round 数字（nummc 收编修正，批次 43；updateStartKO 驱动） */
+  private startKONum: Sprite | null = null;
   /** 团队换人（切片 36）：双侧大脸/能量标签可换件 + roster 脸纹理缓存 */
   private faceSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
   private energyLabelSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
@@ -345,6 +359,21 @@ export class FightHud {
       this.root.addChild(ko);
       this.pinned.push({ c: ko, x: d.startKO.pos[0], y: d.startKO.pos[1], mx: 'left', my: 'top' });
       this.startKO = ko;
+      // Round 数字（nummc 收编修正）：帧位图数字区已烘焙擦除，此件按
+      // min(round,5) 选组叠放（updateStartKO 驱动，与字样同窗口显隐）
+      if (d.startKO.num && this.frames.has('startko-num')) {
+        const num = new Sprite(Texture.EMPTY);
+        num.visible = false;
+        this.root.addChild(num);
+        this.pinned.push({
+          c: num,
+          x: d.startKO.pos[0] + d.startKO.num.pos[0],
+          y: d.startKO.pos[1] + d.startKO.num.pos[1],
+          mx: 'left',
+          my: 'top',
+        });
+        this.startKONum = num;
+      }
     }
 
     this.relayout();
@@ -704,19 +733,37 @@ export class FightHud {
 
   /** 开局字样（intro 切片，原版 FightUI.showStart/renderStartAndKO）：
    *  intro step 7 期间快照驱动流帧（hold 每 2 sim tick 一帧 = 30Hz）；intro
-   *  结束/跳过 = clearStartAndKO 隐藏（原版 COMPLETE → clearStartAndKO）。 */
+   *  结束/跳过 = clearStartAndKO 隐藏（原版 COMPLETE → clearStartAndKO）。
+   *  Round 数字（nummc 收编修正，批次 43）：原版 mc_043 帧脚本
+   *  nummc.gotoAndPlay("r"+$round)（FightUI.showStart 设 $round）→ 按
+   *  min(round,5) 选合成帧组，与字样帧同窗口显隐。 */
   private updateStartKO(snap: SimSnapshot): void {
     const sp = this.startKO;
     if (!sp) return;
     const intro = snap.state.intro;
     if (intro == null || intro.step !== 7) {
       sp.visible = false;
+      if (this.startKONum) this.startKONum.visible = false;
       return;
     }
     sp.visible = true;
+    const f = Math.floor(intro.hold / 2);
     sp.texture =
-      this.frame('startko', Math.min(Math.floor(intro.hold / 2), this.data.startKO.frames - 1)) ??
-      sp.texture;
+      this.frame('startko', Math.min(f, this.data.startKO.frames - 1)) ?? sp.texture;
+    const num = this.startKONum;
+    const spec = this.data.startKO.num;
+    if (!num || !spec) return;
+    // 资产帧号 = 纹理下标 + 1；窗口外（字样首段空白/Fight! 段）隐藏
+    const assetFrame = f + 1;
+    if (assetFrame < spec.from || assetFrame > spec.to) {
+      num.visible = false;
+      return;
+    }
+    const round = Math.min(Math.max(snap.state.match.round, 1), spec.digits);
+    num.texture =
+      this.frame('startko-num', (round - 1) * spec.frames + (assetFrame - spec.from)) ??
+      num.texture;
+    num.visible = true;
   }
 
   /** f = 本侧角色；target = 对面角色（连击隐藏按目标状态判定）。 */
