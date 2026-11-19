@@ -685,7 +685,11 @@ export class BattleRenderer {
     // 目标 = 对面角色（双人对局 fighters[0/1]；辅助侧切人取对面角色位）
     const target = snap.state.fighters.find((f) => f.id !== owner) ?? snap.state.fighters[0];
     const slot: 1 | 2 = target && casterX > target.x ? 2 : 1;
-    const faceTex = face && atlasId ? (this.bishaFaceTex.get(`${atlasId}:${face}`) ?? null) : null;
+    // 立绘同横幅守卫：仅主战（原版 target is FighterMain）
+    const faceTex =
+      ownerKind === 'fighter' && face && atlasId
+        ? (this.bishaFaceTex.get(`${atlasId}:${face}`) ?? null)
+        : null;
     // 横幅 y 联动（原版 showBishaFace：100 + 100/zoom，zoom = 演出开始时的相机目标因子）
     const mcPosY = 100 + 100 / this.zoomTarget;
     this.cutin = { active: true, faceName: face, faceTex, slot, mcPosY, accMs: 0, frame: 0 };
@@ -963,7 +967,7 @@ export class BattleRenderer {
       this.cutin.active = false;
       return;
     }
-    // 锁存在但无演出信息（如联机中途入局错过事件）：只显示黑幕+横幅
+    // 锁存在但无演出信息（如联机中途入局错过事件）：只显示黑幕（+主战横幅）
     if (!this.cutin.active) {
       this.cutin = {
         active: true,
@@ -984,8 +988,11 @@ export class BattleRenderer {
     const c = this.cutin;
     c.accMs += dtMs;
     c.frame = Math.min(1 + Math.floor(c.accMs / (1000 / mc.fps)), mc.frames - 1);
-    // 横幅流帧（0-based 帧 f ↔ 文件 f+1；帧 0 为 gotoAndPlay(2) 前的白屏态，不显示）
-    const bandTex = this.bishaBandTex[c.frame];
+    // 横幅流帧（0-based 帧 f ↔ 文件 f+1；帧 0 为 gotoAndPlay(2) 前的白屏态，不显示）。
+    // 横幅/立绘仅主战（修复批次 42：原版 EffectCtrler.bisha 的
+    // `face && target is FighterMain` 守卫——showFace→showBishaFace（蓝条）只对
+    // FighterMain 调用；辅助施放 bisha 只有黑幕+位置光效，辅助侧此前误挂横幅）
+    const bandTex = lock.kind === 'fighter' ? this.bishaBandTex[c.frame] : undefined;
     if (bandTex) {
       this.cutinBand.visible = true;
       this.cutinBand.texture = bandTex;

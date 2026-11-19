@@ -9,7 +9,8 @@
  *    （p1 组 (70,85) / p2 组 (480,85)，间距 100）、辅助面板 p1 (-30,325) / p2 (45,325)；
  *    面板 = selected_p1/p2（253×70）+ 大脸 245×62 @(4.75,4.75)（p2 内容镜像 origin
  *    248.6）+ seltwz 角标（帧 1..3 = 位次 / 帧 4 = assist；p1 (-8,-5)、p2 fighter 右缘
- *    对齐 252-w、p2 assist x=176）。
+ *    对齐 252-w、p2 assist x=176）+ 角色名文本（SelectedFighterUI SHOW_CN_TEXT，
+ *    白 14px 黑 glow；p1 右对齐右缘 243 / p2 左对齐 x=10，y=面板高−25；修复批次 42）。
  *  - 进出场黑幕：切场景前 transIn 合拢、进场 transOut 打开（原版 StateCtrler.transIn/
  *    transOut，见 trans.ts）。
  *
@@ -69,6 +70,11 @@ const PANEL = {
   assistPos: { p1: [-30, 325] as [number, number], p2: [45, 325] as [number, number] },
   /** 角标位（SelectedFighterUI.setFighterIndex/setAssister） */
   badge: { p1: [-8, -5] as [number, number], p2FighterRight: 252, p2AssistX: 176, y: -5 },
+  /** 角色名文本（SelectedFighterUI 构造器 SHOW_CN_TEXT=true 实证：y=ui.height−25） */
+  nameY: 45,
+  /** p1 面板右对齐、右缘 = 面板宽 253−10；p2 面板左对齐 x=10 */
+  nameP1Right: 243,
+  nameP2X: 10,
 };
 
 /** 装载完成后的定场时长（原版 loadFin → setTimeout 1000ms → finish）。 */
@@ -151,6 +157,7 @@ export class LoadingScene implements Scene {
       p1: { fighters: string[]; assist: string };
       p2: { fighters: string[]; assist: string };
     },
+    nameOf: (id: string, isAssist: boolean) => string,
   ): Promise<void> {
     const [panelP1, panelP2] = await Promise.all([
       Assets.load<Texture>(`${ASSETS}/${uiData.select.elements.selected_p1}`),
@@ -210,6 +217,23 @@ export class LoadingScene implements Scene {
           badge.position.set(PANEL.badge.p1[0], PANEL.badge.y);
         }
         c.addChild(badge);
+
+        // 角色名（SelectedFighterUI SHOW_CN_TEXT=true：白 14px 黑 glow（blur 3）；
+        // p1 面板右对齐、右缘 = 面板宽−10；p2 面板左对齐 x=10；y = 面板高−25）
+        const t = new Text(nameOf(id, isAssist), {
+          fontFamily: 'system-ui, "Microsoft YaHei", sans-serif',
+          fontSize: 14,
+          fill: 0xffffff,
+          dropShadow: { color: 0x000000, alpha: 1, blur: 3, distance: 0, angle: Math.PI / 2 },
+        });
+        t.y = PANEL.nameY;
+        if (isP2) {
+          t.x = PANEL.nameP2X;
+        } else {
+          t.anchor.x = 1;
+          t.x = PANEL.nameP1Right;
+        }
+        c.addChild(t);
       };
 
       pick.fighters.forEach((id, i) => mountPanel(id, false, i));
@@ -237,14 +261,17 @@ export class LoadingScene implements Scene {
           })();
       const select = await loadSelect(ctx.ctx);
       const uiData = await loadUi(ctx.ctx);
-      // 双方已选面板（原版 construct 挂 _sltUI；面板纹理/角标装载后先挂，装载期间可见）
-      if (!this.destroyed) await this.mountPanels(this.ui!, data, uiData, sidePicks);
       const entryOf = (id: string) => select.chars.find((c) => c.id === id);
       const nameOf = (id: string) => entryOf(id)?.name ?? id;
       const swfOf = (id: string) => entryOf(id)?.swf ?? id;
       const startOf = (id: string) => entryOf(id)?.startFrame ?? 1;
       const assistNameOf = (id: string) => select.assists.find((c) => c.id === id)?.name ?? id;
       const mapName = select.maps.find((m) => m.id === this.flow.mapId)?.name ?? this.flow.mapId;
+      // 双方已选面板（原版 construct 挂 _sltUI；面板纹理/角标装载后先挂，装载期间可见）
+      if (!this.destroyed)
+        await this.mountPanels(this.ui!, data, uiData, sidePicks, (id, isAssist) =>
+          isAssist ? assistNameOf(id) : nameOf(id),
+        );
 
       // 角色包按 id 缓存：同一 id 可在 roster 内/跨侧重复选（两个 fighter id
       // 共享同一 FighterPack；def/forms 只读共享安全）
