@@ -20,10 +20,18 @@
  *     - txt（DefineEditText 60）@(352.1,18.3)：右对齐 14px 青色 RGB(0,218,248)，
  *       字段右缘 = bar 空间 x 761.95（352.1 + 409.85）
  *
- * 产出：assets/ui/loading/（bg.webp + track/fill/label.png + spin/<n>.png）
- *       baked/loading.json（schema bvn/loading@1）。
+ *   loading_cover_mc(sprite 65)（GameLoadingStage"绊"初始化封面）= cover_bgimg(bitmap 64)
+ *       @(0,0)（804×604，取左上 800×600 舞台区）+ bar（同款 loadingbar_mc 61）@(18,526.4)
+ *       —— bar 部件复用 loading.json bar 段，运行时重建（bar 内 fill 动态，不烘死）；
+ *   seltwzmc(sprite 9) 4 帧 = 加载页选人面板角标（SelectedFighterUI.setFighterIndex/
+ *       setAssister）：帧 1..3 = 1st/2nd/3rd 位次，帧 4 = assist；画布 77×48（union）。
+ *
+ * 产出：assets/ui/loading/（bg.webp + cover.webp + track/fill/label.png + spin/<n>.png
+ *       + seltwz/<n>.png）、baked/loading.json（schema bvn/loading@2）。
  *
  * 用法：node tools/ui-pack/loading-pack.mjs [--ffdec PATH] [--out-assets DIR] [--out-baked FILE]
+ *   （本工具按 pack 管线约定只产 PNG（bg/cover 例外：sharp 直出 webp）；产完必须跑
+ *     `pnpm assets:webp` 统一转 WebP 并把 baked 清单 .png 改写 .webp，运行时按 .webp 加载）
  */
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -58,6 +66,12 @@ const BAR = {
   /** 动态消息文本：右缘锚点（字段 x -2..409.85 + 摆放位 352.1） */
   txt: { rightEdge: 761.95, centerY: 28.7, size: 14, color: '#00daf8' },
 };
+// GameLoadingStage"绊"封面：cover_bgimg(bitmap 64) 804×604 @(0,0)，取左上舞台区；
+// bar（同款 loadingbar_mc）在封面里的摆放位（sltui→bar 矩阵 360,10528 twips）。
+const COVER = { stageOriginInExport: [0, 0], size: [800, 600], barPos: [18, 526.4] };
+// seltwzmc(sprite 9) 角标：帧 1..3 位次 / 帧 4 assist（SelectedFighterUI.setFighterIndex /
+// setAssister；FFDec 导出画布 = 全 4 帧 union bounds 77×48）。
+const SELTWZ = { frames: 4, canvas: [77, 48] };
 
 function run(cmd, args_) {
   console.log(`$ ${cmd} ${args_.join(' ')}`);
@@ -76,6 +90,7 @@ run(FFDEC, ['-export', 'binaryData', join(SCRATCH, 'src'), FIGHTER_TESTER_SWF]);
 }
 run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'sprites'), join(SCRATCH, 'loading.swf')]);
 run(FFDEC, ['-export', 'shape', join(SCRATCH, 'shapes'), join(SCRATCH, 'loading.swf')]);
+run(FFDEC, ['-export', 'image', join(SCRATCH, 'images'), join(SCRATCH, 'loading.swf')]);
 
 const spriteDir = (id, what) => {
   const d = readdirSync(join(SCRATCH, 'sprites')).find(
@@ -128,11 +143,47 @@ writeFileSync(join(OUT_ASSETS, 'label.png'), await shapePng(54, BAR.label.size[0
   }
 }
 
+// 封面：bitmap 64 导出 804×604 → 裁左上 800×600 舞台区
+{
+  const png = join(SCRATCH, 'images', '64_cover_bgimg.png');
+  if (!existsSync(png)) throw new Error(`loading.swf 未找到位图 64（cover_bgimg）：${png}`);
+  const meta = await sharp(png).metadata();
+  if (meta.width !== 804 || meta.height !== 604) {
+    throw new Error(`cover_bgimg 导出画布变化：${meta.width}×${meta.height} ≠ 804×604（规格须同步更新）`);
+  }
+  await sharp(png)
+    .extract({ left: COVER.stageOriginInExport[0], top: COVER.stageOriginInExport[1], width: COVER.size[0], height: COVER.size[1] })
+    .webp({ quality: 80 })
+    .toFile(join(OUT_ASSETS, 'cover.webp'));
+}
+
+// 角标：sprite 9 全帧（union 画布 77×48，帧 1..3 位次 / 帧 4 assist）
+{
+  const dir = join(OUT_ASSETS, 'seltwz');
+  mkdirSync(dir, { recursive: true });
+  const src = spriteDir(9, 'seltwzmc');
+  const frames = readdirSync(src).filter((f) => f.endsWith('.png'));
+  if (frames.length !== SELTWZ.frames) {
+    throw new Error(`seltwzmc 帧数变化：${frames.length} ≠ ${SELTWZ.frames}（规格须同步更新）`);
+  }
+  for (let i = 1; i <= SELTWZ.frames; i++) {
+    const meta = await sharp(join(src, `${i}.png`)).metadata();
+    if (meta.width !== SELTWZ.canvas[0] || meta.height !== SELTWZ.canvas[1]) {
+      throw new Error(`seltwzmc 帧 ${i} 画布变化：${meta.width}×${meta.height} ≠ ${SELTWZ.canvas.join('×')}（规格须同步更新）`);
+    }
+    copyFileSync(join(src, `${i}.png`), join(dir, `${i}.png`));
+  }
+}
+
 // ---------- 3. baked/loading.json ----------
 const rel = (n) => `ui/loading/${n}`;
 writeFileSync(OUT_BAKED, JSON.stringify({
-  schema: 'bvn/loading@1',
+  schema: 'bvn/loading@2',
   bg: { url: rel('bg.webp'), size: BG.size },
+  /** GameLoadingStage"绊"初始化封面（bar 部件复用下方 bar 段，运行时重建） */
+  cover: { url: rel('cover.webp'), size: COVER.size, barPos: COVER.barPos },
+  /** 加载页选人面板角标 seltwzmc：帧 1..3 = 位次、帧 4 = assist */
+  seltwz: { dir: rel('seltwz'), frames: SELTWZ.frames },
   bar: {
     pos: BAR.pos,
     track: { url: rel('track.png'), pos: BAR.track.pos, size: BAR.track.size },

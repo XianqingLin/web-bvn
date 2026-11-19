@@ -32,12 +32,13 @@ function parseRoster(xml) {
   while ((m = rowRe.exec(xml))) {
     const rowOffset = /offset="([^"]*)"/.exec(m[1])?.[1] ?? null;
     const items = [];
-    const itemRe = /<item([^>]*)>([^<]*)<\/item>/g;
+    // 空位两种写法都要占列号：自闭合 <item/>（char_list 尾部两行）与 <item></item>
+    const itemRe = /<item([^>]*?)(?:\/>|>([^<]*)<\/item>)/g;
     let im;
     while ((im = itemRe.exec(m[2]))) {
       const off = /offset="([^"]*)"/.exec(im[1])?.[1] ?? null;
       const more = /more="([^"]*)"/.exec(im[1])?.[1] ?? null;
-      const id = im[2].trim() || null; // 空位
+      const id = (im[2] ?? '').trim() || null; // 空位（自闭合 <item/> 无内容组）
       items.push({ id, offset: off, more });
     }
     rows.push({ offset: rowOffset, items });
@@ -112,22 +113,26 @@ const RANDOM_META = new Map([
   ['random_naruto', { name: '随机(火影)', comicType: 1 }],
 ]);
 
-/** char_list / assist_list 行展开为平铺条目（row/col 保留布局，offset 保留像素偏移）。 */
+/** char_list / assist_list 行展开为平铺条目（row/col 保留布局；offset = 行 offset + 条目
+ *  offset 合成像素偏移——原版 SelectStageConfigVO.newListByXML 把行 offset 克隆给该行全部
+ *  条目再叠加条目 offset，空位不显示但占列号）。 */
 function flatten(listRows, names, kind, swfMap, winnerMeta) {
   const out = [];
   listRows.forEach((row, r) => {
+    const [rx, ry] = (row.offset ?? '0,0').split(',').map(Number);
     row.items.forEach((item, c) => {
       if (!item.id) return; // 空位
       const meta = names.get(item.id) ?? RANDOM_META.get(item.id);
       if (!meta) throw new Error(`${kind} 条目 ${item.id} 在 name 配置中缺失`);
       const wm = winnerMeta?.get(item.id);
+      const [ix, iy] = (item.offset ?? '0,0').split(',').map(Number);
       out.push({
         id: item.id,
         name: meta.name,
         comicType: meta.comicType,
         row: r,
         col: c,
-        offset: item.offset,
+        offset: rx || ry || ix || iy ? `${rx + ix},${ry + iy}` : null,
         more: item.more,
         /** 共用 swf 基名（fighter.xml file url；形态角色 ≠ id，随机项 null） */
         swf: swfMap?.get(item.id)?.swf ?? null,

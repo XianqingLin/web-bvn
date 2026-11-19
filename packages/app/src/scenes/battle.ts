@@ -25,6 +25,7 @@ import {
   type TimelineAudioBinding,
 } from '../audio.js';
 import type { Flow } from '../flow.js';
+import { transOut } from './trans.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -212,6 +213,9 @@ export class BattleScene implements Scene {
       await this.enterNet(map);
     }
     this.last = performance.now();
+
+    // 原版 GameStartCtrler.transOut：加载页合拢的黑幕在此打开（战斗开场演出起）
+    transOut(ctx);
   }
 
   private enterSolo(): void {

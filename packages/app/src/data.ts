@@ -224,12 +224,16 @@ export function loadTimelineSounds(ctx: Ctx): Promise<TimelineSoundsManifest> {
   return ctx.assets.json<TimelineSoundsManifest>(`${BAKED}/timeline-sounds.json`);
 }
 
-// ---------- loading.json（tools/ui-pack/loading-pack 产物，schema bvn/loading@1，切片 31） ----------
+// ---------- loading.json（tools/ui-pack/loading-pack 产物，schema bvn/loading@2，切片 31） ----------
 
 /** 进战斗加载画面（原版 LoadingStage/loading_fight_mc 规格；坐标 = 800×600 舞台 px）。 */
 export interface LoadingData {
   schema: string;
   bg: { url: string; size: [number, number] };
+  /** 游戏初始化封面（原版 GameLoadingStage/loading_cover_mc = cover_bgimg + 同款 bar） */
+  cover: { url: string; size: [number, number]; /** 封面内 loadingbar_mc 摆放位 */ barPos: [number, number] };
+  /** 加载页选人面板角标（原版 seltwzmc：帧 1..3 = 1st/2nd/3rd 位次，帧 4 = assist） */
+  seltwz: { dir: string; frames: number };
   bar: {
     pos: [number, number];
     track: { url: string; pos: [number, number]; size: [number, number] };

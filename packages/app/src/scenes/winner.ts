@@ -24,6 +24,7 @@ import { ASSETS, loadSelect, loadUi, type SelectEntry, type UiData } from '../da
 import { picksOf, type Flow } from '../flow.js';
 import { FrameStream } from './stream.js';
 import type { WsLike } from '@bvn/net';
+import { transIn } from './trans.js';
 
 /** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
 const OX = (UI_W - 800) / 2;
@@ -266,7 +267,7 @@ export class WinnerScene implements Scene {
     this.destroyed = true;
     // net 不显示 CONTINUE（onStopped 已隐藏）；dev/solo 重开同一 flow（经加载画面重装载）
     void import('./loading.js').then(({ LoadingScene }) => {
-      if (this.ctx) this.ctx.switchTo(new LoadingScene(this.flow, this.socket));
+      if (this.ctx) transIn(this.ctx, () => this.ctx!.switchTo(new LoadingScene(this.flow, this.socket)));
     });
   }
 

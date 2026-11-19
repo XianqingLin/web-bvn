@@ -7,8 +7,10 @@
  * 画布原点 = 内容 bounds 左上 → 挂载位 = 舞台位 - stageOriginInFrame，并裁剪到舞台矩形
  * （原版窗口即舞台，越界内容不可见）。
  *
- * 按钮：mc_wzbtn 阶梯组（MenuStage/MenuBtnGroup/MenuBtn 规格）：组位 (470,100)、
- * xadd -40、项距 height+5；English 标签 + hover 橙板（中文小字挂板内，仅 hover/开态可见）；
+ * 按钮：mc_wzbtn 阶梯组（MenuStage/MenuBtnGroup/MenuBtn 规格）：组位 (470,100)（=
+ * 板水平中心，原版 shape bounds -194..+194 实证）、xadd -40、项距 height+5；English
+ * 标签，常态无板（bg 子件默认隐藏）、hover 长出橙板、
+ * 开态/子项蓝板（中文小字挂板内，仅 hover/开态可见；见 MenuBtn 构造偏离登记）；
  * 子菜单子项/开态蓝板 scaleX 0.9/scaleY 0.75、项高 55；入场 scaleX 0.01→1 Back.easeOut 逐项 0.04s；
  * 键盘 ↑/↓/Enter/Backspace 导航。偏离：BitmapFontText/BitmapText → 系统字体 Text（切片 15 ②同）。
  *
@@ -58,7 +60,7 @@ class MenuBtn {
   constructor(
     readonly entry: MenuEntry,
     menu: UiData['menu'],
-    tex: { btn: Texture; bg1: Texture; bg2: Texture },
+    tex: { bg1: Texture; bg2: Texture },
     isChild: boolean,
     onHover: (b: MenuBtn) => void,
     onSelect: (b: MenuBtn) => void,
@@ -66,26 +68,31 @@ class MenuBtn {
     this.height = menu.btnHeight;
     this.texBg1 = tex.bg1;
     this.texBg2 = tex.bg2;
-    this.ui.addChild(new Sprite(tex.btn));
 
-    // bg 子件（原版 wzimg_bgimg 帧 1=橙 / 帧 2=蓝）：hover 橙板（bg1）/ 开态·子项蓝板（bg2），
-    // 挂 (0,-5)，中文小字挂板内 (10,45)（bg 隐藏时中文不可见，原版如此）
+    // 偏离登记（烘焙缺陷修正）：mc_wzbtn 常态帧导出把隐藏的 bg 子件烙了进去（与
+    // wzbtn_bg1 逐字节相同），原版常态按钮只有 English 标签（MenuBtn 构造
+    // ui.bg.visible=false），板子全靠 hover 长出——不挂常态板精灵。
+    // bg 子件（原版 wzimg_bgimg 帧 1=橙 / 帧 2=蓝）：hover 橙板（bg1）/ 开态·子项蓝板
+    //（bg2），挂 (0,-5)，中文小字挂板内 (10,45)（bg 隐藏时中文不可见，原版如此）。
+    // 坐标语义修正（shape 10 bounds Xmin=-3880/Xmax=3880 实证）：原版 mc_wzbtn 原点 =
+    // 板水平中心（-194..+194），FFDec 导出画布原点 = 内容 bounds 左上 → anchor 0.5
+    // 把板中心钉回按钮原点（此前整按钮右移 194px、板出 800 舞台右缘）
     this.bg = new Sprite(isChild ? tex.bg2 : tex.bg1);
+    this.bg.anchor.set(0.5, 0);
     this.bg.position.set(menu.bgOffset[0], menu.bgOffset[1]);
+    this.bg.visible = false;
     if (isChild) {
       this.height = menu.childHeight;
       this.bg.scale.set(0.9, 0.75); // childMode：ui.bg.scaleX 0.9 / scaleY 0.75
-    } else {
-      this.bg.visible = false;
     }
     const cnText = makeLabel(entry.cn, { size: 18, color: 0xffffff });
     cnText.position.set(menu.cnTextPos[0], menu.cnTextPos[1]);
     this.bg.addChild(cnText);
 
-    // English 标签：原版 BitmapFontText 居中（x=-w/2）；系统字体近似，锚点居中
+    // English 标签：原版 BitmapFontText 居中于按钮原点（x=-w/2）；系统字体近似，锚点居中
     this.label = makeLabel(entry.en, { size: 24, color: 0xffffff, bold: true });
     this.label.anchor.set(0.5, 0);
-    this.label.position.set(388 / 2, 10);
+    this.label.position.set(0, 10);
     if (isChild) this.label.scale.set(0.75);
 
     this.ui.addChild(this.bg, this.label);
@@ -183,7 +190,6 @@ export class MenuScene implements Scene {
 
     // 菜单按钮组（原版：intro 期间即构建，showBtns 时挂入并入场）
     const btnTex = {
-      btn: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn}`),
       bg1: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg1}`),
       bg2: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg2}`),
     };
@@ -319,7 +325,7 @@ export class MenuScene implements Scene {
 
   // ---------- 按钮组（MenuBtnGroup 语义） ----------
 
-  private buildMenuGroup(tex: { btn: Texture; bg1: Texture; bg2: Texture }): void {
+  private buildMenuGroup(tex: { bg1: Texture; bg2: Texture }): void {
     const menu = this.uiData!.menu;
     const defs: MenuEntry[] = [
       {

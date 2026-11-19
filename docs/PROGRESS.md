@@ -61,6 +61,7 @@
 | 37 | 联机房间流：随机匹配队列 + 浏览房间 + VS 横幅 | ✅ | §4.4 |
 | 38 | 联机房间流：平台接缝（身份凭证/邀请深链/资料接入） | ⬜ | §4.4 |
 | 39 | 本地双人：主菜单 LOCAL PLAY 入口（1v1/团队子菜单）+ 选人页双键盘双光标 + 对局双键盘输入源 | ✅ | §三 |
+| 41 | 场景链打磨：GameLoadingStage"绊"初始化封面 + 黑幕转场 transIn/transOut + 加载页双方已选面板 + 选人布局行 offset/悬浮板修正 | ✅ | §三 |
 
 修复批次（17~24、21F、30~33、34~38、40 编号混用于切片序号，以 §三 为准）。
 
@@ -110,6 +111,7 @@
 - **切片 36**（✅ 2026-11-17）地图阶段：① 服务器——begin 广播 start/room-info 后追加 map-roll { seed }（权威种子，randomInt(1,2³¹)；不区分 randomMap 设置恒发）；② flow 增 randomMap（room-info 快照随 team 同步）与 mapSeed（map-roll 到达写入；solo/local enter 时清残留）；③ 选人页地图阶段分流——**房主选择**：房主轮盘每次切换 map-pick 广播（随机项广播键 'random'，确认仍走 pick.map 房主侧解析），客座渲染同款只读轮盘实时跟随；**开箱抽取**：两端播同一动画（缩略图长条 = 地图序列×3，行程 easeInOutQuint ~3.4s + 定格高亮 0.8s ≈ 4.2s，偏离登记：单段缓动近似规格分段），定格 = maps[|seed|%n]，不可跳过/重抽，定格后两端各自独立进加载页（时长确定性一致，无需握手）；④ 种子进 configHash——battle spawnSim 与 hello 指纹改用 flow.mapSeed ?? 1（net 端双端一致；solo/local 恒 1，replay/batch 基线不动）。server 12 单测（map-roll 同种子断言 + map-pick 透传）。规格：netplay-design §8 实现定案段。
 - **切片 37**（✅ 2026-11-17）匹配队列 + 浏览房间 + VS 横幅：① 服务器——per-连接状态由闭包变量改记录对象（配对需跨连接写槽位）；queue 入队满 2 即配对（FIFO 序定 P1/P2）、unqueue/掉线/自行入房出队；**配对即开局**（偏离登记：原定"matched 后走 create/join 等价路径"收敛为服务器直接开房置开局段——双方同一条连接收 matched+start，免房间页/准备门，少两轮 ready/begin 往返）；matched { room, player, team:true, seed, opponent:{name} }（seed 即权威抽取种子兼 sim seed，匹配路径无独立 map-roll）；list-rooms 轮询 → room-list { room, host, team, joinable, started }（公开房快照，started 区分已满/已开局）；② app——net-common.ts 抽提服务器地址行/建连/昵称助手（NetScene 收敛为创建+房码加入页）；MatchScene（随机匹配页：待机 → 匹配中按钮 + 红 ✕ 滑出一次点击取消 → VS 横幅（buildVsBanner 导出复用，头像暂以位次色块占位——平台头像归切片 38）→ 横幅满 2.5s 且 start 到达移交选人页；断线/对端掉线 → "连接失败，正在重新匹配" 1.2s 自动重连重排，横幅期 ✕ 仍可取消）；BrowseScene（浏览房间页：2.5s 轮询 + 行点击加入，加入失败恢复泵轮询，错误码原样提示）；菜单 NET PLAY 子菜单 4 项（创建/浏览/随机匹配/加入房间——房码入口保留作私人房与切片 38 邀请深链兜底）；dev 直通 ?mode=match / ?mode=browse。③ server 18 单测（配对种子/位次/固定 team、退队与掉线出队、列表过滤、在房 queue 忽略；测试助手修复：next 超时残留死 waiter 吞后续消息）。SIM 零改动：replay 9 剧本 + batch 基线零漂移复跑确认。规格：netplay-design §6/§9 实现定案段。
 - **部署性能排查 + 图集去重**（✅ 2026-11-17）：① 排查——"从平台进游戏主菜单卡成几帧"根因 = 部署服出口带宽 ~3Mbps（实测单流持续 380KB/s 稳定、与并发连接数无关；标题流显示范围 6.5MB ÷ 380KB/s ≈ 17s vs 动画 1.6s），此前客户端侧预取/停帧/双缓存修复均绕不开带宽墙；顺带量得对局资产（单角色均 3.8MB/大体型 12.2MB）3Mbps 下加载 25-75s，归平台/带宽议题（升带宽 or 场景级预载，待定）。② 图集去重——形态派生角色（naruto_sennin/ichigo_bankai 等 11 组）sheet 与基础角色逐字节相同（同一 swf 同一 sprite 导出），仅 atlas.json 的 id 与文件名前缀不同：新增幂等工具 `tools/atlas-dedup.mjs`（atlas-pack/webp-convert 重产出后重跑），重写 20 个 atlas.json 的 sheets[].file 指向基础角色文件并删除 417 个重复 sheet，fighters 219.6→95.9MB、assets 全树 ~259→~135MB，零代码改动（bvn/atlas@1 帧按 pngId→sheet 索引引用）；顺带可变形角色对局加载减半。③ FrameStream 增显示区间 spec.from/to：预下载/预取只覆盖实际显示帧（menu 帧流 1、76-90 从不显示 ~1.6MB 不再拉；logo 跳帧 1）。assets 不入库，服务器需按更新流程重传 fighters 目录。门禁：build / 单测 / replay 9 剧本 / batch 基线全过（SIM 零改动零漂移）。
+- **切片 41**（✅ 2026-11-19）场景链打磨（对照原版截图差异收口）：① 菜单悬浮板——MenuBtn 常态不再挂板（烘焙缺陷修正：mc_wzbtn 常态帧导出把原版 `ui.bg.visible=false` 隐藏的 bg 子件烙进去了，wzbtn.png 与 wzbtn_bg1.png 逐字节相同实证），hover 长出橙板、开态/子项蓝板，子项 scale (0.9,0.75)；② select-pack 行 offset——parseRoster 支持自闭合空位 `<item/>`（char_list 尾部两行）+ flatten 合成行 offset（原版 newListByXML 克隆行 offset 给全行条目再叠加条目 offset），select.json 重生成（aizen/kenshin/madara/obito/随机项 7 处修正，bvn/select@2 不变）；③ 黑幕转场——trans.ts（transIn/transOut/clearTrans，overlay 挂 pixi.stage 跨场景存活、ticker 驱动；偏离登记：原版 trans_mc 逐帧 alpha → 连续补间，fadin 430ms/fadout 370ms 实证）接线 setup.gotoLoading/startSolo/startLocal/winner.onContinue → loading.enter(transOut)/gotoBattle(transIn) → battle.enter(transOut)，选人 enter clearTrans（原版 StageCtrler.clearTrans 语义）；④ GameLoadingStage"绊"初始化封面——loading-pack 扩烘 cover_bgimg(位图64 crop 800×600)+seltwzmc 角标 4 帧（schema bvn/loading@2），GameLoadingScene（bar 组件抽 bar.ts 共享；步骤 = 配置 json 预载 + logo/title 流帧头 fetch 预热；定场 400ms → LogoScene），main.ts 正式入口改经 GameLoadingScene；⑤ 加载页双方已选面板——LoadingScene.mountPanels（原版 SelectIndexUI/SelectedFighterUI 规格：fighter 面板按位次纵排 gy=100、辅助面板 p1(-30,325)/p2(45,325)、面板 253×70 + 大脸 245×62 @(4.75,4.75)（p2 镜像 origin 248.6）+ seltwz 角标帧 1..3 位次/帧 4 assist）。顺带修正：bar.txt 右缘此前少加 bar.pos.x 17px（抽 bar.ts 时归位）、菜单按钮坐标语义（shape 10 bounds -194..+194 实证原版 mc_wzbtn 原点 = 板水平中心，此前整按钮右移 194px 出舞台右缘）；⑥ 选人页右上角两个自加按钮移除，改原版语义：ESC → BACK TITLE 确认框返回主菜单（GameUI.confirm 收编：模态遮罩 + 确认/取消，再按 ESC 关框）、P1 跳键 K → RESELECT 确认重进选人（原版 GameInputer.jump(P1) → goSelect；仅单机/本地，net 选中即锁无反悔不提供）。遗留：菜单/选人页背景嵌套动画（§4.5）。
 
 ---
 
@@ -165,7 +167,8 @@
 - 佐助防御时人物模糊待复测（疑 autoZoom 近身上采样变糊，全角色共有，21F 登记）；
 - 切片 2：orihime/yachiru 运行时 actions 空，XFL 兜底；
 - 切片 14/15：more= 形态切换未实现（含黄框交互）；重开局仅 solo（net CONTINUE 隐藏）；
-- HUD 展示件：win 胜场星 / scoremc 计分板 / 被动条 sp / shape_007 回合指示（均无对应语义）；KO/timeover/winner/drawgame 结算字样（随回合结算流程立项）；3.6 版血条 HP 数字（纯显示层增强）。
+- HUD 展示件：win 胜场星 / scoremc 计分板 / 被动条 sp / shape_007 回合指示（均无对应语义）；KO/timeover/winner/drawgame 结算字样（随回合结算流程立项）；3.6 版血条 HP 数字（纯显示层增强）；
+- 菜单/选人页背景嵌套动画（切片 41 登记）：原版主菜单背景双人物动画 + 选人页背景动画（嵌套 MovieClip 元件，需单独导出嵌套动画元件序列帧再接 FrameStream，工作量大单独立片）。
 
 ---
 

@@ -1,11 +1,26 @@
 {
-  "schema": "bvn/loading@1",
+  "schema": "bvn/loading@2",
   "bg": {
     "url": "ui/loading/bg.webp",
     "size": [
       800,
       600
     ]
+  },
+  "cover": {
+    "url": "ui/loading/cover.webp",
+    "size": [
+      800,
+      600
+    ],
+    "barPos": [
+      18,
+      526.4
+    ]
+  },
+  "seltwz": {
+    "dir": "ui/loading/seltwz",
+    "frames": 4
   },
   "bar": {
     "pos": [

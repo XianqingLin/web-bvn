@@ -61,10 +61,11 @@ import {
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { tweenOf, tickTweens, clearTweens } from '../anim.js';
-import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
+import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
 import { ASSETS, loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
 import type { Flow, Pick } from '../flow.js';
 import { LoadingScene } from './loading.js';
+import { transIn, clearTrans } from './trans.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
@@ -177,6 +178,7 @@ export class SetupScene implements Scene {
 
   async enter(ctx: SceneCtx): Promise<void> {
     this.ctxRef = ctx;
+    clearTrans(); // 原版 SelectFighterStage.build → clearTrans：清残留黑幕（异常退场等）
     // 非 net 流（solo/local 直进）：清联机会话残留（地图模式/种子归联机会话）
     if (this.flow.mode !== 'net') {
       this.flow.randomMap = false;
@@ -217,9 +219,9 @@ export class SetupScene implements Scene {
     this.status = status;
     ui.addChild(status);
 
-    const backBtn = makeButton('返回', () => this.back(ctx), { w: 90, h: 34, size: 14 });
-    backBtn.position.set(UI_W - 120, 20);
-    ui.addChild(backBtn);
+    // 返回主菜单 = 原版语义：无按钮，ESC 呼出确认框（GameInputer.back → GameUI.confirm
+    // "BACK TITLE"；切片 41 移除自加的右上角按钮）
+    window.addEventListener('keydown', this.onKeyBack);
 
     this.renderPhase(ctx);
 
@@ -230,7 +232,7 @@ export class SetupScene implements Scene {
       this.socket.onclose = () => this.onNetDown();
     }
 
-    // 本地双人：双键盘监听（双光标移动/确认 + ESC 返回菜单）
+    // 本地双人：双键盘监听（双光标移动/确认；ESC/RESELECT 走全模式共用的 onKeyBack）
     if (this.flow.mode === 'local') {
       window.addEventListener('keydown', this.onKeyLocal);
     }
@@ -303,6 +305,61 @@ export class SetupScene implements Scene {
     }
   }
 
+  // ---------- 确认框（原版 GameUI.confirm 语义：模态遮罩 + 确认/取消；切片 41） ----------
+
+  private confirmBox: Container | null = null;
+
+  /** 原版 SelectFighterStage.render：back 键 = 对话框开着先关，否则弹 BACK TITLE 确认；
+   *  P1 跳键 = RESELECT 确认重进选人（单机/本地；net 选中即锁无反悔，不提供）。 */
+  private readonly onKeyBack = (e: KeyboardEvent) => this.handleKeyBack(e);
+
+  private handleKeyBack(e: KeyboardEvent): void {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (this.done || this.destroyedFlag || !this.ctxRef) return;
+    if (e.code === 'Escape') {
+      e.preventDefault();
+      if (this.confirmBox) return this.closeConfirm();
+      this.showConfirm('BACK TITLE', '返回到主菜单？', () => this.back(this.ctxRef!));
+    } else if (e.code === 'KeyK' && this.flow.mode !== 'net' && !this.confirmBox) {
+      // 原版 GameInputer.jump(P1) → RESELECT（K = P1 跳键，同 battle KEYMAP_P1）
+      this.showConfirm('RESELECT', '重新选择？', () => {
+        const ctx = this.ctxRef;
+        if (ctx) ctx.switchTo(new SetupScene(this.flow));
+      });
+    }
+  }
+
+  private showConfirm(title: string, text: string, onYes: () => void): void {
+    if (this.confirmBox || !this.ui) return;
+    const box = new Container();
+    const mask = new Graphics();
+    mask.rect(0, 0, UI_W, UI_H).fill({ color: 0x000000, alpha: 0.55 });
+    mask.eventMode = 'static'; // 模态：阻断下层点击
+    box.addChild(mask);
+    const panel = makePanel(360, 150);
+    panel.position.set(UI_W / 2 - 180, UI_H / 2 - 100);
+    box.addChild(panel);
+    const t = makeLabel(title, { size: 18, bold: true, color: 0xffd54f });
+    t.position.set(UI_W / 2 - t.width / 2, UI_H / 2 - 75);
+    const msg = makeLabel(text, { size: 16 });
+    msg.position.set(UI_W / 2 - msg.width / 2, UI_H / 2 - 40);
+    const yes = makeButton('确认', () => {
+      this.closeConfirm();
+      onYes();
+    }, { w: 110, h: 36, size: 15 });
+    yes.position.set(UI_W / 2 - 125, UI_H / 2 + 15);
+    const no = makeButton('取消', () => this.closeConfirm(), { w: 110, h: 36, size: 15 });
+    no.position.set(UI_W / 2 + 15, UI_H / 2 + 15);
+    box.addChild(t, msg, yes, no);
+    this.ui.addChild(box);
+    this.confirmBox = box;
+  }
+
+  private closeConfirm(): void {
+    this.confirmBox?.destroy({ children: true });
+    this.confirmBox = null;
+  }
+
   // ---------- 阶段渲染 ----------
 
   private renderPhase(ctx: SceneCtx): void {
@@ -341,15 +398,8 @@ export class SetupScene implements Scene {
               : '确认辅助';
         this.mountConfirm(root, confirmLabel, () => this.onConfirm(ctx));
       }
-      if (this.phase !== 'fighter' && !net && !local2p) {
-        // 上一步仅单机（联机选中即锁无反悔，不提供）
-        const backBtn = makeButton('上一步', () => {
-          this.phase = this.phase === 'map' ? 'assist' : 'fighter';
-          this.transitionPhase(ctx, () => this.renderPhase(ctx));
-        }, { w: 90, h: 34, size: 14 });
-        backBtn.position.set(UI_W - 220, 20);
-        root.addChild(backBtn);
-      }
+      // 返回上一步 = 原版语义：无按钮，P1 跳键（K）呼出 RESELECT 确认重进选人
+      //（原版 GameInputer.jump(P1) → GameUI.confirm "RESELECT" → goSelect）
     }
 
     if (this.phase === 'fighter') {
@@ -816,11 +866,6 @@ export class SetupScene implements Scene {
   private handleLocalKey(e: KeyboardEvent): void {
     if (this.done || this.destroyedFlag || !this.ctxRef) return;
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-    if (e.code === 'Escape') {
-      e.preventDefault();
-      this.back(this.ctxRef);
-      return;
-    }
     if (this.phase === 'fighter' || this.phase === 'assist') {
       if (this.navListToken !== this.navToken) return; // 装料/过渡窗：导航表未就绪
       // P1：WASD 移动 + J 确认；P2：方向键移动 + 小键盘 1 确认（互不阻塞；
@@ -1091,7 +1136,8 @@ export class SetupScene implements Scene {
       this.socket.onmessage = null; // 空窗期消息由 BufferedSocket 缓冲，lockstart 接管时补交
       this.socket.onclose = null;
     }
-    ctx.switchTo(new LoadingScene(this.flow, this.socket));
+    // 原版 SelectFighterStage.goLoadGame → transIn：黑幕合拢后进加载页
+    transIn(ctx, () => ctx.switchTo(new LoadingScene(this.flow, this.socket)));
   }
 
   // ---------- 地图轮盘（原版 MapSelectUI 规格） ----------
@@ -1339,7 +1385,7 @@ export class SetupScene implements Scene {
     const { pick, mapId } = this.resolvePick();
     this.flow.localPick = pick;
     this.flow.mapId = mapId!;
-    ctx.switchTo(new LoadingScene(this.flow, null));
+    transIn(ctx, () => ctx.switchTo(new LoadingScene(this.flow, null)));
   }
 
   /** 本地双人开打（地图确认后）：P1/P2 累计锁定写入 flow → 加载页（装配复用 net 双方异配路径）。 */
@@ -1347,7 +1393,7 @@ export class SetupScene implements Scene {
     const maps = this.select!.maps;
     this.flow.mapId = this.mapId ?? maps[Math.floor(Math.random() * maps.length)]!.id;
     this.commitPicks();
-    ctx.switchTo(new LoadingScene(this.flow, null));
+    transIn(ctx, () => ctx.switchTo(new LoadingScene(this.flow, null)));
   }
 
   update(dtMs: number): void {
@@ -1372,7 +1418,9 @@ export class SetupScene implements Scene {
     this.ctxRef = null;
     this.rollAnim = null;
     this.rollPending = false;
+    window.removeEventListener('keydown', this.onKeyBack);
     window.removeEventListener('keydown', this.onKeyLocal);
+    this.confirmBox = null; // 随 ui 树销毁
     for (const id of this.timers) window.clearTimeout(id);
     this.timers.length = 0;
     clearTweens();

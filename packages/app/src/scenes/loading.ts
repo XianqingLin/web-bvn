@@ -4,7 +4,14 @@
  * 演出照原版 LoadingStage/loading_fight_mc 规格（tools/ui-pack/loading-pack 烘焙）：
  *  - 800×600 舞台画（"Get ready for the next battle!" + VS 纹章）在 1000×600 逻辑屏居中；
  *  - 进度条：槽 764×15 + 填充 760×5（scaleX 0..1）+ "加载中"美术字 + 30 帧转圈 spinner；
- *  - 消息文本 = 原版 bar.txt（右对齐 14px 青 #00daf8），`消息(n/总数)`。
+ *  - 消息文本 = 原版 bar.txt（右对齐 14px 青 #00daf8），`消息(n/总数)`；
+ *  - 双方已选面板（原版 SelectIndexUI._sltUI 语义，切片 41）：fighter 面板按位次纵排
+ *    （p1 组 (70,85) / p2 组 (480,85)，间距 100）、辅助面板 p1 (-30,325) / p2 (45,325)；
+ *    面板 = selected_p1/p2（253×70）+ 大脸 245×62 @(4.75,4.75)（p2 内容镜像 origin
+ *    248.6）+ seltwz 角标（帧 1..3 = 位次 / 帧 4 = assist；p1 (-8,-5)、p2 fighter 右缘
+ *    对齐 252-w、p2 assist x=176）。
+ *  - 进出场黑幕：切场景前 transIn 合拢、进场 transOut 打开（原版 StateCtrler.transIn/
+ *    transOut，见 trans.ts）。
  *
  * 装载队列照原版 build() 语义（msg + 计数）：
  *  角色×2 → 辅助（去重）→ 场景 → BGM 预解码 → 渲染纹理（web 端增列，原版并入
@@ -45,10 +52,24 @@ import {
 } from '../data.js';
 import { picksOf, teamPicksOf, type Flow } from '../flow.js';
 import { BattleScene, fighterId, type BattleLoadout, type RosterEntry } from './battle.js';
+import { clearTrans, transIn, transOut } from './trans.js';
+import { buildLoadingBar, tickLoadingBar, type LoadingBar } from './bar.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
 const OX = (UI_W - STAGE_W) / 2;
+
+/** 加载页双方面板布局（原版 SelectIndexUI/SelectIndexUIGroup SHOW_MODE=0 实证）。 */
+const PANEL = {
+  /** 组摆放位（stage 坐标） */
+  groupPos: { p1: [70, 85] as [number, number], p2: [480, 85] as [number, number] },
+  /** fighter 面板纵向间距（gy=100；fighterOffset (0,0)） */
+  fighterGapY: 100,
+  /** 辅助面板位（fzx/fzy） */
+  assistPos: { p1: [-30, 325] as [number, number], p2: [45, 325] as [number, number] },
+  /** 角标位（SelectedFighterUI.setFighterIndex/setAssister） */
+  badge: { p1: [-8, -5] as [number, number], p2FighterRight: 252, p2AssistX: 176, y: -5 },
+};
 
 /** 装载完成后的定场时长（原版 loadFin → setTimeout 1000ms → finish）。 */
 const FINISH_HOLD_MS = 600;
@@ -61,18 +82,16 @@ export class LoadingScene implements Scene {
   private destroyed = false;
   /** 装载完成（定场计时开始） */
   private loadedAt = -1;
+  /** 已发起进战斗转场（防 update 每帧重入） */
+  private finishing = false;
   private failed = false;
   private ui: Container | null = null;
-  private fill: Sprite | null = null;
+  /** 进度条组件（bar.ts 装配；fill/msg/spin 由 update 驱动） */
+  private barRef: LoadingBar | null = null;
+  private barState = { shown: 0, spinAcc: 0, spinFrame: -1 };
   private msg: Text | null = null;
-  private spinTex: Texture[] = [];
-  private spin: Sprite | null = null;
-  private spinFrame = -1;
-  private spinAcc = 0;
-  private spinFps = 30;
   /** 进度：target = 队列推进即设；shown = update 平滑逼近（条形补间） */
   private target = 0;
-  private shown = 0;
   private total = 1;
   private ctxRef: SceneCtx | null = null;
   private loadout: BattleLoadout | null = null;
@@ -101,31 +120,11 @@ export class LoadingScene implements Scene {
     bg.position.set(OX, 0);
     ui.addChild(bg);
 
-    // 进度条组（bar 容器 = 原版 loadingbar_mc 摆放位）
-    const bar = new Container();
-    bar.position.set(OX + data.bar.pos[0], data.bar.pos[1]);
-    ui.addChild(bar);
-    bar.addChild(await this.part(data.bar.track.url, data.bar.track.size, data.bar.track.pos));
-    this.fill = await this.part(data.bar.fill.url, data.bar.fill.size, data.bar.fill.pos);
-    bar.addChild(this.fill);
-    bar.addChild(await this.part(data.bar.label.url, data.bar.label.size, data.bar.label.pos));
-    for (let i = 1; i <= data.bar.spin.frames; i++) {
-      this.spinTex.push(await Assets.load<Texture>(`${ASSETS}/${data.bar.spin.dir}/${i}.webp`));
-    }
-    this.spinFps = data.bar.spin.fps;
-    this.spin = await this.part(`${data.bar.spin.dir}/1.webp`, data.bar.spin.size, data.bar.spin.pos);
-    bar.addChild(this.spin);
-
-    // 动态消息文本（原版 bar.txt：右对齐、右缘钉进度条右端）
-    const txt = new Text('', {
-      fontFamily: 'system-ui, "Microsoft YaHei", sans-serif',
-      fontSize: data.bar.txt.size,
-      fill: data.bar.txt.color,
-    });
-    txt.anchor.set(1, 0.5);
-    txt.position.set(OX + data.bar.txt.rightEdge, data.bar.pos[1] + data.bar.txt.centerY);
-    this.msg = txt;
-    ui.addChild(txt);
+    // 进度条组（bar 容器 = 原版 loadingbar_mc 摆放位；组件规格见 bar.ts）
+    const built = await buildLoadingBar(data, OX + data.bar.pos[0], data.bar.pos[1]);
+    ui.addChild(built.bar);
+    this.barRef = built;
+    this.msg = built.msg;
 
     // ESC 返回菜单（原版 LoadingStage.render 的 BACK TITLE；无确认框，偏离登记）
     const onEsc = (e: KeyboardEvent) => {
@@ -136,14 +135,89 @@ export class LoadingScene implements Scene {
 
     // enter 即返回（SceneHost 解锁 update）；装载队列后台分帧推进
     void this.runQueue(ctx, data);
+
+    // 原版 afterBuild → transOut：黑幕打开露出加载画面
+    transOut(ctx);
   }
 
-  private async part(url: string, size: [number, number], pos: [number, number]): Promise<Sprite> {
-    const sp = new Sprite(await Assets.load<Texture>(`${ASSETS}/${url}`));
-    sp.width = size[0];
-    sp.height = size[1];
-    sp.position.set(pos[0], pos[1]);
-    return sp;
+  // ---------- 双方已选面板（原版 SelectIndexUI._sltUI / SelectedFighterUI 规格） ----------
+
+  /** 挂双方 roster 面板：fighter 按位次纵排（含大脸+角标）+ 辅助面板。 */
+  private async mountPanels(
+    ui: Container,
+    data: LoadingData,
+    uiData: UiData,
+    picks: {
+      p1: { fighters: string[]; assist: string };
+      p2: { fighters: string[]; assist: string };
+    },
+  ): Promise<void> {
+    const [panelP1, panelP2] = await Promise.all([
+      Assets.load<Texture>(`${ASSETS}/${uiData.select.elements.selected_p1}`),
+      Assets.load<Texture>(`${ASSETS}/${uiData.select.elements.selected_p2}`),
+    ]);
+    const badgeTex: Texture[] = [];
+    for (let i = 1; i <= data.seltwz.frames; i++) {
+      badgeTex.push(await Assets.load<Texture>(`${ASSETS}/${data.seltwz.dir}/${i}.webp`));
+    }
+
+    const mountSide = (side: 1 | 2): void => {
+      const isP2 = side === 2;
+      const [gx, gy] = isP2 ? PANEL.groupPos.p2 : PANEL.groupPos.p1;
+      const group = new Container();
+      group.position.set(OX + gx, gy);
+      ui.addChild(group);
+      const pick = isP2 ? picks.p2 : picks.p1;
+
+      const mountPanel = (id: string, isAssist: boolean, index: number): void => {
+        const c = new Container();
+        if (isAssist) {
+          const [ax, ay] = isP2 ? PANEL.assistPos.p2 : PANEL.assistPos.p1;
+          c.position.set(ax, ay);
+        } else {
+          c.position.set(0, index * PANEL.fighterGapY); // fighterOffset (0,0)
+        }
+        group.addChild(c);
+
+        // 面板底（原版 selected_item_p1/p2_mc 253×70；p2 纹理自带镜像内容）
+        c.addChild(new Sprite(isP2 ? panelP2 : panelP1));
+
+        // 大脸 245×62 @(4.75,4.75)（辅助同用大脸，同 setup 展示框 refreshBox）；
+        // p2 内容镜像（origin 248.6，scaleX=-1）
+        const faceUrl = uiFaceUrl(uiData, id, '_b');
+        if (faceUrl) {
+          const ct = new Container();
+          const [cx, cy] = isP2 ? uiData.select.faceBigP2Origin : uiData.select.faceBigOffset;
+          ct.position.set(cx, cy);
+          if (isP2) ct.scale.x = -1;
+          const face = new Sprite(Texture.EMPTY);
+          face.width = 245;
+          face.height = 62;
+          ct.addChild(face);
+          c.addChild(ct);
+          void Assets.load<Texture>(faceUrl).then((t) => {
+            face.texture = t;
+            face.width = 245;
+            face.height = 62;
+          });
+        }
+
+        // 角标（seltwzmc：帧 1..3 位次 / 帧 4 assist）
+        const badge = new Sprite(badgeTex[isAssist ? 3 : index]!);
+        if (isP2) {
+          badge.position.set(isAssist ? PANEL.badge.p2AssistX : PANEL.badge.p2FighterRight - badge.width, PANEL.badge.y);
+        } else {
+          badge.position.set(PANEL.badge.p1[0], PANEL.badge.y);
+        }
+        c.addChild(badge);
+      };
+
+      pick.fighters.forEach((id, i) => mountPanel(id, false, i));
+      mountPanel(pick.assist, true, 0);
+    };
+
+    mountSide(1);
+    mountSide(2);
   }
 
   // ---------- 装载队列（原版 LoadingStage.build 语义） ----------
@@ -163,6 +237,8 @@ export class LoadingScene implements Scene {
           })();
       const select = await loadSelect(ctx.ctx);
       const uiData = await loadUi(ctx.ctx);
+      // 双方已选面板（原版 construct 挂 _sltUI；面板纹理/角标装载后先挂，装载期间可见）
+      if (!this.destroyed) await this.mountPanels(this.ui!, data, uiData, sidePicks);
       const entryOf = (id: string) => select.chars.find((c) => c.id === id);
       const nameOf = (id: string) => entryOf(id)?.name ?? id;
       const swfOf = (id: string) => entryOf(id)?.swf ?? id;
@@ -346,14 +422,24 @@ export class LoadingScene implements Scene {
     const ctx = this.ctxRef;
     const loadout = this.loadout;
     if (!ctx || !loadout) return;
-    this.destroyed = true; // 防重入（battle enter 为异步，switching 门禁期间 update 已停）
-    ctx.switchTo(new BattleScene(this.flow, this.socket, loadout));
+    if (this.finishing) return; // 防重入（update 定场后每帧会再触发）
+    this.finishing = true;
+    // 原版 gotoGame → transIn：黑幕合拢后进战斗（开场演出阶段 transOut 打开）
+    transIn(ctx, () => {
+      if (this.destroyed) {
+        clearTrans(); // 转场中被 ESC 打断：撤黑幕
+        return;
+      }
+      this.destroyed = true; // 防重入（battle enter 为异步，switching 门禁期间 update 已停）
+      ctx.switchTo(new BattleScene(this.flow, this.socket, loadout));
+    });
   }
 
   private leave(): void {
     const ctx = this.ctxRef;
     if (!ctx || this.destroyed) return;
     this.destroyed = true;
+    clearTrans(); // 转场中被 ESC 打断：撤黑幕（原版 StageCtrler.clearTrans 语义）
     this.socket?.close();
     audioOf(ctx.ctx)?.bgm(null); // 原版 LoadingStage.destory BGM(null)
     void import('./menu.js').then(({ MenuScene }) => ctx.switchTo(new MenuScene(this.flow)));
@@ -361,18 +447,8 @@ export class LoadingScene implements Scene {
 
   update(dtMs: number): void {
     if (this.destroyed) return;
-    // spinner 30fps 循环（原版 loading_fla:mc_03_8 帧动画语义）
-    if (this.spin && this.spinTex.length > 0) {
-      this.spinAcc += dtMs;
-      const f = Math.floor(this.spinAcc / (1000 / this.spinFps)) % this.spinTex.length;
-      if (f !== this.spinFrame) {
-        this.spinFrame = f;
-        this.spin.texture = this.spinTex[f]!;
-      }
-    }
-    // 进度条平滑逼近（原版直设 scaleX；分步装载下插值让条形连续走动）
-    this.shown += (this.target - this.shown) * Math.min(1, dtMs / 120);
-    if (this.fill) this.fill.scale.x = Math.max(0, Math.min(1, this.shown));
+    // spinner 帧循环 + 进度条平滑逼近（bar.ts 共享驱动）
+    tickLoadingBar(this.barRef, dtMs, this.target, this.barState);
     // 原版 loadFin 定场后 finish() → goGame
     if (this.loadedAt >= 0 && !this.failed) {
       if (performance.now() - this.loadedAt >= FINISH_HOLD_MS) this.gotoBattle();
@@ -388,9 +464,7 @@ export class LoadingScene implements Scene {
     this.renderer = null;
     this.ui?.destroy({ children: true });
     this.ui = null;
-    this.spinTex = [];
-    this.spin = null;
-    this.fill = null;
+    this.barRef = null;
     this.msg = null;
     this.ctxRef = null;
   }
