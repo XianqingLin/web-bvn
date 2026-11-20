@@ -604,9 +604,9 @@ export class Sim {
           } else if (
             re.winnerDelay === null &&
             loser !== null &&
-            // 击飞判定 = 空中或带待发射垂直速度（原版 renderEnd 按 actionState
-            // 22/30 分流——doHurt 击飞类先置 22 再 DIE，被击飞致死者 resume 时
-            // 即 HURT_FLYING；移植版 enterDead 覆写为 DEAD，以物理等价判定）
+            // 击飞判定 = 空中或带待发射垂直速度（修复批次 65 后：击飞致死者
+            // 与原版同构——resume 时即 HURT_FLYING/HURT_DOWN_TAN，倒地转 DEAD；
+            // 保留物理等价判定以覆盖非击飞致死残留位移等边缘）
             (!loser.onGround || loser.vy < 0)
           ) {
             re.slow = true;

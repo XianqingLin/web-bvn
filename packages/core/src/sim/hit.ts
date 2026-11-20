@@ -560,11 +560,17 @@ export function applyHit(
   if (target.hp <= 0) {
     // KO 击退（原版 FighterMcCtrler.doHurt：loseHp/DIE 判定在 knockback 之前，
     // setVelocity/playHurtFly 照常执行——KO 飞尸语义，终结慢镜头的前提；
-    // 此前提前 return 无击退，偏离修正 2026-11-20 KO 终结演出链）。enterDead
-    // 覆写 actionState/label/无敌窗，速度/阻尼/朝向翻转保留。受击回气仍不吃
-    //（applyHit hp≤0 提前返回，KO 路径不吃受击回气——偏离记录不变）。
-    enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
-    enterDead(target, targetDef);
+    // 此前提前 return 无击退，偏离修正 2026-11-20 KO 终结演出链）。受击回气仍
+    // 不吃（applyHit hp≤0 提前返回，KO 路径不吃受击回气——偏离记录不变）。
+    // 偏离修正（修复批次 65，边缘 KO 尸体直立定格）：击飞类（hurtType≠0）致死
+    // 不当场 enterDead——原版 doHurt 致死只发 DIE + isAlive=false，代码继续走
+    // playHurtFly，尸体由 renderHurtFly 子状态机推进 击飞→落地→弹起→击飞_倒，
+    // case 4 首查 isAlive 才转 DEAD（躺姿定格，跳过起身；machine.advanceAnimation
+    // mcHold 分支 hp≤0 门）。原版所有致死分路径（防御削血 doDefenseHit、钢身
+    // doSteelHurt）同样汇入 doHurt，此处分流对齐；hp≤0 已被命中判定各入口排除
+    // （tgt.hp<=0 门），飞尸不可再被打。非击飞致死维持当场 enterDead。
+    const hurtKind = enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
+    if (hurtKind !== 'fly') enterDead(target, targetDef);
     // 死亡语音（原版 DIE voice：击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播；
     // 移植版统一提前到 KO 时刻——偏离记录）
     ctx.emit('voice', { fighter: target.id, kind: 'die' });

@@ -1129,6 +1129,13 @@ export function advanceAnimation(
     // 影响）：击飞_倒 定格（mcHold）期间 hurtTimer 照常倒计，计到 riseFrames
     // 切 起身（setLabel 换标签自然解冻）；计尽 recoverToNormal。
     if (f.actionState === ActionState.HURT_DOWN) {
+      // 击飞致死收尾（原版 renderHurtFly case 4 首查 isAlive——尸体进倒地段
+      // 的下一个动画帧即转 DEAD）：停走倒地计时/起身，击飞_倒 躺姿永久定格
+      //（enterDeadLying 不换标签、mcHold 保持——区别 enterDead 的 失败 标签）
+      if (f.hp <= 0) {
+        enterDeadLying(f);
+        return;
+      }
       if (f.hurtTimer === riseFrames(def)) setLabel(f, def, '起身');
       f.hurtTimer -= 1;
       if (f.hurtTimer <= 0) recoverToNormal(f, def);
@@ -1328,6 +1335,9 @@ export function enterHurt(
     // 重击倒地标记（原版 _isHeavyDownAttack = hity > HIT_DOWN_BY_HITY(5)，
     // hity 为原始速度空间——落地时据此播重/普通落地尘土）
     f.actionState = ActionState.HURT_FLYING;
+    // 原版 playHurtFly 无条件 isApplyG=true（源注「防止死亡后不受重力」）：
+    // 击飞类不吃命中定义的重力开关——击飞致死者必须落得下来，否则尸体悬空
+    f.applyG = true;
     f.hurtTimer = 0;
     f.hurtHeavy = hity > HIT_DOWN_BY_HITY;
     // 三段式弹起子状态机（原版 playHurtFly 尾部：_hurtFlyState=1、
@@ -1415,9 +1425,13 @@ export interface HurtFlyFx {
  * - 3 弹起空中：展示 ≥2 动画帧且再次触地 → 击飞_倒 定格 + hit_floor_low +
  *   震屏 shake(0,1)；随后走 HURT_DOWN 定格计时（15 动画帧）→ 起身。
  *
- * 偏离记录：死亡即 DEAD（enterDead 直接覆写，KO 飞尸无落地弹起段——原版
- * renderHurtFly case 4 才转 DEAD，切片 48 KO 链已登记）；倒地阻尼见
- * enterHurtDown；_curFrameCount<2 门以 hurtFlyHold 独立计数等价实现。
+ * 偏离登记（修复批次 65 更正，2026-11-20）：击飞类（hurtType≠0）致死不当场
+ * DEAD——原版 doHurt 致死只发 DIE + isAlive=false，代码继续 playHurtFly，
+ * 尸体照走本子状态机完整 击飞→落地→弹起→击飞_倒；case 4（FighterMC.as:513）
+ * 首查 isAlive 才转 DEAD 跳过起身（躺姿定格，见 advanceAnimation mcHold 分支
+ * 的 hp≤0 门 → enterDeadLying）。此前登记「原版死亡即 DEAD 无 renderHurtFly
+ * 推进，行为一致」系误读源码，已随本批修正（FFDec 导出 FighterMC.as 实证）。
+ * 倒地阻尼见 enterHurtDown；_curFrameCount<2 门以 hurtFlyHold 独立计数等价实现。
  */
 export function stepHurtFly(f: FighterState, def: FighterDef | null): HurtFlyFx[] {
   const fx: HurtFlyFx[] = [];
@@ -1498,8 +1512,24 @@ export function enterDead(f: FighterState, def: FighterDef | null): void {
   f.hurtTimer = 0;
   f.isAllowBeHit = true;
   f.beHitGap = 0;
-  f.hurtFlyStage = 0; // 击飞子状态机停走（KO 直死路径无落地弹起，偏离记录）
+  f.hurtFlyStage = 0; // 击飞子状态机停走（非击飞致死路径不走 playHurtFly）
   setLabel(f, def, '失败');
+}
+
+/**
+ * 击飞致死收尾（原版 renderHurtFly case 4，FighterMC.as:513）：尸体已进倒地段
+ * （击飞_倒 mcHold 定格），case 4 每帧首查 isAlive——死则 hurtFlyState=0 +
+ * actionState=DEAD 后 return，跳过倒地计时/起身。躺姿永久定格：标签不动
+ * （原版不 goFrame，区别 enterDead 的 失败 标签）、mcHold 保持。无敌窗/攻击
+ * 清理对齐 enterDead；hp≤0 已被命中判定各入口排除，飞尸不可再被打。
+ */
+function enterDeadLying(f: FighterState): void {
+  f.actionState = ActionState.DEAD;
+  f.attackId = null;
+  f.hurtTimer = 0;
+  f.isAllowBeHit = true;
+  f.beHitGap = 0;
+  f.hurtFlyStage = 0;
 }
 
 /**

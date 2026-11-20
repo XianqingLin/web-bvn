@@ -50,6 +50,7 @@
 
 - **特效收编（2026-11-20 全面盘点，原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照）**——已完成：残影 shadow 系（切片 47）、瞬步尘土 dash/dash_air（切片 47）、KO 终结演出链（切片 48：hit_end/kobg/shine/shake + 终结慢镜头）、slowDown 全局慢放（切片 49：进 sim 折算定夺，规格见 DESIGN §3.5；batch 基线 8 角色漂移归因后重冻）、specialEffectId 持续挂身特效（切片 50：fire/ice/shock_ing 挂身 + targetColorOffset 色调，纯渲染层，规格见 DESIGN §3.5）、buff 视觉特效 6 项 + 钢身发光（切片 51：buff_effect_* 火花 + buff_* 挂身光环 + startGlow/endGlow 发光克隆，规格见 DESIGN §3.5）、startShake 持续震屏（切片 52：hold 保持项 + 快照差分自动清理，规格见 DESIGN §3.5）、轻击飞三段式弹起（切片 54：击飞_落→击飞_弹→二次落地 hit_floor_low + HURT_DOWN_TAN 状态，规格见 DESIGN §3.5）、受击被动替身/灵压爆发 + 辅助出场（切片 55：replaceSkill/energyExplode 机制 + 冻结演出 + fz_bleach/fz_naruto，规格见 DESIGN §3.5）、起跳尘土 jump/jump_air 分流 + 落地尘土状态门 + bullet 触底 shake（切片 56，规格见 DESIGN §3.5）、收尾小项（切片 57：hitspark 纹理缺失静默告警 + 受击被动可用提示 = QiBar 红点按 isCanHurtBreak 收编）。剩余按观感收益排序：
   - 豁免：kenshin 必杀特写立绘（2026-11-20 深查定案——非单纯引用错配：语料 9 处 `bisha(true,"Kenshin_1")` 与注册键 bsface1/bsface2 双向对不上，且 kenshin.swf 无 bsface1 类（SymbolClass 全表实证）、FFDec 全量位图导出亦无任何人物立绘——原版作者从未制作该立绘，无资产可接线，移植版与原版等效。除非自制立绘补缺，否则维持豁免）；
+  - 普硬直/破防致死收尾演出（2026-11-20 批次 65 调查副产物，低观感收益）：原版 doHurt hurtType==0 致死为 HURT_ING 硬直，`renderHurtAnimate` 计尽查 isAlive——空中重新 hurtFly 起飞、地面 playHurtDown 倒地段 → case 4 DEAD 躺姿；破防致死（doBreakDefense 削血）原版不即时 DIE。port 均当场 DEAD +「失败」标签（fighter.test 已按现状锁定）；
 - 嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值）；
 - 佐助防御时人物模糊待复测（疑 autoZoom 近身上采样变糊，全角色共有）；
 - more= 形态切换未实现（含黄框交互）；重开局仅 solo（net CONTINUE 隐藏）；
