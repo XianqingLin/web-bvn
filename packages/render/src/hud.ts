@@ -18,7 +18,8 @@
  *     近似（目标 NORMAL/HURT_DOWN/DEAD 即隐藏，~0.4s 淡出近似 fadout）；
  *   - fadin/fadout/update 入退场补间跳过（直接显隐）；
  *   - 能量标签 flash 用 alpha 闪烁近似（原版切 inner mc 帧，语义未收编）；
- *   - 辅助格红点可见性用 fzqi 满近似（原版 isCanHurtBreak，core 无此查询）；
+ *   - 辅助格红点 = 被动提示（切片 57 收编）：可见性按原版 isCanHurtBreak
+ *     语义由快照派生（energy/qi/hurtChain/hurtBreakCd），不再用 fzqi 满近似；
  *   - 计时器恒显示 ∞（单局流程无时限）；
  *   - 宽屏血条延伸：原版 800 宽下血条外缘搭进计时板近缘 ~9px，逐元素钉边后
  *     该重叠随中线外移变成空隙 → 血条横向拉伸每侧补 (visW-800)/2（原版位形
@@ -618,7 +619,10 @@ export class FightHud {
     const dot = this.sprite('fz-dot');
     dot.position.set(d.qi.fzDotPos[0], d.qi.fzDotPos[1]);
     dot.visible = false;
-    fz.addChild(fzClip, fzTop, dot);
+    // 深度序（fight.swf sprite 98 编译实证）：shape89 → sp 红点(dpt2) →
+    // barmc 填充(dpt4) → shape97 顶框——红点垫在填充之下，fzqi 满格时被盖
+    //（原版语义：召唤可用 READY 与被动提示互斥呈现）
+    fz.addChild(dot, fzClip, fzTop);
     g.addChild(fz);
 
     // —— facemc（mc_025）：SWF 深度序 = 黑底(shape 100) → 裁剪(shape 101) →
@@ -1057,9 +1061,18 @@ export class FightHud {
         .rect(this.data.qi.fzFillPos[0], this.data.qi.fzFillPos[1] + h - maskH, this.data.qi.fzFillSize[0], maskH)
         .fill(0xffffff);
     }
-    // 红点/READY：fzqi 满（偏离：原版 isCanHurtBreak）；READY 20 帧 @30fps 循环
+    // 红点 = 被动提示（切片 57 收编，原版 QiBar.render _spMc.visible =
+    // isCanHurtBreak——FighterMcCtrler: 非冷却 + energy≥50 + qi≥100 +
+    // 最后一击非必杀 + 链内无破防 + 链伤害 ≤210；不查 HURT_ING/辅助键，
+    // 与 core stepHurtBreak 触发门的差异是原版语义）。快照派生，不进 core。
+    // READY = fzqi 满（召唤可用提示，原版 _fzReadyMc 门）；20 帧 @30fps 循环
     const fzFull = fv >= 1;
-    qi.dot.visible = fzFull;
+    const chain = f.hurtChain;
+    qi.dot.visible =
+      (f.hurtBreakCd ?? 0) <= 0 &&
+      f.energy >= 50 &&
+      f.qi >= 100 &&
+      !(chain !== undefined && (chain.bisha || chain.breakDef || chain.damage > 210));
     if (qi.ready.visible !== fzFull) {
       qi.ready.visible = fzFull;
       qi.readyPlaying = fzFull;

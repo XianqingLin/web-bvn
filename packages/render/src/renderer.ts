@@ -593,6 +593,7 @@ export class BattleRenderer {
     if (spec.hitspark) {
       this.hitspark = spec.hitspark.baked;
       this.sparkTex.clear();
+      this.sparkWarned.clear();
       for (const [id, eff] of Object.entries(this.hitspark.effects)) {
         const texs: Texture[] = [];
         for (let i = 1; i <= eff.frames; i++) {
@@ -1370,12 +1371,22 @@ export class BattleRenderer {
     if (shake) this.doShake(shake.x ?? 0, shake.y ?? 0, shake.time ?? 0);
   }
 
-  /** 按烘焙 id 生成火花/尘土特效（命中分流与通用控制器特效共用管线）。 */
+  /**
+   * 按烘焙 id 生成火花/尘土特效（命中分流与通用控制器特效共用管线）。
+   * 纹理/表项缺失 = 静默告警（console.warn 每个 id 只警一次防逐帧刷屏），
+   * 不中断演出管线——烘焙缺件不炸对局，目检期靠告警定位。
+   */
   private spawnSparkById(id: string, x: number, y: number, direct: 1 | -1 = 1): void {
     const eff = this.hitspark?.effects[id];
-    if (!eff) return;
+    if (!eff) {
+      this.warnSparkOnce(id, 'hitspark 表缺特效定义');
+      return;
+    }
     const texs = this.sparkTex.get(id);
-    if (!texs || texs.length === 0) return;
+    if (!texs || texs.length === 0) {
+      this.warnSparkOnce(id, 'hitspark 纹理缺失');
+      return;
+    }
     const root = new Container();
     const body = new Sprite(texs[0]!);
     if (eff.blendMode === 'add') body.blendMode = 'add';
@@ -1391,6 +1402,14 @@ export class BattleRenderer {
     else root.scale.x = direct;
     this.fxLayer.addChild(root);
     this.sparkFx.push({ root, body, texs, accMs: 0, frame: 0 });
+  }
+
+  /** 已告警特效 id（spawnSparkById 缺件告警去重；load 重建时清空重警） */
+  private sparkWarned = new Set<string>();
+  private warnSparkOnce(id: string, why: string): void {
+    if (this.sparkWarned.has(id)) return;
+    this.sparkWarned.add(id);
+    console.warn(`[render] spawnSparkById: ${why} "${id}"（特效跳过）`);
   }
 
   /** 火花帧推进（30fps 播尽自移除，同 mc 流帧管线）。 */
