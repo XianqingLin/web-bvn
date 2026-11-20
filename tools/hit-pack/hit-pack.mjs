@@ -106,6 +106,19 @@ const GENERAL_EFFECTS = [
   { id: 'kobg', className: 'kobg_effect_mc' },
 ];
 
+// specialEffectId 持续挂身特效（EffectModel.initSpeicalEffect 原版拼写 quirk）：
+// 命中表 FIRE/ICE/ELECTRIC 命中受击者后挂身（SpecialEffectView.setTarget 同时
+// 打 targetColorOffset 色调），目标回 NORMAL/HURT_DOWN(24 HURT_DOWN_TAN 移植版无)
+// 时 gotoAndPlay("finish") 收尾；挂身期间 timeline "loop" 标签回跳循环。
+// 帧标签由 SWF FrameLabel tag 解析（label → 1-based 帧号），blendMode 逐条对照原表。
+const SPECIAL_EFFECTS = [
+  { id: 'fire_ing', className: 'xg_fire_ing', blendMode: 'add', colorOffset: [255, 25, -255] },
+  { id: 'ice_ing', className: 'xg_ice_ing', blendMode: 'add', colorOffset: [0, 0, 255] },
+  { id: 'shock_ing', className: 'xg_dian_ing', blendMode: 'add', colorOffset: [50, -75, 255] },
+];
+// hitType → specialEffectId（原版 addHitEffect 表 FIRE/ICE/ELECTRIC 三条）
+const SPECIAL_BY_TYPE = { 7: 'fire_ing', 8: 'ice_ing', 9: 'shock_ing' };
+
 // ---------- SWF 解析（最小 tag 集：RECT/MATRIX/Shape bounds/Sprite/Place/Export） ----------
 class Reader {
   constructor(buf) {
@@ -275,6 +288,7 @@ function parseSwf(file) {
   // sprite 的渲染语义；用嵌套全帧并集会过度近似，已证）→ 每帧 union bounds
   const DEBUG = process.env.HITPACK_DEBUG === '1';
   const perFrameCache = new Map(); // spriteId → rect[]（每帧 union，twips）
+  const spriteLabels = new Map(); // spriteId → {1-based 帧 → 标签}（FrameLabel tag）
   function charFrameRect(charId, frameIdx, seen) {
     if (shapes.has(charId)) return shapes.get(charId);
     const pf = spritePerFrames(charId, seen);
@@ -299,6 +313,7 @@ function parseSwf(file) {
     sr.pos = sp.start;
     const display = new Map(); // depth → {charId, m, placedFrameIdx, cr}
     const perFrame = [];
+    const labels = {}; // 1-based 帧 → 标签（FrameLabel 置于所属帧 ShowFrame 之前）
     let frameIdx = 0;
     while (sr.pos < sp.end) {
       const codeLen = sr.u16();
@@ -309,7 +324,9 @@ function parseSwf(file) {
       const tr = new Reader(body);
       tr.pos = start;
       if (DEBUG) console.log(`  [sprite ${id}] f${frameIdx} tag ${code} len ${len}`);
-      if (code === 4) {
+      if (code === 43) {
+        labels[frameIdx + 1] = tr.string();
+      } else if (code === 4) {
         // PlaceObject：charId, depth, matrix
         const charId = tr.u16();
         const depth = tr.u16();
@@ -376,9 +393,10 @@ function parseSwf(file) {
       perFrame.push(unionRect(rects));
     }
     perFrameCache.set(id, perFrame);
+    spriteLabels.set(id, labels);
     return perFrame;
   }
-  return { shapes, sprites, exports, spritePerFrames, spriteUnion };
+  return { shapes, sprites, exports, spritePerFrames, spriteUnion, spriteLabels };
 }
 
 /** 解压 SWF 到指定路径（ZWS/LZMA 需 python lzma——Node 无内置；FWS 直接拷贝）。
@@ -412,8 +430,8 @@ mkdirSync(SCRATCH, { recursive: true });
 const RAW_SWF = join(SCRATCH, 'effect_fws.swf');
 extractSwf(EFFECT_SWF, RAW_SWF);
 const swf = parseSwf(RAW_SWF);
-const ALL = [...HIT_EFFECTS, ...DEFENSE_EFFECTS, ...GENERAL_EFFECTS];
-const geometry = {}; // className → { spriteId, frames, canvas, origin }
+const ALL = [...HIT_EFFECTS, ...DEFENSE_EFFECTS, ...GENERAL_EFFECTS, ...SPECIAL_EFFECTS];
+const geometry = {}; // className → { spriteId, frames, canvas, origin, labels }
 for (const eff of ALL) {
   const spriteId = swf.exports.get(eff.className);
   if (spriteId === undefined) throw new Error(`effect.swf 缺导出名 ${eff.className}`);
@@ -428,9 +446,10 @@ for (const eff of ALL) {
     frames: swf.sprites.get(spriteId).frameCount,
     canvas: [w, h],
     origin: [ox, oy],
+    labels: swf.spriteLabels.get(spriteId) ?? {},
     pxRect: { xMin: ox, yMin: oy, w, h }, // 断言基准（JSON 不写）
   };
-  console.log(`${eff.className}: sprite=${spriteId} frames=${geometry[eff.className].frames} canvas=${w}x${h} origin=(${ox},${oy})`);
+  console.log(`${eff.className}: sprite=${spriteId} frames=${geometry[eff.className].frames} canvas=${w}x${h} origin=(${ox},${oy}) labels=${JSON.stringify(geometry[eff.className].labels)}`);
 }
 
 // ---------- 2. FFDec 导出 + 画布断言 + webp ----------
@@ -477,6 +496,10 @@ for (const eff of ALL) {
     ...(eff.randRotate ? { randRotate: true } : {}),
     ...(eff.followDirect ? { followDirect: true } : {}),
     ...(eff.shine ? { shine: eff.shine } : {}),
+    ...(eff.colorOffset ? { colorOffset: eff.colorOffset } : {}),
+    // 帧标签（specialEffectId 件 loop/finish 段位；label → 1-based 帧号，
+    // 渲染层按原版 EffectView 0/1 基错位语义消费）
+    ...(Object.keys(g.labels).length > 0 ? { labels: g.labels } : {}),
     freezeMs: eff.freezeMs,
   };
   console.log(`${eff.className} → ${eff.id}: ${frames} 帧烘焙完成`);
@@ -494,6 +517,10 @@ const baked = {
   defense: { byType: byType(DEFENSE_EFFECTS), fallback: DEFENSE_FALLBACK },
   /** 钢身命中映射（doSteelHitEffect：kan 系/qdj 系/其余三档） */
   steel: STEEL_MAP,
+  /** specialEffectId 持续挂身特效：hitType → mc id（EffectModel addHitEffect
+   *  FIRE/ICE/ELECTRIC 表；仅未防御命中路径触发——doEffectVO target 守卫，
+   *  防御/钢身表无 specialEffectId） */
+  special: { byType: SPECIAL_BY_TYPE },
   /** 防御竖抖 / 破防横抖 + 破防特效（原版 doDefenseEffect pow→y 与 doEffectById("break_def")） */
   shake: { defense: DEFENSE_SHAKE },
   breakDef: BREAK_DEF,

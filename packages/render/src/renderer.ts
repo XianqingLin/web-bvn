@@ -11,7 +11,7 @@ import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, Te
 // 这些 blendMode 静默回退 normal（darken 白底直接画出来 = 白矩形块）。
 import 'pixi.js/advanced-blend-modes';
 import type { BLEND_MODES as TBlendMode } from 'pixi.js';
-import type { SimSnapshot } from '@bvn/core';
+import { ActionState, type SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
 import { frameTexture, loadFighterAtlas, loadFireAtlas, loadMapAtlas, type LoadedFighterAtlas, type LoadedFireAtlas, type LoadedMapAtlas } from './atlas.js';
 import { FightHud, type HudSpec } from './hud.js';
@@ -110,6 +110,11 @@ export interface HitsparkEffect {
   randRotate?: boolean;
   /** 帧位 x 随 direct 镜像（防御火花族） */
   followDirect?: boolean;
+  /** 特效目标色调（specialEffectId 件，原版 targetColorOffset：ColorTransform
+   *  加色偏移 [r, g, b]，挂受击者、finish 时 resumeColor） */
+  colorOffset?: [number, number, number];
+  /** 帧标签（label → 1-based 帧号；specialEffectId 件 loop/finish 段位） */
+  labels?: Record<string, number>;
   /** 全屏闪（原版 ShineEffectView：ADD 色块 10×降采样拉伸近似） */
   shine?: { color: number; alpha: number };
   freezeMs?: number;
@@ -123,6 +128,9 @@ export interface HitsparkBaked {
   defense: { byType: Record<string, string>; fallback: string };
   /** 钢身族（doSteelHitEffect：kan 系/qdj 系/其余；数组 = 渲染层随机择一） */
   steel: Record<string, string[]>;
+  /** specialEffectId 持续挂身特效：hitType → mc id（EffectModel addHitEffect
+   *  FIRE/ICE/ELECTRIC 表；仅未防御命中路径触发） */
+  special?: { byType: Record<string, string> };
   shake: { defense: { pow: number; time: number } };
   breakDef: { id: string; freezeMs: number; shake: { x: number; time: number } };
 }
@@ -315,12 +323,35 @@ export class BattleRenderer {
   private shadowGhosts: { root: Container; alpha: number }[] = [];
   private shadowAccMs = 0;
   private shadowStep = 0;
-  /** 加色偏移滤镜缓存（同色残影共享一个 ColorMatrixFilter） */
-  private shadowFilters = new Map<string, ColorMatrixFilter>();
+  /** 加色偏移滤镜缓存（同色偏移共享一个 ColorMatrixFilter；残影与挂身特效共用） */
+  private colorOffsetFilters = new Map<string, ColorMatrixFilter>();
 
   /** KO 背景层状态（KO 终结演出链，原版 EffectView holdFrame 语义：帧序列
    *  播尽回卷，hold 帧计满移除并恢复地图）。null = 未激活。单槽。 */
   private kobgFx: { body: Sprite; texs: Texture[]; accMs: number; holdMs: number } | null = null;
+
+  /** 持续挂身特效（原版 SpecialEffectView）：key = 受击者 fighter id。单槽，
+   *  后到覆盖（原版可叠多层且 resumeColor 先到先清——简化偏离登记）。
+   *  触发/收尾判定全在渲染层（快照 actionState 派生，切片 47 残影范式，不进
+   *  core）；finishing 后位置冻结（原版 _finished 停 setPos）、动画播尽自移除。
+   *  frame = 0-based 缓存帧号；labels 为 1-based 帧号 → 标签（loop/finish 回跳
+   *  与跳转沿用原版 EffectView 0/1 基错位语义：gotoAndPlay 标签帧号直接当
+   *  缓存下标，loop 检查用 0-based 下标查 1-based 键表）。 */
+  private specialFx = new Map<
+    number,
+    {
+      root: Container;
+      body: Sprite;
+      texs: Texture[];
+      /** label → 1-based 帧（finish 跳段查表） */
+      labels: Record<string, number>;
+      /** 1-based 帧 → label（loop 回跳查表，烘焙 labels 的逆转） */
+      frameLabels: Record<number, string>;
+      frame: number;
+      accMs: number;
+      finishing: boolean;
+    }
+  >();
 
   /** 相机（逻辑坐标）：中心点 + 缩放因子（原版 GameCamera 语义：
    *  factor = 原版 zoom，1 = 满屏逻辑区；有效缩放 = fitZoom × factor）。
@@ -617,6 +648,21 @@ export class BattleRenderer {
         }
       }
     }
+    // 持续挂身特效收尾判定（原版 SpecialEffectView.render）：目标回
+    // NORMAL/HURT_DOWN（原版含 HURT_DOWN_TAN=24，移植版无该状态——偏离登记）
+    // → 转 finish 段 + resumeColor；目标快照缺席（团队 bench 下场）→ 即刻移除。
+    // 先清后消费事件：同拍「收尾 + 重挂」顺序与原版一致。
+    for (const [fid, fx] of this.specialFx) {
+      const f = snap.state.fighters.find((x) => x.id === fid);
+      if (!f) {
+        this.removeSpecialFx(fid);
+      } else if (
+        !fx.finishing &&
+        (f.actionState === ActionState.NORMAL || f.actionState === ActionState.HURT_DOWN)
+      ) {
+        this.finishSpecialFx(fid);
+      }
+    }
     for (const ev of snap.events) {
       const key = `${ev.tick}:${ev.type}:${String(ev.payload['id'] ?? '')}`;
       const last = this.lastEventsTick.get(key);
@@ -894,6 +940,92 @@ export class BattleRenderer {
   }
 
   /**
+   * 持续挂身特效（原版 doSpecialEffect → SpecialEffectView.start）：
+   * MC 原点钉受击者脚下（后续每帧跟随），ADD 混合，30fps 循环段播放；
+   * 同时打 targetColorOffset 色调（原版 setTarget → changeColor）。
+   */
+  private attachSpecialFx(fighterId: number, mcId: string): void {
+    const eff = this.hitspark?.effects[mcId];
+    const texs = this.sparkTex.get(mcId);
+    const sp = this.sprites.get(fighterId);
+    if (!eff || !texs || texs.length === 0 || !sp) return;
+    this.removeSpecialFx(fighterId); // 单槽覆盖（偏离登记：原版可叠多层）
+    const root = new Container();
+    const body = new Sprite(texs[0]!);
+    body.blendMode = 'add';
+    root.addChild(body);
+    body.position.set(eff.origin[0], eff.origin[1]);
+    this.fxLayer.addChild(root);
+    const frameLabels: Record<number, string> = {};
+    for (const [label, fr] of Object.entries(eff.labels ?? {})) frameLabels[fr] = label;
+    this.specialFx.set(fighterId, {
+      root,
+      body,
+      texs,
+      labels: eff.labels ?? {},
+      frameLabels,
+      frame: 0,
+      accMs: 0,
+      finishing: false,
+    });
+    const [r = 0, g = 0, b = 0] = eff.colorOffset ?? [];
+    const filter = this.colorOffsetFilterOf({ r, g, b });
+    sp.root.filters = filter ? [filter] : [];
+  }
+
+  /** 收尾转段（原版 render 检出 NORMAL/HURT_DOWN → gotoAndPlay("finish") +
+   *  resumeColor）：播放头按原版 0/1 基错位语义跳标签帧号，位置自此冻结。 */
+  private finishSpecialFx(fighterId: number): void {
+    const fx = this.specialFx.get(fighterId);
+    if (!fx || fx.finishing) return;
+    fx.finishing = true;
+    const fin = fx.labels['finish'];
+    if (fin !== undefined) fx.frame = fin;
+    const sp = this.sprites.get(fighterId);
+    if (sp) sp.root.filters = [];
+  }
+
+  /** 移除挂身特效（重复挂载替换 / 目标下场 / 播尽自移除共用；色调一并还原）。 */
+  private removeSpecialFx(fighterId: number): void {
+    const fx = this.specialFx.get(fighterId);
+    if (!fx) return;
+    this.fxLayer.removeChild(fx.root);
+    fx.root.destroy({ children: true });
+    this.specialFx.delete(fighterId);
+    const sp = this.sprites.get(fighterId);
+    if (sp) sp.root.filters = [];
+  }
+
+  /**
+   * 挂身特效帧推进（原版 EffectCtrler.render 60fps 跟随 + renderAnimate 30fps
+   * 帧进的合成）：未收尾时容器钉目标精灵当前位置（插值后）；帧进镜像
+   * EffectView.renderAnimate——播到末缓存帧（autoRemove，末帧不缓存）自移除，
+   * loop 标签回跳帧 2（gotoAndPlay(1) 错位语义原样保留），收尾段播尽自然清除。
+   */
+  private updateSpecialFx(dtMs: number, next: SimSnapshot): void {
+    for (const [fid, fx] of this.specialFx) {
+      if (!fx.finishing) {
+        const f = next.state.fighters.find((x) => x.id === fid);
+        const sp = f !== undefined ? this.sprites.get(fid) : undefined;
+        if (f !== undefined && sp !== undefined) fx.root.position.set(sp.root.x, sp.root.y);
+      }
+      fx.accMs += dtMs;
+      const steps = Math.floor(fx.accMs / (1000 / 30));
+      if (steps <= 0) continue;
+      fx.accMs -= steps * (1000 / 30);
+      for (let i = 0; i < steps; i++) {
+        if (fx.frame >= fx.texs.length - 1) {
+          this.removeSpecialFx(fid);
+          break;
+        }
+        if (fx.frameLabels[fx.frame] === 'loop') fx.frame = 1;
+        fx.body.texture = fx.texs[fx.frame]!;
+        fx.frame++;
+      }
+    }
+  }
+
+  /**
    * 命中火花（修复批次 35，镜像原版 EffectCtrler 分流；随机项全部在渲染层，
    * 不触碰 sim 确定性）：钢身族随机择一 → 破防横抖 → 防御竖抖 → 普通命中。
    * 原版 quirk 保留：命中系 VO 的 shake{pow:6} 是 doEffectVO 死代码（只读
@@ -929,6 +1061,13 @@ export class BattleRenderer {
     } else {
       // 普通命中表：type 0/10 无表项 = 无特效不抖（原版 getHitEffect 无回退）
       id = hk.hit.byType[String(sparkType)] ?? null;
+      // specialEffectId 持续挂身特效（原版 doEffectVO：effect.specialEffectId &&
+      // target is FighterMain → doSpecialEffect 挂受击者持续）：仅未防御路径，
+      // 按 hitType 直查（防御转换 sparkType 不参与，防御/钢身表无 specialEffectId）
+      const target = p['target'];
+      const sid =
+        typeof target === 'number' ? hk.special?.byType[String(p['hitType'] ?? sparkType)] : undefined;
+      if (typeof target === 'number' && sid !== undefined) this.attachSpecialFx(target, sid);
     }
     const eff = id !== null ? hk.effects[id] : null;
     if (!id || !eff) return;
@@ -1020,7 +1159,7 @@ export class BattleRenderer {
         root.position.set(sp.root.x, sp.root.y);
         root.scale.set(sp.root.scale.x, sp.root.scale.y);
         root.alpha = 0.8;
-        const filter = this.shadowFilterOf(st);
+        const filter = this.colorOffsetFilterOf(st);
         if (filter) {
           root.filters = [filter];
           filter.enabled = true;
@@ -1053,11 +1192,12 @@ export class BattleRenderer {
     return a ? (this.assistSprites.get(a.ownerId) ?? null) : null;
   }
 
-  /** 加色偏移滤镜（ColorTransform redOffset 系 → ColorMatrixFilter 第 5 列）。 */
-  private shadowFilterOf(st: { r: number; g: number; b: number }): ColorMatrixFilter | null {
+  /** 加色偏移滤镜（ColorTransform redOffset 系 → ColorMatrixFilter 第 5 列；
+   *  负偏移 = 减色，Fire (255,25,−255) 类色调同通道）。 */
+  private colorOffsetFilterOf(st: { r: number; g: number; b: number }): ColorMatrixFilter | null {
     if (st.r === 0 && st.g === 0 && st.b === 0) return null;
     const key = `${st.r},${st.g},${st.b}`;
-    let f = this.shadowFilters.get(key);
+    let f = this.colorOffsetFilters.get(key);
     if (!f) {
       f = new ColorMatrixFilter();
       // pixi v8 matrix getter 返回内部数组，原地改第 5 列（加色偏移）
@@ -1065,7 +1205,7 @@ export class BattleRenderer {
       m[4] = st.r / 255;
       m[9] = st.g / 255;
       m[14] = st.b / 255;
-      this.shadowFilters.set(key, f);
+      this.colorOffsetFilters.set(key, f);
     }
     return f;
   }
@@ -1359,6 +1499,7 @@ export class BattleRenderer {
     this.updateAssisters(prev, next, alpha);
     this.updateMcEffects(dtMs);
     this.updateShadows(dtMs, next);
+    this.updateSpecialFx(dtMs, next);
     this.updateSparkFx(dtMs);
     this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
@@ -1812,7 +1953,8 @@ export class BattleRenderer {
     for (const gh of this.shadowGhosts) gh.root.destroy({ children: true });
     this.shadowGhosts = [];
     this.shadowStates.clear();
-    this.shadowFilters.clear();
+    this.colorOffsetFilters.clear();
+    for (const [fid] of this.specialFx) this.removeSpecialFx(fid);
     this.app.stage.removeChild(
       this.bgFixed,
       this.blackLayer,

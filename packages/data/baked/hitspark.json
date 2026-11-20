@@ -462,6 +462,72 @@
         0,
         0
       ]
+    },
+    "fire_ing": {
+      "dir": "hitspark/fire_ing",
+      "frames": 25,
+      "canvas": [
+        81,
+        117
+      ],
+      "origin": [
+        -44,
+        -96
+      ],
+      "blendMode": "add",
+      "colorOffset": [
+        255,
+        25,
+        -255
+      ],
+      "labels": {
+        "12": "loop",
+        "13": "finish"
+      }
+    },
+    "ice_ing": {
+      "dir": "hitspark/ice_ing",
+      "frames": 20,
+      "canvas": [
+        133,
+        143
+      ],
+      "origin": [
+        -72,
+        -110
+      ],
+      "blendMode": "add",
+      "colorOffset": [
+        0,
+        0,
+        255
+      ],
+      "labels": {
+        "5": "loop",
+        "6": "finish"
+      }
+    },
+    "shock_ing": {
+      "dir": "hitspark/shock_ing",
+      "frames": 18,
+      "canvas": [
+        113,
+        116
+      ],
+      "origin": [
+        -59,
+        -84
+      ],
+      "blendMode": "add",
+      "colorOffset": [
+        50,
+        -75,
+        255
+      ],
+      "labels": {
+        "6": "loop",
+        "7": "finish"
+      }
     }
   },
   "hit": {
@@ -509,6 +575,13 @@
       "leidian",
       "catch_hit"
     ]
+  },
+  "special": {
+    "byType": {
+      "7": "fire_ing",
+      "8": "ice_ing",
+      "9": "shock_ing"
+    }
   },
   "shake": {
     "defense": {
