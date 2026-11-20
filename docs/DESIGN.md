@@ -29,6 +29,7 @@ app → render → core ← net      （依赖只许向下；data 被各层只�
 - **render**：PixiJS，只读快照 + 表现事件，插值渲染，相机纯渲染职责。
 - **app**：场景、键位采集、音频；非确定性层。
 - **data**：烘焙产物（角色/地图 JSON + 图集元数据），双来源：`tools/exporter` XFL 静态提取（bvn/fighter@1、bvn/assistant@1）+ `tools/runtime-ingest` 运行时 dump 转译（bvn/fighter-runtime@1 判定区几何、bvn/map@1 地图边界/出生点/地板；由 `tools/bridge` 注入原版 AIR 应用导出）。运行时数据兼作 XFL 提取的交叉验证证据（见 baked/runtime-ingest-report.json）。
+- **交叉验证豁免**（2026-11-20 定案）：orihime（角色 + 辅助双形态）与 yachiru（辅助）运行时 dump 抓不到 defineAction 数据（注入桥局限，实际不可解决），二者的 actions 缺少"运行时实证 vs XFL 提取"双保险，仅由 XFL 静态提取产出（判定区几何不受影响，xflDrift 仅 assister:orihime 一处 `atm1` 仅存于 XFL）。已知盲区收编：若 XFL 解析器恰在这两者语料上有解析 bug 无机制可发现，接受该残余风险。
 - **net**：帧同步（阶段 2），对 core 单向依赖。
 
 目录与子系统接口的规范性定义见契约；这里只记理由：core 独立成包并用 lint 切断向上依赖，是因为"逻辑/渲染解耦"靠自觉守不住（原版就是反面教材，逻辑层与显示列表深度耦合）。
