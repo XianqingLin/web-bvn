@@ -99,6 +99,10 @@ mkdirSync(OUT_ASSETS, { recursive: true });
 const el = {};
 /** startKOmc Round 数字合成规格（数字块产出；无则 baked 不含该字段） */
 let startKONumSpec = null;
+/** Round 词居中 delta（数字块产出；无数字块时字样组合退词-only 居中） */
+let startKOWordDelta = 39.5;
+/** 逐帧居中 delta（数字块产出；数字窗口内为词 delta 占位，运行时按回合覆盖） */
+let startKOFrameDeltas = null;
 async function put(name, src) {
   copyFileSync(src, join(OUT_ASSETS, `${name}.png`));
   el[name] = `ui/hud/${name}.png`;
@@ -314,12 +318,81 @@ await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
     }
   }
   el['startko-num'] = 'ui/hud/startko-num';
+  // —— per-round 居中 delta（修复批次 62）——
+  // 批次 44 的固定 39.5 = 单帧实测，实测帧含揭示闪光像素（bbox 右缘被闪光外扩
+  // 推远）且不适配逐回合数字宽度 → 用户实测仍不居中。改烘焙 per-round delta：
+  // 组合（Round 词 @ 稳定帧 + 稳定数字 glyph）不透明像素 bbox 中心 cxc（字样
+  // 画布坐标）→ delta = 387 - cxc。推导：center 钉扎下 PNG 原点 design x =
+  // pos[0]+delta（pos[0]=13），内容像素 cx_canvas 落 13+delta+cx_canvas，令组合
+  // 中心 = 400（800 舞台中线）解出；批次 44 实测（canvas 186..509，去闪光后
+  // 即词区）复核 387-347.5 = 39.5 一致。
+  const alphaBBox = (data, w, h, xLimit = Infinity) => {
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < Math.min(w, xLimit); x++) {
+        if (data[(y * w + x) * 4 + 3] > 0) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    return x1 < x0 ? null : { x0, y0, x1, y1 };
+  };
+  const WORD_FRAME = 30; // 稳定数字窗口（28..45）取中帧：词完整、数字区已擦除
+  const wordRaw = await sharp(join(OUT_ASSETS, 'startko', `${WORD_FRAME}.png`))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  // 词 bbox 限 x<433（数字擦除区左缘——揭示闪光向左外扩的残留不计入）
+  const wordBBox = alphaBBox(wordRaw.data, wordRaw.info.width, wordRaw.info.height, 433);
+  if (!wordBBox) throw new Error(`hud-pack: startko 帧 ${WORD_FRAME} 无词内容`);
+  const deltaOf = (bb) => 387 - (bb.x0 + bb.x1) / 2;
+  startKOWordDelta = deltaOf(wordBBox);
+  const numDeltas = [];
+  for (let d = 1; d <= NUM.ids.length; d++) {
+    const g = await glyphOf(NUM.ids[d - 1]);
+    const gb = alphaBBox(g.data, g.w, g.h);
+    if (!gb) throw new Error(`hud-pack: 数字 ${d} 位图无内容`);
+    // 数字画布区 = 字样画布 (441+lx, 340+ly)；组合 bbox = 词 ∪ 稳定数字
+    numDeltas.push(deltaOf({ x0: Math.min(wordBBox.x0, 441 + gb.x0), y0: 0, x1: Math.max(wordBBox.x1, 441 + gb.x1), y1: 0 }));
+  }
+  // 分段居中（实测）：词-only 帧（字样出现 ~10..17，bbox 中心 307.5 → 固定
+  // 39.5 下偏左 40px）与 Fight! 段（46..79，中心 ~407 → 偏右 ~59px）在固定
+  // delta 下都不居中（用户实测"回合字样不居中"的第二根因）。按段烘焙：
+  //   frameDeltas[assetFrame-1]：1..17 = 词 delta（前置 shine 小件随词区）；
+  //   18..45 = 词 delta 占位（运行时按回合用 num.centerDeltas 覆盖——数字
+  //   位图运行时合成，烘焙帧已擦除）；46..79 = Fight! 段逐帧 bbox。
+  const fightDeltas = [];
+  for (let n = NUM.to + 1; n <= STARTKO_FRAMES; n++) {
+    const fr = await sharp(join(OUT_ASSETS, 'startko', `${n}.png`))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const bb = alphaBBox(fr.data, fr.info.width, fr.info.height);
+    // 空帧（末帧空黑 = 播完即隐语义）沿用前一帧 delta，运行时反正不可见
+    if (!bb) {
+      fightDeltas.push(fightDeltas.length > 0 ? fightDeltas.at(-1) : startKOWordDelta);
+      continue;
+    }
+    fightDeltas.push(deltaOf(bb));
+  }
+  const frameDeltas = [];
+  for (let n = 1; n <= STARTKO_FRAMES; n++) {
+    frameDeltas.push(n <= NUM.to ? startKOWordDelta : fightDeltas[n - NUM.to - 1]);
+  }
+  startKOFrameDeltas = frameDeltas;
   startKONumSpec = {
     pos: [NUM.crop.x0, NUM.crop.y0],
     from: NUM.from,
     to: NUM.to,
     digits: NUM.ids.length,
     frames: per,
+    centerDeltas: numDeltas,
   };
 }
 
@@ -431,12 +504,19 @@ const doc = {
    * pos = ui_fight 舞台摆放点（startKOmc@(0,0) + showStart y=-50 + 原点换算）；
    * num = Round 数字合成帧（nummc 收编修正）：pos = 数字画布相对 startKO 摆放点
    * 的偏移，帧窗口 [from,to]（资产帧号），frames = 每数字帧数，digits = 数字数
-   * （1..digits 按 min(round,5) 选组） */
+   * （1..digits 按 min(round,5) 选组）；centerDelta / num.centerDeltas = per-round
+   * 居中偏移（修复批次 62：center 钉扎下 PNG 原点 x = pos + delta，delta 使
+   * Round 词+数字组合 bbox 中心对齐 800 舞台中线；per-round = 数字宽度自适应，
+   * num.absent 时退词-only delta）；frameDeltas = 逐帧居中 delta（资产帧 1 基
+   * 下标 0 起；数字窗口 18..45 内为词 delta 占位——数字位图运行时合成，运行时
+   * 按回合以 num.centerDeltas 覆盖；46..79 Fight! 段逐帧实测） */
   startKO: {
     frames: 79,
     fps: 30,
     canvasOrigin: [13, 103],
     pos: [13, 53],
+    centerDelta: startKOWordDelta,
+    ...(startKOFrameDeltas ? { frameDeltas: startKOFrameDeltas } : {}),
     ...(startKONumSpec ? { num: startKONumSpec } : {}),
   },
   /** 结算字样（回合结算流程收编）：ko = startKOmc KO 段（XFL 144..190，47 帧

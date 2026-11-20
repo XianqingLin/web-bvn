@@ -12,6 +12,10 @@
  *   - 辅助：root 本身即动画时间轴（与 dump 桥单次 sweep 同源），贴帧音在 root 上。
  *   - 嵌套元件（zh2mc/hitmc 类演出件）时间轴音不采——需要 ghost 时间轴模拟，
  *     遗留池登记；流音全语料为空流头（零 SoundStreamBlock），忽略。
+ * 寻址（修复批次 62 改 `<kind>/<id>`，schema @2）：fighter 与 assistant 基名
+ * 有 16 处相同，裸 id 键在 packages/files/资产目录三处互相覆盖（同名 fighter
+ * 时间轴音全丢）→ 按类型分命名空间；贴帧音采集含嵌套子元件有效音轨（递归
+ * 并帧，Flash 放置语义），与 XFL 实证对齐。
  *
  * 步骤：FFDec -decompress（全语料 ZWS/LZMA）→ 自研 SWF 标签解析（与 FFDec
  * -swf2xml 交叉验证过）→ FFDec -export sound 拷贝匿名音 → baked/timeline-sounds.json。
@@ -218,7 +222,12 @@ function parseTags(buf, pos, end, out) {
         const frameCount = body.readUInt16LE(2);
         const sub = { frames: 0, places: [], startSounds: [], defSounds: new Set() };
         parseTags(body, 4, body.length, sub);
-        out.sprites[id] = { frameCount, frames: sub.frames, startSounds: sub.startSounds };
+        out.sprites[id] = {
+          frameCount,
+          frames: sub.frames,
+          startSounds: sub.startSounds,
+          places: sub.places,
+        };
         for (const sid of sub.defSounds) out.defSounds.add(sid);
         break;
       }
@@ -243,10 +252,46 @@ function parseSwf(swfPath) {
   return out;
 }
 
+// ==================== 有效音轨（Flash 嵌套语义） ====================
+
+/**
+ * 递归有效音轨：sprite 时间轴上实际会响的 StartSound（修复批次 62）。
+ * Flash 语义：子元件被放置即随父播放头 1:1 前进，其贴帧音并入父帧号
+ * = 放置帧 + 子帧 - 1。直连音（ichigo 系）+ 嵌套音（byakuya 系：声音在
+ * root mc 下的 AImain/mc 包装层内，XFL 实证 mc_028/mc_069 声音层）统一收敛。
+ * 返回 { [frame]: [{sid, loops?}] }；memo 防重、栈防环。
+ */
+function effectiveSounds(charId, sprites, memo, stack = new Set()) {
+  if (memo.has(charId)) return memo.get(charId);
+  const sp = sprites[charId];
+  const out = {};
+  if (sp) {
+    if (stack.has(charId)) return out; // 循环放置防御（正常语料不出现）
+    stack.add(charId);
+    const push = (frame, item) => {
+      if (frame >= 1) (out[frame] ??= []).push(item);
+    };
+    for (const ss of sp.startSounds) {
+      push(ss.frame, ss.loops > 1 ? { sid: ss.sid, loops: ss.loops } : { sid: ss.sid });
+    }
+    for (const p of sp.places) {
+      if (p.charId == null || !sprites[p.charId]) continue;
+      const sub = effectiveSounds(p.charId, sprites, memo, stack);
+      for (const [f, items] of Object.entries(sub)) {
+        for (const it of items) push(p.frame + Number(f) - 1, it);
+      }
+    }
+    stack.delete(charId);
+  }
+  memo.set(charId, out);
+  return out;
+}
+
 // ==================== 主流程 ====================
 
 if (!existsSync(FFDEC)) throw new Error(`FFDec CLI 不存在：${FFDEC}`);
 rmSync(SCRATCH, { recursive: true, force: true });
+rmSync(join(OUT_ASSETS, 'timeline'), { recursive: true, force: true }); // 旧寻址残留清理
 mkdirSync(SCRATCH, { recursive: true });
 
 const swfDirs = [
@@ -276,6 +321,9 @@ for (const { dir, kind } of swfDirs) {
     // 2) 解析 + 采集
     const swf = parseSwf(dec);
     const entry = {};
+    // 有效音轨 memo 按 SWF 独立（sprite charId 只在单 SWF 内唯一，跨包共享
+    // memo 会串包——首版教训：orochimaru/renji 被前包同 id sprite 污染清空）
+    const effMemo = new Map();
 
     if (kind === 'fighter') {
       // 角色：root 每根帧的 'mc' 放置 → 形态元件。formIndex 对齐 data 层编译
@@ -287,12 +335,17 @@ for (const { dir, kind } of swfDirs) {
       for (const [formIndex, p] of mcPlacements.entries()) {
         const sprite = swf.sprites[p.charId];
         if (!sprite) throw new Error(`${id}: root f${p.frame} 'mc' → sprite ${p.charId} 不存在`);
+        // 有效音轨（修复批次 62）：直连 + 嵌套子元件贴帧音并入形态时间轴帧号
+        const eff = effectiveSounds(p.charId, swf.sprites, effMemo);
         const sounds = {};
-        for (const ss of sprite.startSounds) {
-          if (!swf.defSounds.has(ss.sid)) throw new Error(`${id}: StartSound sid ${ss.sid} 无 DefineSound`);
-          (sounds[ss.frame] ??= []).push(
-            ss.loops > 1 ? { sid: ss.sid, loops: ss.loops } : { sid: ss.sid },
-          );
+        for (const [frame, items] of Object.entries(eff)) {
+          for (const it of items) {
+            // 无 DefineSound 的 StartSound（嵌套链偶见，grimmjow sid79 实证）= 原
+            // 版哑引用（Flash 播放头照样过帧但无声），剔除不报警致命——下游
+            // "无导出文件"校验（步骤 4）兜底同类问题
+            if (!swf.defSounds.has(it.sid)) continue;
+            (sounds[frame] ??= []).push(it);
+          }
         }
         if (Object.keys(sounds).length > 0) entry[formIndex] = sounds;
       }
@@ -310,7 +363,11 @@ for (const { dir, kind } of swfDirs) {
       }
     }
 
-    // 3) 匿名音导出拷贝（FFDec 命名 `<chid>.mp3`；`-1.wav` = 空流头跳过）
+    // 3) 匿名音导出拷贝（FFDec 命名 `<chid>.mp3`；`-1.wav` = 空流头跳过）。
+    // 寻址 = `<kind>/<id>`（修复批次 62）：fighter 与 assistant 基名有 16 处
+    // 相同（byakuya/gaara/...），旧裸 id 键在 packages/files/timeline/<id> 三处
+    // 互相覆盖——同名角色时间轴音全丢 + 同 chid 文件串包
+    const ns = `${kind}/${id}`;
     const expDir = join(SCRATCH, `exp_${id}`);
     run(FFDEC, ['-export', 'sound', expDir, dec]);
     let copied = 0;
@@ -318,10 +375,10 @@ for (const { dir, kind } of swfDirs) {
       for (const sf of readdirSync(expDir)) {
         const m = /^(\d+)\.(mp3|wav)$/i.exec(sf);
         if (!m) continue;
-        const destDir = join(OUT_ASSETS, 'timeline', id);
+        const destDir = join(OUT_ASSETS, 'timeline', kind, id);
         mkdirSync(destDir, { recursive: true });
         cpSync(join(expDir, sf), join(destDir, sf));
-        files[`${id}/${m[1]}`] = `timeline/${id}/${sf}`;
+        files[`${ns}/${m[1]}`] = `timeline/${kind}/${id}/${sf}`;
         copied++;
       }
     }
@@ -332,8 +389,8 @@ for (const { dir, kind } of swfDirs) {
       const sounds = entry[key];
       for (const frame of Object.keys(sounds)) {
         sounds[frame] = sounds[frame].filter((s) => {
-          if (files[`${id}/${s.sid}`]) return true;
-          console.warn(`frame-sounds: ${id} 帧${frame} sid ${s.sid} 无导出文件（剔除）`);
+          if (files[`${ns}/${s.sid}`]) return true;
+          console.warn(`frame-sounds: ${ns} 帧${frame} sid ${s.sid} 无导出文件（剔除）`);
           dropped++;
           return false;
         });
@@ -343,14 +400,14 @@ for (const { dir, kind } of swfDirs) {
     }
 
     if (Object.keys(entry).length > 0) {
-      packages[id] = kind === 'fighter' ? { forms: entry } : entry;
+      packages[ns] = kind === 'fighter' ? { forms: entry } : entry;
       const total = Object.values(entry).reduce(
         (a, s) => a + Object.values(s).reduce((x, l) => x + l.length, 0),
         0,
       );
       soundCount += total;
       console.log(
-        `frame-sounds: ${id}（${kind}）frames 音轨 ${total} 事件 / 匿名音 ${copied} 个${
+        `frame-sounds: ${ns} frames 音轨 ${total} 事件 / 匿名音 ${copied} 个${
           dropped ? ` / 剔除 ${dropped}` : ''
         }`,
       );
@@ -359,10 +416,10 @@ for (const { dir, kind } of swfDirs) {
 }
 
 const doc = {
-  schema: 'bvn/timeline-sounds@1',
-  /** swfId → 角色：{ [formIndex]: { [frame]: [{sid, loops?}] } }；辅助：{ root: {...} } */
+  schema: 'bvn/timeline-sounds@2',
+  /** `<kind>/<swfId>` → 角色：{ [formIndex]: { [frame]: [{sid, loops?}] } }；辅助：{ root: {...} } */
   packages,
-  /** `swfId/sid` → 音频 url（assets/audio 相对路径） */
+  /** `<kind>/<swfId>/<sid>` → 音频 url（assets/audio 相对路径） */
   files,
 };
 mkdirSync(resolve(OUT_BAKED, '..'), { recursive: true });

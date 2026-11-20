@@ -33,6 +33,8 @@ const INTRO_RESUME_TICKS = 30;
  * 帧脚本）→ 78 渲染帧 × 2 sim tick = 156。
  */
 const INTRO_START_TICKS = 156;
+/** Fight! 播报音 hold（startKOmc 资产帧 47 = SWF 帧 57，30Hz 贴帧音 × 2 sim tick） */
+const INTRO_FIGHT_SOUND_HOLD = 92;
 /** 字样段（step 7）：出场后不可跳（原版 _step<5 才可 skip） */
 export const INTRO_STEP_START = 7;
 
@@ -154,6 +156,12 @@ export function stepIntroAdvance(ctx: SimCtx): void {
     return;
   }
   if (intro.step === INTRO_STEP_START) {
+    // 开场字样播报音（修复批次 62，原版 startKOmc 声音层贴帧音）：资产帧 1
+    // （= SWF 帧 11，hold 0）回合播报 sound_007 / 资产帧 47（= SWF 帧 57，
+    // hold 92）Fight! sound_005。决胜回合播报（SWF 帧 96，start_final 段）与
+    // 结算段 TimeOver/DrawGame 音随渲染收编另行接线（遗留池）。
+    if (intro.hold === 0) ctx.emit('sound', { id: 'bannerRound' });
+    else if (intro.hold === INTRO_FIGHT_SOUND_HOLD) ctx.emit('sound', { id: 'bannerFight' });
     intro.hold += 1;
     if (intro.hold >= INTRO_START_TICKS) endIntro(ctx);
     return;

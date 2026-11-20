@@ -168,7 +168,9 @@ export class BattleScene implements Scene {
     if (audio) {
       const mkSlot = (pack: FighterPack) => ({
         binding: voiceBindingOf(pack.sounds),
-        resolve: (cls: string) => audio.voiceUrl(pack.swf, cls),
+        // 批次 62：voices 清单按 `<kind>/<id>` 寻址（fighter/assistant 基名 16
+        // 处相同，裸 id 键互覆）
+        resolve: (cls: string) => audio.voiceUrl(`fighter/${pack.swf}`, cls),
       });
       this.audioBinding = {
         fighters: Object.fromEntries(
@@ -176,14 +178,15 @@ export class BattleScene implements Scene {
            ...rig.p2.map((e, i) => [fighterId(2, i), mkSlot(e.pack)])],
         ),
       };
-      // 贴帧音绑定（切片 28）：swf 基名寻址（形态角色共用基础包）；辅助缺包 = 无音安全跳过
+      // 贴帧音绑定（切片 28；批次 62 起 `<kind>/<swfId>` 寻址——fighter 与
+      // assistant 基名 16 处相同，裸键互覆）；辅助缺包 = 无音安全跳过
       this.timelineBinding = {
         fighters: Object.fromEntries(
-          [...rig.p1.map((e, i) => [fighterId(1, i), e.pack.swf]),
-           ...rig.p2.map((e, i) => [fighterId(2, i), e.pack.swf])],
+          [...rig.p1.map((e, i) => [fighterId(1, i), `fighter/${e.pack.swf}`]),
+           ...rig.p2.map((e, i) => [fighterId(2, i), `fighter/${e.pack.swf}`])],
         ),
         assists: Object.fromEntries(
-          Object.keys(rig.assists).map((id) => [id, id]),
+          Object.keys(rig.assists).map((id) => [id, `assister/${id}`]),
         ),
       };
       audio.fightBgm(rig.p1[0]!.pack.id, this.flow.mapId);

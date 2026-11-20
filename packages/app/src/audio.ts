@@ -27,11 +27,12 @@ export interface BattleAudioBinding {
   fighters: { 1: { binding: VoiceBinding; resolve: VoiceResolver }; 2: { binding: VoiceBinding; resolve: VoiceResolver } };
 }
 
-/** 对局贴帧音绑定（切片 28，battle enter 时装配）：槽位/辅助 id → swf 包名。 */
+/** 对局贴帧音绑定（切片 28，battle enter 时装配）：槽位/辅助 id → 包键
+ *  （批次 62 起 = `<kind>/<swfId>`，timeline-sounds.packages 寻址）。 */
 export interface TimelineAudioBinding {
-  /** fighter 槽位 → swf 基名（timeline-sounds.packages 寻址） */
+  /** fighter 槽位 → 包键（fighter/<swf 基名>） */
   fighters: { 1: string; 2: string };
-  /** 辅助 def id → swf 基名 */
+  /** 辅助 def id → 包键（assister/<def id>） */
   assists: Record<string, string>;
 }
 
@@ -96,7 +97,7 @@ export class AudioSubsystem implements Subsystem {
       lastFrames: [...this.lastFrames.entries()],
     });
     (window as unknown as { __bvnTimelineTest?: () => void }).__bvnTimelineTest = () =>
-      this.timeline('ichigo', 81);
+      this.timeline('fighter/ichigo', 81);
   }
 
   dispose(): void {
@@ -113,7 +114,7 @@ export class AudioSubsystem implements Subsystem {
 
   // ---------- SE / 语音 ----------
 
-  private urlOf(kind: 'se' | 'swc' | 'fx' | 'bgm', name: string): string | null {
+  private urlOf(kind: 'se' | 'swc' | 'fx' | 'bgm' | 'banner', name: string): string | null {
     const mf = this.mf;
     if (!mf) return null;
     if (kind === 'se') {
@@ -150,7 +151,7 @@ export class AudioSubsystem implements Subsystem {
 
   /** 立即开火一发 SE（原版 SoundCtrler.playAssetSound/playSwcSound：无通道管理）。
    *  kind 'bgm' = 资源表按 bgm 清单寻址、走 SE 通道一发（原版 playAssetSound('win') 语义，切片 29）。 */
-  se(name: string, kind: 'se' | 'swc' | 'fx' | 'bgm' = 'swc', vol = 1): void {
+  se(name: string, kind: 'se' | 'swc' | 'fx' | 'bgm' | 'banner' = 'swc', vol = 1): void {
     const url = this.urlOf(kind, name);
     if (!url || !this.ac || this.ac.state !== 'running') return;
     void this.buffer(url).then((buf) => {
@@ -347,6 +348,11 @@ export class AudioSubsystem implements Subsystem {
             this.se(steps[Math.floor(Math.random() * steps.length)]!, 'se');
           } else if (id === 'hit1' || id === 'hit2') {
             this.se(id, 'se');
+          } else if (id.startsWith('banner')) {
+            // 开场字样播报音（批次 62，core intro step 7 按贴帧音 hold 下发：
+            // bannerRound = 回合播报、bannerFight = Fight!；决胜/结算音待渲染
+            // start_final/结算段收编后接线）
+            this.se(id, 'banner');
           }
           break;
         }

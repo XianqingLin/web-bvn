@@ -38,11 +38,9 @@ import { ActionState, type SimSnapshot } from '@bvn/core';
 /** 原版舞台规格（HUD 布局设计空间） */
 const STAGE_W = 800;
 const STAGE_H = 600;
-/** Round 字样水平居中偏移（修复批次 44）：组合（Round 文本 + 数字）设计空间
- *  包围盒 x 199..522，中心 360.5——原版 800 宽 UI 内本身偏左 39.5px；移植版
- *  宽屏下 left 钉扎会把组合推到屏幕左侧约 1/3 处（用户实测偏移），改 center
- *  钉扎 + 本偏移把组合对齐可见区中线（帧 44/num 25 帧不透明像素实测）。 */
-const ROUND_CENTER_DELTA = 39.5;
+/** Round 字样水平居中偏移回退值（修复批次 44 实测；批次 62 起 baked 携带
+ *  per-round delta——回退仅兼容旧 baked/hud.json） */
+const ROUND_CENTER_DELTA_FALLBACK = 39.5;
 /** 能量条阈值（原版 EnergyBar render：rate < 0.3 闪烁） */
 const ENERGY_FLASH_RATE = 0.3;
 /** 连击隐藏淡出时长（ms；偏离：原版播 fadout 时间轴） */
@@ -119,7 +117,21 @@ export interface HudData {
     fps: number;
     canvasOrigin: [number, number];
     pos: [number, number];
-    num?: { pos: [number, number]; from: number; to: number; digits: number; frames: number };
+    /** Round 词居中 delta（center 钉扎下 PNG 原点 x = pos + delta；批次 62 烘焙，
+     *  旧 baked 缺省回退 39.5） */
+    centerDelta?: number;
+    /** 逐帧居中 delta（下标 = 资产帧-1；批次 62 烘焙。词段/Fight! 段实测；
+     *  数字窗口内为词 delta 占位，运行时按回合以 num.centerDeltas 覆盖） */
+    frameDeltas?: number[];
+    num?: {
+      pos: [number, number];
+      from: number;
+      to: number;
+      digits: number;
+      frames: number;
+      /** per-round 组合居中 delta（回合 1..digits；批次 62 烘焙，缺省退 centerDelta） */
+      centerDeltas?: number[];
+    };
   };
   /** 结算字样（回合结算流程收编）：ko = startKOmc KO 段；winner = 嵌套 winnermc
    *  独立时间轴（perfectFrom = Perfect 段起始资产帧，非 perfect 定格于其前帧）。
@@ -235,6 +247,12 @@ export class FightHud {
   private hpBars: { p1: Container; p2: Container } | null = null;
   /** 开局字样（startKOmc；intro 切片，updateStartKO 驱动） */
   private startKO: Sprite | null = null;
+  /** 开局字样钉扎项引用（updateStartKO 按回合改 x 重摆——修复批次 62
+   *  per-round 居中 delta：数字宽度逐回合不同，固定 delta 不居中） */
+  private startKOPin: { c: Container; x: number; y: number; mx: PinX; my: PinY } | null = null;
+  private startKONumPin: { c: Container; x: number; y: number; mx: PinX; my: PinY } | null = null;
+  /** 当前生效居中 delta（回合变化检测） */
+  private startKODelta: number | null = null;
   /** 开局字样 Round 数字（nummc 收编修正，批次 43；updateStartKO 驱动） */
   private startKONum: Sprite | null = null;
   /** 结算字样（回合结算流程收编；updateEndKO 驱动，全快照驱动免渲染态）：
@@ -377,13 +395,16 @@ export class FightHud {
       const ko = this.frameSprite('startko', 0);
       ko.visible = false;
       this.root.addChild(ko);
-      this.pinned.push({
+      // center 钉扎 + 居中 delta（批次 44 固定值 → 批次 62 per-round 烘焙，
+      // updateStartKO 按回合查表改 x）
+      this.startKOPin = {
         c: ko,
-        x: d.startKO.pos[0] + ROUND_CENTER_DELTA,
+        x: d.startKO.pos[0] + (d.startKO.centerDelta ?? ROUND_CENTER_DELTA_FALLBACK),
         y: d.startKO.pos[1],
         mx: 'center',
         my: 'top',
-      });
+      };
+      this.pinned.push(this.startKOPin);
       this.startKO = ko;
       // Round 数字（nummc 收编修正）：帧位图数字区已烘焙擦除，此件按
       // min(round,5) 选组叠放（updateStartKO 驱动，与字样同窗口显隐）
@@ -391,13 +412,17 @@ export class FightHud {
         const num = new Sprite(Texture.EMPTY);
         num.visible = false;
         this.root.addChild(num);
-        this.pinned.push({
+        this.startKONumPin = {
           c: num,
-          x: d.startKO.pos[0] + d.startKO.num.pos[0] + ROUND_CENTER_DELTA,
+          x:
+            d.startKO.pos[0] +
+            d.startKO.num.pos[0] +
+            (d.startKO.centerDelta ?? ROUND_CENTER_DELTA_FALLBACK),
           y: d.startKO.pos[1] + d.startKO.num.pos[1],
           mx: 'center',
           my: 'top',
-        });
+        };
+        this.pinned.push(this.startKONumPin);
         this.startKONum = num;
       }
     }
@@ -827,7 +852,10 @@ export class FightHud {
    *  结束/跳过 = clearStartAndKO 隐藏（原版 COMPLETE → clearStartAndKO）。
    *  Round 数字（nummc 收编修正，批次 43）：原版 mc_043 帧脚本
    *  nummc.gotoAndPlay("r"+$round)（FightUI.showStart 设 $round）→ 按
-   *  min(round,5) 选合成帧组，与字样帧同窗口显隐。 */
+   *  min(round,5) 选合成帧组，与字样帧同窗口显隐。
+   *  居中 delta（修复批次 62）：分段烘焙——词段/Fight! 段逐帧查 frameDeltas，
+   *  数字窗口（词+数字组合，数字宽度逐回合不同）查 num.centerDeltas；回合/
+   *  帧变化时改钉扎 x 重摆。旧 baked 无表回退固定 centerDelta。 */
   private updateStartKO(snap: SimSnapshot): void {
     const sp = this.startKO;
     if (!sp) return;
@@ -838,19 +866,35 @@ export class FightHud {
       return;
     }
     sp.visible = true;
+    const d = this.data.startKO;
+    const numSpec = d.num;
     const f = Math.floor(intro.hold / 2);
-    sp.texture =
-      this.frame('startko', Math.min(f, this.data.startKO.frames - 1)) ?? sp.texture;
-    const num = this.startKONum;
-    const spec = this.data.startKO.num;
-    if (!num || !spec) return;
-    // 资产帧号 = 纹理下标 + 1；窗口外（字样首段空白/Fight! 段）隐藏
     const assetFrame = f + 1;
-    if (assetFrame < spec.from || assetFrame > spec.to) {
+    const round = Math.min(Math.max(snap.state.match.round, 1), numSpec?.digits ?? 1);
+    const fallback = d.centerDelta ?? ROUND_CENTER_DELTA_FALLBACK;
+    // 数字窗口 = 词+数字组合居中（per-round）；其余帧逐帧 bbox 居中（词-only
+    // 段与 Fight! 段组合中心不同，固定 delta 下都偏）
+    const inNumWindow = numSpec != null && assetFrame >= numSpec.from && assetFrame <= numSpec.to;
+    const delta = inNumWindow
+      ? (numSpec?.centerDeltas?.[round - 1] ?? fallback)
+      : (d.frameDeltas?.[f] ?? fallback);
+    if (delta !== this.startKODelta) {
+      this.startKODelta = delta;
+      if (this.startKOPin) this.startKOPin.x = d.pos[0] + delta;
+      if (this.startKONumPin && numSpec) {
+        this.startKONumPin.x = d.pos[0] + numSpec.pos[0] + delta;
+      }
+      this.relayout();
+    }
+    sp.texture = this.frame('startko', Math.min(f, d.frames - 1)) ?? sp.texture;
+    const num = this.startKONum;
+    const spec = numSpec;
+    if (!num || !spec) return;
+    // 窗口外（字样首段空白/Fight! 段）隐藏
+    if (!inNumWindow) {
       num.visible = false;
       return;
     }
-    const round = Math.min(Math.max(snap.state.match.round, 1), spec.digits);
     num.texture =
       this.frame('startko-num', (round - 1) * spec.frames + (assetFrame - spec.from)) ??
       num.texture;
@@ -1118,6 +1162,9 @@ export class FightHud {
     this.frames.clear();
     this.pinned = [];
     this.hpBars = null;
+    this.startKOPin = null;
+    this.startKONumPin = null;
+    this.startKODelta = null;
   }
 }
 

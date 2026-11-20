@@ -211,6 +211,8 @@ export interface AudioManifest {
   mapBgm: Record<string, string>;
   hit: { byType: Record<string, string>; blocked: Record<string, string>; steel: string; guardBreak: string };
   effectSound: Record<string, string>;
+  /** 开场/结算字样播报音（banner 段，批次 62）：bannerRound/bannerFight/... → 文件 */
+  banner: Record<string, string>;
   /** swf 基名 → 命名音类 → 文件（forms.sounds 引用按此解析） */
   voices: Record<string, Record<string, string>>;
 }
@@ -219,7 +221,8 @@ export function loadAudio(ctx: Ctx): Promise<AudioManifest> {
   return ctx.assets.json<AudioManifest>(`${BAKED}/audio.json`);
 }
 
-// ---------- timeline-sounds.json（tools/sound-pack/frame-sounds 产物，切片 28） ----------
+// ---------- timeline-sounds.json（tools/sound-pack/frame-sounds 产物，切片 28；
+//            批次 62 寻址改 `<kind>/<id>`：fighter/assistant 基名 16 处相同，裸 id 互覆） ----------
 
 /** 单帧贴帧音条目（sid = SWF DefineSound characterId）。 */
 export interface TimelineSoundEntry {
@@ -236,8 +239,9 @@ export type TimelinePackage = {
 
 export interface TimelineSoundsManifest {
   schema: string;
+  /** 键 = `<kind>/<swfId>`（kind: fighter|assister） */
   packages: Record<string, TimelinePackage>;
-  /** `swfId/sid` → 音频 url（assets/audio 相对路径） */
+  /** `<kind>/<swfId>/<sid>` → 音频 url（assets/audio 相对路径） */
   files: Record<string, string>;
 }
 
