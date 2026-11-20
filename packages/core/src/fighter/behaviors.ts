@@ -228,9 +228,23 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   },
 
   // —— 状态标记 ——
-  // setSteelBody(v)：钢身开关（受击结算消费：掉血但无受击状态变化）
+  // setSteelBody(v, isSuper?)：钢身开关（受击结算消费：掉血但无受击状态变化）。
+  // 发光（切片 51，原版 FighterMcCtrler.setSteelBody → FighterEffectCtrler
+  // startGlow/endGlow GlowFilter）：事件只携色（isSuper → 黄 0xFFFF00，语料 18 处
+  // (true,true)），开关态以快照 steelBody 差分为准（endActAction 等 sim 静默清钢身
+  // 不发事件）——payload 表现字段不进 behaviorHash。
   setSteelBody(ctx, args) {
-    ctx.f.steelBody = args[0] !== false;
+    const on = args[0] !== false;
+    ctx.f.steelBody = on;
+    ctx.emit('effect', {
+      id: on ? 'startGlow' : 'endGlow',
+      x: ctx.f.x,
+      y: ctx.f.y,
+      params: {
+        fighter: ctx.f.id,
+        ...(on ? { isSuper: args[1] === true } : {}),
+      },
+    });
   },
 
   // —— 资源 ——

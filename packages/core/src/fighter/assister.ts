@@ -554,6 +554,19 @@ function applyBuff(
   const f = entityOf(ctx, target);
   if (f === null) return;
   f.buffs[kind] = { value, holdTicks: Math.max(1, Math.round(hold * BUFF_HOLD_TICKS)) };
+  // buff 视觉（切片 51，原版 FighterBuffCtrler speedUp/attackUp/defenseUp →
+  // doEffectById("buff_effect_*") + doBuffEffect("buff_*")）：施加点 = 角色脚下
+  //（direct=1 原版缺省朝向）。重复施加原版每次都发（含刷新）——port 照发
+  //（渲染层光环单实例去重，一次性火花照播 = 刷新脉冲，偏离登记见渲染层）。
+  ctx.emit('effect', {
+    id: 'buffUp',
+    x: f.x,
+    y: f.y,
+    params: {
+      fighter: f.id,
+      kind: kind === 'speedUp' ? 'speed' : kind === 'attackUp' ? 'power' : 'defense',
+    },
+  });
 }
 
 function parseFireParams(v: BehaviorArg | undefined): FireParams {

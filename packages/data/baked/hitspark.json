@@ -528,6 +528,87 @@
         "6": "loop",
         "7": "finish"
       }
+    },
+    "buff_effect_speed": {
+      "dir": "hitspark/buff_effect_speed",
+      "frames": 16,
+      "canvas": [
+        105,
+        148
+      ],
+      "origin": [
+        -55,
+        -131
+      ],
+      "blendMode": "add"
+    },
+    "buff_effect_power": {
+      "dir": "hitspark/buff_effect_power",
+      "frames": 16,
+      "canvas": [
+        105,
+        148
+      ],
+      "origin": [
+        -55,
+        -131
+      ],
+      "blendMode": "add"
+    },
+    "buff_effect_defense": {
+      "dir": "hitspark/buff_effect_defense",
+      "frames": 16,
+      "canvas": [
+        105,
+        148
+      ],
+      "origin": [
+        -55,
+        -131
+      ],
+      "blendMode": "add"
+    },
+    "buff_speed": {
+      "dir": "hitspark/buff_speed",
+      "frames": 7,
+      "canvas": [
+        68,
+        20
+      ],
+      "origin": [
+        -33,
+        -9
+      ],
+      "blendMode": "add",
+      "loopPlay": true
+    },
+    "buff_power": {
+      "dir": "hitspark/buff_power",
+      "frames": 7,
+      "canvas": [
+        68,
+        20
+      ],
+      "origin": [
+        -33,
+        -9
+      ],
+      "blendMode": "add",
+      "loopPlay": true
+    },
+    "buff_defense": {
+      "dir": "hitspark/buff_defense",
+      "frames": 7,
+      "canvas": [
+        68,
+        20
+      ],
+      "origin": [
+        -33,
+        -9
+      ],
+      "blendMode": "add",
+      "loopPlay": true
     }
   },
   "hit": {

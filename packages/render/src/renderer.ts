@@ -10,6 +10,7 @@ import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, Te
 // pixi.js@8.22.0 的打包缺陷：主入口不引 advanced-blend-modes/init，不显式 import 则
 // 这些 blendMode 静默回退 normal（darken 白底直接画出来 = 白矩形块）。
 import 'pixi.js/advanced-blend-modes';
+import { GlowFilter } from 'pixi-filters';
 import type { BLEND_MODES as TBlendMode } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
@@ -115,6 +116,9 @@ export interface HitsparkEffect {
   colorOffset?: [number, number, number];
   /** 帧标签（label → 1-based 帧号；specialEffectId 件 loop/finish 段位） */
   labels?: Record<string, number>;
+  /** 全时间轴循环（buff 光环件，原版 BuffEffectView 构造器 loopPlay=true：
+   *  与帧标签 loop 段回跳不同——播到末缓存帧回卷，无 finish 段） */
+  loopPlay?: boolean;
   /** 全屏闪（原版 ShineEffectView：ADD 色块 10×降采样拉伸近似） */
   shine?: { color: number; alpha: number };
   freezeMs?: number;
@@ -352,6 +356,38 @@ export class BattleRenderer {
       finishing: boolean;
     }
   >();
+
+  /** buff 持续挂身光环（切片 51，原版 doBuffEffect → BuffEffectView）：
+   *  key = `${fighterId}:${kind}`（kind speed/power/defense）。单实例去重
+   *  （偏离登记：原版重复施加叠加多个光环实例——共享 FighterBuffVO 使旧光环
+   *  不随刷新移除，视觉叠积视为缺陷）；熄灭判定 = 渲染层快照 buffs 差分
+   *  （原版 render 检出 buff.finished || !isAlive 移除）。loopPlay 全时间轴
+   *  30fps 循环（末缓存帧跳过，同 EffectView._bitmapDatas 语义），每帧跟随
+   *  角色位置；direct = 施加时角色朝向（原版 start 钉死，不随转向重镜像）。 */
+  private buffAuras = new Map<
+    string,
+    {
+      fighterId: number;
+      /** SimState.buffs 键（speed→speedUp 等，熄灭差分查表） */
+      buffKey: 'speedUp' | 'attackUp' | 'defenseUp';
+      root: Container;
+      body: Sprite;
+      texs: Texture[];
+      frame: number;
+      accMs: number;
+    }
+  >();
+
+  /** 钢身发光（切片 51，原版 FighterMcCtrler.setSteelBody → startGlow/endGlow）：
+   *  glowColors = startGlow 事件最近颜色（isSuper ? 0xFFFF00 : 0xFFFFFF）；
+   *  开关态 = 快照 steelBody 差分（endActAction 等 sim 静默清钢身不发事件，
+   *  纯事件驱动会漏灭灯）。实现 = 发光克隆精灵（原版 BitmapFilterView：每帧
+   *  把角色显示对象经滤镜重绘成独立 knockout 位图垫在角色之下——port 以
+   *  同纹理克隆 + GlowFilter 置角色层之下等价，本体像素被角色覆盖只露光环；
+   *  parts 混合子层不克隆，近似偏离）。 */
+  private glowColors = new Map<number, number>();
+  private glowFx = new Map<number, { root: Container; body: Sprite }>();
+  private glowFilterCache = new Map<number, GlowFilter>();
 
   /** 相机（逻辑坐标）：中心点 + 缩放因子（原版 GameCamera 语义：
    *  factor = 原版 zoom，1 = 满屏逻辑区；有效缩放 = fitZoom × factor）。
@@ -663,8 +699,28 @@ export class BattleRenderer {
         this.finishSpecialFx(fid);
       }
     }
+    // buff 光环熄灭巡检（切片 51，原版 BuffEffectView.render：buff.finished ||
+    // !isAlive 移除）：buff 计满熄灭 / 角色死亡 / 团队下场（快照缺席）→ 移除。
+    for (const [key, aura] of this.buffAuras) {
+      const f = snap.state.fighters.find((x) => x.id === aura.fighterId);
+      if (f === undefined || f.hp <= 0 || f.buffs[aura.buffKey] === null) {
+        this.removeBuffAura(key);
+      }
+    }
+    // 钢身发光开关巡检（切片 51）：开关态以快照 steelBody 为准（sim 静默清钢身
+    // 不发事件），颜色取 startGlow 事件最近值；快照缺席（下场）清灯。
+    for (const f of snap.state.fighters) {
+      this.setGlowFx(f.id, f.steelBody ? (this.glowColors.get(f.id) ?? 0xffffff) : null);
+    }
+    for (const fid of [...this.glowFx.keys()]) {
+      if (!snap.state.fighters.some((x) => x.id === fid)) this.setGlowFx(fid, null);
+    }
     for (const ev of snap.events) {
-      const key = `${ev.tick}:${ev.type}:${String(ev.payload['id'] ?? '')}`;
+      // 去重键含 params（切片 51）：同 tick 多 buff 施加（不同 kind）互不吞——
+      // 重投递同事件 params 相等仍去重，touchFloor 双发（同 id 同 params）语义不变。
+      const key = `${ev.tick}:${ev.type}:${String(ev.payload['id'] ?? '')}:${JSON.stringify(
+        ev.payload['params'] ?? null,
+      )}`;
       const last = this.lastEventsTick.get(key);
       if (last === ev.tick) continue; // 去重
       this.lastEventsTick.set(key, ev.tick);
@@ -786,6 +842,42 @@ export class BattleRenderer {
           // holdFrame = hold×30 帧计满移除并恢复地图——renderKobg 每帧推进）
           const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
           this.spawnKobg(Math.max(1, Math.round(Number(p['hold'] ?? 2) * 30)));
+        } else if (id === 'buffUp') {
+          // buff 视觉（切片 51，原版 FighterBuffCtrler speedUp/attackUp/defenseUp
+          // → doEffectById("buff_effect_*") + doBuffEffect("buff_*")）：一次性火花
+          // 钉施加点（direct=1 原版缺省朝向）+ 光环挂身（单实例去重——原版重复
+          // 施加叠加重复光环视为缺陷，偏离登记）；光环熄灭由快照 buffs 差分巡检。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const fighter = p['fighter'];
+          const kind = String(p['kind'] ?? '');
+          if (
+            typeof fighter === 'number' &&
+            (kind === 'speed' || kind === 'power' || kind === 'defense')
+          ) {
+            const sparkId = `buff_effect_${kind}`;
+            if (this.hitspark?.effects[sparkId] && this.sparkTex.get(sparkId)) {
+              this.spawnSparkById(
+                sparkId,
+                Number(ev.payload['x'] ?? 0),
+                Number(ev.payload['y'] ?? 0),
+                1,
+              );
+            }
+            this.attachBuffAura(fighter, kind, snap);
+          }
+        } else if (id === 'startGlow' || id === 'endGlow') {
+          // 钢身发光颜色（切片 51，原版 setSteelBody → startGlow/endGlow）：
+          // 事件只携色（isSuper → 黄 0xFFFF00，原版 FighterMcCtrler setSteelBody
+          // isSuper 分支），开关态由快照 steelBody 差分巡检统一处理。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const fighter = p['fighter'];
+          if (typeof fighter === 'number') {
+            if (id === 'startGlow') {
+              this.glowColors.set(fighter, p['isSuper'] === true ? 0xffff00 : 0xffffff);
+            } else {
+              this.glowColors.delete(fighter);
+            }
+          }
         } else {
           // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
@@ -994,6 +1086,116 @@ export class BattleRenderer {
     this.specialFx.delete(fighterId);
     const sp = this.sprites.get(fighterId);
     if (sp) sp.root.filters = [];
+  }
+
+  /** buff 光环挂身（切片 51，原版 doBuffEffect → BuffEffectView.start）：
+   *  MC 原点钉角色脚下（后续每帧跟随），ADD 混合，direct = 施加时朝向。 */
+  private attachBuffAura(fighterId: number, kind: 'speed' | 'power' | 'defense', snap: SimSnapshot): void {
+    const mcId = `buff_${kind}`;
+    const eff = this.hitspark?.effects[mcId];
+    const texs = this.sparkTex.get(mcId);
+    const sp = this.sprites.get(fighterId);
+    if (!eff || !texs || texs.length === 0 || !sp) return;
+    const key = `${fighterId}:${kind}`;
+    this.removeBuffAura(key); // 单实例去重（偏离登记：原版可叠加重复光环）
+    const root = new Container();
+    const body = new Sprite(texs[0]!);
+    body.blendMode = 'add';
+    root.addChild(body);
+    body.position.set(eff.origin[0], eff.origin[1]);
+    const f = snap.state.fighters.find((x) => x.id === fighterId);
+    root.scale.x = f && f.facing < 0 ? -1 : 1;
+    this.fxLayer.addChild(root);
+    this.buffAuras.set(key, {
+      fighterId,
+      buffKey: kind === 'speed' ? 'speedUp' : kind === 'power' ? 'attackUp' : 'defenseUp',
+      root,
+      body,
+      texs,
+      frame: 0,
+      accMs: 0,
+    });
+  }
+
+  /** 移除 buff 光环（重复施加去重 / 快照巡检熄灭共用）。 */
+  private removeBuffAura(key: string): void {
+    const aura = this.buffAuras.get(key);
+    if (!aura) return;
+    this.fxLayer.removeChild(aura.root);
+    aura.root.destroy({ children: true });
+    this.buffAuras.delete(key);
+  }
+
+  /** buff 光环帧推进（原版 EffectCtrler.render 60fps 跟随 + renderAnimate 30fps
+   *  帧进合成）：容器钉角色当前位置；loopPlay 语义 = 播到末缓存帧回卷
+   *  （EffectView.renderAnimate：_curFrame == length−1 → 0，末帧不显示）。 */
+  private updateBuffAuras(dtMs: number): void {
+    for (const aura of this.buffAuras.values()) {
+      const sp = this.sprites.get(aura.fighterId);
+      if (sp) aura.root.position.set(sp.root.x, sp.root.y);
+      aura.accMs += dtMs;
+      const steps = Math.floor(aura.accMs / (1000 / 30));
+      if (steps <= 0) continue;
+      aura.accMs -= steps * (1000 / 30);
+      for (let i = 0; i < steps; i++) {
+        if (aura.frame >= aura.texs.length - 1) aura.frame = 0;
+        aura.body.texture = aura.texs[aura.frame]!;
+        aura.frame++;
+      }
+    }
+  }
+
+  /** 钢身发光开关（切片 51）：克隆精灵垫 shadowLayer（角色层之下——本体像素与
+   *  角色逐帧重合被盖住，仅露 GlowFilter 光环，等价原版 BitmapFilterView knockout
+   *  独立位图）；color null = 熄灭。滤镜按色缓存复用。 */
+  private setGlowFx(fighterId: number, color: number | null): void {
+    const cur = this.glowFx.get(fighterId);
+    if (color === null) {
+      if (cur === undefined) return;
+      cur.root.destroy({ children: true });
+      this.glowFx.delete(fighterId);
+      return;
+    }
+    if (cur !== undefined) {
+      const filter = cur.body.filters?.[0] as GlowFilter | undefined;
+      if (filter && filter.color === color) return;
+      cur.root.destroy({ children: true });
+      this.glowFx.delete(fighterId);
+    }
+    const root = new Container();
+    const body = new Sprite(Texture.WHITE);
+    body.visible = false;
+    root.addChild(body);
+    let filter = this.glowFilterCache.get(color);
+    if (!filter) {
+      // 原版 GlowFilter(color, 1, blur 20×20, strength 2, quality 1, knockout)
+      filter = new GlowFilter({
+        distance: 20,
+        outerStrength: 2,
+        innerStrength: 0,
+        color,
+        quality: 1,
+      });
+      this.glowFilterCache.set(color, filter);
+    }
+    body.filters = [filter];
+    this.shadowLayer.addChild(root);
+    this.glowFx.set(fighterId, { root, body });
+  }
+
+  /** 钢身发光克隆帧同步（每渲染帧）：位置/朝向/纹理/帧位镜像角色精灵当前态。 */
+  private updateGlowFx(): void {
+    for (const [fid, g] of this.glowFx) {
+      const sp = this.sprites.get(fid);
+      if (!sp) continue;
+      g.root.position.set(sp.root.x, sp.root.y);
+      g.root.scale.set(sp.root.scale.x, sp.root.scale.y);
+      g.body.visible = sp.body.visible;
+      if (sp.body.visible) {
+        g.body.texture = sp.body.texture;
+        g.body.position.set(sp.body.x, sp.body.y);
+      }
+    }
   }
 
   /**
@@ -1500,7 +1702,9 @@ export class BattleRenderer {
     this.updateMcEffects(dtMs);
     this.updateShadows(dtMs, next);
     this.updateSpecialFx(dtMs, next);
+    this.updateBuffAuras(dtMs);
     this.updateSparkFx(dtMs);
+    this.updateGlowFx();
     this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
     this.updateKobg(next, dtMs);
@@ -1955,6 +2159,10 @@ export class BattleRenderer {
     this.shadowStates.clear();
     this.colorOffsetFilters.clear();
     for (const [fid] of this.specialFx) this.removeSpecialFx(fid);
+    for (const key of [...this.buffAuras.keys()]) this.removeBuffAura(key);
+    for (const [fid] of this.glowFx) this.setGlowFx(fid, null);
+    this.glowColors.clear();
+    this.glowFilterCache.clear();
     this.app.stage.removeChild(
       this.bgFixed,
       this.blackLayer,

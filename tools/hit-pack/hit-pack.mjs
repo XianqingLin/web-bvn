@@ -119,6 +119,21 @@ const SPECIAL_EFFECTS = [
 // hitType → specialEffectId（原版 addHitEffect 表 FIRE/ICE/ELECTRIC 三条）
 const SPECIAL_BY_TYPE = { 7: 'fire_ing', 8: 'ice_ing', 9: 'shock_ing' };
 
+// buff 视觉特效（切片 51，EffectModel.initBuffEffect 表）：三种 buff 各两件——
+// 施加时一次性火花 buff_effect_*（原版 FighterBuffCtrler speedUp/attackUp/
+// defenseUp → doEffectById，施加点 direct=1 缺省朝向）+ 持续挂身光环 buff_*
+//（doBuffEffect → BuffEffectView loopPlay=true：全时间轴 30fps 循环、每渲染帧
+// 跟随角色、buff.finished 或角色死亡移除；loopPlay 标志随烘焙进 JSON 供渲染层
+// 循环语义消费，区别于 specialEffectId 件的 loop/finish 帧标签段）。
+const BUFF_EFFECTS = [
+  { id: 'buff_effect_speed', className: 'xg_buff_effect_speed', blendMode: 'add' },
+  { id: 'buff_effect_power', className: 'xg_buff_effect_power', blendMode: 'add' },
+  { id: 'buff_effect_defense', className: 'xg_buff_effect_defense', blendMode: 'add' },
+  { id: 'buff_speed', className: 'xg_buff_speed', blendMode: 'add', loopPlay: true },
+  { id: 'buff_power', className: 'xg_buff_power', blendMode: 'add', loopPlay: true },
+  { id: 'buff_defense', className: 'xg_buff_defense', blendMode: 'add', loopPlay: true },
+];
+
 // ---------- SWF 解析（最小 tag 集：RECT/MATRIX/Shape bounds/Sprite/Place/Export） ----------
 class Reader {
   constructor(buf) {
@@ -430,7 +445,7 @@ mkdirSync(SCRATCH, { recursive: true });
 const RAW_SWF = join(SCRATCH, 'effect_fws.swf');
 extractSwf(EFFECT_SWF, RAW_SWF);
 const swf = parseSwf(RAW_SWF);
-const ALL = [...HIT_EFFECTS, ...DEFENSE_EFFECTS, ...GENERAL_EFFECTS, ...SPECIAL_EFFECTS];
+const ALL = [...HIT_EFFECTS, ...DEFENSE_EFFECTS, ...GENERAL_EFFECTS, ...SPECIAL_EFFECTS, ...BUFF_EFFECTS];
 const geometry = {}; // className → { spriteId, frames, canvas, origin, labels }
 for (const eff of ALL) {
   const spriteId = swf.exports.get(eff.className);
@@ -497,6 +512,9 @@ for (const eff of ALL) {
     ...(eff.followDirect ? { followDirect: true } : {}),
     ...(eff.shine ? { shine: eff.shine } : {}),
     ...(eff.colorOffset ? { colorOffset: eff.colorOffset } : {}),
+    // buff 光环 loopPlay（原版 BuffEffectView 构造器置 true）：全时间轴 30fps
+    // 循环（区别于帧标签 loop 段回跳），渲染层按此分流循环语义
+    ...(eff.loopPlay ? { loopPlay: true } : {}),
     // 帧标签（specialEffectId 件 loop/finish 段位；label → 1-based 帧号，
     // 渲染层按原版 EffectView 0/1 基错位语义消费）
     ...(Object.keys(g.labels).length > 0 ? { labels: g.labels } : {}),

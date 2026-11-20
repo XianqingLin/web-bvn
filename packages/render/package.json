@@ -11,8 +11,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@bvn/data": "workspace:*",
     "@bvn/core": "workspace:*",
+    "@bvn/data": "workspace:*",
+    "pixi-filters": "^6.1.5",
     "pixi.js": "^8.6.6"
   },
   "devDependencies": {

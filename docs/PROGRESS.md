@@ -48,13 +48,12 @@
 
 ## 三、遗留池（低价值/待定，按需立项）
 
-- **特效收编（2026-11-20 全面盘点，原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照）**——已完成：残影 shadow 系（切片 47）、瞬步尘土 dash/dash_air（切片 47）、KO 终结演出链（切片 48：hit_end/kobg/shine/shake + 终结慢镜头）、slowDown 全局慢放（切片 49：进 sim 折算定夺，规格见 DESIGN §3.5；batch 基线 8 角色漂移归因后重冻）、specialEffectId 持续挂身特效（切片 50：fire/ice/shock_ing 挂身 + targetColorOffset 色调，纯渲染层，规格见 DESIGN §3.5）。剩余按观感收益排序：
-  1. buff 视觉特效 6 项（buff 逻辑已有，无视觉）+ 钢身发光 startGlow/endGlow（GlowFilter）；
-  2. startShake 持续震屏语义（现降级为一次性 shake，endShake 事件被渲染丢弃）；
-  3. 幽步演出 ghost_step（机制已有，蓝残影 + 黑幕 + justRender 白名单无）；
-  4. 轻击飞三段式弹起（击飞_落→击飞_弹→二次落地 `hit_floor_low`——机制 + 素材均缺，素材已烘焙为死素材）；
-  5. 替身 replaceSkill（机制 + 演出）/ 灵压爆发 energyExplode（机制 + 演出）/ 助攻出场 fz_bleach/fz_naruto；
-  6. 小项：jump_air 空中起跳区分（素材在、core 无 emit）、bullet 触底 shake(0,1,200)、落地状态门（HURT_ING/DEAD 落地无尘土，physics.ts:169-174）、hitspark 纹理缺失静默告警（renderer spawnSparkById）；
+- **特效收编（2026-11-20 全面盘点，原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照）**——已完成：残影 shadow 系（切片 47）、瞬步尘土 dash/dash_air（切片 47）、KO 终结演出链（切片 48：hit_end/kobg/shine/shake + 终结慢镜头）、slowDown 全局慢放（切片 49：进 sim 折算定夺，规格见 DESIGN §3.5；batch 基线 8 角色漂移归因后重冻）、specialEffectId 持续挂身特效（切片 50：fire/ice/shock_ing 挂身 + targetColorOffset 色调，纯渲染层，规格见 DESIGN §3.5）、buff 视觉特效 6 项 + 钢身发光（切片 51：buff_effect_* 火花 + buff_* 挂身光环 + startGlow/endGlow 发光克隆，规格见 DESIGN §3.5）。剩余按观感收益排序：
+  1. startShake 持续震屏语义（现降级为一次性 shake，endShake 事件被渲染丢弃）；
+  2. 幽步演出 ghost_step（机制已有，蓝残影 + 黑幕 + justRender 白名单无）；
+  3. 轻击飞三段式弹起（击飞_落→击飞_弹→二次落地 `hit_floor_low`——机制 + 素材均缺，素材已烘焙为死素材）；
+  4. 替身 replaceSkill（机制 + 演出）/ 灵压爆发 energyExplode（机制 + 演出）/ 助攻出场 fz_bleach/fz_naruto；
+  5. 小项：jump_air 空中起跳区分（素材在、core 无 emit）、bullet 触底 shake(0,1,200)、落地状态门（HURT_ING/DEAD 落地无尘土，physics.ts:169-174）、hitspark 纹理缺失静默告警（renderer spawnSparkById）；
   - 豁免：kenshin 必杀特写（原版本身坏引用 `bisha(true,"Kenshin_1")` 未注册，移植版与原版等效）；
 - 嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值）；
 - GROUND_FRICTION（subtractive 0.9）vs 原版 setDamping(0.1)——受击滑步距离差 10 倍以上（单独批次）；

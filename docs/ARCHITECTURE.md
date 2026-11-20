@@ -89,6 +89,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `effect`（id `hit_end`） | `{ x, y }` | KO 打点特效（切片 48，原版 `playKO` doEffectById("hit_end")——xg_hitover 白色打点光束钉败方 KO 时刻位置；平局省略） |
 | `effect`（id `kobg`） | `params { hold }` | KO 背景层（切片 48，原版 `playKO` bsKO → BGEffect("kobg", 2)——必杀中 KO 时地图隐藏、kobg 特效 hold×30 帧循环于最底层，移除时恢复地图） |
 | `effect`（id `shine`） | `params { color, alpha }` | 全屏白闪（原版 EffectCtrler.shine：KO 时 0xFFFFFF/α0.5，角色时间轴 shine 为 α0.3；平局省略） |
+| `effect`（id `buffUp`） | `params { fighter, kind }` | buff 视觉（切片 51，原版 FighterBuffCtrler speedUp/attackUp/defenseUp → doEffectById + doBuffEffect）：`kind` speed/power/defense → 一次性 `buff_effect_*` 火花（施加点 direct=1 原版缺省朝向）+ 持续挂身光环 `buff_*`（渲染层单实例去重——原版重复施加叠加重复光环视为缺陷偏离）；光环熄灭由渲染层按快照 `buffs` 差分（buff 计满/角色死亡/下场）。重复施加照发事件（一次性火花 = 刷新脉冲） |
+| `effect`（id `startGlow`/`endGlow`） | `params { fighter, isSuper? }` | 钢身发光颜色（切片 51，原版 FighterMcCtrler.setSteelBody → FighterEffectCtrler.startGlow/endGlow GlowFilter）：`isSuper` → 黄 0xFFFF00（语料 `(true,true)` 18 处），否则白。**开关态以快照 `steelBody` 差分为准**（endAct 等 sim 静默清钢身不发事件），事件只携色；渲染 = 发光克隆精灵垫角色层之下（原版 BitmapFilterView knockout 独立位图等价，parts 子层不克隆） |
 
 每个事件带 `tick` 号；渲染层自行处理去重与插值，不得回读 sim 内部状态——**快照 + 事件队列是 render 的唯一输入**。
 
