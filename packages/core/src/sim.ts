@@ -363,6 +363,30 @@ export class Sim {
       this.state.slowDown.ticksLeft -= 1;
       if (this.state.slowDown.ticksLeft <= 0) this.state.slowDown = undefined;
     }
+    if (this.state.passiveFreeze != null) {
+      // 受击被动演出冻结（切片 55，原版 EffectCtrler.replaceSkill/energyExplode
+      // → GameCtrler.pause，无 justRender 白名单）：全场停走，仅演出倒计时按
+      // 实时间递减（原版 EffectCtrler.render 在 pause 期照跑）。置于
+      // freezeTicks 之前：命中停顿与演出冻结同为 pause 语义，演出倒计时在
+      // 打击停顿期照减（原版 EffectCtrler.render 与 freeze 并行）。渲染层按
+      // 快照差分驱动黑幕/地图隐藏/演出特效。输入采样照常推进（批次 35 教训）。
+      const pf = this.state.passiveFreeze;
+      pf.ticksLeft -= 1;
+      const ownerGone = !this.state.fighters.some((f) => f.id === pf.ownerId);
+      if (pf.ticksLeft <= 0 || ownerGone) {
+        this.state.passiveFreeze = undefined;
+        // 演出收尾事件（渲染层据此恢复地图/黑幕淡出；explode 另在收尾帧
+        // 补放 explodeSp2，原版 endEnergyExplode 同帧 resume+特效）
+        this.emit('effect', {
+          id: pf.kind === 'replace' ? 'endReplaceSkill' : 'endEnergyExplode',
+          x: 0,
+          y: 0,
+          params: { owner: pf.ownerId },
+        });
+      }
+      this.stepInputs(inputs);
+      return this.stepOutput();
+    }
     if (this.state.freezeTicks > 0) {
       // 打击停顿（修复批次 35，原版 EffectCtrler.freeze → GameCtrler.pause）：整局
       // 停走一 tick；特效/闪屏/抖动在渲染层自行推进，不受停顿影响。倒计时期间

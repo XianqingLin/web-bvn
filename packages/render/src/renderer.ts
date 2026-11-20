@@ -938,6 +938,38 @@ export class BattleRenderer {
           if (typeof owner === 'number') {
             this.shadowStates.delete(`fighter:${owner}`);
           }
+        } else if (id === 'replaceSkill') {
+          // 替身启动（切片 55，原版 EffectCtrler.replaceSkill：黑幕 + 地图隐藏
+          // + doEffectById("replaceSp", 预瞬移点)；replaceSp2 同点下一演出帧补放
+          // ——updatePassiveFx 按快照 ticksLeft 差分补放）。黑幕/地图隐藏由
+          // updateCutin 按快照 passiveFreeze 差分驱动（sim 冻结同源）。
+          this.passiveFx = {
+            kind: 'replace',
+            ownerId: Number((ev.payload['params'] as Record<string, unknown>)['owner'] ?? 0),
+            x: Number(ev.payload['x'] ?? 0),
+            y: Number(ev.payload['y'] ?? 0),
+            ticksLeft: snap.state.passiveFreeze?.ticksLeft ?? 20,
+            fired: false,
+          };
+          this.spawnSparkById('replaceSp', this.passiveFx.x, this.passiveFx.y, 1);
+        } else if (id === 'startEnergyExplode') {
+          // 灵压爆发启动（原版 EffectCtrler.energyExplode：黑幕 + 地图隐藏 +
+          // doEffectById("explodeSp", 施法点)；explodeSp2 由 endEnergyExplode 事件补放）
+          this.passiveFx = {
+            kind: 'explode',
+            ownerId: Number((ev.payload['params'] as Record<string, unknown>)['owner'] ?? 0),
+            x: Number(ev.payload['x'] ?? 0),
+            y: Number(ev.payload['y'] ?? 0),
+            ticksLeft: snap.state.passiveFreeze?.ticksLeft ?? 42,
+            fired: false,
+          };
+          this.spawnSparkById('explodeSp', this.passiveFx.x, this.passiveFx.y, 1);
+        } else if (id === 'endEnergyExplode') {
+          // 爆发收尾（原版 endEnergyExplode：doEffectById("explodeSp2") + resume
+          // + 黑幕淡出 + 地图恢复；黑幕/地图由 updateCutin 快照差分恢复）
+          if (this.passiveFx !== null && this.passiveFx.kind === 'explode') {
+            this.spawnSparkById('explodeSp2', this.passiveFx.x, this.passiveFx.y, 1);
+          }
         } else {
           // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
@@ -1615,9 +1647,12 @@ export class BattleRenderer {
     const cutinActive = lock !== null && mc !== null;
     // 幽步黑幕（切片 53，原版 EffectCtrler.ghostStep：_blackBack.fadIn +
     // getMap().setVisible(false)——快照 ghostTicks 差分驱动，与切人锁同层
-    // 视觉、无横幅/立绘；幽步期不可能与切人锁并存，黑幕条件取并集）
+    // 视觉、无横幅/立绘；幽步期不可能与切人锁并存，黑幕条件取并集）。
+    // 受击被动演出黑幕（切片 55，原版 replaceSkill/energyExplode 同款
+    // _blackBack + 地图隐藏；快照 passiveFreeze 差分驱动，无横幅/立绘）
     const ghostLock = next.state.fighters.some((f) => f.ghostTicks > 0);
-    const blackActive = cutinActive || ghostLock;
+    const passiveLock = next.state.passiveFreeze != null;
+    const blackActive = cutinActive || ghostLock || passiveLock;
     this.blackLayer.visible = blackActive;
     if (blackActive) {
       // 黑幕盖满当前视口（屏幕空间；resize 后重画）
@@ -1711,6 +1746,39 @@ export class BattleRenderer {
   private blackH = 0;
 
   /**
+   * 受击被动演出锚点（切片 55，原版 EffectCtrler _replaceSkillPos/_explodeEffectPos
+   * + 帧计数）：sim 事件登记落点/计时基准，updatePassiveFx 差分补放 replaceSp2、
+   * passiveFreeze 消失时清锚（黑幕/地图恢复走 updateCutin 快照差分）。
+   */
+  private passiveFx: {
+    kind: 'replace' | 'explode';
+    ownerId: number;
+    x: number;
+    y: number;
+    ticksLeft: number;
+    fired: boolean;
+  } | null = null;
+
+  /** 被动演出差分推进（切片 55）：replaceSp2 = 触发后第一演出帧同点补放
+   *（原版 renderReplaceSkill frame==1）；explodeSp2 由 endEnergyExplode 事件补放。 */
+  private updatePassiveFx(next: SimSnapshot): void {
+    if (this.passiveFx === null) return;
+    const pf = next.state.passiveFreeze;
+    if (pf == null) {
+      this.passiveFx = null;
+      return;
+    }
+    if (
+      this.passiveFx.kind === 'replace' &&
+      !this.passiveFx.fired &&
+      pf.ticksLeft < this.passiveFx.ticksLeft
+    ) {
+      this.passiveFx.fired = true;
+      this.spawnSparkById('replaceSp2', this.passiveFx.x, this.passiveFx.y, 1);
+    }
+  }
+
+  /**
    * 开局特写相机（intro 切片，原版 GameStartCtrler.preRenderStart/
    * renderStart1v1 的 cameraFocusOne）：step 0-2 聚焦 P1、3-5 聚焦 P2
    * （zoom 3.5 与必杀特写同款），step ≥6（resume/字样段）双焦点 autoZoom
@@ -1755,6 +1823,9 @@ export class BattleRenderer {
 
       sp.root.visible = true;
       sp.root.position.set(ix, iy);
+      // 替身残效半透明（切片 55，原版 renderAnimate _replaceSkillFrame 期
+      // _mainMc.alpha = 0.5，恢复置 1）
+      sp.root.alpha = (f.replaceTicks ?? 0) > 0 ? 0.5 : 1;
       if (sp.appliedFacing !== f.facing) {
         sp.root.scale.x = f.facing;
         sp.appliedFacing = f.facing;
@@ -1781,6 +1852,7 @@ export class BattleRenderer {
     this.updateSparkFx(dtMs);
     this.updateGlowFx();
     this.updateShines(dtMs);
+    this.updatePassiveFx(next);
     this.updateCutin(next, dtMs);
     this.updateKobg(next, dtMs);
     this.updateIntro(next);

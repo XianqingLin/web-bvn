@@ -476,6 +476,78 @@
         0
       ]
     },
+    "replaceSp": {
+      "dir": "hitspark/replaceSp",
+      "frames": 34,
+      "canvas": [
+        65,
+        66
+      ],
+      "origin": [
+        -33,
+        -62
+      ]
+    },
+    "replaceSp2": {
+      "dir": "hitspark/replaceSp2",
+      "frames": 18,
+      "canvas": [
+        65,
+        66
+      ],
+      "origin": [
+        -33,
+        -62
+      ]
+    },
+    "explodeSp": {
+      "dir": "hitspark/explodeSp",
+      "frames": 16,
+      "canvas": [
+        168,
+        157
+      ],
+      "origin": [
+        -84,
+        -80
+      ]
+    },
+    "explodeSp2": {
+      "dir": "hitspark/explodeSp2",
+      "frames": 14,
+      "canvas": [
+        320,
+        650
+      ],
+      "origin": [
+        -161,
+        -635
+      ]
+    },
+    "fz_bleach": {
+      "dir": "hitspark/fz_bleach",
+      "frames": 11,
+      "canvas": [
+        87,
+        134
+      ],
+      "origin": [
+        -43,
+        -123
+      ]
+    },
+    "fz_naruto": {
+      "dir": "hitspark/fz_naruto",
+      "frames": 10,
+      "canvas": [
+        78,
+        69
+      ],
+      "origin": [
+        -40,
+        -63
+      ]
+    },
     "fire_ing": {
       "dir": "hitspark/fire_ing",
       "frames": 25,

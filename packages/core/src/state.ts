@@ -157,6 +157,40 @@ export interface FighterState {
   ghostType: number;
   /** 瞬身步连续冷却剩余 tick（原版 _isContinuousGhostStep 恢复计时，仅限地面步） */
   ghostCooldown: number;
+  /**
+   * 受击链聚合（原版 _currentHurts：HURT_ING/HURT_FLYING 期间每次 doHurt 累加，
+   * 回站立 idle() 清空——port 收口在 recoverToNormal）。被动技能门判定消费：
+   * damage>210 / 含必杀 / 含破防任一命中 → 不可触发。undefined = 无链
+   * （JSON 序列化省略，零漂移）。
+   */
+  hurtChain?: { damage: number; bisha: boolean; breakDef: boolean } | undefined;
+  /** 被动技能触发冷却（原版 _hurtBreakFrame=5 动画帧；>0 期间不可再触发。0 = 无，序列化省略） */
+  hurtBreakCd?: number | undefined;
+  /** 被动使用后的辅助召唤屏蔽（原版 _usedPassiveCdFrame=5 动画帧；0 = 无，序列化省略） */
+  usedPassiveCd?: number | undefined;
+  /** 替身残效剩余动画帧（原版 _replaceSkillFrame=30：α0.5 + 免伤；0 = 无，序列化省略） */
+  replaceTicks?: number | undefined;
+  /** 灵压爆发命中窗剩余动画帧（原版 _explodeHitFrame=10；8>tick>0 时命中区生效；0 = 无，序列化省略） */
+  explodeHitTicks?: number | undefined;
+  /** 爆发钢身残效剩余动画帧（原版 _explodeSteelFrame=60：每帧重申钢身，被击飞即清；0 = 无，序列化省略） */
+  explodeSteelTicks?: number | undefined;
+  /** 爆发命中区（原版 _explodeHitVO.currentArea，触发瞬间世界坐标定死不动；
+   *  facing = 触发时朝向——击退方向基准随之定死，原版 hitx=15*direct 同语义） */
+  explodeHit?: {
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    facing: 1 | -1;
+  } | undefined;
+  /** 最近一次被命中的落地伤害（原版 hurtHit.getDamage()；替身回血量基准。0 = 无，序列化省略） */
+  lastHurtDamage?: number | undefined;
+  /**
+   * comicType（0=死神 1=火影；从 FighterConfig 抄录）：被动技能分流判定
+   * （comicType==1 → 替身，否则灵压爆发）+ team 换人气继承加成。
+   * 缺省（含合成骨架/旧基线配置）= undefined，按死神侧（爆发）处理且序列化省略。
+   */
+  comicType?: number | undefined;
   /** 辅助气（原版 fzqi；满 100 可召唤辅助，召唤清零，+0.2/tick 回充） */
   fzqi: number;
   /** 辅助 id（SimConfig.assistants 注册表寻址；null = 无辅助。随状态快照走） */
@@ -503,6 +537,22 @@ export interface CutinLockState {
 }
 
 /**
+ * 受击被动演出冻结（切片 55，原版 EffectCtrler.replaceSkill/energyExplode 的
+ * GameCtrler.pause 语义）：替身/灵压爆发演出期间全场冻结——角色/道具/辅助
+ * 时间轴全部停走（无 justRenderAnimate 白名单，与 bisha/wanKai 不同，施法者
+ * 自身也冻结），仅倒计时按实时间递减。渲染层按本字段差分驱动黑幕/地图隐藏/
+ * 演出特效（replaceSp@预瞬移点 → replaceSp2@落点 / explodeSp → explodeSp2）。
+ */
+export interface PassiveFreezeState {
+  /** 演出类型（replace = 替身 20 tick / explode = 灵压爆发 42 tick） */
+  kind: 'replace' | 'explode';
+  /** 施法者 fighter id（渲染层特效定位 + 保护性清除判定） */
+  ownerId: number;
+  /** 剩余冻结 tick（原版 _replaceSkillFrameHold=FPS_GAME/3 / _explodeSkillFrame=0.7×FPS_GAME） */
+  ticksLeft: number;
+}
+
+/**
  * 全部模拟状态收进单个 SimState（契约硬规则 1），
  * 可整体快照/恢复，为 rollback 预留（DESIGN §3.8）。
  */
@@ -532,6 +582,8 @@ export interface SimState {
   roundEnd?: RoundEndState | undefined;
   /** slowDown 全局慢放（undefined = 常速；JSON 序列化省略——无触发即零漂移） */
   slowDown?: SlowDownState | undefined;
+  /** 受击被动演出冻结（替身/灵压爆发；undefined = 无，JSON 序列化省略零漂移） */
+  passiveFreeze?: PassiveFreezeState | undefined;
   /** 特写冻结锁（null = 无演出冻结） */
   cutinLock: CutinLockState | null;
   /** 打击停顿（hitstop，修复批次 35）：>0 时整局停走（原版 EffectCtrler.freeze →
@@ -698,6 +750,9 @@ export function createInitialState(config: SimConfig): SimState {
       ghostTicks: 0,
       ghostType: 0,
       ghostCooldown: 0,
+      // 被动技能字段（hurtChain/被动冷却/残效）缺省不落键（undefined 零漂移）；
+      // comicType 仅在配置提供时抄录（旧基线配置无此键 → 零漂移）
+      ...(fc.comicType !== undefined ? { comicType: fc.comicType } : {}),
       fzqi: FZQI_MAX,
       assistId: fc.assistId ?? null,
       buffs: { speedUp: null, attackUp: null, defenseUp: null },

@@ -143,6 +143,12 @@ export interface LoopTriggerDef {
 /** 辅助运行时定义（data 层 compileAssistant 产出；单时间轴无形态）。 */
 export interface AssisterDef {
   id: string;
+  /**
+   * comicType（0=死神 1=火影，select.json assists[].comicType）：出场特效
+   * 分流（原版 EffectCtrler.assisterEffect：1 → fz_naruto，否则 fz_bleach）。
+   * 缺省 = 死神侧。
+   */
+  comicType?: number;
   /** 动作表（assister 版动作 id 即命中区名，如 atm1） */
   actions: Record<string, HitDef>;
   labels: Record<string, LabelRange>;

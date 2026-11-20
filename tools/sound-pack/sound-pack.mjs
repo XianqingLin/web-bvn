@@ -204,6 +204,12 @@ const EFFECT_SOUND = {
   ghost_step: 'snd_ghost_step', // 幽步蓝色拖尾（切片 53，EffectVO.sound snd_ghost_step）
   bisha: 'snd_bs',
   bisha_super: 'snd_cbs',
+  // 受击被动演出（切片 55；键 = core effect 事件 id，音源 = 原表 EffectVO.sound）
+  replaceSkill: 'snd_fz', // replaceSp（原表 snd_fz；replaceSp2 无音）
+  startEnergyExplode: 'snd_baoqi1', // explodeSp（原表 snd_baoqi1）
+  endEnergyExplode: 'snd_baoqi', // explodeSp2（原表 snd_baoqi）
+  fz_bleach: 'snd_dash', // 辅助出场（原表 EffectVO.sound）
+  fz_naruto: 'snd_fz',
 };
 
 const doc = {

@@ -108,6 +108,17 @@ const GENERAL_EFFECTS = [
   // 不走火花管线）
   { id: 'hit_end', className: 'xg_hitover' },
   { id: 'kobg', className: 'kobg_effect_mc' },
+  // 受击被动演出（切片 55，EffectModel.initEffects：替身/灵压爆发 + 辅助出场；
+  // 声音逐条对照原表 EffectVO.sound——replaceSp→snd_fz、explodeSp→snd_baoqi1、
+  // explodeSp2→snd_baoqi、fz_bleach→snd_dash、fz_naruto→snd_fz；core 事件
+  // replaceSkill/startEnergyExplode/endEnergyExplode 的音在 sound-pack
+  // EFFECT_SOUND 按事件 id 映射，此处 className 烘焙进 hitspark 包）
+  { id: 'replaceSp', className: 'XG_tishen' },
+  { id: 'replaceSp2', className: 'XG_tishen2' },
+  { id: 'explodeSp', className: 'XG_bsq' },
+  { id: 'explodeSp2', className: 'XG_baoqi' },
+  { id: 'fz_bleach', className: 'XG_fz_bleach_mc' },
+  { id: 'fz_naruto', className: 'XG_fz_naruto_mc' },
 ];
 
 // specialEffectId 持续挂身特效（EffectModel.initSpeicalEffect 原版拼写 quirk）：

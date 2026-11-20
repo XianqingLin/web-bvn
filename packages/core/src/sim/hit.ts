@@ -39,6 +39,7 @@ import {
 } from './ctx.js';
 import { killBullet } from './bullets.js';
 import { isBishaIngState, maybeBeginRoundEnd } from './flow.js';
+import { EXPLODE_HIT_DEF } from './passive.js';
 
 // —— 命中结算常量（原版 GameConfig/FighterMain 系；比例量不折算） ——
 /** 防御削血比例（原版 DEFENSE_LOSE_HP_RATE，比例量不折算） */
@@ -105,6 +106,43 @@ function assisterOf(ctx: SimCtx, fighterId: number): AssisterState | null {
 //   → 辅助→角色（切片 12 追加尾部）
 export function stepHitResolution(ctx: SimCtx): void {
   const { fighters, bullets } = ctx.state;
+  // 灵压爆发命中窗（切片 55，原版 FighterMain.getCurrentHits：_explodeHitVO
+  // 非空且 _explodeHitFrame<8 → 爆发命中区参与 checkHit。stepPassiveTimers
+  // 已在本动画帧递减，激活区间 = 7..1）。命中区触发瞬间定死（世界坐标），
+  // 击退方向基准 = 触发时朝向（原版 hitx=15*direct 同语义）。
+  // viaEntity：不结算近战回气（偏离记录：原版该命中经通用命中监听，
+  // owner 回气 power×0.16 是否结算无实证——port 取不发）
+  for (const caster of fighters) {
+    if (caster.explodeHit === undefined) continue;
+    const t = caster.explodeHitTicks ?? 0;
+    if (!(t > 0 && t < 8)) continue;
+    for (const tgt of fighters) {
+      if (tgt.id === caster.id) continue;
+      if (tgt.hp <= 0 || tgt.actionState === ActionState.DEAD || !tgt.isAllowBeHit) {
+        continue;
+      }
+      const tgtDef = ctx.defOf(tgt);
+      const bodyLocal = tgtDef
+        ? currentBodyRect({ animFrame: tgt.animFrame, def: tgtDef })
+        : null;
+      if (!bodyLocal) continue;
+      if (!rectsOverlap(caster.explodeHit, worldRect(tgt, bodyLocal))) continue;
+      applyHit(
+        ctx,
+        caster.id,
+        caster.explodeHit.facing,
+        caster.x,
+        tgt,
+        tgtDef,
+        EXPLODE_HIT_DEF,
+        caster.explodeHit,
+        null, // 无动作 id：isBishaAction('') = false，链聚合按普通命中走
+        caster,
+        true,
+      );
+      break;
+    }
+  }
   for (const atk of fighters) {
     const atkDef = ctx.defOf(atk);
     // 必杀/技/砍技同属攻击结算（原版 isAttacking：命中监听不区分攻击层级；
@@ -632,6 +670,17 @@ export function applyHit(
   target.lastHurtHitId = hitId;
   // 受击回气（原版 FighterMain.doQiAdd：power×0.085 封顶 20）
   target.qi = Math.min(300, target.qi + Math.min(hit.power * HURT_QI_RATE, QI_ADD_HURT_MAX));
+  // 受击链聚合（切片 55，原版 FighterMain.doHurt 尾部：HURT_ING/HURT_FLYING
+  // 期间命中推入 _currentHurts——hurtAct/防御/钢身路径不推）。damage =
+  // getDamage() = power×powerRate（不含防御减伤乘区，port 同取乘防御前的
+  // dmg）；bisha 每击覆写（原版门只查最后一击）；breakDef 链内任一。
+  // lastHurtDamage = 最近一击同口径伤害（替身回血基准，原版 hurtHit.getDamage()）
+  target.hurtChain = {
+    damage: (target.hurtChain?.damage ?? 0) + dmg,
+    bisha: isBishaAction(hitId ?? ''),
+    breakDef: (target.hurtChain?.breakDef ?? false) || hit.isBreakDef,
+  };
+  target.lastHurtDamage = dmg;
   const hurtResult = enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
   // 受击语音（原版 doHurt：硬直 + 重击类型 → HURT voice（rate 0.5 由渲染层掷）、
   // 击飞 → HURT_FLY；isHeavy 类型集 = KAN/KAN_HEAVY/DA/DA_HEAVY = isPhysicalHit 同集）

@@ -49,6 +49,14 @@ export function spawnAssister(ctx: SimCtx, owner: FighterState): void {
   ctx.state.nextEntityId += 1;
   ctx.state.assisters.push(assister);
   ctx.state.assisters.sort((a, b) => a.id - b.id);
+  // 出场特效（原版 EffectCtrler.assisterEffect：comicType==1 → fz_naruto，
+  // 否则 fz_bleach；切 55 收编）
+  ctx.emit('effect', {
+    id: def.comicType === 1 ? 'fz_naruto' : 'fz_bleach',
+    x: assister.x,
+    y: assister.y,
+    params: { owner: assister.id, ownerKind: 'assister' },
+  });
   ctx.emit('entity:spawn', {
     kind: 'assister',
     id: assister.id,

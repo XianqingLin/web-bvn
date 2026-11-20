@@ -180,6 +180,10 @@ export function recoverToNormal(f: FighterState, def: FighterDef | null): void {
   f.beHitGap = 0;
   f.lastHurtHitId = null;
   f.lastDefHitId = null;
+  // 受击链清空（原版 idle() → clearHurtHits：回站立清 _currentHurts；
+  // 链只在 HURT_ING/HURT_FLYING 期间累积，被动门判定消费）
+  f.hurtChain = undefined;
+  f.lastHurtDamage = undefined;
   if (f.onGround) {
     f.slots = defaultSlots(def);
     f.jumpTimes = JUMP_TIMES_START;
@@ -689,7 +693,8 @@ function canSpendEnergy(f: FighterState, v: number, allowOverflow: boolean): boo
   return allowOverflow && !f.energyOverload;
 }
 
-function spendEnergy(f: FighterState, v: number): void {
+/** 消耗能量（原版 useEnergy：energyGap 冷却 + 透支置位；受击被动消耗复用）。 */
+export function spendEnergy(f: FighterState, v: number): void {
   f.energy -= v;
   f.energyGap = ENERGY_GAP_TICKS;
   if (f.energy < 0) {

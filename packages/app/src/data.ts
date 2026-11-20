@@ -343,6 +343,11 @@ export async function loadAssistPack(ctx: Ctx, id: string): Promise<AssistPack> 
     `${BAKED}/fires/assister/${id}.json`,
   );
   const def: import('@bvn/core').AssisterDef = compileAssistant(xfl, runtime, fires?.fires);
+  // comicType 注入（切片 55）：出场特效分流 fz_naruto/fz_bleach（原版
+  // assistant.xml comic_type → select.json assists[].comicType；缺省 = 死神侧）
+  const select = await ctx.assets.jsonOptional<SelectData>(`${BAKED}/select.json`);
+  const comicType = select?.assists.find((a) => a.id === id)?.comicType;
+  if (comicType === 1) def.comicType = 1;
   return { id, def, hasFires: fires !== null };
 }
 

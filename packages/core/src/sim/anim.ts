@@ -9,6 +9,7 @@ import {
 } from '../fighter/def.js';
 import { advanceAnimation, setLabel, stepHurtFly, stepIntentsFor } from '../fighter/machine.js';
 import { evaluateTriggerCondition, type BehaviorContext } from '../fighter/behaviors.js';
+import { stepHurtBreak, stepPassiveTimers } from './passive.js';
 import type { SimCtx } from './ctx.js';
 
 /** 站立自动面向对手的间隔（原版 renderAnimate：站立态计数 >5 即每 6 帧一次） */
@@ -65,15 +66,19 @@ export function stepIntents(ctx: SimCtx, views: InputView[]): void {
         params: { owner: f.id, ownerKind: 'fighter', ghostType: f.ghostType },
       });
     }
+    // 受击被动触发轮询（切片 55，原版 renderHurtBreak：HURT_ING 硬直期 +
+    // 辅助键按住 → 替身/灵压爆发，见 sim/passive.ts）
+    stepHurtBreak(ctx, f, def, view, other);
     // 辅助召唤（原版 FighterMcCtrler.renderAssist）：NORMAL/DEFENCE +
-    // 辅助键 + fzqi 满 → fzqi 清零并召唤。偏离记录：被动辅助冷却
-    // （isUsedPassiveCdIng）依赖未建模的被动辅助语料，不实现。
+    // 辅助键 + fzqi 满 + 非被动冷却期（原版 !isUsedPassiveCdIng）→
+    // fzqi 清零并召唤
     if (
       view.justDown(Btn.assist) &&
       (f.actionState === ActionState.NORMAL ||
         f.actionState === ActionState.DEFENCE_ING) &&
       f.hp > 0 &&
       f.fzqi >= FZQI_MAX &&
+      !(f.usedPassiveCd !== undefined && f.usedPassiveCd > 0) &&
       !ctx.state.assisters.some((a) => a.ownerId === f.id)
     ) {
       view.consume(Btn.assist);
@@ -142,6 +147,9 @@ export function stepAnimation(ctx: SimCtx, only?: Pick<CutinLockState, 'kind' | 
       }
     });
     stepHurtFlyEmit(ctx, f, def);
+    // 被动残效计时（切片 55，原版 FighterMain.renderAnimate 帧计数：爆发
+    // 命中窗/钢身残效/替身残效/被动冷却；30Hz 同律）
+    stepPassiveTimers(f, def);
     // 命中续接检查（原版 FighterMcCtrler：checker 判定区与目标身体相交
     // → 切续接标签并清除；每动画帧检查，触发器之后）
     if (f.hitTargetChecker !== null && f.hitTarget !== null) {
