@@ -438,6 +438,30 @@
         -136
       ],
       "blendMode": "lighten"
+    },
+    "hit_end": {
+      "dir": "hitspark/hit_end",
+      "frames": 22,
+      "canvas": [
+        641,
+        721
+      ],
+      "origin": [
+        -345,
+        -350
+      ]
+    },
+    "kobg": {
+      "dir": "hitspark/kobg",
+      "frames": 4,
+      "canvas": [
+        800,
+        600
+      ],
+      "origin": [
+        0,
+        0
+      ]
     }
   },
   "hit": {

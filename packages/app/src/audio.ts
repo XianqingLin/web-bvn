@@ -393,10 +393,20 @@ export class AudioSubsystem implements Subsystem {
           break;
         }
         case 'fighter:ko': {
-          // KO 音（原版 FightUI：snd_over_hit → 500ms 后 snd_ko / 必杀窗口内 snd_ko_bs）
+          // KO 音（原版 FightUI：snd_over_hit → 500ms 后 snd_ko / 必杀中 KO
+          // snd_ko_bs——bsKO 门由 core 随事件下发（KO 时刻任一方 BISHA_ING），
+          // 无载荷旧事件回退切人窗口近似）
           const overHit = mf.swc.overHit;
           if (overHit) this.se(overHit, 'swc');
-          const koName = this.cutinOpen ? mf.swc.koBs : mf.swc.ko;
+          const bsKo = ev.payload['bsKo'];
+          const koName =
+            typeof bsKo === 'boolean'
+              ? bsKo
+                ? mf.swc.koBs
+                : mf.swc.ko
+              : this.cutinOpen
+                ? mf.swc.koBs
+                : mf.swc.ko;
           if (koName) window.setTimeout(() => this.se(koName, 'swc'), 500);
           break;
         }

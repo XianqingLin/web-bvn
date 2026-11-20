@@ -50,9 +50,6 @@ const HITS_FADE_MS = 400;
 const HITS_MAX_DIGITS = 4;
 /** 原版 GameConfig.FPS_GAME（FighterHpBar redbar 延迟 1.5×FPS 帧） */
 const FPS_GAME = 60;
-/** 结算字样 winApplied 门（core flow.WIN_TEXT_GATE_TICKS 的渲染侧镜像；
- *  roundEnd.hold 到此值 = winner 字样/胜利星起播） */
-const WIN_TEXT_GATE_RENDER_TICKS = 120;
 /** 辅助脸尺寸（原版 getFighterFace 缺省 size 50×50） */
 const ASSIST_FACE_SIZE = 50;
 
@@ -903,7 +900,9 @@ export class FightHud {
       if (sp && sp !== wSp) sp.visible = false;
     }
     if (wSp && d && re.winApplied && !re.draw) {
-      const f = Math.floor((re.hold - WIN_TEXT_GATE_RENDER_TICKS) / 2);
+      // 起播锚 = winAppliedHold（终结慢镜头/showWinner 延迟后可变，不再恒
+      // WIN_TEXT_GATE——KO 终结演出链）
+      const f = Math.floor((re.hold - re.winAppliedHold) / 2);
       const max = re.perfect ? d.winner.frames : d.winner.perfectFrom - 1;
       if (f >= 0) {
         wSp.texture = this.frame('winnerko', Math.min(f, max - 1)) ?? wSp.texture;
@@ -923,7 +922,7 @@ export class FightHud {
     const teams = snap.state.match.teams;
     if (star && re.winApplied && !re.draw && teams == null) {
       const seg = this.winnerComicType(snap, re) === 1 ? ([30, 40] as const) : ([10, 29] as const);
-      const f = Math.floor((re.hold - WIN_TEXT_GATE_RENDER_TICKS) / 2);
+      const f = Math.floor((re.hold - re.winAppliedHold) / 2);
       if (f >= 0) {
         star.texture = this.frame('win', Math.min(seg[0] - 1 + f, seg[1] - 1)) ?? star.texture;
         star.visible = true;

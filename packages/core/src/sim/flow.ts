@@ -13,7 +13,7 @@ import {
   defaultSlots,
   isAttackingState,
 } from '../fighter/def.js';
-import { onLanded, recoverToNormal, sayIntro } from '../fighter/machine.js';
+import { onLanded, recoverToNormal, sayIntro, setLabel } from '../fighter/machine.js';
 import { tickBuffs } from '../fighter/assister.js';
 import { wake, type SimCtx } from './ctx.js';
 import { GRAVITY_CAP, GRAVITY_START, GRAVITY_STEP, resolveLanding } from './physics.js';
@@ -38,16 +38,32 @@ export const INTRO_STEP_START = 7;
 
 // —— 回合结束演出（切片 36 团队 + 终局演出收编非训练通用；原版 GameEndCtrler） ——
 /**
- * KO 字样窗口（winApplied 门）：原版 KO 后 GameCtrler.pause 500ms + KO 字样
- * 47 帧 @30fps（startKOmc ko 段，帧脚本 frame190 COMPLETE）+ 败方飞尸落地
- * （慢动作省略，偏离记录）→ 胜方字样/WIN 姿势在此窗口后落地。折算 30+94≈124，
- * 取 120（2s）。
+ * KO 字样窗口：原版 KO 后 GameCtrler.pause 500ms + KO 字样 47 帧 @30fps
+ * （startKOmc ko 段，帧脚本 frame190 COMPLETE）。折算 30+94≈124，取 120（2s）。
+ * 败方飞尸/慢镜头/showWinner 延迟在此窗口后由 tickRoundEnd 单独推进。
  */
 export const WIN_TEXT_GATE_TICKS = 120;
 /**
+ * 终结慢镜头（原版 FightUI.renderEnd slowDown(2,0)）折算：败方仍击飞 →
+ * 全场半速（位移/重力 ×0.5 = 原版 setSpeedPlus(SPEED_PLUS/rate)；动画 15Hz
+ * = 原版 renderAnimateGap FPS_GAME/(FPS_ANIMATE/rate)-1）直到败方落地。
+ */
+export const SLOW_MOTION_SCALE = 0.5;
+/** 慢镜头动画步进间隔（60Hz / 15Hz 动画帧 = 每 4 tick 一帧） */
+export const SLOW_MOTION_ANIM_EVERY = 4;
+/**
+ * 慢镜头时长 → showWinner 延迟折算门（原版 getTimer-_flyTimer < 2000ms：
+ * 飞尸实时长 <2s → 延迟 2s 否则 1s；每慢 tick = 2 实 tick → 60 tick 判定）。
+ */
+export const SLOW_FLIGHT_TICKS_GATE = 60;
+/** showWinner 延迟（原版 _showWinnerDelay 2*FPS_GAME / 1*FPS_GAME） */
+export const WIN_DELAY_LONG_TICKS = 120;
+export const WIN_DELAY_SHORT_TICKS = 60;
+/**
  * 胜利动作 hold（原版胜利姿势 3s × FPS_GAME=60），自 winApplied 起算；
- * 终局/换人推进 = WIN_TEXT_GATE_TICKS + ROUND_END_TICKS。原版的 transIn
- * 转场不建模——port 全程可跳（原版仅 step2 可跳，偏离记录）。
+ * 换人/终局推进 = winAppliedHold + 本值（平局无 winApplied，恒
+ * WIN_TEXT_GATE_TICKS + ROUND_END_TICKS）。原版的 transIn 转场不建模——
+ * port 全程可跳（原版仅 step2 可跳，偏离记录）。
  */
 export const ROUND_END_TICKS = 180;
 /** 演出总时长（KO 字样窗口 + 胜利动作；换人/终局推进与 skip 基准）。 */
@@ -65,6 +81,11 @@ const ENERGY_ADD_ATTACKING = 0.55; // 1.1 × 0.5
 const ENERGY_ADD_OVERLOAD = 0.3; // 0.6 × 0.5
 /** 训练模式血量回复（POC 取义） */
 const TRAINING_REGEN = 2;
+
+/** 必杀施法态（原版 FighterActionState.isBishaIng——不含万解）。 */
+export function isBishaIngState(v: number): boolean {
+  return v === ActionState.BISHA_ING || v === ActionState.BISHA_SUPER_ING;
+}
 
 /** 必杀/万解施法态（原版 FighterActionState.allowGhostStep 的排除集）。 */
 export function isBishaOrWanKaiState(v: number): boolean {
@@ -158,7 +179,9 @@ function introHoldTicks(step: number): number {
  * 通用——team 换人 + 1v1 终局同一状态机，1v1 的结束判定自 app 层 checkKo 收编
  * 进 sim）。演出已置位不重复置位；胜方同 tick 亦死（双 KO）→ draw（原版
  * isDrawGame）。
- * 同拍表现事件（原版 FightUI.playKO）：白闪 + 屏震（hit_end 特效省略，偏离记录）。
+ * 同拍表现事件（原版 FightUI.playKO）：hit_end 打点特效 + 白闪 α0.5 + 屏震；
+ * 必杀中 KO → kobg 背景层（原版 bsKO → BGEffect("kobg", 2)——地图隐藏，
+ * hold 2×30 帧，移除时恢复）；平局（原版 playKO(null)）无 hit_end/白闪。
  */
 export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
   if (ctx.training || ctx.state.roundEnd != null) return;
@@ -175,20 +198,32 @@ export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
   const loserSlot = teams
     ? (loserSide === 1 ? teams.p1 : teams.p2).find((s) => s.id === loser.id)
     : undefined;
+  const draw = winner !== null && winner.hp <= 0;
   ctx.state.roundEnd = {
     winnerSide,
     winnerId: winner?.id ?? -1,
     loserId: loser.id,
     loserQi: loser.qi,
     loserComicType: loserSlot?.comicType ?? -1,
-    draw: winner !== null && winner.hp <= 0,
+    draw,
     winApplied: false,
+    winAppliedHold: 0,
     perfect: false,
     hold: 0,
+    slow: false,
+    slowTicks: 0,
+    winnerDelay: null,
     over: false,
   };
   ctx.emit('round:end', { round: ctx.state.match.round, winner: winnerSide });
-  ctx.emit('effect', { id: 'shine', params: 0xffffff });
+  if (!draw) {
+    ctx.emit('effect', { id: 'hit_end', x: loser.x, y: loser.y });
+    // 原版 EffectCtrler.shine(0xFFFFFF, 0.5)——KO 白闪 α 与角色时间轴 shine（0.3）不同
+    ctx.emit('effect', { id: 'shine', params: { color: 0xffffff, alpha: 0.5 } });
+  }
+  if (ctx.state.fighters.some((f) => isBishaIngState(f.actionState))) {
+    ctx.emit('effect', { id: 'kobg', params: { hold: 2 } });
+  }
   ctx.emit('effect', { id: 'shake', params: { x: 5, y: 0, time: 1.5 } });
 }
 
@@ -196,18 +231,21 @@ export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
  * 演出期被动物理（stepPhysics 的无输入子集：速度衰减/重力/落地；原版 KO 后
  * actionEnable=false 只封输入位移，物理照常——胜方空中自然落地、尸体沉降）。
  * 不含行走/瞬身步/道具/推挤/抓取/牵引边界（演出期冻结，清场前无意义）。
+ * @param scale 终结慢镜头半速（原版 GameCtrler.slow(2) → speedPlus 减半）：
+ *   位移/重力增量 ×scale；阻尼衰减（wake）不缩——原版 damping 乘法作用于
+ *   速度本体，随 speedPlus 缩放的是消费侧位移。
  */
-export function stepPassivePhysics(ctx: SimCtx, f: FighterState): void {
+export function stepPassivePhysics(ctx: SimCtx, f: FighterState, scale = 1): void {
   const wasAirborne = !f.onGround;
   f.vx = wake(f.vx, f.dampX);
   f.vy = wake(f.vy, f.dampY);
-  f.x += f.vx;
-  f.y += f.vy;
+  f.x += f.vx * scale;
+  f.y += f.vy * scale;
   const airborne = resolveLanding(f, ctx.state.stage);
   if (airborne) {
     if (f.applyG && f.vy >= 0) {
-      f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-      f.y += f.gRamp;
+      f.gRamp = Math.min(f.gRamp + GRAVITY_STEP * scale, GRAVITY_CAP);
+      f.y += f.gRamp * scale;
     } else if (f.vy < 0) {
       f.gRamp = 0;
     }
@@ -270,6 +308,25 @@ export function advanceRoundEnd(ctx: SimCtx, re: RoundEndState): void {
   // 换人开场：入场方 = 败方侧（原版 introTeamId = loseTeam），获得特写/开场
   beginIntro(ctx, loserSide);
   ctx.emit('round:start', { round: ctx.state.match.round });
+}
+
+/**
+ * 胜利姿势落位（原版 GameEndCtrler.renderEND case1：winner.win() + perfect
+ * 取样（WIN 回血前）+ team 血量回复）。winAppliedHold = 落位时刻 hold——
+ * 胜利动作 hold 与换人/终局推进自此起算（tickRoundEnd 的 skip 路径同样经此）。
+ */
+export function applyWinnerPose(ctx: SimCtx, re: RoundEndState, winner: FighterState): void {
+  re.winApplied = true;
+  re.winAppliedHold = re.hold;
+  re.perfect = winner.hp >= winner.hpMax;
+  winner.actionState = ActionState.WIN_ING;
+  setLabel(winner, ctx.defOf(winner), '胜利');
+  if (ctx.state.match.teams != null) {
+    winner.hp = Math.min(
+      winner.hpMax,
+      winner.hp + (winner.hpMax - winner.hp) * WIN_RECOVER_LOST_RATE,
+    );
+  }
 }
 
 /**

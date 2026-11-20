@@ -99,6 +99,11 @@ const GENERAL_EFFECTS = [
   { id: 'hit_floor_low', className: 'xg_hitfloor_low' },
   { id: 'hit_floor_heavy', className: 'xg_hitfllor_heavy' },
   { id: 'hit_floor_yan', className: 'xg_hitfloor_yan', blendMode: 'lighten' },
+  // KO 终结演出链（FightUI.playKO：hit_end 打点火花钉败方位；kobg 背景层 =
+  // BGEffect("kobg",2) 地图隐藏 + hold 2×30 帧后恢复——渲染层专用通道，
+  // 不走火花管线）
+  { id: 'hit_end', className: 'xg_hitover' },
+  { id: 'kobg', className: 'kobg_effect_mc' },
 ];
 
 // ---------- SWF 解析（最小 tag 集：RECT/MATRIX/Shape bounds/Sprite/Place/Export） ----------

@@ -190,6 +190,8 @@ export class BattleRenderer {
   private mapFrontFixLayer: Container;
   /** front 层：前景（原版 0.1 视差，屏幕上比世界移动更快） */
   private mapFrontLayer: Container;
+  /** KO 背景层（KO 终结演出链，原版 BGEffect：effect 置舞台最底层 + 地图隐藏） */
+  private kobgLayer: Container;
   private fighterLayer: Container;
   /** 残影层（切片 47，原版 ShadowEffectView）：挂在角色层之下、地图层之上 */
   private shadowLayer: Container;
@@ -316,6 +318,10 @@ export class BattleRenderer {
   /** 加色偏移滤镜缓存（同色残影共享一个 ColorMatrixFilter） */
   private shadowFilters = new Map<string, ColorMatrixFilter>();
 
+  /** KO 背景层状态（KO 终结演出链，原版 EffectView holdFrame 语义：帧序列
+   *  播尽回卷，hold 帧计满移除并恢复地图）。null = 未激活。单槽。 */
+  private kobgFx: { body: Sprite; texs: Texture[]; accMs: number; holdMs: number } | null = null;
+
   /** 相机（逻辑坐标）：中心点 + 缩放因子（原版 GameCamera 语义：
    *  factor = 原版 zoom，1 = 满屏逻辑区；有效缩放 = fitZoom × factor）。
    *  缓动 = 原版 ease：逐帧 delta/5（tweenSpd = CAMERA_TWEEN_SPD/SPEED_PLUS_DEFAULT） */
@@ -367,6 +373,12 @@ export class BattleRenderer {
       this.mapFrontLayer,
       this.fxLayer,
     );
+    // KO 背景层置世界最底层（原版 BGEffect addChildAt(effect.display, 0)：
+    // gameStage index 0，地图隐藏时即背景板；随相机变换）
+    this.kobgLayer = new Container();
+    this.kobgLayer.visible = false;
+    this.kobgLayer.eventMode = 'none';
+    this.world.addChildAt(this.kobgLayer, 0);
     this.cutinScreen.addChild(this.cutinLayer);
     this.shineLayer = new Container();
     app.stage.addChild(
@@ -673,17 +685,22 @@ export class BattleRenderer {
         } else if (id === 'shine') {
           // 全屏色闪（修复批次 40：招2_CHK 等时间轴 shine 触发此前被静默丢弃）。
           // 原版 FighterEffectCtrler.shine(color)：白=0.3 其余=0.2，EffectCtrler.shine
-          // 加 ShineEffectView 全屏。params 两形态：fighter 时间轴 = 裸色值；
-          // attacker 道具转发 = { arg }。缺省白。
+          // 加 ShineEffectView 全屏。params 三形态：fighter 时间轴 = 裸色值；
+          // attacker 道具转发 = { arg }；KO 终结演出链 = { color, alpha }
+          //（原版 FightUI.playKO EffectCtrler.shine(0xFFFFFF, 0.5)，KO 白闪 α0.5
+          // 与角色时间轴 0.3 不同）。缺省白。
           const raw = ev.payload['params'] as unknown;
-          const arg =
-            typeof raw === 'number'
-              ? raw
-              : raw !== null && typeof raw === 'object' && typeof (raw as Record<string, unknown>)['arg'] === 'number'
-                ? ((raw as Record<string, unknown>)['arg'] as number)
-                : undefined;
-          const color = arg === undefined ? 0xffffff : arg;
-          this.spawnShine(color >>> 0, color === 0xffffff ? 0.3 : 0.2);
+          let color = 0xffffff;
+          let alpha: number | null = null;
+          if (typeof raw === 'number') {
+            color = raw;
+          } else if (raw !== null && typeof raw === 'object') {
+            const r = raw as Record<string, unknown>;
+            if (typeof r['arg'] === 'number') color = r['arg'];
+            if (typeof r['color'] === 'number') color = r['color'];
+            if (typeof r['alpha'] === 'number') alpha = r['alpha'];
+          }
+          this.spawnShine(color >>> 0, alpha ?? (color === 0xffffff ? 0.3 : 0.2));
         } else if (id === 'shake') {
           // 世界抖动（修复批次 44：击飞落地 shake 此前未消费）。params 两形态：
           // core 落地 = { x, y, time }（EffectCtrler 层值）；时间轴 shake = { arg }
@@ -717,6 +734,12 @@ export class BattleRenderer {
           } else {
             this.shadowStates.clear(); // 无 owner 旧事件兜底：全停
           }
+        } else if (id === 'kobg') {
+          // KO 背景层（KO 终结演出链，原版 FightUI.playKO bsKO →
+          // EffectCtrler.BGEffect("kobg", 2)：effect 置舞台最底层、地图隐藏，
+          // holdFrame = hold×30 帧计满移除并恢复地图——renderKobg 每帧推进）
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          this.spawnKobg(Math.max(1, Math.round(Number(p['hold'] ?? 2) * 30)));
         } else {
           // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
@@ -822,6 +845,52 @@ export class BattleRenderer {
       e.root.destroy({ children: true });
     }
     if (done.length > 0) this.mcEffects = this.mcEffects.filter((e) => !done.includes(e));
+  }
+
+  /** KO 背景层（KO 终结演出链，原版 BGEffect→EffectView）：MC 原点钉世界 (0,0)
+   *  + union bounds 偏移（kobg 画布 800×600 origin (0,0)），随相机变换；
+   *  地图显隐由 updateKobg 每帧接管（在 updateCutin 之后，锁态优先）。 */
+  private spawnKobg(holdFrames: number): void {
+    const eff = this.hitspark?.effects['kobg'];
+    const texs = this.sparkTex.get('kobg');
+    if (!eff || !texs || texs.length === 0) return;
+    // 复发保护（原版 BGEffect 重复调用叠加多层——port 单槽覆盖）
+    if (this.kobgFx) {
+      this.kobgFx.body.destroy();
+      this.kobgFx = null;
+    }
+    const body = new Sprite(texs[0]!);
+    body.position.set(eff.origin[0], eff.origin[1]);
+    this.kobgLayer.addChild(body);
+    this.kobgLayer.visible = true;
+    this.kobgFx = { body, texs, accMs: 0, holdMs: holdFrames * (1000 / 30) };
+  }
+
+  /** KO 背景层帧推进（30fps 循环播帧，hold 计满移除；地图显隐接管，锁态优先）。 */
+  private updateKobg(next: SimSnapshot, dtMs: number): void {
+    const k = this.kobgFx;
+    if (!k) return;
+    k.accMs += dtMs;
+    const f = Math.floor(k.accMs / (1000 / 30));
+    if (f < k.holdMs / (1000 / 30)) {
+      // EffectView holdFrame 语义：帧序列播尽回卷（holdFrame != -1 循环播放）
+      k.body.texture = k.texs[f % k.texs.length]!;
+      // 原版 BGEffect getMap().setVisible(false)：地图视觉层（含 front 系）
+      this.mapLayer.visible = false;
+      this.mapFrontFixLayer.visible = false;
+      this.mapFrontLayer.visible = false;
+      return;
+    }
+    k.body.destroy();
+    this.kobgLayer.visible = false;
+    this.kobgFx = null;
+    // 移除回洞（原版 addRemoveBack → getMap().setVisible(true)）：切人锁激活时
+    // 交还 updateCutin 接管（黑幕期地图本就隐藏）
+    if (next.state.cutinLock === null) {
+      this.mapLayer.visible = true;
+      this.mapFrontFixLayer.visible = true;
+      this.mapFrontLayer.visible = true;
+    }
   }
 
   /**
@@ -1293,6 +1362,7 @@ export class BattleRenderer {
     this.updateSparkFx(dtMs);
     this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
+    this.updateKobg(next, dtMs);
     this.updateIntro(next);
     this.updateRoundEnd(next);
     this.updateCamera(next, dtMs);
@@ -1626,8 +1696,11 @@ export class BattleRenderer {
       }
     }
 
-    // 缓动（原版 ease(current, target, snap)：delta ≥ snap 时 current += delta/tweenSpd）
-    const k = 1 - Math.pow(1 - 1 / 5, Math.min(dtMs / (1000 / 60), 4));
+    // 缓动（原版 ease(current, target, snap)：delta ≥ snap 时 current += delta/tweenSpd）；
+    // 终结慢镜头相机牵引同步减半（原版 GameCtrler.slow → camera.tweenSpd ×rate）
+    const camFrames =
+      Math.min(dtMs / (1000 / 60), 4) * (snap.state.roundEnd?.slow === true ? 0.5 : 1);
+    const k = 1 - Math.pow(1 - 1 / 5, camFrames);
     this.camX = Math.abs(tx - this.camX) < 0.5 ? tx : this.camX + (tx - this.camX) * k;
     this.camY = Math.abs(ty - this.camY) < 0.5 ? ty : this.camY + (ty - this.camY) * k;
     this.zoomTarget = zoomT;

@@ -41,15 +41,21 @@ import { spawnAssister, stepAssisterAnimation, stepAssisterPhysics } from './sim
 import { stepHitResolution } from './sim/hit.js';
 import {
   advanceRoundEnd,
+  applyWinnerPose,
   endIntro,
   INTRO_STEP_START,
   isBishaOrWanKaiState,
   ROUND_END_TOTAL_TICKS,
+  ROUND_END_TICKS,
+  SLOW_FLIGHT_TICKS_GATE,
+  SLOW_MOTION_ANIM_EVERY,
+  SLOW_MOTION_SCALE,
   stepFighterFlow,
   stepIntroAdvance,
   stepMatchFlow,
   stepPassivePhysics,
-  WIN_RECOVER_LOST_RATE,
+  WIN_DELAY_LONG_TICKS,
+  WIN_DELAY_SHORT_TICKS,
   WIN_TEXT_GATE_TICKS,
 } from './sim/flow.js';
 
@@ -463,52 +469,95 @@ export class Sim {
   }
 
   /**
-   * 回合结束演出 tick（原版 GameEndCtrler.render 步进）：输入采样照常（批次 35
-   * 教训）、回气/buff 照跑、角色时间轴 30Hz 推进（败方死亡动画/胜方胜利动作）、
-   * 被动物理（胜方空中自然落地——原版 actionEnable=false 只封输入，物理照常）；
-   * 意图/命中/推挤/道具/计时停走。hold 计满 → 换人或终局。
+   * 回合结束演出 tick（原版 GameEndCtrler.render 步进 + FightUI.renderEnd）：
+   * 输入采样照常（批次 35 教训）、回气/buff 照跑、角色时间轴 30Hz 推进（败方
+   * 死亡动画/胜方胜利动作）、被动物理（胜方空中自然落地——原版
+   * actionEnable=false 只封输入，物理照常）；意图/命中/推挤/道具/计时停走。
+   * KO 字样窗口后：败方仍击飞 → 终结慢镜头半速（原版 renderEnd slowDown(2,0)）
+   * 直到落地 → showWinner 延迟（原版 _showWinnerDelay 2s/1s）→ 胜利姿势
+   * （原版 case1 isAllowWinState 等待门收编）；hold 计满 → 换人或终局。
    */
   private tickRoundEnd(inputs: InputFrame): void {
     const re = this.state.roundEnd!;
     this.stepInputs(inputs);
     if (!re.over) {
-      // 跳过（原版 GameEndCtrler.skip 仅 step2 可跳；port 全程可跳，偏离记录）
-      if (this.views.some((v) => v.justDown(Btn.back))) re.hold = ROUND_END_TOTAL_TICKS - 1;
-      // 胜方胜利动作（原版 case1：KO 字样窗口 WIN_TEXT_GATE 过后等必杀/万解收尾
-      // ——isAllowWinState 等待门收编为 hold 门；perfect = 满血判定（原版
-      // FightUI.showWinner $perfect，WIN 回血前取样）；血量恢复仅 team
-      // （原版 case1 isTeamMode 门，1v1 无恢复））
-      const winner = this.state.fighters.find((f) => f.id === re.winnerId) ?? null;
-      if (
-        !re.draw &&
-        winner !== null &&
-        winner.hp > 0 &&
-        !re.winApplied &&
-        re.hold >= WIN_TEXT_GATE_TICKS &&
-        !isBishaOrWanKaiState(winner.actionState)
-      ) {
-        re.winApplied = true;
-        re.perfect = winner.hp >= winner.hpMax;
-        winner.actionState = ActionState.WIN_ING;
-        setLabel(winner, this.defOf(winner), '胜利');
-        if (this.state.match.teams != null) {
-          winner.hp = Math.min(
-            winner.hpMax,
-            winner.hp + (winner.hpMax - winner.hp) * WIN_RECOVER_LOST_RATE,
-          );
+      // 跳过（原版 GameEndCtrler.skip 仅 step2 可跳；port 全程可跳，偏离记录）：
+      // 慢镜头/延迟即时清掉，胜利姿势立即落位（跳过等待门——原版 skip 只在
+      // 胜利 hold 段可达，此处等价于跳到段尾），推进锚回字样窗口下 tick 收尾
+      if (this.views.some((v) => v.justDown(Btn.back))) {
+        re.slow = false;
+        re.winnerDelay = null;
+        const skipWinner = this.state.fighters.find((f) => f.id === re.winnerId) ?? null;
+        if (!re.draw && !re.winApplied && skipWinner !== null) {
+          applyWinnerPose(this.ctx, re, skipWinner);
+          re.winAppliedHold = WIN_TEXT_GATE_TICKS;
+        }
+        re.hold = ROUND_END_TOTAL_TICKS - 1;
+      } else {
+        const winner = this.state.fighters.find((f) => f.id === re.winnerId) ?? null;
+        const loser = this.state.fighters.find((f) => f.id === re.loserId) ?? null;
+        if (
+          !re.draw &&
+          !re.winApplied &&
+          winner !== null &&
+          re.hold >= WIN_TEXT_GATE_TICKS
+        ) {
+          // 终结慢镜头/showWinner 延迟（原版 FightUI.renderEnd：败方仍击飞 →
+          // slowDown(2,0) 半速直到落地；DEAD 后 _showWinnerDelay 2s/1s；
+          // 平局不播 showWinner——原版 renderDrawGame 无此段）
+          if (re.slow) {
+            if (loser === null || loser.onGround) {
+              re.slow = false;
+              re.winnerDelay =
+                re.slowTicks < SLOW_FLIGHT_TICKS_GATE
+                  ? WIN_DELAY_LONG_TICKS
+                  : WIN_DELAY_SHORT_TICKS;
+            }
+          } else if (loser !== null && !loser.onGround) {
+            re.slow = true;
+            re.slowTicks = 0;
+          } else if (re.winnerDelay === null) {
+            re.winnerDelay = WIN_DELAY_LONG_TICKS;
+          }
+          if (re.winnerDelay !== null && re.winnerDelay > 0) re.winnerDelay -= 1;
+          // 胜利动作（原版 case1：KO 字样窗口 + 延迟过后等必杀/万解收尾
+          // ——isAllowWinState 等待门；perfect = 满血判定（原版
+          // FightUI.showWinner $perfect，WIN 回血前取样）；血量恢复仅 team
+          // （原版 case1 isTeamMode 门，1v1 无恢复））
+          if (
+            re.winnerDelay === 0 &&
+            winner.hp > 0 &&
+            !isBishaOrWanKaiState(winner.actionState)
+          ) {
+            applyWinnerPose(this.ctx, re, winner);
+          }
         }
       }
     }
     // 回气/buff 照跑（原版冻结期 renderAnimate 无条件）
     for (const f of this.state.fighters) stepFighterFlow(this.ctx, f);
-    // 被动物理（无输入位移；道具/辅助/推挤/抓取停走——清场前冻结）
-    for (const f of this.state.fighters) stepPassivePhysics(this.ctx, f);
-    // 角色时间轴 30Hz 推进（胜利/死亡动画；帧触发器照常——胜利标签的
-    // 贴帧音/收招触发在此到来）
-    if (this.state.tick % 2 === 0) stepAnimation(this.ctx);
+    // 被动物理（无输入位移；终结慢镜头全场半速——原版 GameCtrler.slow
+    // setSpeedPlus(SPEED_PLUS/rate)；道具/辅助/推挤/抓取停走——清场前冻结）
+    const slowScale = re.slow ? SLOW_MOTION_SCALE : 1;
+    for (const f of this.state.fighters) stepPassivePhysics(this.ctx, f, slowScale);
+    // 角色时间轴推进（胜利/死亡动画；帧触发器照常——胜利标签的贴帧音/收招
+    // 触发在此到来。慢镜头 15Hz：原版 renderAnimateGap FPS_GAME/(FPS_ANIMATE/rate)-1）
+    if (re.slow) {
+      re.slowTicks += 1;
+      if (re.slowTicks % SLOW_MOTION_ANIM_EVERY === 0) stepAnimation(this.ctx);
+    } else if (this.state.tick % 2 === 0) {
+      stepAnimation(this.ctx);
+    }
     if (re.over) return; // 终局已发，冻结待 app 切结算
     re.hold += 1;
-    if (re.hold >= ROUND_END_TOTAL_TICKS) advanceRoundEnd(this.ctx, re);
+    // 换人/终局推进（原版 case3 经 finishBack——finishBack 在 showWinner 才回调，
+    // 胜利动作自 winApplied 起算；慢镜头/延迟/必杀收尾等待期不推进）。
+    // 平局无 winApplied（原版 renderDrawGame 无 showWinner），恒 ROUND_END_TOTAL。
+    if (re.draw) {
+      if (re.hold >= ROUND_END_TOTAL_TICKS) advanceRoundEnd(this.ctx, re);
+    } else if (re.winApplied && re.hold - re.winAppliedHold >= ROUND_END_TICKS) {
+      advanceRoundEnd(this.ctx, re);
+    }
   }
 
   // 1. 输入处理：位图 → 缓冲器 → 输入视图

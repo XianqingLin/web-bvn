@@ -411,10 +411,11 @@ export interface TeamsState {
 /**
  * 回合结束演出（原版 GameEndCtrler.render 状态机的 port；非训练对局 KO 置位
  * ——team 换人 + 1v1 终局同一状态机，1v1 无备选直接终局）。step 语义（port 折算）：
- * KO 字样窗口（原版 GameCtrler.pause + KO 字样 + 败方飞尸，折算 WIN_TEXT_GATE）
- * → winApplied 前等胜方必杀/万解收尾（原版 isAllowWinState 等待门）→ 落
- * WIN + 胜利 + 血量恢复（原版 case1，仅 team）→ hold 计满换人/终局
- * （原版 case2/3 + runNext）。
+ * KO 字样窗口（原版 GameCtrler.pause + KO 字样，折算 WIN_TEXT_GATE）→ 终结慢镜头
+ * （原版 FightUI.renderEnd：败方仍击飞 → slowDown(2,0) 半速直到落地；落地后
+ * showWinner 延迟，折算 winnerDelay）→ winApplied 前等胜方必杀/万解收尾
+ * （原版 isAllowWinState 等待门）→ 落 WIN + 胜利 + 血量恢复（原版 case1，仅
+ * team）→ 胜利动作 hold 计满换人/终局（原版 case2/3 + runNext）。
  */
 export interface RoundEndState {
   /** 本轮胜方（1/2） */
@@ -427,14 +428,25 @@ export interface RoundEndState {
   loserComicType: number;
   /** 平局（同 tick 双 KO / 胜方亦死；原版 isDrawGame → 双方换人） */
   draw: boolean;
-  /** 胜方 WIN 状态已落（false = 仍在等 KO 字样窗口/必杀万解收尾） */
+  /** 胜方 WIN 状态已落（false = 仍在等 KO 字样窗口/慢镜头/showWinner 延迟/必杀万解收尾） */
   winApplied: boolean;
+  /** winApplied 时刻的 hold（胜利动作 hold 与换人/终局推进的基准；false 时恒 0） */
+  winAppliedHold: number;
   /** 胜方满血（原版 FightUI.showWinner $perfect = hp>=hpMax，WIN 回血前判定；
    *  驱动 winnermc Perfect 段） */
   perfect: boolean;
-  /** KO 起已走演出 tick（winApplied 门 = WIN_TEXT_GATE_TICKS，换人/终局 =
-   *  WIN_TEXT_GATE_TICKS + ROUND_END_TICKS） */
+  /** KO 起已走演出 tick（winApplied 门 = WIN_TEXT_GATE_TICKS；换人/终局 =
+   *  winAppliedHold + ROUND_END_TICKS，平局恒 WIN_TEXT_GATE_TICKS + ROUND_END_TICKS） */
   hold: number;
+  /** 终结慢镜头激活（原版 FightUI.renderEnd slowDown(2,0)：败方仍击飞 →
+   *  全场半速——位移/重力 ×0.5、动画 15Hz——直到败方落地） */
+  slow: boolean;
+  /** 慢镜头累计 tick（落地时刻的值折算 showWinner 延迟：原版飞尸实时长
+   *  <2000ms → 2s 否则 1s；每慢 tick = 2 实 tick → <60 判定） */
+  slowTicks: number;
+  /** showWinner 延迟（原版 _showWinnerDelay：败方 DEAD 后 2s/1s 再出胜利
+   *  姿势；null = 未置——KO 字样窗口内/慢镜头中/平局不置） */
+  winnerDelay: number | null;
   /** true = 胜方侧无人可换（1v1 恒终局），match:over 已发，冻结待 app 切结算 */
   over: boolean;
 }

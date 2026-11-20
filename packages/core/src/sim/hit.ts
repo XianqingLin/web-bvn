@@ -38,7 +38,7 @@ import {
   type SimCtx,
 } from './ctx.js';
 import { killBullet } from './bullets.js';
-import { maybeBeginRoundEnd } from './flow.js';
+import { isBishaIngState, maybeBeginRoundEnd } from './flow.js';
 
 // —— 命中结算常量（原版 GameConfig/FighterMain 系；比例量不折算） ——
 /** 防御削血比例（原版 DEFENSE_LOSE_HP_RATE，比例量不折算） */
@@ -520,11 +520,22 @@ export function applyHit(
     ctx.state.freezeTicks = hitFreezeTicks(hit.hitType);
   }
   if (target.hp <= 0) {
+    // KO 击退（原版 FighterMcCtrler.doHurt：loseHp/DIE 判定在 knockback 之前，
+    // setVelocity/playHurtFly 照常执行——KO 飞尸语义，终结慢镜头的前提；
+    // 此前提前 return 无击退，偏离修正 2026-11-20 KO 终结演出链）。enterDead
+    // 覆写 actionState/label/无敌窗，速度/阻尼/朝向翻转保留。受击回气仍不吃
+    //（applyHit hp≤0 提前返回，KO 路径不吃受击回气——偏离记录不变）。
+    enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
     enterDead(target, targetDef);
     // 死亡语音（原版 DIE voice：击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播；
     // 移植版统一提前到 KO 时刻——偏离记录）
     ctx.emit('voice', { fighter: target.id, kind: 'die' });
-    ctx.emit('fighter:ko', { fighter: target.id });
+    // bsKo = KO 时刻任一方必杀施法中（原版 FightUI.playKO bsKO 门
+    // isBishaIng(p1)||isBishaIng(p2)）→ KO 音分流 snd_ko_bs
+    ctx.emit('fighter:ko', {
+      fighter: target.id,
+      bsKo: ctx.state.fighters.some((f) => isBishaIngState(f.actionState)),
+    });
     // 团队回合结束（切片 36）：同 tick 胜方亦死（多命中结算序）→ 转平局
     if (
       ctx.state.roundEnd != null &&
@@ -546,8 +557,13 @@ export function applyHit(
       target.hp -= hit.power / 10;
       if (target.hp <= 0) {
         target.hp = 0;
+        // 破防致死：破防击退照常（同上 KO 击退语义）后 enterDead 覆写
+        enterGuardBreak(target, targetDef, hit, attackerFacing);
         enterDead(target, targetDef);
-        ctx.emit('fighter:ko', { fighter: target.id });
+        ctx.emit('fighter:ko', {
+          fighter: target.id,
+          bsKo: ctx.state.fighters.some((f) => isBishaIngState(f.actionState)),
+        });
         // 团队回合结束（切片 36）：同 tick 胜方亦死（多命中结算序）→ 转平局
         if (
           ctx.state.roundEnd != null &&

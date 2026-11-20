@@ -128,7 +128,7 @@ describe('团队装配（切片 36）', () => {
       [1, 0, Btn.attack],
       [650, 0, 0], // p1 挨打 → 被打 硬直解除（hurtTime 300 @30Hz）
       [1, Btn.attack, 0],
-      [260, 0, 0], // KO@~30 → hold≈230（过 WIN 门、未达换人推进）
+      [260, 0, 0], // KO@~30 → hold≈257（过 WIN 门 240——字样 120 + showWinner 延迟 120，未达换人推进 420）
     ]);
     // KO 已置位：胜方 id1、败方 id2 死亡（KO 当拍；WIN 演出在 KO 字样窗口
     // WIN_TEXT_GATE=120 计满后才应用）
@@ -146,7 +146,8 @@ describe('团队装配（切片 36）', () => {
     expect(winner.actionState).toBe(ActionState.WIN_ING);
     expect(winner.actLabel).toBe('胜利');
     expect(winner.hp).toBeCloseTo(70 + 30 * 0.33, 6);
-    // 演出计满（WIN_TEXT_GATE 120 + 胜利动作 180，空输入不跳）→ 换人：id4 入场
+    // 演出计满（字样窗口 120 + showWinner 延迟 120 + 胜利动作 180 = 推进 420，
+    // 空输入不跳）→ 换人：id4 入场
     const cont = play(res.sim, [[220, 0, 0]]);
     const end = stateOf(cont);
     expect(end.roundEnd).toBeUndefined();
@@ -178,7 +179,7 @@ describe('团队装配（切片 36）', () => {
     const cfg = makeTeamConfig({ p2Roster: [2, 6] });
     const res = play(new Sim(cfg), [
       [1, Btn.attack, 0],
-      [420, 0, 0], // KO@~30 → 换人推进 hold 300@~330 + 入场开场起步
+      [540, 0, 0], // KO@~30 → 换人推进 hold 420@~450 + 入场开场起步
     ]);
     const end = stateOf(res);
     expect(end.fighters.map((f) => f.id)).toEqual([1, 6]);
@@ -201,7 +202,7 @@ describe('团队装配（切片 36）', () => {
     const cfg = makeTeamConfig({ p2Roster: [2] });
     const res = play(new Sim(cfg), [
       [1, Btn.attack, 0],
-      [420, 0, 0], // KO@~30 → 终局推进 hold 300@~330 → match:over + over 冻结
+      [540, 0, 0], // KO@~30 → 终局推进 hold 420@~450 → match:over + over 冻结
     ]);
     const end = stateOf(res);
     expect(end.roundEnd?.over).toBe(true);
@@ -214,15 +215,16 @@ describe('团队装配（切片 36）', () => {
   });
 
   it('两轮换人打满 → 胜方侧终局判定', () => {
-    // 节拍：KO 字样窗口 120 + 胜利动作 180 = 换人推进 hold 300；换人开场
-    // ≈282 tick → 入场后可操作窗口在 KO 后 ~610 tick 起，攻击窗口取 650+
+    // 节拍：KO 字样窗口 120 + showWinner 延迟 120 + 胜利动作 180 = 换人推进
+    // hold 420；换人开场 ≈282 tick → 入场后可操作窗口在 KO 后 ~730 tick 起，
+    // 攻击窗口取 770+
     const res = play(new Sim(makeTeamConfig()), [
       [1, Btn.attack, 0],
-      [650, 0, 0], // id2 败@~31 → id4 入场@~331，开场收@~613
+      [770, 0, 0], // id2 败@~31 → id4 入场@~451，开场收@~733
       [1, Btn.attack, 0],
-      [720, 0, 0], // id4 败@~682 → id6 入场@~982，开场收@~1264
+      [840, 0, 0], // id4 败@~802 → id6 入场@~1222，开场收@~1504
       [1, Btn.attack, 0],
-      [650, 0, 0], // id6 败@~1404 → p2 耗尽 → match:over@~1704
+      [890, 0, 0], // id6 败@~1644 → p2 耗尽 → match:over@~2064
     ]);
     expect(res.events.some((e) => e.type === 'match:over' && e.payload['winner'] === 1)).toBe(true);
     const end = stateOf(res);
@@ -233,11 +235,11 @@ describe('团队装配（切片 36）', () => {
   it('确定性：团队流程两遍全量状态哈希一致', () => {
     const segs: [number, number, number][] = [
       [1, Btn.attack, 0],
-      [650, 0, 0],
+      [770, 0, 0],
       [1, Btn.attack, 0],
-      [720, 0, 0],
+      [840, 0, 0],
       [1, Btn.attack, 0],
-      [650, 0, 0],
+      [890, 0, 0],
     ];
     const a = play(new Sim(makeTeamConfig()), segs);
     const b = play(new Sim(makeTeamConfig()), segs);
@@ -256,7 +258,7 @@ describe('团队装配（切片 36）', () => {
     };
     const res = play(new Sim(cfg), [
       [1, Btn.attack, 0],
-      [200, 0, 0], // KO@~30 → hold≈170：KO 字样窗口过、WIN 已应用
+      [260, 0, 0], // KO@~30 → hold≈257：KO 字样窗口 + showWinner 延迟过、WIN 已应用
     ]);
     const st = stateOf(res);
     // 终局演出置位（1v1 与 team 同一状态机，原版 GameEndCtrler 通用语义）
@@ -276,6 +278,54 @@ describe('团队装配（切片 36）', () => {
     expect(cont.events.some((e) => e.type === 'match:over' && e.payload['winner'] === 1)).toBe(true);
     expect(stateOf(cont).roundEnd?.over).toBe(true);
     expect(stateOf(cont).match.p1Wins).toBe(1);
+  });
+
+  it('KO 终结演出链：hit_end 打点事件 + 击飞败方终结慢镜头（半速 → 落地 → 延迟 → WIN）', () => {
+    // 击飞致死（原版 FightUI.renderEnd：败方 HURT_FLYING → slowDown(2,0) 半速
+    // 直到落地 → _showWinnerDelay → showWinner）：hity -30 大抛物线保证字样
+    // 窗口（hold 120）内败方仍在空中
+    const def = makeDef('test');
+    const cfg: SimConfig = {
+      seed: 1,
+      stage: { leftBound: 0, rightBound: 1000, groundY: 500, bottomY: 600, floors: [] },
+      fighters: [
+        { id: 1, x: 100, hp: 25, def: { ...def, actions: { k1: { power: 30, hitType: 1, hitx: 3, hity: -30, hurtTime: 300, hurtType: 1, isBreakDef: false, isApplyG: true } } } },
+        { id: 2, x: 130, hp: 25, def },
+      ],
+    };
+    const res = play(new Sim(cfg), [
+      [1, Btn.attack, 0],
+      [200, 0, 0], // KO@~31 → hold≈169：字样窗口过、飞尸仍在空中
+    ]);
+    // KO 同拍表现事件（原版 playKO：hit_end 钉败方位 + 白闪 α0.5 + 屏震；
+    // 平局才省略 hit_end/shine）
+    const koEv = res.events.filter((e) => e.type === 'effect' && e.payload['id'] === 'hit_end');
+    expect(koEv.length).toBe(1);
+    const loserAtKo = res.snaps.find((s) => s.state.roundEnd != null)!.state.fighters.find((f) => f.id === 2)!;
+    expect(koEv[0]!.payload['x']).toBe(loserAtKo.x);
+    expect(koEv[0]!.payload['y']).toBe(loserAtKo.y);
+    const shine = res.events.find((e) => e.type === 'effect' && e.payload['id'] === 'shine');
+    expect(shine!.payload['params']).toEqual({ color: 0xffffff, alpha: 0.5 });
+    // 字样窗口过后败方仍在空中 → 慢镜头激活（位移半速 + 动画 15Hz）
+    const gate = res.snaps[res.snaps.length - 1]!.state.roundEnd!;
+    expect(gate.slow).toBe(true);
+    // 落地前 WIN 不应用
+    expect(gate.winApplied).toBe(false);
+    // 慢镜头到落地 → 延迟 → WIN（长飞尸实时 >2s → 短延迟 60 折算）
+    const cont = play(res.sim, [[600, 0, 0]]);
+    const applied = cont.snaps.find((s) => s.state.roundEnd?.winApplied === true);
+    expect(applied).toBeDefined();
+    expect(applied!.state.roundEnd!.slow).toBe(false);
+    // 落地时刻（slow 最后为 true 的快照）→ winAppliedHold 差 = showWinner 延迟
+    //（原版 _showWinnerDelay 2s/1s 折算 120/60 tick；落地拍快照 slow 仍为 true、
+    //  下一拍才检出落地关慢镜头，故差值带 1 拍快照边界偏移）
+    let landHold = -1;
+    for (const s of [...res.snaps, ...cont.snaps]) {
+      if (s.state.roundEnd?.slow === true) landHold = s.state.roundEnd.hold;
+    }
+    expect(landHold).toBeGreaterThan(120);
+    const delta = applied!.state.roundEnd!.winAppliedHold - landHold;
+    expect(delta === 59 || delta === 60 || delta === 119 || delta === 120).toBe(true);
   });
 
   it('1v1 训练模式不置位 roundEnd（训练语义不打断）', () => {

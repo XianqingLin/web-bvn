@@ -75,7 +75,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `voice` | `{ fighter, kind }` | 受击语音信号（kind `hurt`=重击硬直 / `hurtFly`=击飞 / `die`=死亡；随机选音源与 rate 门在渲染层，音源按角色 forms.sounds 绑定） |
 | `fighter:guard` / `fighter:guardBreak` | `{ fighter }` | 防御成功 / 破防 |
 | `fighter:form` | `{ fighter, form }` | 万解/通用形态切换（切片 10；render 换图集 forms 下标） |
-| `fighter:ko` | `{ fighter }` | 击倒 |
+| `fighter:ko` | `{ fighter, bsKo }` | 击倒（`bsKo` = KO 时刻任一方必杀演出中，原版 FightUI bsKO 门——音频 snd_ko_bs 分流用；payload 不进 behaviorHash） |
 | `fighter:enter` | `{ fighter, side }` | 团队换人入场（切片 36）：sim 内 rotateIn 构造全新 FighterState 替换被 KO 者；render 按 fighter id 寻址 roster 精灵（id-swap 免重绑图集）、HUD 换大脸/能量标签 |
 | `entity:spawn` / `entity:despawn` | `{ kind, id, name?, owner? }` | 飞行道具 / 独立道具（kind `attacker`，切片 9）/ 辅助 |
 | `round:start` / `round:end` | `{ round, winner? }` | 回合流程（`round:end` 切片 46 泛化：非训练对局 KO 即置位 `SimState.roundEnd`（team 换人 + 1v1 终局同一状态机），`winner` = 胜方位次；训练模式不发） |
@@ -86,6 +86,9 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `effect`（id `wanKai`/`endWanKai`） | `params { face, owner, ownerKind }` | 万解开场演出（切片 22）：冻结/解锁/演出机制同上，`cutinLock.type = 'wanKai'` |
 | `effect`（id `shadow`/`endShadow`） | `params { r, g, b, owner, ownerKind }` | 残影开/停（切片 47）：r/g/b = ColorTransform 加色偏移；激活态纯渲染层（原版 ShadowEffectView 30Hz 截图留影），角色 `actionState` 变化时渲染层自动停（原版 doAction/idle/doHurt 统一 endShadow 的近似） |
 | `effect`（id `dash`/`dash_air`） | `params { direct }` | 瞬步尘土（切片 47）：dash@effect op 按 `onGround` 分流（原版 FighterEffectCtrler.dash isInAir 分流），`direct` = 发射者朝向供火花镜像 |
+| `effect`（id `hit_end`） | `{ x, y }` | KO 打点特效（切片 48，原版 `playKO` doEffectById("hit_end")——xg_hitover 白色打点光束钉败方 KO 时刻位置；平局省略） |
+| `effect`（id `kobg`） | `params { hold }` | KO 背景层（切片 48，原版 `playKO` bsKO → BGEffect("kobg", 2)——必杀中 KO 时地图隐藏、kobg 特效 hold×30 帧循环于最底层，移除时恢复地图） |
+| `effect`（id `shine`） | `params { color, alpha }` | 全屏白闪（原版 EffectCtrler.shine：KO 时 0xFFFFFF/α0.5，角色时间轴 shine 为 α0.3；平局省略） |
 
 每个事件带 `tick` 号；渲染层自行处理去重与插值，不得回读 sim 内部状态——**快照 + 事件队列是 render 的唯一输入**。
 
