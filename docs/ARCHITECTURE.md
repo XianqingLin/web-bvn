@@ -98,7 +98,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 
 - 移动类（速度值 ×SPEED_PLUS，换算见 DESIGN §3.1）：`move`、`movePercent`、`moveOnce`、`dash`、`stop`/`stopMove`、`damping`/`dampingPercent`
 - 状态/资源：`setSteelBody`、`addQi`、`endAct`（收招）、`setCross`、`isApplyG`、`setAirMove`、`setTouchFloor(label)`、`idle(frame?)`（主动回位）
-- 瞬步系（target 分流：mc=动作控制，effect=表现事件）：`dash`、`dashStop(p)`；纯表现：`shadow`/`endShadow`、`bisha`/`endBisha`（切片 22：置/清 `SimState.cutinLock` 冻结锁）、`slowDown(t)`、`walk`、`jump`、`touchFloor`
+- 瞬步系（target 分流：mc=动作控制，effect=表现事件）：`dash`、`dashStop(p)`；纯表现：`shadow`/`endShadow`、`walk`、`jump`、`touchFloor`；sim 侧：`bisha`/`endBisha`（切片 22：置/清 `SimState.cutinLock` 冻结锁）、`slowDown(t)`（切片 49：置 `SimState.slowDown` 全局慢放 rate 1.5，规格见 DESIGN §3.5）
 - 动作槽改写（连段/技/必杀；endAction 后重填默认）：`setAttack`、`setSkill1`、`setSkill2`、`setZhao1`、`setZhao2`、`setZhao3`、`setBisha(label?, qi?)`、`setBishaUP`、`setBishaSUPER`、`setDash`
 - 表现原语（core 只发事件）：`playSoundHit1`、`playSoundHit2`、`shine`、`startShake`、`shake`、`endShake`
 - 飞行道具：`fire(mcName, params?)`（切片 8；params 语料字段 x/y/hold/hits/hp，见 DESIGN §3.5）

@@ -9,7 +9,7 @@ import {
   stepAssisterCustomFunc,
   type AssisterContext,
 } from '../fighter/assister.js';
-import { wake, type SimCtx } from './ctx.js';
+import { slowDownScaleOf, wake, type SimCtx } from './ctx.js';
 import { GRAVITY_CAP, GRAVITY_START, GRAVITY_STEP } from './physics.js';
 
 // —— 辅助实体（切片 12，原版 Assister） ——
@@ -70,6 +70,7 @@ export function spawnAssister(ctx: SimCtx, owner: FighterState): void {
     spawnAssistAttacker: (spec) => ctx.spawnAssistAttacker(spec),
     remove: () => {},
     setCutin: (kind) => ctx.setCutin('assister', assister.id, kind),
+    setSlowDown: (t) => ctx.setSlowDown(t),
     getAttacker: () => null,
     gotoAndPlayAttacker: () => {},
     stopFollowAttacker: () => {},
@@ -84,14 +85,16 @@ export function spawnAssister(ctx: SimCtx, owner: FighterState): void {
   }
 }
 
-/** 辅助每 tick 物理（原版 renderVelocity/applayG；位移 = 速度，速度已是 60Hz 值）。 */
+/** 辅助每 tick 物理（原版 renderVelocity/applayG；位移 = 速度，速度已是 60Hz 值）。
+ *  slowDown 全局慢放（切片 49）：位移/重力增量 ×scale（KO 链折算范式同款）。 */
 export function stepAssisterPhysics(ctx: SimCtx): void {
   const { stage, assisters } = ctx.state;
+  const slowScale = slowDownScaleOf(ctx.state);
   for (const s of assisters) {
     s.vx = wake(s.vx, s.dampX);
     s.vy = wake(s.vy, s.dampY);
-    s.x += s.vx;
-    s.y += s.vy;
+    s.x += s.vx * slowScale;
+    s.y += s.vy * slowScale;
     if (s.y >= stage.groundY) {
       s.y = stage.groundY;
       s.vy = 0;
@@ -112,8 +115,8 @@ export function stepAssisterPhysics(ctx: SimCtx): void {
         if (s.vy < 0) {
           s.gRamp = 0;
         } else {
-          s.gRamp = Math.min(s.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-          s.y += s.gRamp;
+          s.gRamp = Math.min(s.gRamp + GRAVITY_STEP * slowScale, GRAVITY_CAP);
+          s.y += s.gRamp * slowScale;
         }
       }
       s.onGround = false;
@@ -149,6 +152,7 @@ export function stepAssisterAnimation(ctx: SimCtx, cutinLock?: CutinLockState): 
         if (!removed.includes(s.id)) removed.push(s.id);
       },
       setCutin: (kind) => ctx.setCutin('assister', s.id, kind),
+      setSlowDown: (t) => ctx.setSlowDown(t),
       // attacker 桥（切片 21）：范围 = viaAssist 且 ownerId === 召唤者
       //（每 fighter 至多一辅助在场 → 无歧义），name 匹配元件名
       getAttacker: (name) =>

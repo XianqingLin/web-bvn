@@ -52,6 +52,14 @@ export const SLOW_MOTION_SCALE = 0.5;
 /** 慢镜头动画步进间隔（60Hz / 15Hz 动画帧 = 每 4 tick 一帧） */
 export const SLOW_MOTION_ANIM_EVERY = 4;
 /**
+ * slowDown 全局慢放（切片 49，原版 FighterEffectCtrler.slowDown 固定 rate=1.5
+ * → EffectCtrler.slowDown(1.5, t*1000)）：speedPlus = SPEED_PLUS_DEFAULT/1.5、
+ * 时间轴步进间隔 ceil(FPS_GAME/(30/1.5)) = 3、时长 t×FPS_GAME 实时间。
+ * 折算置位在 sim.setSlowDown；scale/animEvery 消费见 ctx.slowDownScaleOf。
+ */
+export const FPS_GAME = 60;
+export const SLOW_DOWN_RATE = 1.5;
+/**
  * 慢镜头时长 → showWinner 延迟折算门（原版 getTimer-_flyTimer < 2000ms：
  * 飞尸实时长 <2s → 延迟 2s 否则 1s；每慢 tick = 2 实 tick → 60 tick 判定）。
  */

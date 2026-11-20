@@ -91,6 +91,7 @@ export function stepAnimation(ctx: SimCtx, cutinLock?: CutinLockState): void {
         spawnAttacker: (spec) => ctx.spawnAttacker(spec),
         switchForm: (g, frameNum) => ctx.doSwitchForm(g, frameNum),
         setCutin: (kind) => ctx.setCutin('fighter', f.id, kind),
+        setSlowDown: (t) => ctx.setSlowDown(t),
       };
       for (const t of list) {
         if (t.cond) {

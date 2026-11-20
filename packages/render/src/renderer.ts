@@ -1697,9 +1697,12 @@ export class BattleRenderer {
     }
 
     // 缓动（原版 ease(current, target, snap)：delta ≥ snap 时 current += delta/tweenSpd）；
-    // 终结慢镜头相机牵引同步减半（原版 GameCtrler.slow → camera.tweenSpd ×rate）
+    // 终结慢镜头/slowDown 全局慢放相机牵引同步减速（原版 GameCtrler.slow →
+    // camera.tweenSpd = 2.5×rate，折算 ×1/rate；两通道并存相乘）
     const camFrames =
-      Math.min(dtMs / (1000 / 60), 4) * (snap.state.roundEnd?.slow === true ? 0.5 : 1);
+      Math.min(dtMs / (1000 / 60), 4) *
+      (snap.state.roundEnd?.slow === true ? 0.5 : 1) *
+      (snap.state.slowDown?.scale ?? 1);
     const k = 1 - Math.pow(1 - 1 / 5, camFrames);
     this.camX = Math.abs(tx - this.camX) < 0.5 ? tx : this.camX + (tx - this.camX) * k;
     this.camY = Math.abs(ty - this.camY) < 0.5 ? ty : this.camY + (ty - this.camY) * k;

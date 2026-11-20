@@ -17,7 +17,7 @@ import {
   stepGhost,
   walkSpeed,
 } from '../fighter/machine.js';
-import { stepToward, wake, type SimCtx } from './ctx.js';
+import { slowDownScaleOf, stepToward, wake, type SimCtx } from './ctx.js';
 
 // 物理帧常量（原版 BaseGameSprite/GameLogic 语义 × SPEED_PLUS=0.5，即
 // 原版自己的 60fps 手感基准——见 DESIGN §3.1；空间容差类常量不乘系数）
@@ -69,8 +69,12 @@ export function resolveLanding(f: FighterState, stage: StageState): boolean {
 }
 
 // 3. 物理积分（行走 + 显式速度/阻尼 + 重力斜坡 + 多段地板落地 + 牵引边界）
+// slowDown 全局慢放（切片 49）：位移/重力增量 ×scale（原版 move() ×speedPlus、
+// applayG 增量 ×GameConfig.SPEED_PLUS——KO 链折算范式同款）；阻尼衰减不缩。
+// 行走速度所有权式置 vx 后消费侧缩放，输入位移同步减慢。
 export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
   const { stage, fighters } = ctx.state;
+  const slowScale = slowDownScaleOf(ctx.state);
   for (let i = 0; i < fighters.length; i++) {
     const f = fighters[i]!;
     const view = views[i]!;
@@ -123,8 +127,8 @@ export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
     // 速度线性衰减（原版 renderVelocity + KyoUtils.num_wake）
     f.vx = wake(f.vx, f.dampX);
     f.vy = wake(f.vy, f.dampY);
-    f.x += f.vx;
-    f.y += f.vy;
+    f.x += f.vx * slowScale;
+    f.y += f.vy * slowScale;
     const impactVy = f.vy + f.gRamp; // 落地有效下沉速度（显式速度 + 本 tick 待施重力位移）
     const airborne = resolveLanding(f, stage);
     if (airborne) {
@@ -135,8 +139,8 @@ export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
       } else if (f.vy < 0) {
         f.gRamp = 0;
       } else {
-        f.gRamp = Math.min(f.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-        f.y += f.gRamp;
+        f.gRamp = Math.min(f.gRamp + GRAVITY_STEP * slowScale, GRAVITY_CAP);
+        f.y += f.gRamp * slowScale;
       }
       f.onGround = false;
     } else {

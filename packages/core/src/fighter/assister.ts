@@ -60,6 +60,8 @@ export interface AssisterContext {
   remove(): void;
   /** 特写冻结锁桥（切片 22）：kind = 置锁类型，null = 解锁（owner = ctx.self 实体） */
   setCutin(kind: 'bisha' | 'wanKai' | null): void;
+  /** slowDown 全局慢放桥（切片 49）：t = 时长秒（rate 固定 1.5，sim 折算置位） */
+  setSlowDown(t: number): void;
   // —— attacker 桥（切片 21：customFunc 操作本辅助挂载的道具；
   //    范围 = viaAssist 且 ownerId === owner.id（每 fighter 至多一辅助 → 无歧义），
   //    name 匹配元件名） ——
@@ -410,7 +412,9 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
     ctx.emit('effect', { id: 'endShake', x: ctx.self.x, y: ctx.self.y, params: {} });
   },
   slowDown(ctx, args) {
-    ctx.emit('effect', { id: 'slowDown', x: ctx.self.x, y: ctx.self.y, params: { time: num(args[0]) } });
+    // slowDown(t)：全局慢放 t 秒（切片 49，语义同 behaviors.slowDown——进 sim 折算）
+    const t = num(args[0]);
+    if (t > 0) ctx.setSlowDown(t);
   },
   dash(ctx, args, target) {
     if (target === 'effect') {

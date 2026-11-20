@@ -61,6 +61,8 @@ export interface SimCtx {
     id: number,
     kind: 'bisha' | 'wanKai' | null,
   ): void;
+  /** slowDown 全局慢放置位（behaviors/assister 桥；t = 时长秒，rate 固定 1.5） */
+  setSlowDown(t: number): void;
   /** 释放抓取（behaviors 引擎桥；physics.stepMoveTargets 同函数） */
   releaseGrab(f: FighterState): void;
   /** 发射飞行道具（behaviors.fire 引擎桥） */
@@ -111,6 +113,20 @@ export function wake(v: number, k: number): number {
   }
   v += k;
   return v > 0 ? 0 : v;
+}
+
+/**
+ * slowDown 全局慢放折算 scale（切片 49；sim.ts setSlowDown 置位，undefined =
+ * 常速 1）。消费侧位移/重力 ×scale（原版 speedPlus = SPEED_PLUS_DEFAULT/rate）；
+ * 阻尼衰减不缩（KO 链折算范式同款——见 flow.stepPassivePhysics 注）。
+ */
+export function slowDownScaleOf(state: SimState): number {
+  return state.slowDown?.scale ?? 1;
+}
+
+/** 时间轴步进间隔（常态 2 = 30Hz；slowDown 期 animEvery = 3，20Hz）。 */
+export function slowDownAnimEveryOf(state: SimState): number {
+  return state.slowDown?.animEvery ?? 2;
 }
 
 /** 向目标点步进一步（吸附速度换算后值；speed≤0 直接吸附）。 */

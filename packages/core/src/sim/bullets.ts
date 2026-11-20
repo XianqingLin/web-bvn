@@ -2,7 +2,7 @@ import { SPEED_PLUS, worldRect } from '../fighter/def.js';
 import type { BulletState } from '../state.js';
 import type { BulletSpawnSpec } from '../fighter/behaviors.js';
 import type { AssistBulletSpawnSpec } from '../fighter/assister.js';
-import type { SimCtx } from './ctx.js';
+import { slowDownScaleOf, type SimCtx } from './ctx.js';
 
 /**
  * 飞行道具每 tick 推进（原版 Bullet.render）。
@@ -17,6 +17,9 @@ import type { SimCtx } from './ctx.js';
  */
 export function stepBullets(ctx: SimCtx): void {
   const { stage, bullets, assisters } = ctx.state;
+  // slowDown 全局慢放（切片 49）：弹位移/加速 ×scale（原版 Bullet 位移与
+  // addSpeed 增量均 ×_speedPlus；寿命 holdTicks 每帧递减不缩）
+  const slowScale = slowDownScaleOf(ctx.state);
   const removed: number[] = [];
   for (const b of bullets) {
     // 命中残留段（原版 _isHit → render 早退）：停移动，仅时间轴推进
@@ -30,10 +33,10 @@ export function stepBullets(ctx: SimCtx): void {
       speedLevel = cf.level * (b.facing === cf.direct ? -1 : 1);
     }
     // 位移（局部空间速度；x 沿发射朝向，乘风场弹速级系数）+ 加速（add×2×SPEED_PLUS = add/tick）
-    b.x += b.sx * SPEED_PLUS * b.facing * (1 - speedLevel);
-    b.y += b.sy * SPEED_PLUS;
-    b.sx += b.addX;
-    b.sy += b.addY;
+    b.x += b.sx * SPEED_PLUS * b.facing * (1 - speedLevel) * slowScale;
+    b.y += b.sy * SPEED_PLUS * slowScale;
+    b.sx += b.addX * slowScale;
+    b.sy += b.addY * slowScale;
     // 局部空间钳制（朝向镜像后两方向语义一致：sx∈[minX,maxX]，见 state.ts 注）
     if (b.sx > b.maxX) b.sx = b.maxX;
     if (b.sx < b.minX) b.sx = b.minX;

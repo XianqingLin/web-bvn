@@ -452,6 +452,27 @@ export interface RoundEndState {
 }
 
 /**
+ * slowDown 全局慢放（切片 49，原版 EffectCtrler.slowDown(rate, time)；角色/辅助
+ * 语料 slowDown(t) 经 FighterEffectCtrler.slowDown 固定 rate=1.5 →
+ * EffectCtrler.slowDown(1.5, t*1000)）。原版三重语义：GameCtrler.slow(1.5) →
+ * 全体 sprite speedPlus = SPEED_PLUS_DEFAULT/1.5（位移/重力消费侧 ×2/3）+
+ * camera.tweenSpd = 2.5×1.5（渲染层折算）；时间轴步进间隔
+ * ceil(FPS_GAME/(30/1.5)) = 3（角色/道具/命中判定 60→20Hz）；计时器
+ * time×FPS_GAME 每渲染帧递减（EffectCtrler.render 无条件——冻结/特写/
+ * 演出期照减，实时间语义）。进 sim（KO 链折算范式，DESIGN §3.5）：
+ * 折算 scale 存态，步进间隔在 tick 管线门控。重复触发重置计时
+ * （原版 GameCtrler.slow 重入同语义）。
+ */
+export interface SlowDownState {
+  /** 剩余 tick（实时间秒 ×FPS_GAME=60；冻结/特写/演出期照减） */
+  ticksLeft: number;
+  /** 位移/重力折算 scale（原版 speedPlus = SPEED_PLUS_DEFAULT/rate → 1/rate） */
+  scale: number;
+  /** 时间轴步进间隔（原版 _renderAnimateGap+1 = ceil(FPS_GAME/(30/rate))） */
+  animEvery: number;
+}
+
+/**
  * 特写冻结锁（切片 22，原版 EffectCtrler.bisha/wanKai 的 GameCtrler.pause 语义）：
  * 必杀/万解切人演出期间全场冻结（对手/道具/计时/回气全部停走），仅锁主的时间轴
  * 推进（原版施法者画面 render 驱动继续播、帧脚本照常触发——endBisha/endWanKai
@@ -495,6 +516,8 @@ export interface SimState {
    * undefined 被 JSON 序列化省略——1v1 全量哈希零漂移，见 SimState.intro 注）
    */
   roundEnd?: RoundEndState | undefined;
+  /** slowDown 全局慢放（undefined = 常速；JSON 序列化省略——无触发即零漂移） */
+  slowDown?: SlowDownState | undefined;
   /** 特写冻结锁（null = 无演出冻结） */
   cutinLock: CutinLockState | null;
   /** 打击停顿（hitstop，修复批次 35）：>0 时整局停走（原版 EffectCtrler.freeze →

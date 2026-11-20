@@ -14,6 +14,7 @@ import type {
 } from '../fighter/behaviors.js';
 import type { AssistAttackerSpawnSpec } from '../fighter/assister.js';
 import type { SimCtx } from './ctx.js';
+import { slowDownScaleOf } from './ctx.js';
 import { GRAVITY_CAP, GRAVITY_START, GRAVITY_STEP } from './physics.js';
 
 /** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
@@ -288,9 +289,12 @@ function spawnAttackerEntity(
   ctx.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: ownerId });
 }
 
-/** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。 */
+/** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。
+ *  slowDown 全局慢放（切片 49）：重力增量/消费位移 ×scale（原版 FighterAttacker
+ *  继承 BaseGameSprite speedPlus 语义）。 */
 export function stepAttackers(ctx: SimCtx): void {
   const { stage, fighters, attackers } = ctx.state;
+  const slowScale = slowDownScaleOf(ctx.state);
   const removed: number[] = [];
   for (const a of attackers) {
     const t = fighters.find((f) => f.id !== a.ownerId) ?? null;
@@ -306,8 +310,8 @@ export function stepAttackers(ctx: SimCtx): void {
         a.y = stage.groundY - (a.fbHit.y + a.fbHit.h);
         a.gRamp = GRAVITY_START;
       } else {
-        a.gRamp = Math.min(a.gRamp + GRAVITY_STEP, GRAVITY_CAP);
-        a.y += a.gRamp;
+        a.gRamp = Math.min(a.gRamp + GRAVITY_STEP * slowScale, GRAVITY_CAP);
+        a.y += a.gRamp * slowScale;
       }
     }
     // 寿命：有元件时间轴由 stepAttackerAnim 播尽移除；无时间轴走占位回退

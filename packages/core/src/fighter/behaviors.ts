@@ -107,6 +107,8 @@ export interface BehaviorContext {
   switchForm(f: FighterState, frame: number): void;
   /** 特写冻结锁桥（切片 22）：kind = 置锁类型，null = 解锁（owner = ctx.f） */
   setCutin(kind: 'bisha' | 'wanKai' | null): void;
+  /** slowDown 全局慢放桥（切片 49）：t = 时长秒（rate 固定 1.5，sim 折算置位） */
+  setSlowDown(t: number): void;
 }
 
 /**
@@ -340,14 +342,12 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.emit('effect', { id: 'endBisha', x: ctx.f.x, y: ctx.f.y, params: {} });
     ctx.setCutin(null);
   },
-  // slowDown(t)：全局慢放 t 秒（纯演出节奏，不进逻辑）
+  // slowDown(t)：全局慢放 t 秒（切片 49，原版 FighterEffectCtrler.slowDown →
+  // EffectCtrler.slowDown(1.5, t*1000)：GameCtrler.slow(1.5) 全场 speedPlus/rate
+  // + 时间轴步进间隔拉长——影响逻辑速度，进 sim 折算置位，非纯表现）
   slowDown(ctx, args) {
-    ctx.emit('effect', {
-      id: 'slowDown',
-      x: ctx.f.x,
-      y: ctx.f.y,
-      params: { time: num(args[0]) },
-    });
+    const t = num(args[0]);
+    if (t > 0) ctx.setSlowDown(t);
   },
   // walk()：脚步声（原版 se_step1~3 随机 → 事件 id 统一 step，render 层选音源）
   walk(ctx) {

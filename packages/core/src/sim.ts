@@ -26,7 +26,12 @@ import {
   type BehaviorHandler,
 } from './fighter/behaviors.js';
 import { defaultAssisterBehaviors, type AssisterHandler } from './fighter/assister.js';
-import { indexTriggers, type SimCtx } from './sim/ctx.js';
+import {
+  indexTriggers,
+  slowDownAnimEveryOf,
+  slowDownScaleOf,
+  type SimCtx,
+} from './sim/ctx.js';
 import { stepIntents, stepAnimation } from './sim/anim.js';
 import { releaseGrab, resolveLanding, stepPhysics, stepPush } from './sim/physics.js';
 import { spawnBullet, spawnAssistBullet, stepBullets, stepBulletAnim } from './sim/bullets.js';
@@ -47,6 +52,8 @@ import {
   isBishaOrWanKaiState,
   ROUND_END_TOTAL_TICKS,
   ROUND_END_TICKS,
+  FPS_GAME,
+  SLOW_DOWN_RATE,
   SLOW_FLIGHT_TICKS_GATE,
   SLOW_MOTION_ANIM_EVERY,
   SLOW_MOTION_SCALE,
@@ -243,6 +250,7 @@ export class Sim {
       ownerTargetDefOf: (owner) => self.ownerTargetDefOf(owner),
       doSwitchForm: (f, frame) => self.doSwitchForm(f, frame),
       setCutin: (kind, id, k) => self.setCutin(kind, id, k),
+      setSlowDown: (t) => self.setSlowDown(t),
       releaseGrab: (f) => releaseGrab(ctx, f),
       spawnBullet: (spec) => spawnBullet(ctx, spec),
       spawnAssistBullet: (spec) => spawnAssistBullet(ctx, spec),
@@ -330,11 +338,31 @@ export class Sim {
     this.state.cutinLock = kind === null ? null : { kind: ownerKind, id, type: kind };
   }
 
+  /**
+   * slowDown 全局慢放置位（behaviors/assister 桥，切片 49）：角色语料固定
+   * rate=1.5（原版 FighterEffectCtrler.slowDown → EffectCtrler.slowDown(1.5,
+   * t*1000)；KO 链的 rate 2 走 roundEnd.slow 独立通道）。折算范式见
+   * DESIGN §3.5；重复触发重置计时（原版 GameCtrler.slow 重入同语义）。
+   */
+  private setSlowDown(t: number): void {
+    this.state.slowDown = {
+      ticksLeft: Math.round(t * FPS_GAME),
+      scale: 1 / SLOW_DOWN_RATE,
+      animEvery: Math.ceil(FPS_GAME / (30 / SLOW_DOWN_RATE)),
+    };
+  }
+
   private emit(type: string, payload: Record<string, unknown>): void {
     this.events.push({ tick: this.state.tick, type, payload });
   }
 
   tick(inputs: InputFrame): SimSnapshot {
+    // slowDown 全局慢放计时（切片 49，原版 EffectCtrler.renderSlowDown 每渲染帧
+    // 递减——EffectCtrler.render 在冻结/特写/演出期照跑，实时间语义）
+    if (this.state.slowDown != null) {
+      this.state.slowDown.ticksLeft -= 1;
+      if (this.state.slowDown.ticksLeft <= 0) this.state.slowDown = undefined;
+    }
     if (this.state.freezeTicks > 0) {
       // 打击停顿（修复批次 35，原版 EffectCtrler.freeze → GameCtrler.pause）：整局
       // 停走一 tick；特效/闪屏/抖动在渲染层自行推进，不受停顿影响。倒计时期间
@@ -365,13 +393,15 @@ export class Sim {
     } else {
       this.stepInputs(inputs); // 1. 输入处理
       stepIntents(this.ctx, this.views); // 2. 意图决策
-      stepPhysics(this.ctx, this.views); // 3. 物理积分
-      stepPush(this.ctx); //    4. 推挤
-      if (this.state.tick % 2 === 0) {
-        stepAnimation(this.ctx); // 5. [动画帧] 30Hz
-        stepHitResolution(this.ctx); // 6. [动画帧] 30Hz
-        stepBulletAnim(this.ctx); //    [动画帧] 30Hz（原版 Bullet.renderAnimate）
-        stepAttackerAnim(this.ctx); // [动画帧] 30Hz（原版 FighterAttacker.renderAnimate）
+      stepPhysics(this.ctx, this.views); // 3. 物理积分（slowDown 期位移/重力折算——函数内自取）
+      stepPush(this.ctx); //    4. 推挤（原版 checkBodyHit 每渲染帧，不受慢放门控）
+      if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
+        // 5/6. [动画帧] 30Hz（slowDown 期按 animEvery 降频——原版
+        // checkRenderAnimate 的 _renderAnimateGap 门控，checkHit 同门）
+        stepAnimation(this.ctx);
+        stepHitResolution(this.ctx);
+        stepBulletAnim(this.ctx); //    [动画帧]（原版 Bullet.renderAnimate）
+        stepAttackerAnim(this.ctx); // [动画帧]（原版 FighterAttacker.renderAnimate）
       }
       stepMatchFlow(this.ctx); // 7. 流程事件
     }
@@ -406,7 +436,9 @@ export class Sim {
       this.tickFallback(inputs);
       return;
     }
-    if (this.state.tick % 2 === 0) {
+    if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
+      // 锁主时间轴门控随 slowDown 降频（原版锁主画面经 EffectCtrler
+      // isRenderAnimate 推进，同一 _renderAnimateGap 门）
       stepAnimation(this.ctx, lock);
     }
   }
@@ -417,7 +449,7 @@ export class Sim {
     stepIntents(this.ctx, this.views);
     stepPhysics(this.ctx, this.views);
     stepPush(this.ctx);
-    if (this.state.tick % 2 === 0) {
+    if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
       stepAnimation(this.ctx);
       stepHitResolution(this.ctx);
       stepBulletAnim(this.ctx);
@@ -537,15 +569,19 @@ export class Sim {
     // 回气/buff 照跑（原版冻结期 renderAnimate 无条件）
     for (const f of this.state.fighters) stepFighterFlow(this.ctx, f);
     // 被动物理（无输入位移；终结慢镜头全场半速——原版 GameCtrler.slow
-    // setSpeedPlus(SPEED_PLUS/rate)；道具/辅助/推挤/抓取停走——清场前冻结）
-    const slowScale = re.slow ? SLOW_MOTION_SCALE : 1;
+    // setSpeedPlus(SPEED_PLUS/rate)；KO 演出期角色 slowDown 仍在计时的场合
+    // 折算相乘（原版两条 speedPlus 通道同态叠加）；道具/辅助/推挤/抓取停走
+    // ——清场前冻结）
+    const slowScale =
+      (re.slow ? SLOW_MOTION_SCALE : 1) * slowDownScaleOf(this.state);
     for (const f of this.state.fighters) stepPassivePhysics(this.ctx, f, slowScale);
     // 角色时间轴推进（胜利/死亡动画；帧触发器照常——胜利标签的贴帧音/收招
-    // 触发在此到来。慢镜头 15Hz：原版 renderAnimateGap FPS_GAME/(FPS_ANIMATE/rate)-1）
+    // 触发在此到来。慢镜头 15Hz：原版 renderAnimateGap FPS_GAME/(FPS_ANIMATE/rate)-1；
+    // 无终结慢镜头时角色 slowDown 仍生效 → animEvery 门控同主管线）
     if (re.slow) {
       re.slowTicks += 1;
       if (re.slowTicks % SLOW_MOTION_ANIM_EVERY === 0) stepAnimation(this.ctx);
-    } else if (this.state.tick % 2 === 0) {
+    } else if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
       stepAnimation(this.ctx);
     }
     if (re.over) return; // 终局已发，冻结待 app 切结算
