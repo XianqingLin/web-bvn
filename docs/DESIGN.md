@@ -113,7 +113,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 
 **移动、跳跃与物理**
 
-- **行走**：vx = speed×0.5 直结（与原版 setVelocity→move×0.5 逐 tick 等价）；地面位移受标签门（见备忘），空中 airMove 不受限。
+- **行走**：vx = speed×0.5 直结（与原版 setVelocity→move×0.5 逐 tick 等价）；地面位移受标签门（见备忘），空中 airMove 不受限（实测批次 59 修正 2026-11-20：endAction 曾无条件清 airMove——起跳标签播尽（~5 动画帧）即失去空中操控；原版 起跳→跳中 是 renderJumpAnimate 的纯 goFrame("跳中") 转换（FighterMcCtrler.as:1351），不经过 clearAction，airMove 贯穿整个滞空；修正 = endAction 仅地面清 airMove，空中清由起手路径承担（startAttack/startSkill = 原版 doAction→clearAction、doHurt、脚本化 move 触发））。
 - **阻尼**：dampX/dampY 每 tick 双向线性逼近 0（原版 num_wake）；跳跃 vy = −jumpPower×0.5 + JUMP_DAMPING（30fps→60Hz ×SPEED_PLUS 折半），上升段重力清零。
 - **重力斜坡**：原版 `_g` 模型（离地预置初值、空中递增、封顶），位移空间步长 +0.3/tick、上限 6——步长不再二次折算（批次 19 修正）。
 - **跳跃家族**：jumpTimes = 2 起始（地面跳/空中跳各耗 1）；起跳延迟 JUMP_DELAY_FRAME 地面 2/空中 1（帧数不折算，置于物理积分后处理——首个上升位移出现在下一 tick；延迟结束才施加速并消耗 jumpTimes）；空中跳可取消空中攻击；起跳发射清 vx/dampX（原版 `FighterMain.jump()` = `setVelocity(0, -jumpPower)` 无惯性跳跃；偏离修正 2026-11-17：曾保留走跑 vx 致空中漂移 + 落地滑行）；`↓+跳` 快速下落 vy 2.5/tick 匀速（阻尼取 0——原版 damping 1 在 60Hz 首 tick 即跌破穿台阈值）、jumpTimes 清零、穿平台、触地续接 落地；快速下落前置于防御检查（原版净效果等价）。

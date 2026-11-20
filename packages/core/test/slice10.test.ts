@@ -218,6 +218,32 @@ describe('切片 10：跳跃家族（jumpTimes / 起跳延迟 / 快速下落）'
     expect(end.onGround).toBe(true);
     expect(end.y).toBe(500);
   });
+
+  it('空中操控贯穿滞空（实测批次 59 回归）：起跳标签播尽后 airMove 仍 true 可持续位移', () => {
+    // 原版起跳→跳中为 renderJumpAnimate 纯 goFrame 转换（不 clearAction）——
+    // airMove 贯穿滞空；移植版 endAction 曾无条件清 → 起跳播尽（~5 动画帧）
+    // 后空中失去操控。speed 6 → 空中移速 3/tick。
+    const res = play(makeSim(), [
+      [1, Btn.jump, 0],
+      [40, Btn.right, 0],
+    ]);
+    const end = res.snaps.at(-1)!.state.fighters[0]!;
+    expect(end.onGround).toBe(false);
+    expect(end.airMove).toBe(true);
+    expect(end.x).toBeGreaterThan(100 + 20 * 3); // 播尽窗口后仍持续位移
+  });
+
+  it('直上跳（不按方向）后空中按方向可起步（残速为零也响应输入）', () => {
+    const res = play(makeSim(), [
+      [1, Btn.jump, 0],
+      [10, 0, 0], // 起跳标签播尽窗口
+      [6, Btn.right, 0],
+    ]);
+    const end = res.snaps.at(-1)!.state.fighters[0]!;
+    expect(end.onGround).toBe(false);
+    expect(end.airMove).toBe(true);
+    expect(end.x).toBeGreaterThan(100);
+  });
 });
 
 describe('切片 10：瞬身步家族', () => {

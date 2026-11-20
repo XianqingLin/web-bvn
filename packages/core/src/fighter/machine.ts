@@ -211,7 +211,13 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
   // 重力恢复（原版 idle 链 setInAir/isApplyG=true——空中瞬步 applyG=false 在此复位）
   f.applyG = true;
   f.isCross = false;
-  f.airMove = false;
+  // airMove 仅地面清除（实测批次 59）：原版起跳→跳中是 renderJumpAnimate 的纯
+  // goFrame("跳中") 转换（FighterMcCtrler.as:1351），不经过 clearAction——airMove
+  // 贯穿整个滞空（renderAirAction 尾部 if (_action.airMove) doAirMove() 每帧采样）。
+  // 移植版曾无条件清 → 起跳标签播尽（约 5 tick）即失去空中操控；空中攻击路径
+  // 的 airMove=false 已由 doAction 等价物 startAttack/startSkill 在起手清除，
+  // 播尽收招保留原值即与原版一致。受击路径 doHurt 亦清（原版 doHurt 同）。
+  if (f.onGround) f.airMove = false;
   f.touchFloor = null;
   f.hurtAction = null;
   f.hitTarget = null;
