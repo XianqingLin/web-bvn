@@ -879,7 +879,7 @@ export class BattleRenderer {
             (kind === 'speed' || kind === 'power' || kind === 'defense')
           ) {
             const sparkId = `buff_effect_${kind}`;
-            if (this.hitspark?.effects[sparkId] && this.sparkTex.get(sparkId)) {
+            if (this.hitspark) {
               this.spawnSparkById(
                 sparkId,
                 Number(ev.payload['x'] ?? 0),
@@ -976,8 +976,10 @@ export class BattleRenderer {
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
           // 事件 id 'touchFloor' 归一化为烘焙 id 'touch_floor'（时间轴与物理落地
           // emit 同键，渲染层按 tick+id 去重防双播）。
+          // 缺件（表项/纹理）不在此短路——spawnSparkById 内部静默告警（切片 57
+          // 诊断链路：前置判断会把告警短路成纯静默丢弃），告警后安全返回。
           const sparkId = id === 'touchFloor' ? 'touch_floor' : id;
-          if (this.hitspark?.effects[sparkId] && this.sparkTex.get(sparkId)) {
+          if (this.hitspark) {
             const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
             // direct = 发射者朝向（切片 47：dash/dash_air 帧位镜像，原版
             // doEffectById(id, x, y, _target.direct)）
@@ -1364,10 +1366,11 @@ export class BattleRenderer {
         typeof target === 'number' ? hk.special?.byType[String(p['hitType'] ?? sparkType)] : undefined;
       if (typeof target === 'number' && sid !== undefined) this.attachSpecialFx(target, sid);
     }
+    // id = null（type 0/10 无特效）静默；id 有值但表项缺失 → spawnSparkById
+    // 内部告警（不短路——切片 57 诊断链路），shine/shake 仍按表项存在才派生。
+    if (id !== null) this.spawnSparkById(id, x, y, direct);
     const eff = id !== null ? hk.effects[id] : null;
-    if (!id || !eff) return;
-    this.spawnSparkById(id, x, y, direct);
-    if (eff.shine) this.spawnShine(eff.shine.color, eff.shine.alpha);
+    if (eff?.shine) this.spawnShine(eff.shine.color, eff.shine.alpha);
     if (shake) this.doShake(shake.x ?? 0, shake.y ?? 0, shake.time ?? 0);
   }
 
