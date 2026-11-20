@@ -967,6 +967,7 @@ export class FightHud {
         hp.delay = 100;
         break;
       case ActionState.HURT_DOWN:
+      case ActionState.HURT_DOWN_TAN:
         if (hp.delay > 0) {
           if (!hp.justHurtFly) {
             hp.delay = 1.5 * FPS_GAME;
@@ -1076,10 +1077,12 @@ export class FightHud {
     }
 
     // —— 连击隐藏（原版 onHurtResume/onHurtDown：目标恢复/倒地即清）——
+    // 弹起中（HURT_DOWN_TAN）无 HURT_DOWN 事件，连击保持（原版一致）
     const targetHurt =
       target.actionState === ActionState.HURT_ACT_ING ||
       target.actionState === ActionState.HURT_ING ||
-      target.actionState === ActionState.HURT_FLYING;
+      target.actionState === ActionState.HURT_FLYING ||
+      target.actionState === ActionState.HURT_DOWN_TAN;
     if (s.hits.count > 0 && !targetHurt) {
       s.hits.count = 0;
       if (s.hits.root.visible && !s.hits.fading) s.hits.fading = true;

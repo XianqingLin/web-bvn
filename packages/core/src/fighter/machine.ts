@@ -17,7 +17,6 @@ import { Btn, type InputView } from '../input.js';
 import { ENERGY_GAP_TICKS, JUMP_TIMES_START } from '../state.js';
 import {
   ActionState,
-  DOWN_FRAMES_FALLBACK,
   FALLBACK_JUMP_POWER,
   LOOP_LABELS,
   RISE_FRAMES_FALLBACK,
@@ -51,6 +50,17 @@ export const HURT_FLY_DAMP_X = 0;
 /** 原版 HIT_DOWN_BY_HITY=5：击飞 hity 超此值 = 重击倒地（落地播重尘土 + 烟；
  *  hity 为原始速度空间，同单位直接比较，不折算） */
 export const HIT_DOWN_BY_HITY = 5;
+/** 原版 HURT_JUMP_FRAME=15（动画帧）：轻击飞最短飞行门——计数未尽不进 击飞_落；
+ *  重击置 0（落地即进）。重击飞三段式弹起收编（切片 54） */
+export const HURT_JUMP_FRAMES = 15;
+/** 原版 HIT_DOWN_FRAME=15 / HIT_DOWN_FRAME_HEAVY=30（动画帧）：击飞_倒 定格时长
+ *  （轻弹起二次落地 15 / 重击直接倒地 30），计满切 起身 */
+export const HIT_DOWN_FRAMES = 15;
+export const HIT_DOWN_HEAVY_FRAMES = 30;
+/** 原版 HIT_FLOOR_TAN_Y_MIN/MAX=3/8（原始速度空间）：轻击飞弹起速度 =
+ *  下落深度/25 夹此区间，向上（setVecY(-vecy)） */
+const HIT_FLOOR_TAN_Y_MIN = 3;
+const HIT_FLOOR_TAN_Y_MAX = 8;
 /** 原版 DEFENSE_DAMPING_X=1@30fps → 0.5/tick@60Hz（防御命中推挡衰减） */
 export const DEFENSE_DAMP_X = 0.5;
 /** 原版 HURT_Y_ADD_INAIR=3 / HURT_Y_ADD=6（空间量，不折算） */
@@ -205,7 +215,15 @@ export function endAction(f: FighterState, def: FighterDef | null): void {
   // 抓取吸附不在此清除：moveTarget 的释放需恢复目标重力/击飞回拉（目标侧
   // 状态），由 sim.stepMoveTargets 的吸附活性巡检统一处理（攻击态结束即释放）
   if (f.onGround) {
-    if (f.actionState !== ActionState.HURT_ING && f.actionState !== ActionState.HURT_DOWN) {
+    // 受击族（击飞/弹起/倒地）标签尾不得回位——击飞系状态由
+    // stepHurtFly/定格计时接管（原版 endAct 期间 _action.isHurtFlying 门
+    // 拦截 renderFloorAction，回位只能走 hurtResume/idle 链）。
+    if (
+      f.actionState !== ActionState.HURT_ING &&
+      f.actionState !== ActionState.HURT_FLYING &&
+      f.actionState !== ActionState.HURT_DOWN &&
+      f.actionState !== ActionState.HURT_DOWN_TAN
+    ) {
       f.actionState = ActionState.NORMAL;
     }
     idleLabel(f, def);
@@ -733,6 +751,7 @@ export function stepIntentsFor(
     f.actionState === ActionState.HURT_ING ||
     f.actionState === ActionState.HURT_FLYING ||
     f.actionState === ActionState.HURT_DOWN ||
+    f.actionState === ActionState.HURT_DOWN_TAN || // 弹起空中（原版 _action.isHurtFlying 仍真）
     f.actionState === ActionState.HURT_ACT_ING ||
     f.actionState === ActionState.WAN_KAI_ING ||
     f.ghostTicks > 0 // 瞬身步期间意图封锁（原版 renderAnimate 提前返回）
@@ -1073,7 +1092,18 @@ export function advanceAnimation(
   // 播放头停住——不推进、帧脚本不重复触发（原版帧脚本只在播放头进入时执行
   // 一次），判定区钉在冻结帧；物理/状态计时照常。解冻见 setLabel（换标签）
   // 与各动作入口（原版 doAction → goFrame）。
-  if (f.mcHold) return;
+  if (f.mcHold) {
+    // 定格倒地计时（切片 54，原版 FighterMC.renderHurtFly case 4 的
+    // _hurtDownFrame 计数在 renderAnimate 内、不受 _renderMainAnimate 冻结
+    // 影响）：击飞_倒 定格（mcHold）期间 hurtTimer 照常倒计，计到 riseFrames
+    // 切 起身（setLabel 换标签自然解冻）；计尽 recoverToNormal。
+    if (f.actionState === ActionState.HURT_DOWN) {
+      if (f.hurtTimer === riseFrames(def)) setLabel(f, def, '起身');
+      f.hurtTimer -= 1;
+      if (f.hurtTimer <= 0) recoverToNormal(f, def);
+    }
+    return;
+  }
   // 1. 采样当前帧
   onFrame?.(f.animFrame);
   // 2. 状态计时（按采样帧计数）
@@ -1181,7 +1211,9 @@ function isAirPose(f: FighterState): boolean {
 
 /**
  * 落地状态转移（物理判定落地后调用；vy 已清零）。
- * 击飞落地 → 倒地（击飞_倒 → 起身 → NORMAL）；跳跃落地 → 落地恢复。
+ * 跳跃落地 → 落地恢复。击飞落地不再在此直转倒地——三段式弹起（切片 54）
+ * 由 stepHurtFly 子状态机按原版 FighterMC.renderHurtFly 30Hz 推进：
+ * 击飞_落 →（重击）击飞_倒 /（轻击）击飞_弹 弹起 → 二次落地 击飞_倒。
  * 跳跃次数落地即恢复（原版 touchFloor()：_action.jumpTimes = _fighter.jumpTimes
  * 常量重填；受击落地由 recoverToNormal 恢复）。偏离修正记录：曾只在初始
  * 状态置 JUMP_TIMES_START——双跳/空中瞬步/快速下落耗尽后落地永不恢复，
@@ -1192,14 +1224,9 @@ function isAirPose(f: FighterState): boolean {
  * （站立/走 标签族）失效。现按空中姿势标签（isAirPose）同样走 落地恢复。
  */
 export function onLanded(f: FighterState, def: FighterDef | null): void {
-  if (f.actionState === ActionState.HURT_FLYING) {
-    f.actionState = ActionState.HURT_DOWN;
-    const down = def?.labels['击飞_倒']?.duration ?? DOWN_FRAMES_FALLBACK;
-    f.hurtTimer = down + riseFrames(def);
-    setLabel(f, def, '击飞_倒');
-    f.dampX = HURT_DAMP_X;
-    return;
-  }
+  // 击飞落地的状态转移归 stepHurtFly（30Hz 子状态机）——击飞期（HURT_FLYING）
+  // 落地后先以飞行姿势站地滑行，等待最短飞行门（HURT_JUMP_FRAMES）计满。
+  if (f.actionState === ActionState.HURT_FLYING) return;
   // 非受击落地：跳跃次数一律重填（任何空中路径耗尽后落地都可再跳）
   f.jumpTimes = JUMP_TIMES_START;
   // 触地续接（原版 touchFloor()：setTouchFloor 预约的标签在触地时接管，
@@ -1272,12 +1299,26 @@ export function enterHurt(
     f.actionState = ActionState.HURT_FLYING;
     f.hurtTimer = 0;
     f.hurtHeavy = hity > HIT_DOWN_BY_HITY;
+    // 三段式弹起子状态机（原版 playHurtFly 尾部：_hurtFlyState=1、
+    // _hurtFlyFrame=重击?0:HURT_JUMP_FRAME、_hurtYMin=当前 y、记录 _hity）
+    f.hurtFlyStage = 1;
+    f.hurtFlyTimer = f.hurtHeavy ? 0 : HURT_JUMP_FRAMES;
+    f.hurtFlyHold = 0;
+    f.hurtApexY = f.y;
+    f.hurtHity = hity;
     f.dampX = HURT_FLY_DAMP_X;
     if (hitx !== 0) f.facing = hitx > 0 ? -1 : 1;
+    // 飞行姿势定格（原版 goFrame("击飞", false)：isPlay=false 时间轴停住，
+    // 整段飞行显示 击飞 首帧——定格同时规避标签播尽顺流/血染后续标签帧）；
+    // 同名再命中（juggle 重入）需重置帧号（原版 goFrame 无条件 gotoAndStop）。
     setLabel(f, def, '击飞');
+    f.mcHold = true;
+    const flyRange = def?.labels['击飞'];
+    if (f.actLabel === '击飞' && flyRange) f.animFrame = flyRange.index + 1;
     return 'fly';
   }
   f.hurtHeavy = false;
+  f.hurtFlyStage = 0;
   f.actionState = ActionState.HURT_ING;
   // 原版：round(hurtTime/1000*30)+OFFSET，下限 4（动画帧）
   const hold = Math.round((hit.hurtTime * 30) / 1000) + HURT_HOLD_OFFSET;
@@ -1307,6 +1348,103 @@ export function enterGuardBreak(
   setLabel(f, def, '被打');
 }
 
+/** 倒地进入（原版 FighterMC.playHurtDown2 / renderHurtFly case2重击/case3 公共尾）：
+ *  HURT_DOWN + 击飞_倒 定格（goFrame(name,false) 首帧停）+ 定格计时
+ *  （重击 30 / 轻弹起二次落地 15 动画帧）后切 起身。阻尼偏离记录：
+ *  原版 setDamping(HIT_FLOOR_DAMPING_X=2/HEAVY=4)（60Hz 减量，远大于
+ *  HURT_DAMPING_X=0.1）——移植版沿用受击阻尼 HURT_DAMP_X，倒地滑步距离
+ *  与原版的系统性偏差归 GROUND_FRICTION 阻尼批次一并收编。 */
+function enterHurtDown(f: FighterState, def: FighterDef | null, heavy: boolean): void {
+  f.actionState = ActionState.HURT_DOWN;
+  f.hurtTimer = (heavy ? HIT_DOWN_HEAVY_FRAMES : HIT_DOWN_FRAMES) + riseFrames(def);
+  setLabel(f, def, '击飞_倒');
+  f.mcHold = true; // 原版 goFrame("击飞_倒", false)：躺地定格首帧
+  f.dampX = HURT_DAMP_X;
+  f.hurtFlyStage = 0;
+}
+
+/** 击飞落地特效事件（stepHurtFly 转换点产出，anim 层补 x/y 发出）。
+ *  震屏 y 已含原版 FighterEffectCtrler.shake 的 ×2（powY*2 进 EffectCtrler）。 */
+export interface HurtFlyFx {
+  id: string;
+  params: Record<string, number>;
+}
+
+/**
+ * 击飞三段式子状态机（原版 FighterMC.renderHurtFly 1→2→3→4，切片 54）。
+ * 30Hz 由 stepAnimation 在 advanceAnimation 之后调用（原版 renderAnimate 内
+ * nextFrame 之后的时序）；每动画帧一跳，转换点产出落地尘土/震屏特效事件。
+ *
+ * 状态流转：
+ * - 1 飞行：递减最短飞行门、跟踪最低 y（弹起深度基准）；门尽且触地 → 击飞_落；
+ * - 2 落地（展示 ≥2 动画帧后分流）：重击 → 击飞_倒 定格 + 重尘土/烟 + 震屏
+ *   （下落深度/25×(1+hity×0.1) 夹 [2,5]）；轻击 → 击飞_弹 定格 + 二次起飞
+ *   （setVecY(-下落深度/25 夹 [3,8])）+ HURT_DOWN_TAN + hit_floor + 震屏
+ *   （vecy 夹 [0.5,3]，实际恒 3）；
+ * - 3 弹起空中：展示 ≥2 动画帧且再次触地 → 击飞_倒 定格 + hit_floor_low +
+ *   震屏 shake(0,1)；随后走 HURT_DOWN 定格计时（15 动画帧）→ 起身。
+ *
+ * 偏离记录：死亡即 DEAD（enterDead 直接覆写，KO 飞尸无落地弹起段——原版
+ * renderHurtFly case 4 才转 DEAD，切片 48 KO 链已登记）；倒地阻尼见
+ * enterHurtDown；_curFrameCount<2 门以 hurtFlyHold 独立计数等价实现。
+ */
+export function stepHurtFly(f: FighterState, def: FighterDef | null): HurtFlyFx[] {
+  const fx: HurtFlyFx[] = [];
+  switch (f.hurtFlyStage) {
+    case 1: {
+      f.hurtFlyTimer -= 1;
+      if (f.hurtApexY > f.y) f.hurtApexY = f.y;
+      if (f.hurtFlyTimer <= 0 && f.onGround) {
+        f.hurtFlyStage = 2;
+        f.hurtFlyHold = 0;
+        setLabel(f, def, '击飞_落');
+      }
+      break;
+    }
+    case 2: {
+      f.hurtFlyHold += 1;
+      if (f.hurtFlyHold < 2) break; // 原版 _curFrameCount < 2 门
+      if (f.hurtHeavy) {
+        // 重击倒地（原版 case 2 重击分支）：不弹，直接 击飞_倒
+        enterHurtDown(f, def, true);
+        let vecy = ((f.y - f.hurtApexY) / 25) * (1 + f.hurtHity * 0.1);
+        if (vecy < 2) vecy = 2;
+        if (vecy > 5) vecy = 5;
+        fx.push({ id: 'shake', params: { x: 0, y: vecy * 2, time: 0 } });
+        fx.push({ id: 'hit_floor_heavy', params: {} });
+        fx.push({ id: 'hit_floor_yan', params: {} });
+        break;
+      }
+      // 轻击弹起（原版 case 2 轻击分支）：击飞_弹 定格 + 二次起飞
+      f.hurtFlyStage = 3;
+      f.hurtFlyHold = 0;
+      setLabel(f, def, '击飞_弹');
+      f.mcHold = true; // 原版 goFrame("击飞_弹", false)：弹起姿势定格飞行
+      let vecy = (f.y - f.hurtApexY) / 25;
+      if (vecy < HIT_FLOOR_TAN_Y_MIN) vecy = HIT_FLOOR_TAN_Y_MIN;
+      if (vecy > HIT_FLOOR_TAN_Y_MAX) vecy = HIT_FLOOR_TAN_Y_MAX;
+      f.vy = -vecy * SPEED_PLUS;
+      f.actionState = ActionState.HURT_DOWN_TAN;
+      const shakeY = vecy < 0.5 ? 0.5 : vecy > 3 ? 3 : vecy;
+      fx.push({ id: 'shake', params: { x: 0, y: shakeY * 2, time: 0 } });
+      fx.push({ id: 'hit_floor', params: {} });
+      break;
+    }
+    case 3: {
+      f.hurtFlyHold += 1;
+      if (f.hurtFlyHold < 2) break; // 原版 _curFrameCount < 2 门
+      if (!f.onGround) break; // 弹起空中：继续飞
+      // 二次落地（原版 case 3）：击飞_倒 定格 + hit_floor_low
+      enterHurtDown(f, def, false);
+      fx.push({ id: 'shake', params: { x: 0, y: 2, time: 0 } });
+      fx.push({ id: 'hit_floor_low', params: {} });
+      break;
+    }
+  }
+  return fx;
+}
+
+
 /** 防御命中硬直窗（原版 doDefenseHit：hurtTime/1000×FPS/5 夹 [5,10]；击飞类固定 10）。 */
 export function defenseHoldTicks(hit: HitDef): number {
   if (hit.hurtType !== 0) return DEFENSE_HOLD_DOWN;
@@ -1326,6 +1464,7 @@ export function enterDead(f: FighterState, def: FighterDef | null): void {
   f.hurtTimer = 0;
   f.isAllowBeHit = true;
   f.beHitGap = 0;
+  f.hurtFlyStage = 0; // 击飞子状态机停走（KO 直死路径无落地弹起，偏离记录）
   setLabel(f, def, '失败');
 }
 

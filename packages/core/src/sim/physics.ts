@@ -138,7 +138,6 @@ export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): v
     f.vy = wake(f.vy, f.dampY);
     f.x += f.vx * slowScale;
     f.y += f.vy * slowScale;
-    const impactVy = f.vy + f.gRamp; // 落地有效下沉速度（显式速度 + 本 tick 待施重力位移）
     const airborne = resolveLanding(f, stage);
     if (airborne) {
       // 重力斜坡（原版 applayG(12)：上升段清零；下落段每 tick 递增后施为位移；
@@ -156,30 +155,12 @@ export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): v
       // 落地瞬间预置下次离地的初值（原版 setInAir(false) → _g=4）
       f.gRamp = GRAVITY_START;
       if (wasAirborne) {
-        const wasHurtFly = f.actionState === ActionState.HURT_FLYING;
         onLanded(f, def);
         // 落地尘土（原版 FighterMcCtrler.touchFloor :1059 → effectCtrler.touchFloor
-        // → XG_luodi，控制器级无条件触发；击飞落地走 renderHurtFly case2/3 的
-        // hitFloor 系列 + shake）。事件 id 用 'touchFloor' 与时间轴 emit 同键，
-        // 渲染层按 tick+id 去重防双播。
-        if (wasHurtFly) {
-          // 击飞落地：重击（hity>5，原版 _isHeavyDownAttack）→ 重尘土 + 烟
-          const vecy = Math.min(Math.max(impactVy / SPEED_PLUS, 3), 8); // 原始速度空间夹 [3,8]
-          if (f.hurtHeavy) {
-            ctx.emit('effect', { id: 'hit_floor_heavy', x: f.x, y: f.y, params: {} });
-            ctx.emit('effect', { id: 'hit_floor_yan', x: f.x, y: f.y, params: {} });
-          } else {
-            ctx.emit('effect', { id: 'hit_floor', x: f.x, y: f.y, params: {} });
-          }
-          // 震屏（原版 effectCtrler.shake(0, vecy) → EffectCtrler.shake(0, vecy*2)）
-          ctx.emit('effect', {
-            id: 'shake',
-            x: f.x,
-            y: f.y,
-            params: { x: 0, y: vecy * 2, time: 0 },
-          });
-          f.hurtHeavy = false;
-        } else if (
+        // → XG_luodi，控制器级无条件触发）。击飞系落地尘土/震屏（hit_floor 系列）
+        // 由 stepHurtFly 三段式子状态机在转换点发出（切片 54，原版 renderHurtFly）。
+        // 事件 id 用 'touchFloor' 与时间轴 emit 同键，渲染层按 tick+id 去重防双播。
+        if (
           f.actionState === ActionState.NORMAL ||
           f.actionState === ActionState.JUMP_ING
         ) {

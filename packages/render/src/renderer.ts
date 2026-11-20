@@ -706,7 +706,7 @@ export class BattleRenderer {
       }
     }
     // 持续挂身特效收尾判定（原版 SpecialEffectView.render）：目标回
-    // NORMAL/HURT_DOWN（原版含 HURT_DOWN_TAN=24，移植版无该状态——偏离登记）
+    // NORMAL/HURT_DOWN/HURT_DOWN_TAN（弹起态同原版 24，切片 54 补齐）
     // → 转 finish 段 + resumeColor；目标快照缺席（团队 bench 下场）→ 即刻移除。
     // 先清后消费事件：同拍「收尾 + 重挂」顺序与原版一致。
     for (const [fid, fx] of this.specialFx) {
@@ -715,7 +715,9 @@ export class BattleRenderer {
         this.removeSpecialFx(fid);
       } else if (
         !fx.finishing &&
-        (f.actionState === ActionState.NORMAL || f.actionState === ActionState.HURT_DOWN)
+        (f.actionState === ActionState.NORMAL ||
+          f.actionState === ActionState.HURT_DOWN ||
+          f.actionState === ActionState.HURT_DOWN_TAN)
       ) {
         this.finishSpecialFx(fid);
       }

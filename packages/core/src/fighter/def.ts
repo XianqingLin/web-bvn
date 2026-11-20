@@ -221,6 +221,9 @@ export const ActionState = {
   HURT_ING: 21,
   HURT_FLYING: 22,
   HURT_DOWN: 23,
+  /** 弹起中（原版 FighterActionState.HURT_DOWN_TAN=24：轻击飞落地弹起的
+   *  二次起飞段，切片 54；重击不弹直接倒地） */
+  HURT_DOWN_TAN: 24,
   DEAD: 30,
   /** 万解中（开场演出 + doWanKai 帧驱动；形态切换后续切片） */
   WAN_KAI_ING: 50,
@@ -359,8 +362,6 @@ export function actionIdForLabel(def: FighterDef | null, label: string): string 
 /** SPEED_PLUS：原版速度类反编译值换算系数（GameConfig.SPEED_PLUS=30/FPS_GAME=0.5）。 */
 export const SPEED_PLUS = 0.5;
 
-/** HURT_DOWN 两段恢复的兜底帧数（标签缺失时用）。 */
-export const DOWN_FRAMES_FALLBACK = 12;
 export const RISE_FRAMES_FALLBACK = 9;
 
 /** 角色数据缺失时的物理兜底值（合成骨架角色）。 */

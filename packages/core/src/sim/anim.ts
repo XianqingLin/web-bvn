@@ -1,7 +1,13 @@
 import { Btn, type InputView } from '../input.js';
-import { FZQI_MAX, type CutinLockState } from '../state.js';
-import { ActionState, currentBodyRect, rectsOverlap, worldRect } from '../fighter/def.js';
-import { advanceAnimation, setLabel, stepIntentsFor } from '../fighter/machine.js';
+import { FZQI_MAX, type CutinLockState, type FighterState } from '../state.js';
+import {
+  ActionState,
+  currentBodyRect,
+  rectsOverlap,
+  worldRect,
+  type FighterDef,
+} from '../fighter/def.js';
+import { advanceAnimation, setLabel, stepHurtFly, stepIntentsFor } from '../fighter/machine.js';
 import { evaluateTriggerCondition, type BehaviorContext } from '../fighter/behaviors.js';
 import type { SimCtx } from './ctx.js';
 
@@ -76,6 +82,19 @@ export function stepIntents(ctx: SimCtx, views: InputView[]): void {
   }
 }
 
+/** 击飞三段式子状态机推进 + 特效发出（切片 54，原版 renderHurtFly 转换点的
+ *  hitFloor 系列 + shake；时序 = advanceAnimation 之后，与原版 nextFrame 后
+ *  调 renderHurtFly 对齐）。 */
+function stepHurtFlyEmit(
+  ctx: SimCtx,
+  f: FighterState,
+  def: FighterDef | null,
+): void {
+  for (const e of stepHurtFly(f, def)) {
+    ctx.emit('effect', { id: e.id, x: f.x, y: f.y, params: e.params });
+  }
+}
+
 // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）。
 // only（切片 22 切入 / 切片 53 复用）：冻结期只推进锁主（cutinLock）或瞬身者
 //（幽步冻结）的时间轴——kind+id 寻址，type 不参与。
@@ -87,6 +106,7 @@ export function stepAnimation(ctx: SimCtx, only?: Pick<CutinLockState, 'kind' | 
     const def = ctx.defOf(f);
     if (!def) {
       advanceAnimation(f, null);
+      stepHurtFlyEmit(ctx, f, null);
       continue;
     }
     // 帧触发器（behaviors 注册表分派；同帧触发按注册顺序执行；
@@ -121,6 +141,7 @@ export function stepAnimation(ctx: SimCtx, only?: Pick<CutinLockState, 'kind' | 
         if (handler) handler(ctx2, t.args, t.target);
       }
     });
+    stepHurtFlyEmit(ctx, f, def);
     // 命中续接检查（原版 FighterMcCtrler：checker 判定区与目标身体相交
     // → 切续接标签并清除；每动画帧检查，触发器之后）
     if (f.hitTargetChecker !== null && f.hitTarget !== null) {

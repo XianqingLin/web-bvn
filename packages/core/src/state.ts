@@ -112,6 +112,20 @@ export interface FighterState {
   airMove: boolean;
   /** 重击倒地标记（原版 FighterMC._isHeavyDownAttack：击飞 hity>5 → 落地播重尘土） */
   hurtHeavy: boolean;
+  /** 击飞三段式子状态（原版 FighterMC._hurtFlyState，切片 54）：0=无；
+   *  1=飞行（落地+计数门满足进 2）；2=击飞_落（2 动画帧后分流：重击→倒地，
+   *  轻击→弹起）；3=弹起空中（二次落地→倒地）。由 stepHurtFly 30Hz 推进 */
+  hurtFlyStage: number;
+  /** 击飞最短飞行门剩余动画帧（原版 _hurtFlyFrame：轻击 HURT_JUMP_FRAME=15，
+   *  重击 0——计数未尽不进 击飞_落） */
+  hurtFlyTimer: number;
+  /** 击飞段动画帧计数（原版 _curFrameCount<2 门：击飞_落/击飞_弹 至少展示
+   *  2 动画帧才允许下一跳转） */
+  hurtFlyHold: number;
+  /** 击飞段最低 y（原版 _hurtYMin：弹起速度 = 下落深度/25 夹 [3,8]） */
+  hurtApexY: number;
+  /** 击飞入射纵向速度（原版 _hity，原始速度空间：重击落地震屏公式用） */
+  hurtHity: number;
   /** 空中动作触地续接标签（原版 setTouchFloor；触地或新动作清除） */
   touchFloor: string | null;
   /** 血量上限（hp 系 op / 训练回复的 clamp 基准；原版 hpMax） */
@@ -664,6 +678,11 @@ export function createInitialState(config: SimConfig): SimState {
       applyG: true,
       airMove: false,
       hurtHeavy: false,
+      hurtFlyStage: 0,
+      hurtFlyTimer: 0,
+      hurtFlyHold: 0,
+      hurtApexY: 0,
+      hurtHity: 0,
       touchFloor: null,
       hpMax: fc.hp ?? DEFAULT_HP,
       airHitTimes: 1,
