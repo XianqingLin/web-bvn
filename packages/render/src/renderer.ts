@@ -308,6 +308,10 @@ export class BattleRenderer {
   private shakeAccMs = 0;
   private shakeOffX = 0;
   private shakeOffY = 0;
+  /** 持续震屏 hold 归属（切片 52）：原版 EffectCtrler 全局单实例——后发
+   *  startShake 覆盖前发的 hold，owner 供快照差分自动清理（doAction/doHurt/
+   *  idle 统一 endShake 的渲染层近似）。 */
+  private shakeHoldOwner: { kind: 'fighter' | 'assister'; id: number } | null = null;
 
   /** 相机聚焦（切片 26，原版 GameStage.cameraFocusOne/cameraResume）：super 必杀/
    *  万解聚焦施法者，cutinLock 清除即恢复双焦点（null = 双焦点，autoZoom 接管） */
@@ -683,6 +687,23 @@ export class BattleRenderer {
           this.shadowStates.delete(`fighter:${f.id}`);
         }
       }
+      // 持续震屏自动清理（切片 52）：原版 FighterMcCtrler doAction/idle/doHurt
+      // 统一 endShake——渲染层近似 = owner actionState 变化 / 死亡 / 快照缺席
+      //（残影同款范式，先清后消费事件）；辅助 owner 无 actionState，仅
+      // 退场（快照缺席）清。
+      if (this.shakeHoldOwner !== null) {
+        const o = this.shakeHoldOwner;
+        let clear = false;
+        if (o.kind === 'fighter') {
+          const f = snap.state.fighters.find((x) => x.id === o.id);
+          const p = this.prev.state.fighters.find((x) => x.id === o.id);
+          clear =
+            f === undefined || f.hp <= 0 || (p !== undefined && p.actionState !== f.actionState);
+        } else {
+          clear = !snap.state.assisters.some((x) => x.id === o.id);
+        }
+        if (clear) this.endShakeHold();
+      }
     }
     // 持续挂身特效收尾判定（原版 SpecialEffectView.render）：目标回
     // NORMAL/HURT_DOWN（原版含 HURT_DOWN_TAN=24，移植版无该状态——偏离登记）
@@ -878,6 +899,23 @@ export class BattleRenderer {
               this.glowColors.delete(fighter);
             }
           }
+        } else if (id === 'startShake') {
+          // 持续震屏（切片 52，原版 EffectCtrler.startShake：置 hold 保持项，
+          // advanceShake 的 holdX/holdY 通道接入；单槽覆盖语义同原版全局
+          // _shakeHoldX/Y）。params = { owner, ownerKind, x, y }。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          this.shakeSt.holdX = Number(p['x'] ?? 0);
+          this.shakeSt.holdY = Number(p['y'] ?? 0);
+          const owner = p['owner'];
+          const kind = p['ownerKind'];
+          this.shakeHoldOwner =
+            typeof owner === 'number' && (kind === 'fighter' || kind === 'assister')
+              ? { kind, id: owner }
+              : null;
+        } else if (id === 'endShake') {
+          // 震屏结束（原版 EffectCtrler.endShake：hold 清零 + gameStage 位移
+          // 即时回零——衰减 pow 若仍>0，下一 30fps 步进重新落位）。
+          this.endShakeHold();
         } else {
           // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
@@ -1474,6 +1512,16 @@ export class BattleRenderer {
     if (time <= 0) time = 500;
     s.loseX = Math.max(1, Math.ceil(s.powX / ((time / 1000) * 30)));
     s.loseY = Math.max(1, Math.ceil(s.powY / ((time / 1000) * 30)));
+  }
+
+  /** 持续震屏清除（原版 EffectCtrler.endShake：hold 清零 + gameStage 位移即时
+   *  回零，pow 衰减项不受影响；advanceShake 内 holdX/holdY 已参与 offset 合成）。 */
+  private endShakeHold(): void {
+    this.shakeSt.holdX = 0;
+    this.shakeSt.holdY = 0;
+    this.shakeOffX = 0;
+    this.shakeOffY = 0;
+    this.shakeHoldOwner = null;
   }
 
   /**
@@ -2163,6 +2211,9 @@ export class BattleRenderer {
     for (const [fid] of this.glowFx) this.setGlowFx(fid, null);
     this.glowColors.clear();
     this.glowFilterCache.clear();
+    this.shakeHoldOwner = null;
+    this.shakeSt.holdX = 0;
+    this.shakeSt.holdY = 0;
     this.app.stage.removeChild(
       this.bgFixed,
       this.blackLayer,

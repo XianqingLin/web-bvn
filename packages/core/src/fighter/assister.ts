@@ -402,8 +402,15 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
     ctx.emit('effect', { id: 'endBisha', x: ctx.self.x, y: ctx.self.y, params: {} });
     ctx.setCutin(null);
   },
+  // startShake：持续震屏（切片 52，语义同 behaviors.startShake；原版辅助语料
+  // 无实例，op 表保留与主战一致的转发）。
   startShake(ctx, args) {
-    ctx.emit('effect', { id: 'shake', x: ctx.self.x, y: ctx.self.y, params: { arg: args[0] } });
+    ctx.emit('effect', {
+      id: 'startShake',
+      x: ctx.self.x,
+      y: ctx.self.y,
+      params: { owner: ctx.self.id, ownerKind: 'assister', x: num(args[0]), y: num(args[1], 3) },
+    });
   },
   shake(ctx, args) {
     ctx.emit('effect', { id: 'shake', x: ctx.self.x, y: ctx.self.y, params: { arg: args[0] } });

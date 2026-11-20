@@ -301,8 +301,18 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   shine(ctx, args) {
     ctx.emit('effect', { id: 'shine', x: ctx.f.x, y: ctx.f.y, params: firstArg(args) });
   },
+  // startShake(x, y)：持续震屏（切片 52，原版 FighterEffectCtrler.startShake →
+  // EffectCtrler.startShake：置 _shakeHoldX/Y 保持项，渲染步进每帧
+  // stage.x/y = (hold + 衰减 pow)×direct 逐帧翻转，直至 endShake 或
+  // doAction/doHurt/idle 自动清理）。y 缺省 3（原版默认参）；与 shake（衰减
+  // 一次性）语义分立，不再混发。
   startShake(ctx, args) {
-    ctx.emit('effect', { id: 'shake', x: ctx.f.x, y: ctx.f.y, params: firstArg(args) });
+    ctx.emit('effect', {
+      id: 'startShake',
+      x: ctx.f.x,
+      y: ctx.f.y,
+      params: { owner: ctx.f.id, ownerKind: 'fighter', x: num(args[0]), y: num(args[1], 3) },
+    });
   },
   shake(ctx, args) {
     ctx.emit('effect', { id: 'shake', x: ctx.f.x, y: ctx.f.y, params: firstArg(args) });

@@ -91,6 +91,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `effect`（id `shine`） | `params { color, alpha }` | 全屏白闪（原版 EffectCtrler.shine：KO 时 0xFFFFFF/α0.5，角色时间轴 shine 为 α0.3；平局省略） |
 | `effect`（id `buffUp`） | `params { fighter, kind }` | buff 视觉（切片 51，原版 FighterBuffCtrler speedUp/attackUp/defenseUp → doEffectById + doBuffEffect）：`kind` speed/power/defense → 一次性 `buff_effect_*` 火花（施加点 direct=1 原版缺省朝向）+ 持续挂身光环 `buff_*`（渲染层单实例去重——原版重复施加叠加重复光环视为缺陷偏离）；光环熄灭由渲染层按快照 `buffs` 差分（buff 计满/角色死亡/下场）。重复施加照发事件（一次性火花 = 刷新脉冲） |
 | `effect`（id `startGlow`/`endGlow`） | `params { fighter, isSuper? }` | 钢身发光颜色（切片 51，原版 FighterMcCtrler.setSteelBody → FighterEffectCtrler.startGlow/endGlow GlowFilter）：`isSuper` → 黄 0xFFFF00（语料 `(true,true)` 18 处），否则白。**开关态以快照 `steelBody` 差分为准**（endAct 等 sim 静默清钢身不发事件），事件只携色；渲染 = 发光克隆精灵垫角色层之下（原版 BitmapFilterView knockout 独立位图等价，parts 子层不克隆） |
+| `effect`（id `startShake`/`endShake`） | `params { owner, ownerKind, x, y }`（endShake 无参） | 持续震屏（切片 52，原版 FighterEffectCtrler.startShake → EffectCtrler.startShake 置 `_shakeHoldX/Y` 保持项 + endShake 清 hold 并 stage 位移回零；与 `shake` 衰减一次性分立）。`x`/`y` = 保持震幅（`y` 缺省 3 原版默认参）。hold 全局单槽（原版 EffectCtrler 单实例，后发覆盖前发）；**自动清理以渲染层快照差分近似**原版 doAction/doHurt/idle 统一 endShake：owner actionState 变化 / 死亡 / 快照缺席（辅助 owner 仅缺席）；endShake 事件全局清（pow 衰减项不受影响） |
 
 每个事件带 `tick` 号；渲染层自行处理去重与插值，不得回读 sim 内部状态——**快照 + 事件队列是 render 的唯一输入**。
 
