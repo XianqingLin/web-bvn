@@ -36,13 +36,22 @@ const INTRO_START_TICKS = 156;
 /** 字样段（step 7）：出场后不可跳（原版 _step<5 才可 skip） */
 export const INTRO_STEP_START = 7;
 
-// —— 团队回合结束演出（切片 36，原版 GameEndCtrler） ——
+// —— 回合结束演出（切片 36 团队 + 终局演出收编非训练通用；原版 GameEndCtrler） ——
 /**
- * 回合结束演出时长（原版胜利动作 hold 3s × FPS_GAME=60）。原版的 showEnd KO
- * 字样 UI（10s 上限，动画完成回调提前）与 transIn 转场不建模——port 以固定
- * 3s 胜利动作 + 全程可跳（原版仅 step2 可跳，偏离记录）折算。
+ * KO 字样窗口（winApplied 门）：原版 KO 后 GameCtrler.pause 500ms + KO 字样
+ * 47 帧 @30fps（startKOmc ko 段，帧脚本 frame190 COMPLETE）+ 败方飞尸落地
+ * （慢动作省略，偏离记录）→ 胜方字样/WIN 姿势在此窗口后落地。折算 30+94≈124，
+ * 取 120（2s）。
+ */
+export const WIN_TEXT_GATE_TICKS = 120;
+/**
+ * 胜利动作 hold（原版胜利姿势 3s × FPS_GAME=60），自 winApplied 起算；
+ * 终局/换人推进 = WIN_TEXT_GATE_TICKS + ROUND_END_TICKS。原版的 transIn
+ * 转场不建模——port 全程可跳（原版仅 step2 可跳，偏离记录）。
  */
 export const ROUND_END_TICKS = 180;
+/** 演出总时长（KO 字样窗口 + 胜利动作；换人/终局推进与 skip 基准）。 */
+export const ROUND_END_TOTAL_TICKS = WIN_TEXT_GATE_TICKS + ROUND_END_TICKS;
 /**
  * 胜方回合间血量回复比例（原版 0.165×(timeRate+1)，timeRate = 剩余回合时间比；
  * 移植版无回合计时器 → timeRate=1 → 0.33。比例量不折算，偏离记录）。
@@ -145,19 +154,27 @@ function introHoldTicks(step: number): number {
 //    + GameEndCtrler + GameStage.resetFight + GameStartCtrler.start1v1） ——
 
 /**
- * 团队模式 KO → 回合结束演出置位（原版 doGameEnd → GameEndCtrler.initlize）。
- * 非 team 模式/演出已置位不重复置位——1v1 的结束判定仍归 app 层 checkKo。
- * 胜方同 tick 亦死（双 KO）→ draw（原版 isDrawGame）。
+ * KO → 回合结束演出置位（原版 doGameEnd → GameEndCtrler.initlize；非训练对局
+ * 通用——team 换人 + 1v1 终局同一状态机，1v1 的结束判定自 app 层 checkKo 收编
+ * 进 sim）。演出已置位不重复置位；胜方同 tick 亦死（双 KO）→ draw（原版
+ * isDrawGame）。
+ * 同拍表现事件（原版 FightUI.playKO）：白闪 + 屏震（hit_end 特效省略，偏离记录）。
  */
 export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
+  if (ctx.training || ctx.state.roundEnd != null) return;
   const teams = ctx.state.match.teams;
-  if (!teams || ctx.state.roundEnd != null) return;
-  const loserSide = teams.p1.some((s) => s.id === loser.id) ? 1 : 2;
+  const loserSide: 1 | 2 = teams
+    ? teams.p1.some((s) => s.id === loser.id)
+      ? 1
+      : 2
+    : loser.id === 1
+      ? 1
+      : 2;
   const winnerSide: 1 | 2 = loserSide === 1 ? 2 : 1;
   const winner = ctx.state.fighters.find((f) => f.id !== loser.id) ?? null;
-  const loserSlot = (loserSide === 1 ? teams.p1 : teams.p2).find(
-    (s) => s.id === loser.id,
-  );
+  const loserSlot = teams
+    ? (loserSide === 1 ? teams.p1 : teams.p2).find((s) => s.id === loser.id)
+    : undefined;
   ctx.state.roundEnd = {
     winnerSide,
     winnerId: winner?.id ?? -1,
@@ -166,10 +183,13 @@ export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
     loserComicType: loserSlot?.comicType ?? -1,
     draw: winner !== null && winner.hp <= 0,
     winApplied: false,
+    perfect: false,
     hold: 0,
     over: false,
   };
   ctx.emit('round:end', { round: ctx.state.match.round, winner: winnerSide });
+  ctx.emit('effect', { id: 'shine', params: 0xffffff });
+  ctx.emit('effect', { id: 'shake', params: { x: 5, y: 0, time: 1.5 } });
 }
 
 /**
@@ -199,9 +219,16 @@ export function stepPassivePhysics(ctx: SimCtx, f: FighterState): void {
   }
 }
 
-/** 演出计满分流：换人入场或终局（原版 GameCtrler.runNext）。 */
+/** 演出计满分流：1v1 终局或换人入场（原版 GameCtrler.runNext/fightFinish）。 */
 export function advanceRoundEnd(ctx: SimCtx, re: RoundEndState): void {
-  const teams = ctx.state.match.teams!;
+  const teams = ctx.state.match.teams;
+  if (!teams) {
+    // 1v1 终局（原版 nextFighter 无备选 → fightFinish；无换人）。
+    // 平局 = 双 KO（原版 drawGame 重开该轮——port 单局制判和局，winner 0，
+    // app 分流；偏离记录）
+    finishMatch(ctx, re.draw ? 0 : re.winnerSide);
+    return;
+  }
   if (re.draw) {
     // 平局（原版 startNextTeamFight drawGame 分支）：双侧均有备 → 双方换人
     // 全量开场；一侧耗尽 → 该侧判负终局；双侧耗尽 → 按胜方侧判定（原版该
@@ -248,12 +275,13 @@ export function advanceRoundEnd(ctx: SimCtx, re: RoundEndState): void {
 /**
  * 终局（原版 fightFinish）：match:over 表现事件 + 冻结待 app 切结算。
  * 演出态保留（over=true），tickRoundEnd 继续跑动画直至场景切换。
+ * winner 0 = 平局（1v1 双 KO，胜场不计）。
  */
-function finishMatch(ctx: SimCtx, winner: 1 | 2): void {
+function finishMatch(ctx: SimCtx, winner: 0 | 1 | 2): void {
   const re = ctx.state.roundEnd!;
   re.over = true;
   if (winner === 1) ctx.state.match.p1Wins += 1;
-  else ctx.state.match.p2Wins += 1;
+  else if (winner === 2) ctx.state.match.p2Wins += 1;
   ctx.emit('match:over', { winner });
 }
 

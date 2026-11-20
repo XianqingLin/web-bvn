@@ -128,21 +128,25 @@ describe('团队装配（切片 36）', () => {
       [1, 0, Btn.attack],
       [650, 0, 0], // p1 挨打 → 被打 硬直解除（hurtTime 300 @30Hz）
       [1, Btn.attack, 0],
-      [40, 0, 0],
+      [260, 0, 0], // KO@~30 → hold≈230（过 WIN 门、未达换人推进）
     ]);
-    // KO 已置位：胜方 id1、败方 id2 死亡（KO 当拍，WIN 演出下一 tick 才应用）
+    // KO 已置位：胜方 id1、败方 id2 死亡（KO 当拍；WIN 演出在 KO 字样窗口
+    // WIN_TEXT_GATE=120 计满后才应用）
     const reIdx = res.snaps.findIndex((s) => s.state.roundEnd != null);
     expect(reIdx).toBeGreaterThanOrEqual(0);
     const reSnap = res.snaps[reIdx]!;
     expect(reSnap.state.roundEnd!.winnerId).toBe(1);
     expect(reSnap.state.roundEnd!.loserId).toBe(2);
-    // WIN 应用后（tickRoundEnd 首拍）：actionState=WIN_ING + 胜利 label + 血量恢复
+    // KO 字样窗口内 WIN 不应用（原版 pause+KO 字样期胜方维持当前动作）
+    const gateSnap = res.snaps[reIdx + 60]!;
+    expect(gateSnap.state.roundEnd!.winApplied).toBe(false);
+    // WIN 应用后：actionState=WIN_ING + 胜利 label + 血量恢复
     const winSnap = res.snaps.find((s) => s.state.roundEnd?.winApplied === true)!;
     const winner = winSnap.state.fighters.find((f) => f.id === 1)!;
     expect(winner.actionState).toBe(ActionState.WIN_ING);
     expect(winner.actLabel).toBe('胜利');
     expect(winner.hp).toBeCloseTo(70 + 30 * 0.33, 6);
-    // 演出计满（180 tick，空输入不跳）→ 换人：id4 入场
+    // 演出计满（WIN_TEXT_GATE 120 + 胜利动作 180，空输入不跳）→ 换人：id4 入场
     const cont = play(res.sim, [[220, 0, 0]]);
     const end = stateOf(cont);
     expect(end.roundEnd).toBeUndefined();
@@ -174,7 +178,7 @@ describe('团队装配（切片 36）', () => {
     const cfg = makeTeamConfig({ p2Roster: [2, 6] });
     const res = play(new Sim(cfg), [
       [1, Btn.attack, 0],
-      [260, 0, 0],
+      [420, 0, 0], // KO@~30 → 换人推进 hold 300@~330 + 入场开场起步
     ]);
     const end = stateOf(res);
     expect(end.fighters.map((f) => f.id)).toEqual([1, 6]);
@@ -197,7 +201,7 @@ describe('团队装配（切片 36）', () => {
     const cfg = makeTeamConfig({ p2Roster: [2] });
     const res = play(new Sim(cfg), [
       [1, Btn.attack, 0],
-      [260, 0, 0],
+      [420, 0, 0], // KO@~30 → 终局推进 hold 300@~330 → match:over + over 冻结
     ]);
     const end = stateOf(res);
     expect(end.roundEnd?.over).toBe(true);
@@ -210,15 +214,15 @@ describe('团队装配（切片 36）', () => {
   });
 
   it('两轮换人打满 → 胜方侧终局判定', () => {
-    // 节拍：roundEnd hold 180 + 换人开场（focus 30 + gap 18 + resume 6 + banner
-    // 156 ≈ 210）→ 入场后可操作窗口在 KO 后 ~400 tick 起，攻击窗口取 450+
+    // 节拍：KO 字样窗口 120 + 胜利动作 180 = 换人推进 hold 300；换人开场
+    // ≈282 tick → 入场后可操作窗口在 KO 后 ~610 tick 起，攻击窗口取 650+
     const res = play(new Sim(makeTeamConfig()), [
       [1, Btn.attack, 0],
-      [450, 0, 0], // id2 败 → id4 入场（演出计满）
+      [650, 0, 0], // id2 败@~31 → id4 入场@~331，开场收@~613
       [1, Btn.attack, 0],
-      [500, 0, 0], // id4 败 → id6 入场
+      [720, 0, 0], // id4 败@~682 → id6 入场@~982，开场收@~1264
       [1, Btn.attack, 0],
-      [450, 0, 0], // id6 败 → p2 耗尽 → match:over
+      [650, 0, 0], // id6 败@~1404 → p2 耗尽 → match:over@~1704
     ]);
     expect(res.events.some((e) => e.type === 'match:over' && e.payload['winner'] === 1)).toBe(true);
     const end = stateOf(res);
@@ -229,21 +233,56 @@ describe('团队装配（切片 36）', () => {
   it('确定性：团队流程两遍全量状态哈希一致', () => {
     const segs: [number, number, number][] = [
       [1, Btn.attack, 0],
-      [450, 0, 0],
+      [650, 0, 0],
       [1, Btn.attack, 0],
-      [500, 0, 0],
+      [720, 0, 0],
       [1, Btn.attack, 0],
-      [450, 0, 0],
+      [650, 0, 0],
     ];
     const a = play(new Sim(makeTeamConfig()), segs);
     const b = play(new Sim(makeTeamConfig()), segs);
     expect(a.sim.serializeState()).toBe(b.sim.serializeState());
   });
 
-  it('1v1（无 teams）零漂移：roundEnd/teams 不落键', () => {
+  it('1v1 终局演出收编：KO 置位 roundEnd（teams 不落键）→ hold 计满 match:over', () => {
     const def = makeDef('test');
     const cfg: SimConfig = {
       seed: 1,
+      stage: { leftBound: 0, rightBound: 1000, groundY: 500, bottomY: 600, floors: [] },
+      fighters: [
+        { id: 1, x: 100, hp: 25, def },
+        { id: 2, x: 130, hp: 25, def },
+      ],
+    };
+    const res = play(new Sim(cfg), [
+      [1, Btn.attack, 0],
+      [200, 0, 0], // KO@~30 → hold≈170：KO 字样窗口过、WIN 已应用
+    ]);
+    const st = stateOf(res);
+    // 终局演出置位（1v1 与 team 同一状态机，原版 GameEndCtrler 通用语义）
+    expect(st.roundEnd).toBeDefined();
+    expect(st.roundEnd!.winnerId).toBe(1);
+    expect(st.roundEnd!.loserId).toBe(2);
+    expect(st.roundEnd!.winApplied).toBe(true);
+    // 胜方未满血（挨过 p2 首击？无——p1 hp 25 满血反杀）→ perfect
+    expect(st.roundEnd!.perfect).toBe(true);
+    // 1v1 无回血（原版 case1 isTeamMode 门）
+    expect(st.fighters.find((f) => f.id === 1)!.hp).toBe(25);
+    expect(st.match.teams).toBeUndefined();
+    // 演出未计满：无 match:over
+    expect(res.events.some((e) => e.type === 'match:over')).toBe(false);
+    // hold 计满 → 终局（match:over winner 1）
+    const cont = play(res.sim, [[200, 0, 0]]);
+    expect(cont.events.some((e) => e.type === 'match:over' && e.payload['winner'] === 1)).toBe(true);
+    expect(stateOf(cont).roundEnd?.over).toBe(true);
+    expect(stateOf(cont).match.p1Wins).toBe(1);
+  });
+
+  it('1v1 训练模式不置位 roundEnd（训练语义不打断）', () => {
+    const def = makeDef('test');
+    const cfg: SimConfig = {
+      seed: 1,
+      training: true,
       stage: { leftBound: 0, rightBound: 1000, groundY: 500, bottomY: 600, floors: [] },
       fighters: [
         { id: 1, x: 100, hp: 25, def },
@@ -256,9 +295,6 @@ describe('团队装配（切片 36）', () => {
     ]);
     const st = stateOf(res);
     expect(st.roundEnd).toBeUndefined();
-    expect(st.match.teams).toBeUndefined();
-    // 1v1 KO 不置位（结束判定归 app 层）
     expect(res.events.some((e) => e.type === 'match:over')).toBe(false);
-    expect(st.fighters.find((f) => f.id === 2)!.hp).toBe(0);
   });
 });

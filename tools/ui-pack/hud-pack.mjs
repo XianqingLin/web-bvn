@@ -323,6 +323,40 @@ await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
   };
 }
 
+// —— 结算字样 KO 段（回合结算流程收编）：XFL 标签 ko@144，帧脚本实证
+// （FFDec -export script：mc_043_42.as frame190 stop+COMPLETE）→ 播 XFL
+// 144..190 = PNG 145..191，47 帧 @30fps，末帧空黑（播完即隐，运行时无需定格）。
+// 摆位：playKO2 设 startKOmc.y=0（showStart 的 -50 被覆写）→ PNG(0,0) 落
+// ui_fight (13,103)（canvasOrigin 换算同 startKO 段）。
+{
+  const dir = spriteDir(228, 'startKOmc 字样');
+  const KO_FROM = 145; // XFL 帧 144 = FFDec PNG 145（XFL = PNG - 1）
+  const KO_FRAMES = 47; // XFL 144..190
+  mkdirSync(join(OUT_ASSETS, 'startko-ko'), { recursive: true });
+  for (let i = 0; i < KO_FRAMES; i++) {
+    copyFileSync(join(dir, `${KO_FROM + i}.png`), join(OUT_ASSETS, 'startko-ko', `${i + 1}.png`));
+  }
+  el['startko-ko'] = 'ui/hud/startko-ko';
+}
+
+// —— 胜利字样（winnermc = mc_042，sprite 221，嵌套于 mc_043 winner 段）：
+// 帧脚本实证（mc_042_44.as）：自身时间轴 1..28 "Winner" 缩放入场；frame29 非
+// perfect stop+COMPLETE（定格 Winner）；perfect 续播至 frame56 stop（定格
+// Winner+Perfect）。动画期 mc_043 停在帧 210 等 COMPLETE（不随父时间轴走）→
+// 必须独立烘焙独立驱动。摆位（mc_043 帧脚本 frame200：winnermc.x=$winnerX、
+// y=$winnerY=90；FightUI.showWinner：$winnerX = 30|546 按胜方侧、startKOmc.y=30）
+// → 原点 ui_fight = (30|546, 120)。PNG(0,0) = sprite 原点（各帧内容全正坐标，
+// 帧间对齐由 FFDec 统一画布保证；目检项）。
+{
+  const dir = spriteDir(221, 'winnermc 胜利字样');
+  const WIN_FRAMES = 56;
+  mkdirSync(join(OUT_ASSETS, 'winnerko'), { recursive: true });
+  for (let i = 1; i <= WIN_FRAMES; i++) {
+    copyFileSync(join(dir, `${i}.png`), join(OUT_ASSETS, 'winnerko', `${i}.png`));
+  }
+  el['winnerko'] = 'ui/hud/winnerko';
+}
+
 // ---------- 3. baked/hud.json ----------
 const doc = {
   schema: 'bvn/hud@1',
@@ -404,6 +438,16 @@ const doc = {
     canvasOrigin: [13, 103],
     pos: [13, 53],
     ...(startKONumSpec ? { num: startKONumSpec } : {}),
+  },
+  /** 结算字样（回合结算流程收编）：ko = startKOmc KO 段（XFL 144..190，47 帧
+   *  @30fps，末帧空黑），pos = ui_fight 摆放点（playKO2 y=0 + PNG 画布原点）；
+   *  winner = 嵌套 winnermc（sprite 221）独立时间轴，frames = 56（帧脚本
+   *  frame29 非 perfect 定格 / frame56 perfect 定格），perfectFrom = Perfect
+   *  段起始资产帧号，posP1/posP2 = 原点 ui_fight 摆位（$winnerX 30|546 按胜方
+   *  侧、$winnerY 90 + showWinner startKOmc.y=30）。 */
+  endKO: {
+    ko: { frames: 47, fps: 30, pos: [13, 103] },
+    winner: { frames: 56, perfectFrom: 30, posP1: [30, 120], posP2: [546, 120] },
   },
 };
 

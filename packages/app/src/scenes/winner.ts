@@ -60,8 +60,9 @@ export class WinnerScene implements Scene {
 
   constructor(
     private readonly flow: Flow,
-    /** 胜者位次（1/2） */
-    private readonly winner: 1 | 2,
+    /** 胜者位次（1/2；0 = 平局/双 KO——无立绘无台词，仅按钮，原版
+     *  WinnerStage winnerId 缺失 → f0.visible=false 语义） */
+    private readonly winner: 0 | 1 | 2,
     /** 联机 socket（EXIT 时关闭；dev 为 null） */
     private readonly socket: WsLike | null,
   ) {}
@@ -255,8 +256,10 @@ export class WinnerScene implements Scene {
     parent.addChild(hit);
   }
 
-  /** 胜者 select 元数据（select.json chars；随机项在战斗前已解析为具体角色 id）。 */
+  /** 胜者 select 元数据（select.json chars；随机项在战斗前已解析为具体角色 id）。
+   *  平局（winner 0）= 无立绘无台词。 */
   private winnerEntry(): SelectEntry | null {
+    if (this.winner === 0) return null;
     const { p1, p2 } = picksOf(this.flow);
     const fighterId = this.winner === 1 ? p1.fighter : p2.fighter;
     return this.select?.find((c) => c.id === fighterId) ?? null;

@@ -44,12 +44,13 @@ import {
   endIntro,
   INTRO_STEP_START,
   isBishaOrWanKaiState,
-  ROUND_END_TICKS,
+  ROUND_END_TOTAL_TICKS,
   stepFighterFlow,
   stepIntroAdvance,
   stepMatchFlow,
   stepPassivePhysics,
   WIN_RECOVER_LOST_RATE,
+  WIN_TEXT_GATE_TICKS,
 } from './sim/flow.js';
 
 /**
@@ -472,25 +473,30 @@ export class Sim {
     this.stepInputs(inputs);
     if (!re.over) {
       // 跳过（原版 GameEndCtrler.skip 仅 step2 可跳；port 全程可跳，偏离记录）
-      if (this.views.some((v) => v.justDown(Btn.back))) re.hold = ROUND_END_TICKS;
-      // 胜方胜利动作 + 血量恢复（原版 case1：isAllowWinState 等待——必杀/万解
-      // 施法中不切入，收尾后再落 WIN；恢复 = addHpLosePercent(0.33)，无回合
-      // 计时器的折算，偏离记录）
+      if (this.views.some((v) => v.justDown(Btn.back))) re.hold = ROUND_END_TOTAL_TICKS - 1;
+      // 胜方胜利动作（原版 case1：KO 字样窗口 WIN_TEXT_GATE 过后等必杀/万解收尾
+      // ——isAllowWinState 等待门收编为 hold 门；perfect = 满血判定（原版
+      // FightUI.showWinner $perfect，WIN 回血前取样）；血量恢复仅 team
+      // （原版 case1 isTeamMode 门，1v1 无恢复））
       const winner = this.state.fighters.find((f) => f.id === re.winnerId) ?? null;
       if (
         !re.draw &&
         winner !== null &&
         winner.hp > 0 &&
         !re.winApplied &&
+        re.hold >= WIN_TEXT_GATE_TICKS &&
         !isBishaOrWanKaiState(winner.actionState)
       ) {
         re.winApplied = true;
+        re.perfect = winner.hp >= winner.hpMax;
         winner.actionState = ActionState.WIN_ING;
         setLabel(winner, this.defOf(winner), '胜利');
-        winner.hp = Math.min(
-          winner.hpMax,
-          winner.hp + (winner.hpMax - winner.hp) * WIN_RECOVER_LOST_RATE,
-        );
+        if (this.state.match.teams != null) {
+          winner.hp = Math.min(
+            winner.hpMax,
+            winner.hp + (winner.hpMax - winner.hp) * WIN_RECOVER_LOST_RATE,
+          );
+        }
       }
     }
     // 回气/buff 照跑（原版冻结期 renderAnimate 无条件）
@@ -501,8 +507,8 @@ export class Sim {
     // 贴帧音/收招触发在此到来）
     if (this.state.tick % 2 === 0) stepAnimation(this.ctx);
     if (re.over) return; // 终局已发，冻结待 app 切结算
-    if (re.winApplied || re.draw) re.hold += 1;
-    if (re.hold >= ROUND_END_TICKS) advanceRoundEnd(this.ctx, re);
+    re.hold += 1;
+    if (re.hold >= ROUND_END_TOTAL_TICKS) advanceRoundEnd(this.ctx, re);
   }
 
   // 1. 输入处理：位图 → 缓冲器 → 输入视图

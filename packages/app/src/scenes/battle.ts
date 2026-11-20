@@ -386,35 +386,25 @@ export class BattleScene implements Scene {
 
   /**
    * KO/终局表现事件 → 结算流转（训练模式回血 sim 门控不 KO）。
-   * 1v1：KO 演出 1.2s 后进结算立绘（原版 KO → WinnerStage 语义）；
-   * 团队：fighter:ko 不切场景（sim 内部走回合结束/换人，切片 36），
-   * 终局 match:over 事件后 600ms 进结算立绘（原版 fightFinish 终局流转）；
-   * solo（训练模式）：维持对局浮层——训练语义不打断练习（切片 29 偏离登记）。
+   * 训练（solo）：维持对局浮层——训练语义不打断练习（切片 29 偏离登记）；
+   * 1v1（local/net）：KO 后终局演出（KO 字样 → 败方/胜方特写 → winner 字样）
+   * 由 sim roundEnd 状态机驱动（渲染层消费），场景切换归 match:over 统一路径；
+   * 团队：fighter:ko 不切场景（sim 内部走回合结束/换人），终局 match:over 同路径。
    */
   private checkKo(events: SimSnapshot['events']): void {
-    if (this.flow.team) {
-      this.checkMatchOver(events);
+    if (this.flow.mode === 'solo') {
+      if (this.koSeen) return;
+      for (const ev of events) {
+        if (ev.type !== 'fighter:ko') continue;
+        const fighter = ev.payload['fighter'];
+        if (typeof fighter !== 'number') continue;
+        this.koSeen = true;
+        this.showResult(fighter === 1 ? 2 : 1);
+        break;
+      }
       return;
     }
-    if (this.koSeen) return;
-    for (const ev of events) {
-      if (ev.type !== 'fighter:ko') continue;
-      const fighter = ev.payload['fighter'];
-      if (typeof fighter !== 'number') continue;
-      this.koSeen = true;
-      const winner = fighter === 1 ? 2 : 1;
-      if (this.flow.mode === 'solo') {
-        this.showResult(winner);
-      } else {
-        window.setTimeout(() => {
-          if (this.dead) return;
-          void import('./winner.js').then(({ WinnerScene }) => {
-            this.ctx?.switchTo(new WinnerScene(this.flow, winner, this.socket));
-          });
-        }, 1200);
-      }
-      break;
-    }
+    this.checkMatchOver(events);
   }
 
   /** 团队终局事件（原版 fightFinish → WinnerStage）：match:over → 结算立绘。 */
@@ -425,10 +415,11 @@ export class BattleScene implements Scene {
       const winner = ev.payload['winner'];
       if (typeof winner !== 'number') continue;
       this.matchOverSeen = true;
+      const w = typeof winner === 'number' && (winner === 1 || winner === 2) ? winner : 0;
       window.setTimeout(() => {
         if (this.dead) return;
         void import('./winner.js').then(({ WinnerScene }) => {
-          this.ctx?.switchTo(new WinnerScene(this.flow, winner as 1 | 2, this.socket));
+          this.ctx?.switchTo(new WinnerScene(this.flow, w, this.socket));
         });
       }, 600);
       break;

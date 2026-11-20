@@ -409,28 +409,33 @@ export interface TeamsState {
 }
 
 /**
- * 团队回合结束/换人演出（原版 GameEndCtrler.render 状态机的 port；
- * 仅 team 模式 KO 置位，1v1 结束判定仍归 app 层）。step 语义（port 折算）：
- * winApplied 前等胜方必杀/万解收尾（原版 isAllowWinState 等待门）→ 落
- * WIN + 胜利 + 血量恢复（原版 case1）→ hold 计满换人/终局（原版 case2/3 +
- * runNext）。
+ * 回合结束演出（原版 GameEndCtrler.render 状态机的 port；非训练对局 KO 置位
+ * ——team 换人 + 1v1 终局同一状态机，1v1 无备选直接终局）。step 语义（port 折算）：
+ * KO 字样窗口（原版 GameCtrler.pause + KO 字样 + 败方飞尸，折算 WIN_TEXT_GATE）
+ * → winApplied 前等胜方必杀/万解收尾（原版 isAllowWinState 等待门）→ 落
+ * WIN + 胜利 + 血量恢复（原版 case1，仅 team）→ hold 计满换人/终局
+ * （原版 case2/3 + runNext）。
  */
 export interface RoundEndState {
   /** 本轮胜方（1/2） */
   winnerSide: 1 | 2;
   winnerId: number;
   loserId: number;
-  /** KO 时败方气量（换人气继承基准，原版 lastLoserQi） */
+  /** KO 时败方气量（换人气继承基准，原版 lastLoserQi；1v1 无换人仍抄录） */
   loserQi: number;
   /** KO 时败方 comicType（同系加成判定，原版 lastLoserData.comicType） */
   loserComicType: number;
   /** 平局（同 tick 双 KO / 胜方亦死；原版 isDrawGame → 双方换人） */
   draw: boolean;
-  /** 胜方 WIN 状态已落（false = 仍在等必杀/万解收尾） */
+  /** 胜方 WIN 状态已落（false = 仍在等 KO 字样窗口/必杀万解收尾） */
   winApplied: boolean;
-  /** winApplied 起已走演出 tick（原版 holdFrame 3s × FPS_GAME=60 折算） */
+  /** 胜方满血（原版 FightUI.showWinner $perfect = hp>=hpMax，WIN 回血前判定；
+   *  驱动 winnermc Perfect 段） */
+  perfect: boolean;
+  /** KO 起已走演出 tick（winApplied 门 = WIN_TEXT_GATE_TICKS，换人/终局 =
+   *  WIN_TEXT_GATE_TICKS + ROUND_END_TICKS） */
   hold: number;
-  /** true = 胜方侧无人可换，match:over 已发，冻结待 app 切结算 */
+  /** true = 胜方侧无人可换（1v1 恒终局），match:over 已发，冻结待 app 切结算 */
   over: boolean;
 }
 

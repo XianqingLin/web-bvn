@@ -1087,6 +1087,19 @@ export class BattleRenderer {
     if (target) this.camFocus = { kind: 'fighter', id: target.id };
   }
 
+  /**
+   * 回合结束特写（终局演出收编，原版 FightUI.playKO cameraFocusOne(loser) /
+   * renderEnd cameraFocusOne(winner)，zoom 3.5 同款）：winApplied 前聚焦败方
+   * （KO 飞尸特写），之后聚焦胜方（WIN 姿势特写）；over 定格保持。
+   * 平局不聚焦（原版 playKO(null) 无 focusOne）。每帧重设（updateCutin 在无锁
+   * 时清 camFocus，本方法随后覆写；updateIntro 优先）。
+   */
+  private updateRoundEnd(next: SimSnapshot): void {
+    const re = next.state.roundEnd;
+    if (re == null || re.draw || re.winnerId < 0) return;
+    this.camFocus = { kind: 'fighter', id: re.winApplied ? re.winnerId : re.loserId };
+  }
+
   /** 每渲染帧调用：插值推进。dtMs 自上次调用以来的毫秒数。 */
   update(dtMs: number): void {
     if (!this.next) return;
@@ -1130,6 +1143,7 @@ export class BattleRenderer {
     this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
     this.updateIntro(next);
+    this.updateRoundEnd(next);
     this.updateCamera(next, dtMs);
     // 世界抖动（原版 gameStage.x/y 整体位移）：叠加在相机变换之后（world+bgFixed）
     this.advanceShake(dtMs);
