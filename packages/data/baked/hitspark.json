@@ -354,6 +354,30 @@
       ],
       "blendMode": "add"
     },
+    "dash": {
+      "dir": "hitspark/dash",
+      "frames": 20,
+      "canvas": [
+        111,
+        70
+      ],
+      "origin": [
+        -100,
+        -53
+      ]
+    },
+    "dash_air": {
+      "dir": "hitspark/dash_air",
+      "frames": 22,
+      "canvas": [
+        68,
+        79
+      ],
+      "origin": [
+        -45,
+        -63
+      ]
+    },
     "touch_floor": {
       "dir": "hitspark/touch_floor",
       "frames": 7,

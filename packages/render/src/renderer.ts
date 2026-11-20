@@ -5,7 +5,7 @@
  * 动画帧/朝向取最新快照；相机纯渲染；HUD 读快照；
  * 表现事件按 tick 去重消费（不回读 sim 内部状态）。
  */
-import { Application, Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Application, Assets, ColorMatrixFilter, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 // 高级混合模式注册（darken/lighten/hard-light/subtract…走 BlendModeFilter 实现）。
 // pixi.js@8.22.0 的打包缺陷：主入口不引 advanced-blend-modes/init，不显式 import 则
 // 这些 blendMode 静默回退 normal（darken 白底直接画出来 = 白矩形块）。
@@ -191,6 +191,8 @@ export class BattleRenderer {
   /** front 层：前景（原版 0.1 视差，屏幕上比世界移动更快） */
   private mapFrontLayer: Container;
   private fighterLayer: Container;
+  /** 残影层（切片 47，原版 ShadowEffectView）：挂在角色层之下、地图层之上 */
+  private shadowLayer: Container;
   private bulletLayer: Container;
   private bulletGfx: Graphics;
   /** attacker 色块回退（独立道具缺图集条目时） */
@@ -302,6 +304,18 @@ export class BattleRenderer {
   private accMs = 0;
   private lastEventsTick = new Map<string, number>();
 
+  /** 残影（切片 47，原版 ShadowEffectView）：key = `${ownerKind}:${id}`；
+   *  r/g/b 为原版 ColorTransform 加色偏移（非 0 时挂 ColorMatrixFilter 近似）。
+   *  停止条件 = endShadow 事件 / 角色快照 actionState 变化（原版 doAction/idle/
+   *  doHurt 统一 endShadow 的渲染层近似——激活态不进 core，纯表现）。 */
+  private shadowStates = new Map<string, { r: number; g: number; b: number }>();
+  /** 残影快照序列（30Hz 步进：每 2 步拍一帧，alpha 0.8 起步每步 -0.1，≤0 移除） */
+  private shadowGhosts: { root: Container; alpha: number }[] = [];
+  private shadowAccMs = 0;
+  private shadowStep = 0;
+  /** 加色偏移滤镜缓存（同色残影共享一个 ColorMatrixFilter） */
+  private shadowFilters = new Map<string, ColorMatrixFilter>();
+
   /** 相机（逻辑坐标）：中心点 + 缩放因子（原版 GameCamera 语义：
    *  factor = 原版 zoom，1 = 满屏逻辑区；有效缩放 = fitZoom × factor）。
    *  缓动 = 原版 ease：逐帧 delta/5（tweenSpd = CAMERA_TWEEN_SPD/SPEED_PLUS_DEFAULT） */
@@ -320,6 +334,7 @@ export class BattleRenderer {
     this.mapLayer = new Container();
     this.mapFrontFixLayer = new Container();
     this.mapFrontLayer = new Container();
+    this.shadowLayer = new Container();
     this.fighterLayer = new Container();
     this.bulletLayer = new Container();
     this.bulletGfx = new Graphics();
@@ -345,6 +360,7 @@ export class BattleRenderer {
     //   world[ map < 角色 < 独立道具/飞行道具 < front_fix < front(视差) < 特效 ]
     this.world.addChild(
       this.mapLayer,
+      this.shadowLayer,
       this.fighterLayer,
       this.bulletLayer,
       this.mapFrontFixLayer,
@@ -578,6 +594,17 @@ export class BattleRenderer {
   }
 
   private consumeEvents(snap: SimSnapshot): void {
+    // 残影自动清除（切片 47）：原版 FighterMcCtrler.doAction/idle/doHurt 统一
+    // endShadow——渲染层近似 = 角色 actionState 变化即停（先清后消费事件，
+    // 同拍「清 + 重开」顺序与原版一致）。辅助无 actionState，仅靠显式 endShadow。
+    if (this.prev) {
+      for (const f of snap.state.fighters) {
+        const p = this.prev.state.fighters.find((x) => x.id === f.id);
+        if (p && p.actionState !== f.actionState) {
+          this.shadowStates.delete(`fighter:${f.id}`);
+        }
+      }
+    }
     for (const ev of snap.events) {
       const key = `${ev.tick}:${ev.type}:${String(ev.payload['id'] ?? '')}`;
       const last = this.lastEventsTick.get(key);
@@ -667,6 +694,29 @@ export class BattleRenderer {
           } else if (typeof p['arg'] === 'number') {
             this.doShake(0, p['arg'] * 2, 0);
           }
+        } else if (id === 'shadow') {
+          // 残影开始（切片 47，原版 FighterEffectCtrler.shadow → ShadowEffectView：
+          // 每特效帧截图留影，r/g/b = ColorTransform 加色偏移）。owner 寻址 =
+          // 角色/辅助精灵；激活态纯渲染层，不进 core。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const owner = p['owner'];
+          const kind = p['ownerKind'];
+          if (typeof owner === 'number' && (kind === 'fighter' || kind === 'assister')) {
+            this.shadowStates.set(`${kind}:${owner}`, {
+              r: Number(p['r'] ?? 0),
+              g: Number(p['g'] ?? 0),
+              b: Number(p['b'] ?? 0),
+            });
+          }
+        } else if (id === 'endShadow') {
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const owner = p['owner'];
+          const kind = p['ownerKind'];
+          if (typeof owner === 'number' && (kind === 'fighter' || kind === 'assister')) {
+            this.shadowStates.delete(`${kind}:${owner}`);
+          } else {
+            this.shadowStates.clear(); // 无 owner 旧事件兜底：全停
+          }
         } else {
           // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
@@ -674,10 +724,15 @@ export class BattleRenderer {
           // emit 同键，渲染层按 tick+id 去重防双播）。
           const sparkId = id === 'touchFloor' ? 'touch_floor' : id;
           if (this.hitspark?.effects[sparkId] && this.sparkTex.get(sparkId)) {
+            const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+            // direct = 发射者朝向（切片 47：dash/dash_air 帧位镜像，原版
+            // doEffectById(id, x, y, _target.direct)）
+            const direct = p['direct'] === -1 ? -1 : 1;
             this.spawnSparkById(
               sparkId,
               Number(ev.payload['x'] ?? 0),
               Number(ev.payload['y'] ?? 0),
+              direct,
             );
           }
         }
@@ -825,10 +880,13 @@ export class BattleRenderer {
     else if (eff.blendMode === 'hardlight') body.blendMode = 'hard-light';
     else if (eff.blendMode === 'lighten') body.blendMode = 'lighten';
     root.addChild(body);
-    // EffectView.start：MC 原点钉命中点；帧位 = origin×direct（followDirect 族镜像）
+    // EffectView.start（切片 47 对齐原语义）：MC 原点钉命中点；非旋转件
+    // display.scaleX = direct、display.x = orgX + offsetX×direct——父容器镜像
+    // 自动翻转子位偏移（offset×direct 数学等价），randRotate 件 direct 恒 1。
     root.position.set(x, y);
-    body.position.set(eff.followDirect ? eff.origin[0] * direct : eff.origin[0], eff.origin[1]);
+    body.position.set(eff.origin[0], eff.origin[1]);
     if (eff.randRotate) root.rotation = Math.random() * Math.PI * 2;
+    else root.scale.x = direct;
     this.fxLayer.addChild(root);
     this.sparkFx.push({ root, body, texs, accMs: 0, frame: 0 });
   }
@@ -849,6 +907,98 @@ export class BattleRenderer {
       e.root.destroy({ children: true });
     }
     if (done.length > 0) this.sparkFx = this.sparkFx.filter((e) => !done.includes(e));
+  }
+
+  /**
+   * 残影步进（切片 47，原版 ShadowEffectView.render 30Hz）：
+   *   - 拍照：每 2 个特效帧拍一帧（_addBpGap=1 → addBpFrame++ > 1），快照 = 角色
+   *     精灵当前帧（body 贴图 + 帧位 + 朝向缩放；blendMode 子层 parts 不拍——
+   *     残影语料均为本体动作，近似成立）；
+   *   - 衰减：每步 alpha −0.1（_alphaLose），起步 0.8（_alphaStart）→ 存活 8 步
+   *     ≈ 267ms，与原版同步；≤0 移除。
+   * 加色偏移（ColorTransform redOffset/greenOffset/blueOffset）用 ColorMatrixFilter
+   * 第 5 列加法近似，同色共享一个滤镜实例。
+   */
+  private updateShadows(dtMs: number, next: SimSnapshot): void {
+    this.shadowAccMs += dtMs;
+    const steps = Math.min(Math.floor(this.shadowAccMs / (1000 / 30)), 4);
+    if (steps <= 0) return;
+    this.shadowAccMs -= steps * (1000 / 30);
+    this.shadowStep += steps;
+    // 衰减存量残影
+    const dead: number[] = [];
+    for (let i = this.shadowGhosts.length - 1; i >= 0; i--) {
+      const gh = this.shadowGhosts[i]!;
+      gh.alpha -= 0.1 * steps;
+      gh.root.alpha = Math.max(gh.alpha, 0);
+      if (gh.alpha <= 0) dead.push(i);
+    }
+    for (const i of dead) {
+      const gh = this.shadowGhosts[i]!;
+      this.shadowLayer.removeChild(gh.root);
+      gh.root.destroy({ children: true });
+    }
+    if (dead.length > 0) this.shadowGhosts = this.shadowGhosts.filter((_, i) => !dead.includes(i));
+    // 拍照（每 2 特效帧）
+    if (this.shadowStep % 2 === 0) {
+      for (const [key, st] of this.shadowStates) {
+        const sp = this.shadowTargetOf(key, next);
+        if (!sp || !sp.root.visible || !sp.body.visible) continue;
+        const root = new Container();
+        const body = new Sprite(sp.body.texture);
+        body.position.set(sp.body.x, sp.body.y);
+        root.addChild(body);
+        root.position.set(sp.root.x, sp.root.y);
+        root.scale.set(sp.root.scale.x, sp.root.scale.y);
+        root.alpha = 0.8;
+        const filter = this.shadowFilterOf(st);
+        if (filter) {
+          root.filters = [filter];
+          filter.enabled = true;
+        }
+        this.shadowLayer.addChild(root);
+        this.shadowGhosts.push({ root, alpha: 0.8 });
+        // 拍照卡上限（原版存活 ~4 张；卡帧堆积防御）
+        while (this.shadowGhosts.length > 24) {
+          const old = this.shadowGhosts.shift()!;
+          this.shadowLayer.removeChild(old.root);
+          old.root.destroy({ children: true });
+        }
+      }
+    }
+    // 辅助退场清理（快照缺席即停残影）
+    for (const key of this.shadowStates.keys()) {
+      if (key.startsWith('assister:') && !this.shadowTargetOf(key, next)) {
+        this.shadowStates.delete(key);
+      }
+    }
+  }
+
+  /** 残影 key → 目标精灵（fighter:<id> / assister:<assisterId>）。 */
+  private shadowTargetOf(key: string, next: SimSnapshot): FighterSprite | null {
+    const colon = key.indexOf(':');
+    const kind = key.slice(0, colon);
+    const id = Number(key.slice(colon + 1));
+    if (kind === 'fighter') return this.sprites.get(id) ?? null;
+    const a = next.state.assisters.find((x) => x.id === id);
+    return a ? (this.assistSprites.get(a.ownerId) ?? null) : null;
+  }
+
+  /** 加色偏移滤镜（ColorTransform redOffset 系 → ColorMatrixFilter 第 5 列）。 */
+  private shadowFilterOf(st: { r: number; g: number; b: number }): ColorMatrixFilter | null {
+    if (st.r === 0 && st.g === 0 && st.b === 0) return null;
+    const key = `${st.r},${st.g},${st.b}`;
+    let f = this.shadowFilters.get(key);
+    if (!f) {
+      f = new ColorMatrixFilter();
+      // pixi v8 matrix getter 返回内部数组，原地改第 5 列（加色偏移）
+      const m = f.matrix;
+      m[4] = st.r / 255;
+      m[9] = st.g / 255;
+      m[14] = st.b / 255;
+      this.shadowFilters.set(key, f);
+    }
+    return f;
   }
 
   /** 全屏闪（原版 shine(color, alpha) → ShineEffectView：亮色 ADD / 暗色 DARKEN
@@ -1139,6 +1289,7 @@ export class BattleRenderer {
     this.updateBullets(prev, next, alpha);
     this.updateAssisters(prev, next, alpha);
     this.updateMcEffects(dtMs);
+    this.updateShadows(dtMs, next);
     this.updateSparkFx(dtMs);
     this.updateShines(dtMs);
     this.updateCutin(next, dtMs);
@@ -1582,6 +1733,10 @@ export class BattleRenderer {
     this.attackerSprites.clear();
     for (const e of this.mcEffects) e.root.destroy({ children: true });
     this.mcEffects = [];
+    for (const gh of this.shadowGhosts) gh.root.destroy({ children: true });
+    this.shadowGhosts = [];
+    this.shadowStates.clear();
+    this.shadowFilters.clear();
     this.app.stage.removeChild(
       this.bgFixed,
       this.blackLayer,

@@ -157,10 +157,16 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.y += num(args[1]) * SPEED_PLUS;
   },
   // dash(v)：target 分流——mc=突进（原版 setVelocity(speed×v×direct)，v 缺省 3），
-  // effect=瞬步尘土特效（原版 EffectCtrler.dash）
+  // effect=瞬步尘土特效（原版 FighterEffectCtrler.dash :98-105：isInAir 分流
+  // dash_air/dash，direct = 朝向进 params 供渲染层镜像）。
   dash(ctx, args, target) {
     if (target === 'effect') {
-      ctx.emit('effect', { id: 'dash', x: ctx.f.x, y: ctx.f.y, params: {} });
+      ctx.emit('effect', {
+        id: ctx.f.onGround ? 'dash' : 'dash_air',
+        x: ctx.f.x,
+        y: ctx.f.y,
+        params: { direct: ctx.f.facing },
+      });
       return;
     }
     const speedPlus = num(args[0], 3);
@@ -290,17 +296,28 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   },
 
   // —— 表现系补充（原版 FighterEffectCtrler，全部纯表现，core 只发事件） ——
-  // shadow(r,g,b)：残影开始
+  // shadow(r,g,b)：残影开始（owner 寻址 = 渲染层按角色/辅助挂 ShadowEffectView）
   shadow(ctx, args) {
     ctx.emit('effect', {
       id: 'shadow',
       x: ctx.f.x,
       y: ctx.f.y,
-      params: { r: num(args[0]), g: num(args[1]), b: num(args[2]) },
+      params: {
+        r: num(args[0]),
+        g: num(args[1]),
+        b: num(args[2]),
+        owner: ctx.f.id,
+        ownerKind: 'fighter',
+      },
     });
   },
   endShadow(ctx) {
-    ctx.emit('effect', { id: 'endShadow', x: ctx.f.x, y: ctx.f.y, params: {} });
+    ctx.emit('effect', {
+      id: 'endShadow',
+      x: ctx.f.x,
+      y: ctx.f.y,
+      params: { owner: ctx.f.id, ownerKind: 'fighter' },
+    });
   },
   // bisha(isSuper, face)：必杀特写（全屏演出）。原版 EffectCtrler.bisha：
   // GameCtrler.pause() 全场逻辑冻结 + 黑幕 + 特写立绘，endBisha 恢复——

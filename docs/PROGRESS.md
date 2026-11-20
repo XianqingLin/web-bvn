@@ -48,8 +48,17 @@
 
 ## 三、遗留池（低价值/待定，按需立项）
 
-- EffectCtrler 未消费特效：specialEffectId 持续类 / hit_end / startShake / buff 系；
-- effect 表未消费 id：shadow 残影 / slowDown；
+- **特效收编（2026-11-20 全面盘点，原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照）**——已完成：残影 shadow 系（切片 47）、瞬步尘土 dash/dash_air（切片 47）。剩余按观感收益排序：
+  1. **KO 终结演出链**：`hit_end` 打点特效（flow.ts 注释省略中）+ `kobg` KO 背景层 + shake(5,0,1.5) + 终结慢镜头 `slowDown(2,0)`；
+  2. **slowDown 全局慢放**（角色语料 86 处；原版影响逻辑速度 GameCtrler.slow——需定夺进 sim 或登记偏离只做表现节奏）；
+  3. **specialEffectId 持续挂身特效**：fire_ing/ice_ing/shock_ing（受击表 FIRE/ICE/ELECTRIC 触发，挂受击者身上持续）；
+  4. buff 视觉特效 6 项（buff 逻辑已有，无视觉）+ 钢身发光 startGlow/endGlow（GlowFilter）；
+  5. startShake 持续震屏语义（现降级为一次性 shake，endShake 事件被渲染丢弃）；
+  6. 幽步演出 ghost_step（机制已有，蓝残影 + 黑幕 + justRender 白名单无）；
+  7. 轻击飞三段式弹起（击飞_落→击飞_弹→二次落地 `hit_floor_low`——机制 + 素材均缺，素材已烘焙为死素材）；
+  8. 替身 replaceSkill（机制 + 演出）/ 灵压爆发 energyExplode（机制 + 演出）/ 助攻出场 fz_bleach/fz_naruto；
+  9. 小项：jump_air 空中起跳区分（素材在、core 无 emit）、bullet 触底 shake(0,1,200)、落地状态门（HURT_ING/DEAD 落地无尘土，physics.ts:169-174）、hitspark 纹理缺失静默告警（renderer spawnSparkById）；
+  - 豁免：kenshin 必杀特写（原版本身坏引用 `bisha(true,"Kenshin_1")` 未注册，移植版与原版等效）；
 - 嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值）；
 - GROUND_FRICTION（subtractive 0.9）vs 原版 setDamping(0.1)——受击滑步距离差 10 倍以上（单独批次）；
 - 原版站立 = 静态单帧 vs 移植版 9 帧循环——忠实性待用户定；

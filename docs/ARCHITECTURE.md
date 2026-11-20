@@ -84,6 +84,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `effect` | `{ id, x, y, params }` | 特效（震动/闪光/钢身等） |
 | `effect`（id `bisha`/`endBisha`） | `params { isSuper, face, owner, ownerKind }` | 必杀切人演出（切片 22）：`bisha` 置 `SimState.cutinLock`（全场冻结，仅施法者时间轴 30Hz 推进），`endBisha` 解锁；render 消费 = 黑幕 + 横幅流帧 + 立绘（`bisha.json`） |
 | `effect`（id `wanKai`/`endWanKai`） | `params { face, owner, ownerKind }` | 万解开场演出（切片 22）：冻结/解锁/演出机制同上，`cutinLock.type = 'wanKai'` |
+| `effect`（id `shadow`/`endShadow`） | `params { r, g, b, owner, ownerKind }` | 残影开/停（切片 47）：r/g/b = ColorTransform 加色偏移；激活态纯渲染层（原版 ShadowEffectView 30Hz 截图留影），角色 `actionState` 变化时渲染层自动停（原版 doAction/idle/doHurt 统一 endShadow 的近似） |
+| `effect`（id `dash`/`dash_air`） | `params { direct }` | 瞬步尘土（切片 47）：dash@effect op 按 `onGround` 分流（原版 FighterEffectCtrler.dash isInAir 分流），`direct` = 发射者朝向供火花镜像 |
 
 每个事件带 `tick` 号；渲染层自行处理去重与插值，不得回读 sim 内部状态——**快照 + 事件队列是 render 的唯一输入**。
 

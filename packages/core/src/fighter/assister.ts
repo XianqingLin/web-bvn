@@ -365,11 +365,22 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
       id: 'shadow',
       x: ctx.self.x,
       y: ctx.self.y,
-      params: { r: num(args[0]), g: num(args[1]), b: num(args[2]) },
+      params: {
+        r: num(args[0]),
+        g: num(args[1]),
+        b: num(args[2]),
+        owner: ctx.self.id,
+        ownerKind: 'assister',
+      },
     });
   },
   endShadow(ctx) {
-    ctx.emit('effect', { id: 'endShadow', x: ctx.self.x, y: ctx.self.y, params: {} });
+    ctx.emit('effect', {
+      id: 'endShadow',
+      x: ctx.self.x,
+      y: ctx.self.y,
+      params: { owner: ctx.self.id, ownerKind: 'assister' },
+    });
   },
   bisha(ctx, args) {
     ctx.emit('effect', {
@@ -403,7 +414,13 @@ export const defaultAssisterBehaviors: Record<string, AssisterHandler> = {
   },
   dash(ctx, args, target) {
     if (target === 'effect') {
-      ctx.emit('effect', { id: 'dash', x: ctx.self.x, y: ctx.self.y, params: {} });
+      // 原版 FighterEffectCtrler.dash :98-105：isInAir 分流 dash_air/dash
+      ctx.emit('effect', {
+        id: ctx.self.onGround ? 'dash' : 'dash_air',
+        x: ctx.self.x,
+        y: ctx.self.y,
+        params: { direct: ctx.self.facing },
+      });
     }
   },
   jump(ctx) {

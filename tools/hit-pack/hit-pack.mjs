@@ -90,6 +90,10 @@ const BREAK_DEF = {
 const GENERAL_EFFECTS = [
   { id: 'jump', className: 'XG_jump' },
   { id: 'jump_air', className: 'XG_jump_air', blendMode: 'add' },
+  // 瞬步尘土（EffectModel initEffects：dash→XG_rush / dash_air→XG_rush_air，
+  // 均无 blendMode/freeze；core dash@effect op 按 isInAir 分流，direct 进 params）
+  { id: 'dash', className: 'XG_rush' },
+  { id: 'dash_air', className: 'XG_rush_air' },
   { id: 'touch_floor', className: 'XG_luodi' },
   { id: 'hit_floor', className: 'XG_hitfloor' },
   { id: 'hit_floor_low', className: 'xg_hitfloor_low' },
