@@ -78,8 +78,8 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 | `fighter:ko` | `{ fighter }` | 击倒 |
 | `fighter:enter` | `{ fighter, side }` | 团队换人入场（切片 36）：sim 内 rotateIn 构造全新 FighterState 替换被 KO 者；render 按 fighter id 寻址 roster 精灵（id-swap 免重绑图集）、HUD 换大脸/能量标签 |
 | `entity:spawn` / `entity:despawn` | `{ kind, id, name?, owner? }` | 飞行道具 / 独立道具（kind `attacker`，切片 9）/ 辅助 |
-| `round:start` / `round:end` | `{ round, winner? }` | 回合流程（`round:end` 切片 36 团队语义：KO 即置位 `SimState.roundEnd`，`winner` = 胜方位次；1v1 不发，结束判定归 app 层） |
-| `match:over` | `{ winner }` | 团队终局（切片 36）：一方 roster 耗尽（原版 fightFinish）；sim 置 `roundEnd.over` 冻结，app 消费后进结算（1v1 不发） |
+| `round:start` / `round:end` | `{ round, winner? }` | 回合流程（`round:end` 切片 46 泛化：非训练对局 KO 即置位 `SimState.roundEnd`（team 换人 + 1v1 终局同一状态机），`winner` = 胜方位次；训练模式不发） |
+| `match:over` | `{ winner }` | 终局（切片 46 泛化，原版 fightFinish）：team 一方 roster 耗尽 / 1v1 演出计满；`winner` = 1/2，0 = 平局（1v1 双 KO，胜场不计）；sim 置 `roundEnd.over` 冻结，app 消费后进结算 |
 | `sound` | `{ id, x, y }` | 音效（渲染层消费，可随机选音源） |
 | `effect` | `{ id, x, y, params }` | 特效（震动/闪光/钢身等） |
 | `effect`（id `bisha`/`endBisha`） | `params { isSuper, face, owner, ownerKind }` | 必杀切人演出（切片 22）：`bisha` 置 `SimState.cutinLock`（全场冻结，仅施法者时间轴 30Hz 推进），`endBisha` 解锁；render 消费 = 黑幕 + 横幅流帧 + 立绘（`bisha.json`） |

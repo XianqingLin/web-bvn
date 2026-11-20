@@ -7,7 +7,7 @@
 | 文档 | 作用 |
 |---|---|
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | **引擎契约，写代码前必读**（硬规则、接口、事件表、门禁） |
-| [docs/PROGRESS.md](docs/PROGRESS.md) | **进度台账**：开发顺序、各切片状态、遗留池与下一步 |
+| [docs/PROGRESS.md](docs/PROGRESS.md) | **进度台账**：只记未完成项（剩余工作/遗留池/下一步）；已完成内容看 git 历史 |
 | [docs/DESIGN.md](docs/DESIGN.md) | 设计文档：分层、按系统的机制规格、决策理由与日期 |
 | [docs/netplay-design.md](docs/netplay-design.md) | 联机设计稿：房间/匹配/联机选人/地图抽取的产品形态与协议设计 |
 | [docs/BVN-module-map.md](docs/BVN-module-map.md) | 原版 AS3 源码逆向结论（转译的参考规格书） |
