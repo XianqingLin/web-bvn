@@ -108,8 +108,10 @@ export interface FighterState {
   isCross: boolean;
   /** 是否施加重力斜坡（原版 isApplyG：飞行系角色置 false） */
   applyG: boolean;
-  /** 空中可行走（原版 airMove：飞行系角色；新动作清除） */
+  /** 空中可行走（原版 airMove：起跳即置 true 可空中操控；脚本化位移/受击清除） */
   airMove: boolean;
+  /** 重击倒地标记（原版 FighterMC._isHeavyDownAttack：击飞 hity>5 → 落地播重尘土） */
+  hurtHeavy: boolean;
   /** 空中动作触地续接标签（原版 setTouchFloor；触地或新动作清除） */
   touchFloor: string | null;
   /** 血量上限（hp 系 op / 训练回复的 clamp 基准；原版 hpMax） */
@@ -621,6 +623,7 @@ export function createInitialState(config: SimConfig): SimState {
       isCross: false,
       applyG: true,
       airMove: false,
+      hurtHeavy: false,
       touchFloor: null,
       hpMax: fc.hp ?? DEFAULT_HP,
       airHitTimes: 1,

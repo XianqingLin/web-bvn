@@ -80,22 +80,26 @@ export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
     stepGhost(f, def, (g) => {
       ctx.emit('effect', { id: 'endGhostStep', x: g.x, y: g.y, params: {} });
     });
-    // 行走：NORMAL 且在地面（原版 renderFloorAction）；airMove（飞行系）空中也可；
+    // 行走：地面 NORMAL（原版 renderFloorAction）或空中 airMove（原版
+    // renderAirAction → doAirMove：空中左右同移速直接位移，攻击中同样生效，
+    // 不受标签门约束；脚本化位移/受击时 airMove 已被清除）；
     // 瞬身步期间速度由瞬身步驱动（原版画面冻结期不受输入）。
     // 地面行走仅在待机标签族（站立/走）且无标签锁时施加（修复批次 20）：
     // 原版移动由 moveLeft/moveRight 槽驱动（doMove→goFrame("走")），落地/
     // 收招等收尾标签期间槽已清空、输入不产生位移；移植版曾只按状态门，
     // 落地 labelLock 窗口内持续置 vx → 站立姿势原地滑步（实测批 20 之一）。
-    // airMove（飞行系空中）不受标签门约束。
+    // 偏离修正记录（2026-11-19）：此前空中（除飞行系）完全忽略水平输入——
+    // 原版起跳即 airMove=true 可全程空中操控。
     if (
-      f.actionState === ActionState.NORMAL &&
-      (f.onGround || f.airMove) &&
-      f.hp > 0 &&
-      f.ghostTicks === 0 &&
-      (!f.onGround ||
-        def === null ||
-        f.actLabel === null || // 出生首帧未采样（advanceAnimation 首轮才置 站立）
-        (f.labelLock <= 0 && (f.actLabel === '站立' || f.actLabel === '走')))
+      (f.onGround || (f.airMove && f.hp > 0 && f.ghostTicks === 0)) &&
+      (f.onGround
+        ? f.actionState === ActionState.NORMAL &&
+          f.hp > 0 &&
+          f.ghostTicks === 0 &&
+          (def === null ||
+            f.actLabel === null || // 出生首帧未采样（advanceAnimation 首轮才置 站立）
+            (f.labelLock <= 0 && (f.actLabel === '站立' || f.actLabel === '走')))
+        : f.actionState !== ActionState.HURT_FLYING)
     ) {
       let dir = 0;
       if (view.held(Btn.left)) dir -= 1;
@@ -121,6 +125,7 @@ export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
     f.vy = wake(f.vy, f.dampY);
     f.x += f.vx;
     f.y += f.vy;
+    const impactVy = f.vy + f.gRamp; // 落地有效下沉速度（显式速度 + 本 tick 待施重力位移）
     const airborne = resolveLanding(f, stage);
     if (airborne) {
       // 重力斜坡（原版 applayG(12)：上升段清零；下落段每 tick 递增后施为位移；
@@ -137,7 +142,37 @@ export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
     } else {
       // 落地瞬间预置下次离地的初值（原版 setInAir(false) → _g=4）
       f.gRamp = GRAVITY_START;
-      if (wasAirborne) onLanded(f, def);
+      if (wasAirborne) {
+        const wasHurtFly = f.actionState === ActionState.HURT_FLYING;
+        onLanded(f, def);
+        // 落地尘土（原版 FighterMcCtrler.touchFloor :1059 → effectCtrler.touchFloor
+        // → XG_luodi，控制器级无条件触发；击飞落地走 renderHurtFly case2/3 的
+        // hitFloor 系列 + shake）。事件 id 用 'touchFloor' 与时间轴 emit 同键，
+        // 渲染层按 tick+id 去重防双播。
+        if (wasHurtFly) {
+          // 击飞落地：重击（hity>5，原版 _isHeavyDownAttack）→ 重尘土 + 烟
+          const vecy = Math.min(Math.max(impactVy / SPEED_PLUS, 3), 8); // 原始速度空间夹 [3,8]
+          if (f.hurtHeavy) {
+            ctx.emit('effect', { id: 'hit_floor_heavy', x: f.x, y: f.y, params: {} });
+            ctx.emit('effect', { id: 'hit_floor_yan', x: f.x, y: f.y, params: {} });
+          } else {
+            ctx.emit('effect', { id: 'hit_floor', x: f.x, y: f.y, params: {} });
+          }
+          // 震屏（原版 effectCtrler.shake(0, vecy) → EffectCtrler.shake(0, vecy*2)）
+          ctx.emit('effect', {
+            id: 'shake',
+            x: f.x,
+            y: f.y,
+            params: { x: 0, y: vecy * 2, time: 0 },
+          });
+          f.hurtHeavy = false;
+        } else if (
+          f.actionState === ActionState.NORMAL ||
+          f.actionState === ActionState.JUMP_ING
+        ) {
+          ctx.emit('effect', { id: 'touchFloor', x: f.x, y: f.y, params: {} });
+        }
+      }
       f.onGround = true;
     }
     // 起跳延迟（原版 renderJumpAnimate：延迟计满才施加跳跃速度并消耗

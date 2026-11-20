@@ -311,6 +311,7 @@ function rotateIn(
     isCross: false,
     applyG: true,
     airMove: false,
+    hurtHeavy: false,
     touchFloor: null,
     hpMax: cfgHp,
     airHitTimes: 1,

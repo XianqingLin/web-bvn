@@ -37,6 +37,11 @@ import { ActionState, type SimSnapshot } from '@bvn/core';
 /** 原版舞台规格（HUD 布局设计空间） */
 const STAGE_W = 800;
 const STAGE_H = 600;
+/** Round 字样水平居中偏移（修复批次 44）：组合（Round 文本 + 数字）设计空间
+ *  包围盒 x 199..522，中心 360.5——原版 800 宽 UI 内本身偏左 39.5px；移植版
+ *  宽屏下 left 钉扎会把组合推到屏幕左侧约 1/3 处（用户实测偏移），改 center
+ *  钉扎 + 本偏移把组合对齐可见区中线（帧 44/num 25 帧不透明像素实测）。 */
+const ROUND_CENTER_DELTA = 39.5;
 /** 能量条阈值（原版 EnergyBar render：rate < 0.3 闪烁） */
 const ENERGY_FLASH_RATE = 0.3;
 /** 连击隐藏淡出时长（ms；偏离：原版播 fadout 时间轴） */
@@ -357,7 +362,13 @@ export class FightHud {
       const ko = this.frameSprite('startko', 0);
       ko.visible = false;
       this.root.addChild(ko);
-      this.pinned.push({ c: ko, x: d.startKO.pos[0], y: d.startKO.pos[1], mx: 'left', my: 'top' });
+      this.pinned.push({
+        c: ko,
+        x: d.startKO.pos[0] + ROUND_CENTER_DELTA,
+        y: d.startKO.pos[1],
+        mx: 'center',
+        my: 'top',
+      });
       this.startKO = ko;
       // Round 数字（nummc 收编修正）：帧位图数字区已烘焙擦除，此件按
       // min(round,5) 选组叠放（updateStartKO 驱动，与字样同窗口显隐）
@@ -367,9 +378,9 @@ export class FightHud {
         this.root.addChild(num);
         this.pinned.push({
           c: num,
-          x: d.startKO.pos[0] + d.startKO.num.pos[0],
+          x: d.startKO.pos[0] + d.startKO.num.pos[0] + ROUND_CENTER_DELTA,
           y: d.startKO.pos[1] + d.startKO.num.pos[1],
-          mx: 'left',
+          mx: 'center',
           my: 'top',
         });
         this.startKONum = num;

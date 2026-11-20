@@ -61,9 +61,19 @@ import {
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { tweenOf, tickTweens, clearTweens } from '../anim.js';
-import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
-import { ASSETS, loadSelect, loadUi, uiFaceUrl, type SelectData, type SelectEntry, type UiData } from '../data.js';
+import { makeButton, makeLabel, makePanel, selectedFaceMask, UI_H, UI_W } from '../ui.js';
+import {
+  ASSETS,
+  loadSelect,
+  loadUi,
+  uiFaceUrl,
+  type SelectData,
+  type SelectEntry,
+  type UiData,
+  type UiSelectData,
+} from '../data.js';
 import type { Flow, Pick } from '../flow.js';
+import { OverlayFx } from './fx.js';
 import { LoadingScene } from './loading.js';
 import { transIn, clearTrans } from './trans.js';
 
@@ -103,6 +113,9 @@ export class SetupScene implements Scene {
   private mapIndex = 0;
   /** select 元件纹理（enter 预载） */
   private tex: Record<string, Texture> = {};
+  /** 切片 45：旋涡叠加层（enter 建立常驻）；地图面板 fx（renderMaps 逐次建，随阶段销毁） */
+  private vortexFx: OverlayFx | null = null;
+  private mapFxPlayers: OverlayFx[] = [];
   /** 光标精灵（fighter/assist 阶段跟随 hover） */
   private cursor: Sprite | null = null;
   /** 对端光标精灵（联机双光标；solo 为 null） */
@@ -202,7 +215,21 @@ export class SetupScene implements Scene {
     );
     this.tex = Object.fromEntries(pairs);
 
-    // 原版背景（800×600 居中）
+    // 原版背景（800×600 居中）。切片 45：旋涡（sprite 72 内嵌 71，105 帧循环）FFDec 冻结
+    // 烘不进底板 → 干净底板只剩顶部横幅，旋涡叠加层垫在其下（原版 d1 bg < d3 横幅）；
+    // 红通道烘焙期清零 = 放置 redAdd −255 精确等价
+    if (this.uiData.select.vortex) {
+      const v = this.uiData.select.vortex;
+      this.vortexFx = new OverlayFx(v, () => ({
+        x: OX + v.pos[0],
+        y: v.pos[1],
+        sx: v.scale[0],
+        sy: v.scale[1],
+        alpha: 1,
+      }));
+      this.vortexFx.preload();
+      ui.addChild(this.vortexFx.ui);
+    }
     const bg = new Sprite(this.tex.stg_select!);
     bg.position.set(OX, 0);
     ui.addChild(bg);
@@ -380,27 +407,8 @@ export class SetupScene implements Scene {
 
     if (this.status) this.status.text = '';
     const net = this.flow.mode === 'net';
-    const local2p = this.flow.mode === 'local';
 
-    // 确认按钮：顶部右侧（底部两角让位原版展示框）。
-    // 联机/本地双人 fighter/assist 选中即锁无确认；地图仅房主可确认（客座只读等待）。
-    if (this.phase === 'fighter' || this.phase === 'assist' || this.phase === 'map') {
-      const mapHost = !net || this.flow.player === 1;
-      const rollMode = this.phase === 'map' && net && this.flow.randomMap; // 开箱抽取自动推进，无确认按钮
-      if ((this.phase === 'map' && mapHost && !rollMode) || (!net && !local2p && this.phase !== 'map')) {
-        const confirmLabel =
-          this.phase === 'map'
-            ? net
-              ? '锁定并等待对手'
-              : '开始对局'
-            : this.phase === 'fighter'
-              ? '确认角色'
-              : '确认辅助';
-        this.mountConfirm(root, confirmLabel, () => this.onConfirm(ctx));
-      }
-      // 返回上一步 = 原版语义：无按钮，P1 跳键（K）呼出 RESELECT 确认重进选人
-      //（原版 GameInputer.jump(P1) → GameUI.confirm "RESELECT" → goSelect）
-    }
+    // 点击即选中（原版语义：点格子即锁定推进，无确认按钮）。
 
     if (this.phase === 'fighter') {
       this.renderGrid(root, this.select!.chars, (e) => {
@@ -408,6 +416,7 @@ export class SetupScene implements Scene {
         else {
           this.fighter = e;
           this.status!.text = `角色：${e.name}`;
+          this.onConfirm(ctx); // 点击即选中并进入辅助选择
         }
       });
     } else if (this.phase === 'assist') {
@@ -416,6 +425,7 @@ export class SetupScene implements Scene {
         else {
           this.assist = e;
           this.status!.text = `辅助：${e.name}`;
+          this.onConfirm(ctx); // 点击即选中并进入地图选择
         }
       });
     } else if (this.phase === 'map') {
@@ -440,6 +450,7 @@ export class SetupScene implements Scene {
   }
 
   private onConfirm(ctx: SceneCtx): void {
+    if (this.transitioning) return; // 阶段切换演出中忽略点击（防连点二次推进）
     if (this.phase === 'fighter') {
       if (!this.fighter) {
         this.status!.text = '请先选择角色';
@@ -476,18 +487,17 @@ export class SetupScene implements Scene {
     }
     this.animCells = [];
     this.loadToken++; // 作废在途异步装料（退场中的格子不再挂新纹理）
+    this.transitioning = true;
     window.setTimeout(() => {
-      if (this.ctxRef === ctx && !this.destroyedFlag) next();
+      if (this.ctxRef === ctx && !this.destroyedFlag) {
+        this.transitioning = false;
+        next();
+      }
     }, 300);
   }
 
   private destroyedFlag = false;
-
-  private mountConfirm(root: Container, label: string, onClick: () => void): void {
-    const btn = makeButton(label, onClick, { w: 150, h: 34, size: 15 });
-    btn.position.set(UI_W - 170, 62);
-    root.addChild(btn);
-  }
+  private transitioning = false;
 
   // ---------- 头像网格（原版布局） ----------
 
@@ -574,13 +584,12 @@ export class SetupScene implements Scene {
           if (net && this.stageComplete(true)) return;
           cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
           cursor.visible = true;
-          if (net) {
-            if (this.hoverIdx !== idx) {
-              this.hoverIdx = idx;
-              this.sendCursorSafe(this.phase === 'assist' ? 'assist' : 'fighter', idx);
-            }
-            this.refreshBox(this.boxOwn, e); // 本端盒实时跟随悬停（原版 SelectedFighterGroup 语义）
+          if (net && this.hoverIdx !== idx) {
+            this.hoverIdx = idx;
+            this.sendCursorSafe(this.phase === 'assist' ? 'assist' : 'fighter', idx);
           }
+          // 本端盒实时跟随悬停（原版 SelectedFighterGroup 语义；单机同样预览）
+          this.refreshBox(this.boxOwn, e);
           audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc');
         });
         cell.on('pointertap', () => {
@@ -635,6 +644,11 @@ export class SetupScene implements Scene {
         if (dual) this.boxPeer = this.mountBox(root, peerSide);
         // 盒内容恢复：单机显示当前阶段已选；双光标恢复阶段内最近锁定/对方锁定
         if (dual) {
+          // 本地双人：盒子先跟随初始键盘光标所在格（首格）预览；有锁定后按最近锁定覆盖
+          if (local2p) {
+            this.refreshBox(this.boxOwn, this.navEntry(1));
+            this.refreshBox(this.boxPeer, this.navEntry(2));
+          }
           const locked = this.localStageLocks();
           if (locked.length > 0) this.refreshBox(this.boxOwn, locked[locked.length - 1]!);
           const peerIds = this.peerStageLocks();
@@ -645,7 +659,9 @@ export class SetupScene implements Scene {
           }
           this.updateNetStatus();
         } else {
-          this.refreshBox(this.boxOwn, this.phase === 'fighter' ? this.fighter : this.assist);
+          // 单机：显示已选；未选时跟随初始光标所在格（首格）预览
+          const cur = this.phase === 'fighter' ? this.fighter : this.assist;
+          this.refreshBox(this.boxOwn, cur ?? this.stageList()[0] ?? null);
         }
       }, 500);
     });
@@ -672,6 +688,10 @@ export class SetupScene implements Scene {
     face.height = 62;
     ct.addChild(face);
     box.addChild(ct);
+    // 斜切框遮罩：矩形大脸角部不得从框的斜切口漏出（框外形见 selectedFaceMask）
+    const mask = selectedFaceMask(isP2);
+    box.addChild(mask);
+    ct.mask = mask;
     box.addChild(new Sprite(this.tex[isP2 ? 'selected_p2' : 'selected_p1']!));
 
     // 名字：P1 右对齐（右缘 x≈243）/ P2 左对齐 x=10；y = 高-25
@@ -1161,10 +1181,28 @@ export class SetupScene implements Scene {
     const bg = new Sprite(this.tex.select_map!);
     panel.addChild(bg);
 
+    // 切片 45：面板 fx 叠加层（干净底板只剩静态板 76；原版 sprite 100 深度序
+    // d1 扫光 93 → d3/d5 箭头 96×2（d5 镜像）< d7 静态板 → d9 kuang 99 盖缩略图上）
+    for (const p of this.mapFxPlayers) p.dispose();
+    this.mapFxPlayers = [];
+    const mkFx = (spec: UiSelectData['mapFx'][number]) => {
+      const fx = new OverlayFx(spec, () => ({
+        x: spec.pos[0],
+        y: spec.pos[1],
+        sx: spec.scale[0],
+        sy: spec.scale[1],
+        alpha: 1,
+      }));
+      fx.preload();
+      this.mapFxPlayers.push(fx);
+      return fx.ui;
+    };
+    for (const spec of ui.select.mapFx.filter((f) => f.char !== 99)) panel.addChild(mkFx(spec));
+
     const entries = this.mapEntries();
     this.mapIndex = ((this.mapIndex % entries.length) + entries.length) % entries.length;
 
-    // 缩略图（450×240，与 ct 区同尺寸）+ kuang 叠顶（原版 kuang 在缩略图之上）
+    // 缩略图（450×240，与 ct 区同尺寸）
     const pic = new Sprite(Texture.EMPTY);
     pic.width = 450;
     pic.height = 240;
@@ -1175,9 +1213,15 @@ export class SetupScene implements Scene {
     }
     panel.addChild(pic);
     this.mapPicSprite = pic; // 键盘翻页/对端跟随重绘用（renderPhase 清空）
-    const kuang = new Sprite(this.tex.select_map_kuang!);
-    kuang.position.set(...ui.select.mapKuangOffset);
-    panel.addChild(kuang);
+    if (ui.select.mapFx.length > 0) {
+      // 动画 kuang（99，60 帧循环）盖缩略图之上（原版 d9；静态 kuang 元件已由叠加层取代）
+      for (const spec of ui.select.mapFx.filter((f) => f.char === 99)) panel.addChild(mkFx(spec));
+    } else {
+      // 兜底（无 fx 元数据的旧 ui.json）：静态 kuang 叠顶
+      const kuang = new Sprite(this.tex.select_map_kuang!);
+      kuang.position.set(...ui.select.mapKuangOffset);
+      panel.addChild(kuang);
+    }
 
     // 点缩略图即确认（原版 kuang 语义；随机项确认时解析）。客座只读无此交互
     if (interactive) pic.on('pointertap', () => this.confirmMap(entries[this.mapIndex]!));
@@ -1398,6 +1442,9 @@ export class SetupScene implements Scene {
 
   update(dtMs: number): void {
     tickTweens(dtMs);
+    // 嵌套动画叠加层走带（切片 45；板帧恒 0——选人页无板帧驱动，常显循环）
+    this.vortexFx?.update(0, dtMs);
+    for (const fx of this.mapFxPlayers) fx.update(0, dtMs);
     // 开箱抽取滚动推进（切片 36；定格后移交加载页，本场景 done 退出）
     this.tickRoll(performance.now());
     // 联机 3s 重发兜底（覆盖语义幂等；对端收齐后进下一阶段，残余重发无害）：
@@ -1418,6 +1465,10 @@ export class SetupScene implements Scene {
     this.ctxRef = null;
     this.rollAnim = null;
     this.rollPending = false;
+    this.vortexFx?.dispose();
+    this.vortexFx = null;
+    for (const fx of this.mapFxPlayers) fx.dispose();
+    this.mapFxPlayers = [];
     window.removeEventListener('keydown', this.onKeyBack);
     window.removeEventListener('keydown', this.onKeyLocal);
     this.confirmBox = null; // 随 ui 树销毁

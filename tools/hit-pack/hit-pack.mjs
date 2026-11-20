@@ -83,6 +83,20 @@ const BREAK_DEF = {
   shake: { x: 6, time: 400 },
 };
 
+// 通用控制器特效（EffectModel.initEffects 表：跳/落地/击飞落地尘土系，
+// 无 hitType、无 freeze——doEffectVO 只放帧动画；blendMode 逐条对照原表）。
+// hit_floor_yan 原表 blendMode 为字符串 "lighten"；hit_floor_low/heavy 的
+// className 含原版拼写 quirk（hitfllor），保持原样以命中 effect.swf 导出名。
+const GENERAL_EFFECTS = [
+  { id: 'jump', className: 'XG_jump' },
+  { id: 'jump_air', className: 'XG_jump_air', blendMode: 'add' },
+  { id: 'touch_floor', className: 'XG_luodi' },
+  { id: 'hit_floor', className: 'XG_hitfloor' },
+  { id: 'hit_floor_low', className: 'xg_hitfloor_low' },
+  { id: 'hit_floor_heavy', className: 'xg_hitfllor_heavy' },
+  { id: 'hit_floor_yan', className: 'xg_hitfloor_yan', blendMode: 'lighten' },
+];
+
 // ---------- SWF 解析（最小 tag 集：RECT/MATRIX/Shape bounds/Sprite/Place/Export） ----------
 class Reader {
   constructor(buf) {
@@ -389,7 +403,7 @@ mkdirSync(SCRATCH, { recursive: true });
 const RAW_SWF = join(SCRATCH, 'effect_fws.swf');
 extractSwf(EFFECT_SWF, RAW_SWF);
 const swf = parseSwf(RAW_SWF);
-const ALL = [...HIT_EFFECTS, ...DEFENSE_EFFECTS];
+const ALL = [...HIT_EFFECTS, ...DEFENSE_EFFECTS, ...GENERAL_EFFECTS];
 const geometry = {}; // className → { spriteId, frames, canvas, origin }
 for (const eff of ALL) {
   const spriteId = swf.exports.get(eff.className);

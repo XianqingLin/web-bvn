@@ -7,6 +7,22 @@ import { Container, Graphics, Text } from 'pixi.js';
 export const UI_W = 1000;
 export const UI_H = 600;
 
+/**
+ * 已选面板大脸遮罩（selected_p1/p2.webp 外形实测，253×70）：框不是矩形——
+ * 右上（P1）/ 左上（P2，纹理自带镜像内容）斜切造型，245×62 矩形大脸的角
+ * 会从斜切口漏出去。多边形 = 框外接轮廓（含边框带无妨：框绘制在大脸之上，
+ * 遮罩多含的部分被框像素覆盖）。
+ */
+export function selectedFaceMask(isP2: boolean): Graphics {
+  const g = new Graphics();
+  if (isP2) {
+    g.poly([34, 3, 3, 29, 3, 67, 249, 67, 249, 3]).fill(0xffffff);
+  } else {
+    g.poly([3, 3, 219, 3, 249, 29, 249, 67, 3, 67]).fill(0xffffff);
+  }
+  return g;
+}
+
 export function makeLabel(
   text: string,
   opts: { size?: number; color?: number; bold?: boolean } = {},

@@ -51,7 +51,7 @@ export function loadSelect(ctx: Ctx): Promise<SelectData> {
   return ctx.assets.json<SelectData>(`${BAKED}/select.json`);
 }
 
-// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@2，切片 15/29） ----------
+// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@4，切片 15/29/45） ----------
 
 export interface UiSelectData {
   elements: Record<string, string>;
@@ -75,6 +75,27 @@ export interface UiSelectData {
     gridPadding: { left: number; right: number; top: number; bottom: number };
     unit: [number, number];
   };
+  /** 切片 45：旋涡背景叠加层（pos = stg_select.png 内锚点 px，scale 拉伸；红通道烘焙期清零） */
+  vortex: {
+    char: number;
+    dir: string;
+    frames: number;
+    fps: number;
+    size: [number, number];
+    pos: [number, number];
+    scale: [number, number];
+  } | null;
+  /** 切片 45：地图面板 fx（pos = select_map.png 内锚点；scale[0]<0 = 镜像，锚点为可见区右缘） */
+  mapFx: {
+    char: number;
+    depth: number;
+    dir: string;
+    frames: number;
+    fps: number;
+    size: [number, number];
+    pos: [number, number];
+    scale: [number, number];
+  }[];
 }
 
 export interface UiData {

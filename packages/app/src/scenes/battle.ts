@@ -334,10 +334,11 @@ export class BattleScene implements Scene {
     client.prime(maskFor(this.keys, this.netKeymap));
   }
 
-  update(dtMs: number): void {
+  update(_dtMs: number): void {
     if (!this.sim || !this.renderer) return;
     const now = performance.now();
-    this.acc += Math.min(now - this.last, 100);
+    const frameDt = Math.min(now - this.last, 100); // 本次渲染真实帧时长（钳 100ms 防切后台跳变）
+    this.acc += frameDt;
     this.last = now;
     let stepped = false;
     while (this.acc >= TICK_MS) {
@@ -377,7 +378,10 @@ export class BattleScene implements Scene {
         this.stalledSince = -1;
       }
     }
-    if (stepped || this.acc > 0) this.renderer.update(this.acc);
+    // 渲染层喂真实帧时长（契约：dtMs = 自上次调用以来的毫秒数）。
+    // 此前传 sim 剩余累积器（0~16.7ms 锯齿，均值≈半个 tick）→ 特效/插值以约 0.5×
+    // 速度爬行且帧率越低越慢；lockstep 等待时累积器又冲高 → 特效快进。
+    this.renderer.update(frameDt);
   }
 
   /**

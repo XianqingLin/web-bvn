@@ -6,7 +6,9 @@
  *   1. face.swf  -export image  → 266 张头像（文件名 = "<symbolId>_<类名>.<ext>"），
  *      剥掉数字前缀后按类名落盘 assets/ui/faces/（类名 = fighter.xml face 属性 = select.json id / id_b）；
  *   2. select.swf -export sprite → 挑选场景壳元件（背景/格子/光标/展示框/地图面板）拷为
- *      assets/ui/select/<逻辑名>.png；
+ *      assets/ui/select/<逻辑名>.png（切片 45：stg_select/select_map 内嵌套动画元件
+ *      （旋涡 71/扫光 93/箭头 96/kuang 99）经 swf2xml 手术剔除后重导"干净底板"，帧序
+ *      单独导出为叠加层 assets/ui/select-fx/<char>/，位置经模板匹配实测校准）；
  *   2b. title.swf -export sprite → stg_title 90 帧（2351×749，动画主时间轴在 sprite 内、
  *       "menu" 标签 = 帧 65）→ sharp 转 WebP q80 → assets/ui/title/<帧>.webp（~8.5MB）；
  *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
@@ -16,7 +18,7 @@
  *       → assets/ui/winner/<n>.webp（结算立绘舞台）+ sprite 72（台词气泡）帧 2..10
  *       → assets/ui/winner-bubble/<n>.webp（切片 29 菜单流打磨）；
  *   3. 地图缩略图 15 张 + random.png 原样拷入 assets/ui/maps/（450×240，与 select_map_mc ct 区同尺寸）；
- *   4. 产出 baked/ui.json（schema bvn/ui@2）：类名→文件映射 + select 元件表 + 原版布局常量
+ *   4. 产出 baked/ui.json（schema bvn/ui@4）：类名→文件映射 + select 元件表 + 原版布局常量
  *       + title/logo/winner 流帧参数 + menu 按钮阶梯布局常量。
  *
  * 坐标语义（FFDec sprite 导出的 PNG 画布原点 = 元件内容 bounds 左上角，注册点偏移已换算）：
@@ -31,6 +33,7 @@
  * 用法：node tools/ui-pack/ui-pack.mjs [--ffdec PATH] [--out-assets DIR] [--out-baked FILE]
  */
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   copyFileSync,
   cpSync,
@@ -43,6 +46,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import sharp from 'sharp';
+import { parseSwfXml, removePlacements } from './swf-nest.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -142,10 +146,30 @@ const WINNER_BUBBLE = {
   fps: 30,
 };
 
+// ---- 切片 45：嵌套动画叠加层 ----
+
+// select.swf：stg_select（sprite 75）的 bg（sprite 72）只装旋涡 71（105 帧循环），
+// 放置带 scale(1.25,1.6667) + redAdd −255（紫→蓝，烘焙期清零红通道精确等价）。
+const SELECT_VORTEX = { char: 71, bgSprite: 72, frames: 105, scale: [1.25, 1.6666565] };
+
+// select_map（sprite 100，1 帧）内动画元件：93 扫光(d1)、96 箭头×2(d3 正/d5 镜像 sx=-1)、
+// 99 kuang 框(d9)。剔除后底板只剩 76（空元件 → 无静态内容）。
+// posOverride：93 光层画面平滑自相似（模板匹配极小平移歧义），锚点用解析位
+// O+放置位（(78,0)，已被 kuang(92,19)/箭头 d3(584,118)/d5(57,118) 三点独立证实）
+const SELECT_MAP_FX = [
+  { char: 93, depth: 1, posOverride: [78, 0] },
+  { char: 96, depth: 3 },
+  { char: 96, depth: 5 },
+  { char: 99, depth: 9 },
+];
+
 function run(cmd, args_) {
   console.log(`$ ${cmd} ${args_.join(' ')}`);
   execFileSync(cmd, args_, { stdio: ['ignore', 'pipe', 'inherit'] });
 }
+
+/** 文件 md5（手术有效性守卫 / 静态帧折叠用）。 */
+const fileMd5 = (p) => createHash('md5').update(readFileSync(p)).digest('hex');
 
 /** FFDec 图片导出文件名 "<symbolId>_<类名>.<ext>" → 类名。 */
 const stripSymbolPrefix = (f) => f.replace(/^\d+_/, '');
@@ -177,6 +201,251 @@ run(FFDEC, ['-export', 'binaryData', join(SCRATCH, 'winner-src'), FIGHTER_TESTER
 }
 run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'winner'), join(SCRATCH, 'loading.swf')]);
 
+// ---------- 1b. swf2xml + 嵌套动画手术 → 干净底板 swf（切片 45，select 侧） ----------
+run(FFDEC, ['-swf2xml', SELECT_SWF, join(SCRATCH, 'select.xml')]);
+const selectXml = readFileSync(join(SCRATCH, 'select.xml'), 'utf8');
+const selectModel = parseSwfXml(selectXml);
+// 旋涡：sprite 72 只装 71（1 帧）；map fx：sprite 100（1 帧）上剔 93/96×2/99
+const selectCleanXml = removePlacements(
+  removePlacements(selectXml, SELECT_VORTEX.bgSprite, [
+    { depth: 1, charId: SELECT_VORTEX.char, from: 1, to: 1 },
+  ]),
+  100,
+  SELECT_MAP_FX.map((s) => ({ depth: s.depth, charId: s.char, from: 1, to: 1 })),
+);
+writeFileSync(join(SCRATCH, 'select-clean.xml'), selectCleanXml);
+run(FFDEC, ['-xml2swf', join(SCRATCH, 'select-clean.xml'), join(SCRATCH, 'select-clean.swf')]);
+run(FFDEC, ['-export', 'sprite', join(SCRATCH, 'select-clean'), join(SCRATCH, 'select-clean.swf')]);
+if (fileMd5(join(SCRATCH, 'select-clean.swf')) === fileMd5(SELECT_SWF)) {
+  throw new Error('select-clean 手术无效（clean swf 与原版逐字节相同）');
+}
+
+// ---------- 1c. 嵌套叠加层工具 ----------
+/** 读 PNG 为 RGBA 原始缓冲。 */
+const rawBuf = (file) => sharp(file).raw().toBuffer({ resolveWithObject: true });
+
+/** 全帧像素相同 → 折叠为 1 帧（静态"动画"元件，省带宽）；否则原帧数。
+ *  按 PNG 像素哈希比较（FFDec 导出字节流有压滤差异，字节哈希会误判）。 */
+async function collapseStaticFrames(framesDir, frameCount) {
+  const h1 = createHash('md5').update(await sharp(join(framesDir, '1.png')).raw().toBuffer()).digest('hex');
+  for (let i = 2; i <= frameCount; i++) {
+    const h = createHash('md5').update(await sharp(join(framesDir, `${i}.png`)).raw().toBuffer()).digest('hex');
+    if (h !== h1) return frameCount;
+  }
+  console.log(`  ${framesDir.split(/[\\/]/).pop()}：${frameCount} 帧像素全同 → 折叠 1 帧`);
+  return 1;
+}
+
+/** 逐帧 α 外包盒（canvas 像素，帧间 union）+ 不透明像素最多的帧号。 */
+async function alphaScan(framesDir, frameCount) {
+  let bb = null;
+  let bestF = 0;
+  let bestN = -1;
+  for (let f = 1; f <= frameCount; f++) {
+    const { data, info } = await rawBuf(join(framesDir, `${f}.png`));
+    let n = 0;
+    let x0 = info.width;
+    let y0 = info.height;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 0; x < info.width; x++) {
+        if (data[(y * info.width + x) * 4 + 3] > 10) {
+          n++;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (n === 0) continue;
+    bb = bb
+      ? { x: Math.min(bb.x, x0), y: Math.min(bb.y, y0), x2: Math.max(bb.x2, x1), y2: Math.max(bb.y2, y1) }
+      : { x: x0, y: y0, x2: x1, y2: y1 };
+    if (n > bestN) {
+      bestN = n;
+      bestF = f;
+    }
+  }
+  if (!bb) throw new Error(`${framesDir} 全帧透明`);
+  return { bb: { x: bb.x, y: bb.y, w: bb.x2 - bb.x + 1, h: bb.y2 - bb.y + 1 }, bestF };
+}
+
+/** 暴力模板匹配（SSE，忽略模板半透明像素），返回 plate 内最佳左上角坐标。 */
+function matchTemplate(plate, tpl, win) {
+  const pd = plate.data;
+  const pw = plate.info.width;
+  const td = tpl.data;
+  const tw = tpl.info.width;
+  const th = tpl.info.height;
+  let best = null;
+  for (let oy = win.y; oy <= win.y + win.h - th; oy++) {
+    for (let ox = win.x; ox <= win.x + win.w - tw; ox++) {
+      let sse = 0;
+      for (let ty = 0; ty < th; ty++) {
+        const pr = (oy + ty) * pw;
+        const tr = ty * tw;
+        let done = false;
+        for (let tx = 0; tx < tw; tx++) {
+          if (td[(tr + tx) * 4 + 3] < 200) continue;
+          const p = (pr + ox + tx) * 4;
+          const t = (tr + tx) * 4;
+          for (let c = 0; c < 3; c++) {
+            const d = pd[p + c] - td[t + c];
+            sse += d * d;
+          }
+          if (best && sse >= best.sse) {
+            done = true;
+            break;
+          }
+        }
+        if (done) break;
+      }
+      if (!best || sse < best.sse) best = { x: ox, y: oy, sse };
+    }
+  }
+  if (!best) throw new Error('模板匹配搜索窗口无效');
+  return best;
+}
+
+/** α 通道模板匹配（全半透明元件兜底：导出板 RGB 有预乘往返误差，α 遮罩稳定）。 */
+function matchTemplateAlpha(plate, tpl, win) {
+  const pd = plate.data;
+  const pw = plate.info.width;
+  const td = tpl.data;
+  const tw = tpl.info.width;
+  const th = tpl.info.height;
+  let best = null;
+  for (let oy = win.y; oy <= win.y + win.h - th; oy++) {
+    for (let ox = win.x; ox <= win.x + win.w - tw; ox++) {
+      let sse = 0;
+      for (let ty = 0; ty < th; ty++) {
+        const pr = (oy + ty) * pw;
+        const tr = ty * tw;
+        let done = false;
+        for (let tx = 0; tx < tw; tx++) {
+          if (td[(tr + tx) * 4 + 3] < 8) continue;
+          const d = pd[(pr + ox + tx) * 4 + 3] - td[(tr + tx) * 4 + 3];
+          sse += d * d;
+          if (best && sse >= best.sse) {
+            done = true;
+            break;
+          }
+        }
+        if (done) break;
+      }
+      if (!best || sse < best.sse) best = { x: ox, y: oy, sse };
+    }
+  }
+  if (!best) throw new Error('α 模板匹配搜索窗口无效');
+  return best;
+}
+
+/**
+ * 叠加层校准：α 外包定裁剪窗 + 模板匹配实测画布偏移。
+ * 原板里嵌套元件被 FFDec 冻结在未知内部帧 → 逐帧试配模板取最小 SSE。
+ * @param exp 注册点在 plate 画布坐标的期望位置（canvas 声明误差由匹配吸收，仅定搜索窗）
+ * @param scale 放置缩放（允许负 sx = 镜像）
+ * @returns {{crop:[x,y,w,h], plateTL:[x,y], sse, tplFrame}} plateTL = 裁剪窗左上角在
+ *   plate 画布坐标的实测落点（scaled 空间；origin 由调用方按需换算）。
+ */
+async function calibrateOverlay(framesDir, frameCount, plateBuf, exp, scale = [1, 1], pad = 32) {
+  const { bb } = await alphaScan(framesDir, frameCount);
+  const mirrored = scale[0] < 0;
+  const cw = Math.round(bb.w * Math.abs(scale[0]));
+  const ch = Math.round(bb.h * scale[1]);
+  // 裁剪窗（canvas 像素，pad 4 夹到画布内）
+  const frameMeta = await sharp(join(framesDir, '1.png')).metadata();
+  const crop = [
+    Math.max(0, bb.x - 4),
+    Math.max(0, bb.y - 4),
+    Math.min(frameMeta.width, bb.x + bb.w + 4) - Math.max(0, bb.x - 4),
+    Math.min(frameMeta.height, bb.y + bb.h + 4) - Math.max(0, bb.y - 4),
+  ];
+  // 期望 α 外包左上角 = 注册点 + scale*外包（镜像时右缘为左上）
+  const expX = Math.round(mirrored ? exp.x - Math.abs(scale[0]) * (bb.x + bb.w) : exp.x + scale[0] * bb.x);
+  const expY = Math.round(exp.y + scale[1] * bb.y);
+  // 逐帧试配：模板帧 = 原板冻结相位（未知），取最小 SSE。
+  // 三级模式（首个出解的级即用）：实心 RGB → 半透明 RGB（全半透明元件如 93 光层，
+  // RGB 有小幅预乘往返误差但模板窗若未他物覆盖仍可配）→ α 遮罩兜底
+  const TW = Math.min(48, bb.w);
+  const TH = Math.min(48, bb.h);
+  let best = null;
+  const tryFrames = Math.min(frameCount, 30);
+  for (const mode of [
+    { dense: 200, alphaMatch: false },
+    { dense: 64, alphaMatch: false },
+    { dense: 8, alphaMatch: true },
+  ]) {
+    const dense = mode.dense;
+    for (let k = 1; k <= tryFrames; k++) {
+      const frame = await rawBuf(join(framesDir, `${k}.png`));
+      // 模板窗：αbbox 内找匹配像素最密的 ≤48×48 子区
+      let bestTpl = null;
+      for (let oy = bb.y; oy + TH <= bb.y + bb.h; oy += 4) {
+        for (let ox = bb.x; ox + TW <= bb.x + bb.w; ox += 4) {
+          let n = 0;
+          for (let y = 0; y < TH; y++)
+            for (let x = 0; x < TW; x++)
+              if (frame.data[((oy + y) * frame.info.width + ox + x) * 4 + 3] > dense) n++;
+          if (!bestTpl || n > bestTpl.n) bestTpl = { x: ox, y: oy, n };
+        }
+      }
+      if (!bestTpl || bestTpl.n < 64) continue;
+      let tpl = await sharp(frame.data, { raw: frame.info })
+        .extract({ left: bestTpl.x, top: bestTpl.y, width: TW, height: TH })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      if (scale[0] !== 1 || scale[1] !== 1) {
+        let s = sharp(tpl.data, { raw: tpl.info }).resize(
+          Math.max(1, Math.round(TW * Math.abs(scale[0]))),
+          Math.max(1, Math.round(TH * scale[1])),
+        );
+        if (mirrored) s = s.flop();
+        tpl = await s.png().toBuffer().then((b) => sharp(b).raw().toBuffer({ resolveWithObject: true }));
+      }
+      const sw = tpl.info.width;
+      const sh = tpl.info.height;
+      const tplSX = mirrored ? cw - Math.round(bestTpl.x * Math.abs(scale[0])) - sw : Math.round(bestTpl.x * scale[0]);
+      const tplSY = Math.round(bestTpl.y * scale[1]);
+      // 搜索窗锚 = 模板窗期望位（exp + 模板窗在 scaled 内容内的偏移）±pad：
+      // 大元件的密窗可远离内容 TL，锚在 exp 本身会把真位关在窗外；
+      // pad 需覆盖「content union 远离注册点」的元件（title 大美术偏移达 ~200px）
+      const win = {
+        x: Math.max(0, expX + tplSX - pad),
+        y: Math.max(0, expY + tplSY - pad),
+        w: Math.min(plateBuf.info.width - Math.max(0, expX + tplSX - pad), sw + pad * 2),
+        h: Math.min(plateBuf.info.height - Math.max(0, expY + tplSY - pad), sh + pad * 2),
+      };
+      const m = mode.alphaMatch ? matchTemplateAlpha(plateBuf, tpl, win) : matchTemplate(plateBuf, tpl, win);
+      if (!best || m.sse < best.sse) {
+        // 裁剪窗左上角在 scaled 空间相对模板窗的偏移 → plate 落点
+        const cropSX = mirrored
+          ? cw - Math.round(crop[0] * Math.abs(scale[0])) - Math.round(crop[2] * Math.abs(scale[0]))
+          : Math.round(crop[0] * scale[0]);
+        const cropSY = Math.round(crop[1] * scale[1]);
+        best = { sse: m.sse, tplFrame: k, plateTL: [m.x - (tplSX - cropSX), m.y - (tplSY - cropSY)] };
+      }
+    }
+    if (best) break;
+  }
+  if (!best) throw new Error(`${framesDir} 校准失败：无可配模板帧`);
+  return { crop, ...best };
+}
+
+/** 叠加帧序烘焙：按 crop 裁剪全部帧 →（可选色变换）→ WebP q80。 */
+async function bakeOverlayFrames(framesDir, frameCount, crop, outDir, mod = null) {
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  for (let i = 1; i <= frameCount; i++) {
+    const src = join(framesDir, `${i}.png`);
+    let img = sharp(src).extract({ left: crop[0], top: crop[1], width: crop[2], height: crop[3] });
+    if (mod) img = mod(img);
+    await img.webp({ quality: 80 }).toFile(join(outDir, `${i}.webp`));
+  }
+}
+
 // ---------- 2. 头像 → assets/ui/faces/ ----------
 const facesDir = join(OUT_ASSETS, 'faces');
 rmSync(facesDir, { recursive: true, force: true });
@@ -195,10 +464,52 @@ for (const f of readdirSync(faceExportDir)) {
 const faceCount = Object.keys(faces).length;
 
 // ---------- 3. select 元件 → assets/ui/select/ ----------
+// stg_select（剔旋涡 71）与 select_map（剔 93/96/99）取干净板合成回原画布矩形，
+// 其余元件照旧取原导出（切片 45）。
 const selectDir = join(OUT_ASSETS, 'select');
 rmSync(selectDir, { recursive: true, force: true });
 mkdirSync(selectDir, { recursive: true });
 const selectExportDir = join(SCRATCH, 'select');
+const selectCleanExportDir = join(SCRATCH, 'select-clean');
+let stgSelectOff = null; // 干净 stg_select 画布原点在原画布（=stg_select local）的偏移
+let selectMapOff = null; // 干净 select_map 画布原点在原画布的偏移
+/** 干净板对齐原板：模板 = 原板静态内容区，匹配回干净板 → 干净画布原点在原画布的偏移。
+ *  偏移幅度未知（FFDec union 画布缩小），先 1/2 降采样全画布粗配再全分辨率细配。 */
+async function alignCleanPlate(origPlatePng, tplBox, cleanFramePng) {
+  const origMeta = await sharp(origPlatePng).metadata();
+  const cleanMeta0 = await sharp(cleanFramePng).metadata();
+  const tpl = await sharp(origPlatePng).extract(tplBox).raw().toBuffer({ resolveWithObject: true });
+  const half = (b) =>
+    sharp(b.data, { raw: b.info })
+      .resize(Math.ceil(b.info.width / 2), Math.ceil(b.info.height / 2))
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+  const cleanFull = await rawBuf(cleanFramePng);
+  // 画布未缩（FFDec 内容 union 仍跨满原画布，如 title 背景）→ 原点对齐 (0,0) 直通：
+  // 匹配法在同尺寸下易被模板窗内的被剔元件像素带偏（title stage 中心即此情形）
+  if (cleanFull.info.width === origMeta.width && cleanFull.info.height === origMeta.height) {
+    return { off: [0, 0], orig: origMeta, clean: cleanMeta0, sse: 0 };
+  }
+  const coarse = matchTemplate(await half(cleanFull), await half(tpl), {
+    x: 0,
+    y: 0,
+    w: Math.ceil(cleanFull.info.width / 2),
+    h: Math.ceil(cleanFull.info.height / 2),
+  });
+  const m = matchTemplate(cleanFull, tpl, {
+    x: Math.max(0, coarse.x * 2 - 4),
+    y: Math.max(0, coarse.y * 2 - 4),
+    w: tpl.info.width + 8,
+    h: tpl.info.height + 8,
+  });
+  // 干净画布原点在原画布的位置 = 模板原位 − 匹配位（m 是模板在干净画布内的落点）
+  const off = [tplBox.left - m.x, tplBox.top - m.y];
+  const cleanMeta = await sharp(cleanFramePng).metadata();
+  if (off[0] < 0 || off[1] < 0 || off[0] + cleanMeta.width > origMeta.width || off[1] + cleanMeta.height > origMeta.height) {
+    throw new Error(`干净板画布对不上原画布（clean ${cleanMeta.width}x${cleanMeta.height} off=${off} orig ${origMeta.width}x${origMeta.height}）`);
+  }
+  return { off, orig: origMeta, clean: cleanMeta, sse: m.sse };
+}
 for (const [logical, [spriteId, frame]] of Object.entries(SELECT_ELEMENTS)) {
   const dir = readdirSync(selectExportDir).find(
     (d) => d === `DefineSprite_${spriteId}` || d.startsWith(`DefineSprite_${spriteId}_`),
@@ -206,7 +517,110 @@ for (const [logical, [spriteId, frame]] of Object.entries(SELECT_ELEMENTS)) {
   if (!dir) throw new Error(`select.swf 未找到 sprite ${spriteId}（${logical}）`);
   const src = join(selectExportDir, dir, `${frame}.png`);
   if (!existsSync(src)) throw new Error(`select.swf sprite ${spriteId} 缺帧 ${frame}（${logical}）`);
-  cpSync(src, join(selectDir, `${logical}.png`));
+  if (logical === 'stg_select' || logical === 'select_map') {
+    if (logical === 'select_map') {
+      // 静态板 76 是空元件 → select_map 无任何静态内容（全部可见内容 = 93 光层/
+      // 96 箭头×2/99 kuang，均走运行时叠加层，切片 45）：干净板 = 原导出画布尺寸
+      // 全透明（PNG 尺寸/引用不变，setup.ts 面板底只作层级容器）
+      const origMeta = await sharp(src).metadata();
+      await sharp({
+        create: { width: origMeta.width, height: origMeta.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .png()
+        .toFile(join(selectDir, `${logical}.png`));
+      selectMapOff = [0, 0];
+      console.log(`select select_map 干净板：76 空元件 → 无静态内容，${origMeta.width}x${origMeta.height} 全透明`);
+      continue;
+    }
+    const cleanDir = readdirSync(selectCleanExportDir).find(
+      (d) => d === `DefineSprite_${spriteId}` || d.startsWith(`DefineSprite_${spriteId}_`),
+    );
+    if (!cleanDir) throw new Error(`select-clean.swf 未找到 sprite ${spriteId}（${logical}）`);
+    const cleanSrc = join(selectCleanExportDir, cleanDir, `${frame}.png`);
+    // 模板区：stg_select = 顶部横幅内静态区
+    const tplBox = { left: 200, top: 30, width: 120, height: 60 };
+    const { off, orig, clean } = await alignCleanPlate(src, tplBox, cleanSrc);
+    const padded = await sharp({
+      create: { width: orig.width, height: orig.height, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    })
+      .composite([{ input: cleanSrc, left: off[0], top: off[1] }])
+      .png()
+      .toFile(join(selectDir, `${logical}.png`));
+    if (logical === 'stg_select') stgSelectOff = off;
+    else selectMapOff = off;
+    console.log(`select ${logical} 干净板：${clean.width}x${clean.height} → ${orig.width}x${orig.height} @(${off})`);
+  } else {
+    cpSync(src, join(selectDir, `${logical}.png`));
+  }
+}
+
+// ---------- 3a-bis. select 叠加层（旋涡 + 地图面板 fx）→ assets/ui/select-fx/<char>/ ----------
+const selectFx = { vortex: null, mapFx: [] };
+{
+  const selectFxDir = join(OUT_ASSETS, 'select-fx');
+  // 旋涡：原板 = stg_select 原导出帧 1（FFDec 冻结相位未知 → 逐帧试配）
+  const vortexDir = findSpriteDir(selectCleanExportDir, SELECT_VORTEX.char, 'select-clean 旋涡');
+  const stgPlate = await rawBuf(join(findSpriteDir(selectExportDir, 75, 'stg_select'), '1.png'));
+  const vortexCal = await calibrateOverlay(vortexDir, SELECT_VORTEX.frames, stgPlate, { x: 0, y: 0 }, SELECT_VORTEX.scale);
+  // redAdd −255（sprite 72→71 放置）：newR = clamp(r−255) = 0 → 烘焙期清零红通道精确等价
+  const vortexFrames = await collapseStaticFrames(vortexDir, SELECT_VORTEX.frames);
+  await bakeOverlayFrames(vortexDir, vortexFrames, vortexCal.crop, join(selectFxDir, String(SELECT_VORTEX.char)), (img) =>
+    img.linear([0, 1, 1], [0, 0, 0]),
+  );
+  selectFx.vortex = {
+    char: SELECT_VORTEX.char,
+    dir: `ui/select-fx/${SELECT_VORTEX.char}`,
+    frames: vortexFrames,
+    fps: 30,
+    size: [vortexCal.crop[2], vortexCal.crop[3]],
+    pos: [+vortexCal.plateTL[0].toFixed(2), +vortexCal.plateTL[1].toFixed(2)],
+    scale: SELECT_VORTEX.scale,
+  };
+  console.log(`select 旋涡：${SELECT_VORTEX.frames} 帧 crop ${vortexCal.crop.join('x')} pos [${selectFx.vortex.pos}] sse ${Math.round(vortexCal.sse / 1000)}k`);
+
+  // 地图面板 fx：原板 = select_map 原导出帧 1；注册点期望位 = 画布原点 O + 放置位。
+  // O：PNG 坐标 = local + (78,0)。实证于静态 kuang 偏移 mapKuangOffset(92,19) =
+  // d9 放置位(14,19)+(78,0)（画布原点在 local (−78,0)；下方 kuang 校准落点交叉验证）
+  const mapPlate = await rawBuf(join(findSpriteDir(selectExportDir, 100, 'select_map'), '1.png'));
+  const MAP_CANVAS_ORIGIN = [78, 0];
+  const row100 = selectModel.sprites.get(100).frames[0] || {};
+  for (const fx of SELECT_MAP_FX) {
+    const p = row100[fx.depth];
+    if (!p) throw new Error(`select_map d${fx.depth} 无放置（char ${fx.char}）`);
+    const framesDir = findSpriteDir(selectCleanExportDir, fx.char, `select-clean map fx ${fx.char}`);
+    const frameCount = await collapseStaticFrames(framesDir, selectModel.sprites.get(fx.char).frameCount);
+    const cal = await calibrateOverlay(
+      framesDir,
+      frameCount,
+      mapPlate,
+      { x: MAP_CANVAS_ORIGIN[0] + p.x, y: MAP_CANVAS_ORIGIN[1] + p.y },
+      [p.sx, p.sy],
+    );
+    let plateTL = cal.plateTL;
+    // 显式解析位覆盖（画面平滑自相似 → 模板匹配歧义的元件，如 93 光层）
+    if (fx.posOverride && p.sx > 0) {
+      console.log(`  元件 ${fx.char} 锚点用解析位 [${fx.posOverride}]（校准 [${plateTL}]）`);
+      plateTL = fx.posOverride;
+    }
+    await bakeOverlayFrames(framesDir, frameCount, cal.crop, join(selectFxDir, String(fx.char)));
+    const px = p.sx < 0 ? plateTL[0] + cal.crop[2] * Math.abs(p.sx) : plateTL[0];
+    selectFx.mapFx.push({
+      char: fx.char,
+      depth: fx.depth,
+      dir: `ui/select-fx/${fx.char}`,
+      frames: frameCount,
+      fps: 30,
+      size: [cal.crop[2], cal.crop[3]],
+      pos: [+px.toFixed(2), +plateTL[1].toFixed(2)],
+      scale: [+p.sx.toFixed(4), +p.sy.toFixed(4)],
+    });
+    console.log(`select map-fx char ${fx.char} d${fx.depth}：${frameCount} 帧 crop ${cal.crop.join('x')} pos [${selectFx.mapFx.at(-1).pos}] sse ${Math.round(cal.sse / 1000)}k`);
+  }
+  // 交叉验证：动画 kuang（99）校准落点应与静态 kuang 元件偏移一致（O 实证依据）
+  const kuang = selectFx.mapFx.find((f) => f.char === 99);
+  if (!kuang || Math.abs(kuang.pos[0] - 92) > 2 || Math.abs(kuang.pos[1] - 19) > 2) {
+    throw new Error(`kuang 99 校准落点 [${kuang?.pos}] 偏离静态 kuang 偏移 (92,19)——O 假设失效`);
+  }
 }
 
 // ---------- 3b. title 流帧 → assets/ui/title/<n>.webp（WebP q80：~8.5MB / 90 帧） ----------
@@ -304,7 +718,7 @@ const LAYOUT = {
 };
 
 const doc = {
-  schema: 'bvn/ui@2',
+  schema: 'bvn/ui@4',
   faces, // 类名 → faces/ 下文件名（266 类 = 67 形态 × grid/_b/_m/_w）
   select: {
     elements: Object.fromEntries(Object.keys(SELECT_ELEMENTS).map((k) => [k, `ui/select/${k}.png`])),
@@ -323,6 +737,11 @@ const doc = {
     /** 地图面板位置（原版：(800-bg.width)/2 ≈ 157, 600*0.25=150；app 端再加舞台居中偏移） */
     mapPanelPos: [157, 150],
     layout: LAYOUT,
+    // ---- 切片 45：嵌套动画叠加层 ----
+    /** 旋涡背景（sprite 71 循环，红通道烘焙期清零；pos = stg_select.png 内锚点，scale 拉伸） */
+    vortex: selectFx.vortex,
+    /** 地图面板 fx（pos = select_map.png 内锚点；scale[0]<0 = 镜像，锚点为可见区右缘） */
+    mapFx: selectFx.mapFx,
   },
   maps: { dir: 'ui/maps' },
   // ---- 切片 16：title 开场流帧 + 主菜单按钮（原版 MenuStage/MenuBtnGroup/MenuBtn 规格） ----
@@ -380,5 +799,5 @@ const doc = {
 mkdirSync(dirname(OUT_BAKED), { recursive: true });
 writeFileSync(OUT_BAKED, JSON.stringify(doc));
 console.log(
-  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title ${TITLE.frames} 帧 / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
+  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title ${TITLE.frames} 帧 / select-fx 旋涡+${selectFx.mapFx.length} / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
 );

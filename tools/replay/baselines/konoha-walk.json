@@ -7,24 +7,24 @@
   "checkpoints": [
     {
       "tick": 59,
-      "hash": "1981cbe7"
+      "hash": "a07682e3"
     },
     {
       "tick": 119,
-      "hash": "64c3226f"
+      "hash": "8bab5719"
     },
     {
       "tick": 179,
-      "hash": "c3e773a6"
+      "hash": "f70f966a"
     },
     {
       "tick": 239,
-      "hash": "4b2078fb"
+      "hash": "9e61891d"
     },
     {
       "tick": 299,
-      "hash": "709040f3"
+      "hash": "ffca6843"
     }
   ],
-  "finalHash": "709040f3"
+  "finalHash": "ffca6843"
 }

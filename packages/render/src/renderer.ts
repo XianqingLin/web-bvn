@@ -657,6 +657,29 @@ export class BattleRenderer {
                 : undefined;
           const color = arg === undefined ? 0xffffff : arg;
           this.spawnShine(color >>> 0, color === 0xffffff ? 0.3 : 0.2);
+        } else if (id === 'shake') {
+          // 世界抖动（修复批次 44：击飞落地 shake 此前未消费）。params 两形态：
+          // core 落地 = { x, y, time }（EffectCtrler 层值）；时间轴 shake = { arg }
+          //（FighterEffectCtrler.shake 语义：pow=max(powX,powY)、恒竖向 ×2）。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          if (typeof p['y'] === 'number' || typeof p['x'] === 'number') {
+            this.doShake(Number(p['x'] ?? 0), Number(p['y'] ?? 0), Number(p['time'] ?? 0));
+          } else if (typeof p['arg'] === 'number') {
+            this.doShake(0, p['arg'] * 2, 0);
+          }
+        } else {
+          // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
+          // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
+          // 事件 id 'touchFloor' 归一化为烘焙 id 'touch_floor'（时间轴与物理落地
+          // emit 同键，渲染层按 tick+id 去重防双播）。
+          const sparkId = id === 'touchFloor' ? 'touch_floor' : id;
+          if (this.hitspark?.effects[sparkId] && this.sparkTex.get(sparkId)) {
+            this.spawnSparkById(
+              sparkId,
+              Number(ev.payload['x'] ?? 0),
+              Number(ev.payload['y'] ?? 0),
+            );
+          }
         }
       }
       // sound/voice/hit:connect 等音频事件由 app 层 AudioSubsystem 消费（切片 27），render 不处理
@@ -785,12 +808,22 @@ export class BattleRenderer {
     }
     const eff = id !== null ? hk.effects[id] : null;
     if (!id || !eff) return;
+    this.spawnSparkById(id, x, y, direct);
+    if (eff.shine) this.spawnShine(eff.shine.color, eff.shine.alpha);
+    if (shake) this.doShake(shake.x ?? 0, shake.y ?? 0, shake.time ?? 0);
+  }
+
+  /** 按烘焙 id 生成火花/尘土特效（命中分流与通用控制器特效共用管线）。 */
+  private spawnSparkById(id: string, x: number, y: number, direct: 1 | -1 = 1): void {
+    const eff = this.hitspark?.effects[id];
+    if (!eff) return;
     const texs = this.sparkTex.get(id);
     if (!texs || texs.length === 0) return;
     const root = new Container();
     const body = new Sprite(texs[0]!);
     if (eff.blendMode === 'add') body.blendMode = 'add';
     else if (eff.blendMode === 'hardlight') body.blendMode = 'hard-light';
+    else if (eff.blendMode === 'lighten') body.blendMode = 'lighten';
     root.addChild(body);
     // EffectView.start：MC 原点钉命中点；帧位 = origin×direct（followDirect 族镜像）
     root.position.set(x, y);
@@ -798,8 +831,6 @@ export class BattleRenderer {
     if (eff.randRotate) root.rotation = Math.random() * Math.PI * 2;
     this.fxLayer.addChild(root);
     this.sparkFx.push({ root, body, texs, accMs: 0, frame: 0 });
-    if (eff.shine) this.spawnShine(eff.shine.color, eff.shine.alpha);
-    if (shake) this.doShake(shake.x ?? 0, shake.y ?? 0, shake.time ?? 0);
   }
 
   /** 火花帧推进（30fps 播尽自移除，同 mc 流帧管线）。 */
@@ -820,27 +851,36 @@ export class BattleRenderer {
     if (done.length > 0) this.sparkFx = this.sparkFx.filter((e) => !done.includes(e));
   }
 
-  /** 全屏闪（原版 shine(color, alpha) → ShineEffectView：ADD 色块覆盖 gameStage）。 */
+  /** 全屏闪（原版 shine(color, alpha) → ShineEffectView：亮色 ADD / 暗色 DARKEN
+   *  且 alpha×0.8，色块覆盖 gameStage）。 */
   private spawnShine(color: number, alpha: number): void {
     const sp = new Sprite(Texture.WHITE);
     sp.width = this.viewW;
     sp.height = this.viewH;
     sp.tint = color;
+    if (color > 0x7fffff) {
+      sp.blendMode = 'add';
+    } else {
+      sp.blendMode = 'darken';
+      alpha *= 0.8;
+    }
     sp.alpha = alpha;
-    sp.blendMode = 'add';
     this.shineLayer.addChild(sp);
     this.shines.push({ sp, alpha, accMs: 0 });
   }
 
-  /** 闪衰减（原版 ShineEffectView：15fps 步进 ×0.95，alpha ≤0.05 移除）。 */
+  /** 闪衰减（原版 ShineEffectView：FPS_GAME 60 / FPS_SHINE 15 → renderGap=3，
+   *  每步线性 _loseAlpha=renderGap+1=0.04（100 刻度），alpha ≤0.05 移除，约 0.46s 淡出）。
+   *  修正（2026-11-19）：此前误用 ×0.95 指数衰减（约 2.5s 淡出）——亮屏滞留远超原版。 */
   private updateShines(dtMs: number): void {
+    const STEP_MS = 1000 / 15;
     for (const s of this.shines) {
       s.accMs += dtMs;
-      while (s.accMs >= 1000 / 15) {
-        s.accMs -= 1000 / 15;
-        s.alpha *= 0.95;
+      while (s.accMs >= STEP_MS) {
+        s.accMs -= STEP_MS;
+        s.alpha -= 0.04;
       }
-      s.sp.alpha = s.alpha;
+      s.sp.alpha = Math.max(s.alpha, 0);
     }
     const done = this.shines.filter((s) => s.alpha <= 0.05);
     for (const s of done) {

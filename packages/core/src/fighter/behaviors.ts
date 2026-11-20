@@ -19,7 +19,7 @@ import type {
   TriggerCondition,
 } from './def.js';
 import { ActionState, SPEED_PLUS, defaultSlots, emptySlots } from './def.js';
-import { enterDead, switchForm, HURT_DAMP_Y } from './machine.js';
+import { enterDead, switchForm, HURT_DAMP_Y, HIT_DOWN_BY_HITY } from './machine.js';
 import { JUMP_TIMES_START } from '../state.js';
 import type { FighterState, StageState } from '../state.js';
 
@@ -138,14 +138,18 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.vy = num(args[1]) * SPEED_PLUS;
     ctx.f.dampX = 0;
     ctx.f.dampY = 0;
+    // 脚本化位移接管期间关闭空中操控（原版 FighterMcCtrler.move :425-427：
+    // isInAir && x != 0 → airMove = false，脚本位移优先于玩家空中输入）
+    if (num(args[0]) !== 0 && !ctx.f.onGround) ctx.f.airMove = false;
   },
-  // movePercent(px,py)：按自身移速比例的推动（招式位移常用）
+  // movePercent(px,py)：按自身移速比例的推动（招式位移常用；空中操控同上让位）
   movePercent(ctx, args) {
     const speed = (ctx.def?.speed ?? 0) * SPEED_PLUS;
     ctx.f.vx = speed * num(args[0]) * ctx.f.facing;
     ctx.f.vy = speed * num(args[1]);
     ctx.f.dampX = 0;
     ctx.f.dampY = 0;
+    if (num(args[0]) !== 0 && !ctx.f.onGround) ctx.f.airMove = false;
   },
   // moveOnce(dx,dy)：瞬移式位移（瞬步/突进类，POC 取义为一次位移）
   moveOnce(ctx, args) {
@@ -166,6 +170,10 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     ctx.f.dampY = 0;
     ctx.f.isCross = true;
     ctx.f.isAllowBeHit = false;
+    // 脚本化突进接管期间关闭空中操控（同 move：脚本位移优先，防止
+    // 空中行走门逐 tick 覆盖突进速度；偏离原版——原版空中瞬步期间
+    // airMove 不清、两者叠加，移植版统一进 vx 后叠加不可行）
+    if (!ctx.f.onGround) ctx.f.airMove = false;
   },
   // dashStop(p)：瞬步收势（原版 dashStop：damping=|vx|×p，回 NORMAL + clearAction）
   dashStop(ctx, args) {
@@ -566,6 +574,7 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
   hurtFly(ctx, args) {
     ctx.f.actionState = ActionState.HURT_FLYING;
     ctx.f.hurtTimer = 0;
+    ctx.f.hurtHeavy = num(args[1]) > HIT_DOWN_BY_HITY;
     ctx.f.vx = num(args[0]) * SPEED_PLUS * ctx.f.facing;
     ctx.f.vy = num(args[1]) * SPEED_PLUS;
     ctx.f.dampX = 0;

@@ -30,7 +30,7 @@ import { BattleRenderer } from '@bvn/render';
 import type { WsLike } from '@bvn/net';
 import type { Scene, SceneCtx } from './scene.js';
 import { SceneHost } from './scene.js';
-import { makeButton, UI_W } from '../ui.js';
+import { makeButton, selectedFaceMask, UI_W } from '../ui.js';
 import { audioOf } from '../audio.js';
 import {
   ASSETS,
@@ -186,11 +186,8 @@ export class LoadingScene implements Scene {
         }
         group.addChild(c);
 
-        // 面板底（原版 selected_item_p1/p2_mc 253×70；p2 纹理自带镜像内容）
-        c.addChild(new Sprite(isP2 ? panelP2 : panelP1));
-
-        // 大脸 245×62 @(4.75,4.75)（辅助同用大脸，同 setup 展示框 refreshBox）；
-        // p2 内容镜像（origin 248.6，scaleX=-1）
+        // 大脸垫底 245×62 @(4.75,4.75)（辅助同用大脸，同 setup 展示框 mountBox：
+        // 头像垫底、面板框叠加——原版框 depth 6 > ct depth 1；p2 内容镜像 origin 248.6）
         const faceUrl = uiFaceUrl(uiData, id, '_b');
         if (faceUrl) {
           const ct = new Container();
@@ -202,12 +199,20 @@ export class LoadingScene implements Scene {
           face.height = 62;
           ct.addChild(face);
           c.addChild(ct);
+          // 斜切框遮罩：矩形大脸角部不得从框的斜切口漏出（框外形见 selectedFaceMask）
+          const mask = selectedFaceMask(isP2);
+          c.addChild(mask);
+          ct.mask = mask;
           void Assets.load<Texture>(faceUrl).then((t) => {
             face.texture = t;
             face.width = 245;
             face.height = 62;
           });
         }
+
+        // 面板框叠大脸之上（原版 selected_item_p1/p2_mc 253×70；p2 纹理自带镜像内容。
+        // 此前框垫底、大脸叠顶，245×62 大脸把边框盖住了）
+        c.addChild(new Sprite(isP2 ? panelP2 : panelP1));
 
         // 角标（seltwzmc：帧 1..3 位次 / 帧 4 assist）
         const badge = new Sprite(badgeTex[isAssist ? 3 : index]!);

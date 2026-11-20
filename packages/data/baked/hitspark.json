@@ -328,6 +328,92 @@
         "alpha": 0.2
       },
       "freezeMs": 400
+    },
+    "jump": {
+      "dir": "hitspark/jump",
+      "frames": 8,
+      "canvas": [
+        39,
+        22
+      ],
+      "origin": [
+        -20,
+        -19
+      ]
+    },
+    "jump_air": {
+      "dir": "hitspark/jump_air",
+      "frames": 10,
+      "canvas": [
+        110,
+        15
+      ],
+      "origin": [
+        -56,
+        -7
+      ],
+      "blendMode": "add"
+    },
+    "touch_floor": {
+      "dir": "hitspark/touch_floor",
+      "frames": 7,
+      "canvas": [
+        38,
+        17
+      ],
+      "origin": [
+        -20,
+        -11
+      ]
+    },
+    "hit_floor": {
+      "dir": "hitspark/hit_floor",
+      "frames": 13,
+      "canvas": [
+        186,
+        87
+      ],
+      "origin": [
+        -92,
+        -74
+      ]
+    },
+    "hit_floor_low": {
+      "dir": "hitspark/hit_floor_low",
+      "frames": 14,
+      "canvas": [
+        192,
+        148
+      ],
+      "origin": [
+        -95,
+        -116
+      ]
+    },
+    "hit_floor_heavy": {
+      "dir": "hitspark/hit_floor_heavy",
+      "frames": 18,
+      "canvas": [
+        217,
+        67
+      ],
+      "origin": [
+        -99,
+        -63
+      ]
+    },
+    "hit_floor_yan": {
+      "dir": "hitspark/hit_floor_yan",
+      "frames": 18,
+      "canvas": [
+        355,
+        162
+      ],
+      "origin": [
+        -179,
+        -136
+      ],
+      "blendMode": "lighten"
     }
   },
   "hit": {

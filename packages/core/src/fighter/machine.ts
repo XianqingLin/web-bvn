@@ -48,6 +48,9 @@ export const HURT_DAMP_X = 0.05;
 export const HURT_DAMP_Y = 0.25;
 /** 原版 HURT_FLY_DAMPING_X=0：击飞期间水平不衰减（落地/撞击才结算） */
 export const HURT_FLY_DAMP_X = 0;
+/** 原版 HIT_DOWN_BY_HITY=5：击飞 hity 超此值 = 重击倒地（落地播重尘土 + 烟；
+ *  hity 为原始速度空间，同单位直接比较，不折算） */
+export const HIT_DOWN_BY_HITY = 5;
 /** 原版 DEFENSE_DAMPING_X=1@30fps → 0.5/tick@60Hz（防御命中推挡衰减） */
 export const DEFENSE_DAMP_X = 0.5;
 /** 原版 HURT_Y_ADD_INAIR=3 / HURT_Y_ADD=6（空间量，不折算） */
@@ -300,6 +303,11 @@ export function applyJumpLaunch(f: FighterState, def: FighterDef | null): boolea
   f.dampY = JUMP_DAMPING;
   f.onGround = false;
   f.jumpTimes -= 1;
+  // 空中操控（原版 renderJumpAnimate → setAirAllAct → setAirMove(true)）：
+  // 起跳即开放空中左右移动（速度与地面走跑同源、不转向、无惯性）——
+  // 偏离修正记录（2026-11-19）：此前仅飞行系角色（时间轴 setAirMove）可空中移动，
+  // 普通角色起跳后水平输入被完全忽略。
+  f.airMove = true;
   return true;
 }
 
@@ -1258,14 +1266,18 @@ export function enterHurt(
   f.applyG = hit.isApplyG !== false; // 容错缺省（手写 def 兼容）
 
   if (hit.hurtType !== 0) {
-    // 击飞（原版 playHurtFly：按击退方向翻转朝向；水平不衰减）
+    // 击飞（原版 playHurtFly：按击退方向翻转朝向；水平不衰减）。
+    // 重击倒地标记（原版 _isHeavyDownAttack = hity > HIT_DOWN_BY_HITY(5)，
+    // hity 为原始速度空间——落地时据此播重/普通落地尘土）
     f.actionState = ActionState.HURT_FLYING;
     f.hurtTimer = 0;
+    f.hurtHeavy = hity > HIT_DOWN_BY_HITY;
     f.dampX = HURT_FLY_DAMP_X;
     if (hitx !== 0) f.facing = hitx > 0 ? -1 : 1;
     setLabel(f, def, '击飞');
     return 'fly';
   }
+  f.hurtHeavy = false;
   f.actionState = ActionState.HURT_ING;
   // 原版：round(hurtTime/1000*30)+OFFSET，下限 4（动画帧）
   const hold = Math.round((hit.hurtTime * 30) / 1000) + HURT_HOLD_OFFSET;
