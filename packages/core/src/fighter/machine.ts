@@ -45,6 +45,10 @@ export const JUMP_DAMPING = 0.25;
 export const HURT_DAMP_X = 0.05;
 /** 原版 HURT_DAMPING_Y=0.5@30fps → 0.25/tick@60Hz */
 export const HURT_DAMP_Y = 0.25;
+/** 原版 HIT_FLOOR_DAMPING_X=2（60Hz 减量，作用在 30fps 单位速度上）→ 1.0/tick@60Hz */
+export const HURT_FLOOR_DAMP_X = 1;
+/** 原版 HIT_FLOOR_DAMPING_X_HEAVY=4 → 2.0/tick@60Hz */
+export const HURT_FLOOR_DAMP_X_HEAVY = 2;
 /** 原版 HURT_FLY_DAMPING_X=0：击飞期间水平不衰减（落地/撞击才结算） */
 export const HURT_FLY_DAMP_X = 0;
 /** 原版 HIT_DOWN_BY_HITY=5：击飞 hity 超此值 = 重击倒地（落地播重尘土 + 烟；
@@ -1361,16 +1365,16 @@ export function enterGuardBreak(
 
 /** 倒地进入（原版 FighterMC.playHurtDown2 / renderHurtFly case2重击/case3 公共尾）：
  *  HURT_DOWN + 击飞_倒 定格（goFrame(name,false) 首帧停）+ 定格计时
- *  （重击 30 / 轻弹起二次落地 15 动画帧）后切 起身。阻尼偏离记录：
- *  原版 setDamping(HIT_FLOOR_DAMPING_X=2/HEAVY=4)（60Hz 减量，远大于
- *  HURT_DAMPING_X=0.1）——移植版沿用受击阻尼 HURT_DAMP_X，倒地滑步距离
- *  与原版的系统性偏差归 GROUND_FRICTION 阻尼批次一并收编。 */
+ *  （重击 30 / 轻弹起二次落地 15 动画帧）后切 起身。倒地滑行阻尼（修复批次 60）：
+ *  原版 case2 重击 setDamping(HIT_FLOOR_DAMPING_X_HEAVY=4)、case3/playHurtDown
+ *  setDamping(HIT_FLOOR_DAMPING_X=2)——按速度空间折算 2.0/1.0 每 tick
+ * （远大于受击 HURT_DAMPING_X=0.1：倒地是贴地急刹，非长滑行）。 */
 function enterHurtDown(f: FighterState, def: FighterDef | null, heavy: boolean): void {
   f.actionState = ActionState.HURT_DOWN;
   f.hurtTimer = (heavy ? HIT_DOWN_HEAVY_FRAMES : HIT_DOWN_FRAMES) + riseFrames(def);
   setLabel(f, def, '击飞_倒');
   f.mcHold = true; // 原版 goFrame("击飞_倒", false)：躺地定格首帧
-  f.dampX = HURT_DAMP_X;
+  f.dampX = heavy ? HURT_FLOOR_DAMP_X_HEAVY : HURT_FLOOR_DAMP_X;
   f.hurtFlyStage = 0;
 }
 
@@ -1426,11 +1430,14 @@ export function stepHurtFly(f: FighterState, def: FighterDef | null): HurtFlyFx[
         fx.push({ id: 'hit_floor_yan', params: {} });
         break;
       }
-      // 轻击弹起（原版 case 2 轻击分支）：击飞_弹 定格 + 二次起飞
+      // 轻击弹起（原版 case 2 轻击分支）：击飞_弹 定格 + 二次起飞。
+      // 原版 playHurtDown（弹起公共尾）同时 setDamping(HIT_FLOOR_DAMPING_X=2)
+      // ——弹起滞空/二次落地滑行按 1.0/tick 衰减（修复批次 60 补设）。
       f.hurtFlyStage = 3;
       f.hurtFlyHold = 0;
       setLabel(f, def, '击飞_弹');
       f.mcHold = true; // 原版 goFrame("击飞_弹", false)：弹起姿势定格飞行
+      f.dampX = HURT_FLOOR_DAMP_X;
       let vecy = (f.y - f.hurtApexY) / 25;
       if (vecy < HIT_FLOOR_TAN_Y_MIN) vecy = HIT_FLOOR_TAN_Y_MIN;
       if (vecy > HIT_FLOOR_TAN_Y_MAX) vecy = HIT_FLOOR_TAN_Y_MAX;

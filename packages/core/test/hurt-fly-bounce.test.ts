@@ -224,3 +224,82 @@ describe('击飞三段式弹起（切片 54）', () => {
     expect(f2.animFrame, 'juggle 重入重置帧号（goFrame gotoAndStop）').toBe(fly.index + 1);
   });
 });
+
+describe('受击/倒地滑行阻尼（修复批次 60，原版 setDamping 语义）', () => {
+  const STAGGER: Parameters<typeof enterHurt>[2] = {
+    power: 10,
+    hitType: 1,
+    hitx: 6,
+    hity: 0,
+    hurtTime: 400,
+    hurtType: 0,
+    isBreakDef: false,
+    isApplyG: true,
+  };
+
+  it('受击硬直（被打）地面滑行：仅 dampX 0.05/tick 衰减（无额外地面摩擦）', () => {
+    const state = buildState();
+    const def = makeDef('t');
+    const f2 = state.fighters[1]!;
+    enterHurt(f2, def, STAGGER, -1, false);
+    expect(f2.actionState).toBe(21 /* HURT_ING */);
+    expect(f2.dampX).toBe(0.05); // 原版 HURT_DAMPING_X=0.1 ×0.5
+    const vx0 = Math.abs(f2.vx); // 3 = hitx 6 ×0.5
+    const sim = makeSim(state);
+    const zero = { p1: 0, p2: 0 };
+    // 只覆盖硬直窗口内（hurtTime 400ms = 15 动画帧 = 30 tick 边界回位清 vx）
+    for (let t = 1; t <= 20; t++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      expect(f.actionState).toBe(21 /* HURT_ING */);
+      // 原版滑行衰减只来自 setDamping（每 tick num_wake），无叠加摩擦
+      expect(Math.abs(f.vx)).toBeCloseTo(Math.max(vx0 - 0.05 * t, 0), 6);
+    }
+  });
+
+  it('重击倒地（击飞_倒）：滑行阻尼 2.0/tick（原版 HIT_FLOOR_DAMPING_X_HEAVY=4）', () => {
+    const state = buildState();
+    const def = makeDef('t');
+    const f2 = state.fighters[1]!;
+    f2.y = 440;
+    f2.onGround = false;
+    enterHurt(f2, def, LAUNCH_HEAVY, -1, true);
+    const sim = makeSim(state);
+    const zero = { p1: 0, p2: 0 };
+    let down: ReturnType<typeof Sim.prototype.tick>['state']['fighters'][number] | null = null;
+    for (let i = 0; i < 300; i++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      if (f.actionState === 23 /* HURT_DOWN */) {
+        down = f;
+        break;
+      }
+    }
+    expect(down, '重击应倒地').not.toBeNull();
+    expect(down!.dampX).toBe(2); // 原版 HIT_FLOOR_DAMPING_X_HEAVY=4 ×0.5
+    const vx0 = Math.abs(down!.vx);
+    for (let t = 1; t <= 5; t++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      expect(Math.abs(f.vx)).toBeCloseTo(Math.max(vx0 - 2 * t, 0), 6);
+    }
+  });
+
+  it('轻击飞弹起（击飞_弹）+ 二次落地：滑行阻尼 1.0/tick（原版 HIT_FLOOR_DAMPING_X=2）', () => {
+    const state = buildState();
+    const def = makeDef('t');
+    const f2 = state.fighters[1]!;
+    f2.y = 460;
+    f2.onGround = false;
+    enterHurt(f2, def, LAUNCH_LIGHT, -1, true);
+    const sim = makeSim(state);
+    const zero = { p1: 0, p2: 0 };
+    let sawTanDamp = -1;
+    let downDamp = -1;
+    for (let i = 0; i < 300; i++) {
+      const f = sim.tick(zero).state.fighters[1]!;
+      if (f.actionState === 24 /* HURT_DOWN_TAN */ && sawTanDamp < 0) sawTanDamp = f.dampX;
+      if (f.actionState === 23 /* HURT_DOWN */ && downDamp < 0) downDamp = f.dampX;
+      if (sawTanDamp >= 0 && downDamp >= 0) break;
+    }
+    expect(sawTanDamp, '弹起起即切 HIT_FLOOR_DAMPING（原版 playHurtDown setDamping）').toBe(1);
+    expect(downDamp, '二次落地 击飞_倒 同为 1.0/tick').toBe(1);
+  });
+});

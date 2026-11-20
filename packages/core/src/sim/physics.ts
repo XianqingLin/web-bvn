@@ -31,8 +31,6 @@ export const GRAVITY_CAP = 6;
 const GROUND_SNAP_BAND = 12;
 const FALL_LAND_SPEED = 2.5;
 const LAND_TOLERANCE = 10;
-/** 地面滑行摩擦（受击/倒地滑行衰减；POC 取义，原版按 HURT_DAMPING 结算） */
-const GROUND_FRICTION = 0.9;
 
 /**
  * 垂直落地判定，语义对照原版 GameLogic.isInAir（module-map §地图几何）。
@@ -124,15 +122,12 @@ export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): v
       // 不会饿死走路；移植版统一进 vx 后必须在此清 dampX，否则瞬步收势
       // 的 dampX=|vx|×p 永不复位 → 落地后行走速度每帧被 wake 清零（角色冻结）。
       f.dampX = 0;
-    } else if (
-      f.onGround &&
-      (f.actionState === ActionState.HURT_ING ||
-        f.actionState === ActionState.HURT_DOWN ||
-        f.actionState === ActionState.DEAD)
-    ) {
-      // 地面滑行摩擦（仅受击/倒地/死亡；瞬步/防御速度走自身衰减或置零）
-      f.vx = wake(f.vx, GROUND_FRICTION);
     }
+    // 受击/倒地/死亡地面滑行不做额外摩擦（修复批次 60，原版实证）：原版滑行
+    // 衰减只来自命中起手 setDamping 的 damping（doHurt=HURT_DAMPING_X、倒地
+    // HIT_FLOOR_DAMPING_X 系，由 enterHurt/enterHurtDown/stepHurtFly 按路径
+    // 设置）+ renderVelocity 的 num_wake——移植版曾在 POC 引入自创地面摩擦
+    // GROUND_FRICTION=0.9，与 dampX 叠加后受击滑步距离比原版短约 10 倍，已删。
     // 速度线性衰减（原版 renderVelocity + KyoUtils.num_wake）
     f.vx = wake(f.vx, f.dampX);
     f.vy = wake(f.vy, f.dampY);
