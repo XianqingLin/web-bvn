@@ -72,17 +72,26 @@ export function resolveLanding(f: FighterState, stage: StageState): boolean {
 // slowDown 全局慢放（切片 49）：位移/重力增量 ×scale（原版 move() ×speedPlus、
 // applayG 增量 ×GameConfig.SPEED_PLUS——KO 链折算范式同款）；阻尼衰减不缩。
 // 行走速度所有权式置 vx 后消费侧缩放，输入位移同步减慢。
-export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
+// onlyId（切片 53）：幽步冻结期只积分该角色（原版 GameCtrler.pause +
+// EffectCtrler.justRender 白名单——仅瞬身者 sp.render() 速度积分照跑，
+// 其余实体停走；prop/道具/辅助物理/抓吸全部冻结）。undefined = 常规全量。
+export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): void {
   const { stage, fighters } = ctx.state;
   const slowScale = slowDownScaleOf(ctx.state);
   for (let i = 0; i < fighters.length; i++) {
     const f = fighters[i]!;
+    if (onlyId !== undefined && f.id !== onlyId) continue;
     const view = views[i]!;
     const def = ctx.defOf(f);
     const wasAirborne = !f.onGround;
     // 瞬身步推进（原版 renderGhostStep；结束回位/恢复速度/发事件）
     stepGhost(f, def, (g) => {
-      ctx.emit('effect', { id: 'endGhostStep', x: g.x, y: g.y, params: {} });
+      ctx.emit('effect', {
+        id: 'endGhostStep',
+        x: g.x,
+        y: g.y,
+        params: { owner: g.id, ownerKind: 'fighter' },
+      });
     });
     // 行走：地面 NORMAL（原版 renderFloorAction）或空中 airMove（原版
     // renderAirAction → doAirMove：空中左右同移速直接位移，攻击中同样生效，
@@ -186,6 +195,12 @@ export function stepPhysics(ctx: SimCtx, views: InputView[]): void {
       if (f.jumpDelay === 0) applyJumpLaunch(f, def);
     }
   }
+  if (onlyId !== undefined) {
+    // 幽步冻结：其余实体停走（原版未白名单者不 render），牵引边界仍对瞬身者
+    // 施加（原版 justRender 后 GameLogic.fixGameSpritePosition 只修白名单者）
+    clampPlayfield(ctx, onlyId);
+    return;
+  }
   // 飞行道具推进（原版 Bullet.render：每 tick 位移/加速/钳制/寿命/出界）
   ctx.stepBullets();
   // 独立道具推进（原版 FighterAttacker.render：follow 重定位/重力/寿命占位）
@@ -244,7 +259,7 @@ export function releaseGrab(ctx: SimCtx, g: FighterState): void {
   }
 }
 
-function clampPlayfield(ctx: SimCtx): void {
+function clampPlayfield(ctx: SimCtx, onlyId?: number): void {
   const { stage, fighters } = ctx.state;
   if (fighters.length === 2) {
     const [a, b] = fighters as [FighterState, FighterState];
@@ -262,6 +277,7 @@ function clampPlayfield(ctx: SimCtx): void {
     left = Math.max(left, stage.leftBound);
     right = Math.min(right, stage.rightBound);
     for (const f of fighters) {
+      if (onlyId !== undefined && f.id !== onlyId) continue;
       f.x = Math.min(Math.max(f.x, left), right);
     }
   }

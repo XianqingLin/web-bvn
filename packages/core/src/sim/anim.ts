@@ -45,7 +45,20 @@ export function stepIntents(ctx: SimCtx, views: InputView[]): void {
     }
     // 摔技目标判定需要对手状态（allowCatch）；双人模型取另一角色
     const other = fighters[i === 0 ? 1 : 0] ?? null;
+    // 幽步启动打点（切片 53，原版 FighterMcCtrler.startGhostStep →
+    // effectCtrler.ghostStep）：意图层差分发出（0→>0），渲染层据此挂
+    // 蓝残影（shadow(0,0,255)）+ 黑幕 + snd_ghost_jump；ghostType 供
+    // 演出分流备用（原版 _ghostType 0/1/2）。
+    const ghostBefore = f.ghostTicks;
     stepIntentsFor(f, def, view, other, other !== null ? ctx.defOf(other) : null);
+    if (ghostBefore === 0 && f.ghostTicks > 0) {
+      ctx.emit('effect', {
+        id: 'startGhostStep',
+        x: f.x,
+        y: f.y,
+        params: { owner: f.id, ownerKind: 'fighter', ghostType: f.ghostType },
+      });
+    }
     // 辅助召唤（原版 FighterMcCtrler.renderAssist）：NORMAL/DEFENCE +
     // 辅助键 + fzqi 满 → fzqi 清零并召唤。偏离记录：被动辅助冷却
     // （isUsedPassiveCdIng）依赖未建模的被动辅助语料，不实现。
@@ -64,12 +77,13 @@ export function stepIntents(ctx: SimCtx, views: InputView[]): void {
 }
 
 // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）。
-// cutinLock（切片 22）：特写冻结期只推进锁主的时间轴。
-export function stepAnimation(ctx: SimCtx, cutinLock?: CutinLockState): void {
+// only（切片 22 切入 / 切片 53 复用）：冻结期只推进锁主（cutinLock）或瞬身者
+//（幽步冻结）的时间轴——kind+id 寻址，type 不参与。
+export function stepAnimation(ctx: SimCtx, only?: Pick<CutinLockState, 'kind' | 'id'>): void {
   const { fighters, stage } = ctx.state;
   for (let i = 0; i < fighters.length; i++) {
     const f = fighters[i]!;
-    if (cutinLock && !(cutinLock.kind === 'fighter' && cutinLock.id === f.id)) continue;
+    if (only && !(only.kind === 'fighter' && only.id === f.id)) continue;
     const def = ctx.defOf(f);
     if (!def) {
       advanceAnimation(f, null);
@@ -132,6 +146,6 @@ export function stepAnimation(ctx: SimCtx, cutinLock?: CutinLockState): void {
     }
   }
   // 辅助实体推进（30Hz：帧触发器/循环触发/退场判定；切片 12）
-  // 特写冻结（切片 22）：cutinLock 锁主为辅助时只推进锁主
-  ctx.stepAssisterAnimation(cutinLock);
+  // 特写冻结（切片 22）：锁主为辅助时只推进锁主
+  ctx.stepAssisterAnimation(only);
 }

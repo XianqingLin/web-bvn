@@ -390,6 +390,12 @@ export class Sim {
       // 输入/物理/推挤/命中/计时/回气全部停走；endBisha/endWanKai（锁主时间轴
       // 帧触发）解锁后下一 tick 恢复正常管线。
       this.tickCutinLock(inputs);
+    } else if (this.state.fighters.some((f) => f.ghostTicks > 0)) {
+      // 幽步冻结（切片 53，原版 EffectCtrler.ghostStep → GameCtrler.pause +
+      // justRender 白名单）：全场停走，仅瞬身者物理积分 + 时间轴 30Hz 推进
+      //（白名单 sp.render()/renderAnimate()）。冻结由 ghostTicks 驱动、
+      // stepGhost 归零自然解除；意图封锁已由 machine 决策门保证。
+      this.tickGhostFreeze();
     } else {
       this.stepInputs(inputs); // 1. 输入处理
       stepIntents(this.ctx, this.views); // 2. 意图决策
@@ -406,6 +412,27 @@ export class Sim {
       stepMatchFlow(this.ctx); // 7. 流程事件
     }
     return this.stepOutput(); // 8. 输出
+  }
+
+  /**
+   * 幽步冻结 tick（切片 53）：仅瞬身者推进——物理积分（含 stepGhost 计时/
+   * 位移/回位与结束事件，原版白名单 sp.render() 速度积分照跑）+ 时间轴
+   * 30Hz（原版 justRenderAnimate；走标签帧触发 ghost_step 蓝色拖尾特效）。
+   * 输入/推挤/命中/道具/计时/回气停走（原版 render() 早退 + renderGameTime
+   * 冻结）。瞬身者免伤不会死，死亡保护兜底走正常管线。
+   */
+  private tickGhostFreeze(): void {
+    const ghost = this.state.fighters.find((f) => f.ghostTicks > 0);
+    if (!ghost || ghost.hp <= 0) {
+      // 保护性兜底（理论上不可达：免伤期不受击）：本 tick 恢复正常管线
+      stepPhysics(this.ctx, this.views);
+      if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) stepAnimation(this.ctx);
+      return;
+    }
+    stepPhysics(this.ctx, this.views, ghost.id);
+    if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
+      stepAnimation(this.ctx, { kind: 'fighter', id: ghost.id });
+    }
   }
 
   /**

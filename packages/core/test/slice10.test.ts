@@ -379,3 +379,69 @@ describe('切片 10：确定性', () => {
     expect(tailB).toEqual(tailA);
   });
 });
+
+describe('切片 53：幽步演出 ghost_step', () => {
+  it('幽步冻结：全场停走仅瞬身者推进 + start/endGhostStep 事件 + walk 幽步分流', () => {
+    // 原版 EffectCtrler.ghostStep：GameCtrler.pause（全场冻结）+ justRender
+    // 白名单（仅瞬身者 render/renderAnimate）——冻结语义进 sim（切片 53）。
+    // P1 站立 → 幽步（dash+↓ 地面步）；P2 全程按住左移。
+    const sim = makeSim({
+      triggers: [{ frame: 12, target: 'effect', op: 'walk', args: [] }],
+      mutate: (s) => {
+        s.fighters[0]!.qi = 100;
+      },
+    });
+    const events: SimEvent[] = [];
+    const states: SimState[] = [];
+    const run = (n: number, p1: number, p2: number) => {
+      for (let i = 0; i < n; i++) {
+        const snap = sim.tick({ p1, p2 });
+        events.push(...snap.events);
+        states.push(snap.state);
+      }
+    };
+    run(3, 0, Btn.left); // P2 左移接近
+    // 防御先发起（防御分支先于瞬身步一拍），缓冲中的 dash 在防御分支接瞬身步
+    run(1, Btn.down | Btn.dash, Btn.left);
+    run(2, Btn.down, Btn.left); // P1 幽步启动
+    run(30, 0, Btn.left); // 幽步自然到期 + 解冻后续拍
+
+    const start = events.find((e) => e.type === 'effect' && e.payload['id'] === 'startGhostStep');
+    expect(start).toBeDefined();
+    expect(start!.payload['params']).toMatchObject({
+      owner: 1,
+      ownerKind: 'fighter',
+      ghostType: 0,
+    });
+
+    // 冻结窗口 = ghostTicks>0 的快照（启动 tick 走了常规管线且 stepGhost 同拍
+    // 已减一：24→23，故快照窗 23 个；含启动拍共 24 tick = 0.4s × 60）
+    const ghostIdx = states.map((s, i) => (s.fighters[0]!.ghostTicks > 0 ? i : -1)).filter((i) => i >= 0);
+    expect(ghostIdx.length).toBe(23);
+    const frozenX = states[ghostIdx[1]!]!.fighters[1]!.x;
+    for (const i of ghostIdx.slice(1)) {
+      expect(states[i]!.fighters[1]!.x).toBe(frozenX); // 原版 pause：对手停走
+    }
+    // 瞬身者推进：冻结期每 tick 位移 4（move(8,0) × SPEED_PLUS）
+    for (let i = 1; i < ghostIdx.length; i++) {
+      expect(states[ghostIdx[i]!]!.fighters[0]!.x - states[ghostIdx[i - 1]!]!.fighters[0]!.x).toBe(4);
+    }
+
+    // walk 幽步分流：走标签帧发 ghost_step 蓝色拖尾（direct = 朝向 1），不发脚步声
+    const spark = events.find((e) => e.type === 'effect' && e.payload['id'] === 'ghost_step');
+    expect(spark).toBeDefined();
+    expect(spark!.payload['params']).toMatchObject({ direct: 1 });
+    const stepsNearP1 = events.filter(
+      (e) => e.type === 'sound' && e.payload['id'] === 'step' && Number(e.payload['x']) < 300,
+    );
+    expect(stepsNearP1).toHaveLength(0); // P1 幽步期不发 se_step（P2 活动区 x>600）
+
+    const end = events.find((e) => e.type === 'effect' && e.payload['id'] === 'endGhostStep');
+    expect(end).toBeDefined();
+    expect(end!.payload['params']).toMatchObject({ owner: 1, ownerKind: 'fighter' });
+    const last = states.at(-1)!.fighters[0]!;
+    expect(last.ghostCooldown).toBe(0); // 自然到期：无连续冷却
+    const post = sim.tick({ p1: 0, p2: Btn.left }).state;
+    expect(post.fighters[1]!.x).not.toBe(frozenX); // 解冻恢复移动
+  });
+});

@@ -78,7 +78,7 @@ export interface SimCtx {
   /** 移除独立道具（辅助 removeAttacker 桥） */
   removeAttackers(ids: number[]): void;
   /** 辅助 30Hz 推进（anim.stepAnimation 尾部追加） */
-  stepAssisterAnimation(cutinLock?: CutinLockState): void;
+  stepAssisterAnimation(only?: Pick<CutinLockState, 'kind' | 'id'>): void;
   /** 飞行道具每 tick 推进（physics.stepPhysics 内追加） */
   stepBullets(): void;
   /** 独立道具每 tick 推进（physics.stepPhysics 内追加） */

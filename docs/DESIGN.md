@@ -123,6 +123,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - dash+↑ 空中瞬跳：vy −6 / dampY 0.05 / jumpTimes−1，结束恢复 damping(−vy/10) + airMove（顺序在回位之后，不被 endAction 清掉）；
 - dash+↓（空中）速降：vy 7.5 触地即结束；
 - 必杀/万解中不可发起；地面分支先于瞬步/跳判定；防御态经输入缓冲下一拍接瞬身步脱离。
+- **幽步演出/冻结**（切片 53，原版 `EffectCtrler.ghostStep` → `GameCtrler.pause` + `justRender` 白名单 + `shadow(0,0,255)`）：三类瞬身步均全场冻结——tick 幽步冻结分支（切片 22 冻结范式同款）：全场停走（输入/意图/推挤/命中/道具/计时/回气），仅瞬身者物理积分（`stepPhysics` `onlyId` 过滤 + 牵引边界单边 clamp，原版 `fixGameSpritePosition` 只修白名单者）+ 时间轴 30Hz 推进（原版 justRenderAnimate；走标签帧照常触发）。事件链：`startGhostStep`（意图层 ghostTicks 0→>0 差分发出）→ 渲染层蓝残影（复用切片 47 机制，色偏移 0/0/255）+ 黑幕/地图隐藏（updateCutin 按快照 ghostTicks 差分，无横幅立绘）+ app 层 snd_ghost_jump；幽步期走标签帧 walk op 分流发 `ghost_step` 蓝色拖尾火花（XG_ghost_step，ADD 混合，effectSound snd_ghost_step——原版 `FighterEffectCtrler.walk` `_inGhostStep` 分支）；`endGhostStep` 停残影。地面步全程 NORMAL，残影 actionState 差分自动清理不触发——依赖显式事件收尾（黑幕由快照差分自动收）。
 
 **技、必杀与万解**
 

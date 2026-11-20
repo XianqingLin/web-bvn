@@ -196,11 +196,12 @@ const HIT_SOUND = {
   steel: 'snd_hit_steel',
   guardBreak: 'snd_mfdjx', // 原版 break_def 效果音（XG_mfdjx）
 };
-// effect 事件 → fx 音（原版 EffectVO.sound：jump/touch_floor/dash/bisha/bisha_super）
+// effect 事件 → fx 音（原版 EffectVO.sound：jump/touch_floor/dash/ghost_step/bisha/bisha_super）
 const EFFECT_SOUND = {
   jump: 'snd_jump',
   touchFloor: 'snd_luodi',
   dash: 'snd_dash_air',
+  ghost_step: 'snd_ghost_step', // 幽步蓝色拖尾（切片 53，EffectVO.sound snd_ghost_step）
   bisha: 'snd_bs',
   bisha_super: 'snd_cbs',
 };

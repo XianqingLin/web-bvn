@@ -378,6 +378,19 @@
         -63
       ]
     },
+    "ghost_step": {
+      "dir": "hitspark/ghost_step",
+      "frames": 16,
+      "canvas": [
+        49,
+        44
+      ],
+      "origin": [
+        -44,
+        -41
+      ],
+      "blendMode": "add"
+    },
     "touch_floor": {
       "dir": "hitspark/touch_floor",
       "frames": 7,

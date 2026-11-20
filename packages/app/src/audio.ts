@@ -352,6 +352,12 @@ export class AudioSubsystem implements Subsystem {
         }
         case 'effect': {
           const id = String(ev.payload['id']);
+          // 幽步启动音（切片 53，原版 EffectCtrler.ghostStep 尾声
+          // playSwcSound(snd_ghost_jump)——swc 通道，非 EffectVO.sound 体系）
+          if (id === 'startGhostStep') {
+            const gj = mf.swc.ghostJump;
+            if (gj) this.se(gj, 'swc');
+          }
           const fx = mf.effectSound[id];
           if (fx) this.se(fx, 'fx');
           if (id === 'bisha' || id === 'wanKai') this.cutinOpen = true;

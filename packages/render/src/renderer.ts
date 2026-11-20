@@ -916,6 +916,26 @@ export class BattleRenderer {
           // 震屏结束（原版 EffectCtrler.endShake：hold 清零 + gameStage 位移
           // 即时回零——衰减 pow 若仍>0，下一 30fps 步进重新落位）。
           this.endShakeHold();
+        } else if (id === 'startGhostStep') {
+          // 幽步启动（切片 53，原版 FighterMcCtrler.startGhostStep →
+          // effectCtrler.ghostStep()：shadow(0,0,255) 蓝残影 + justRender 白名单
+          // + 黑幕/地图隐藏 + snd_ghost_jump）。黑幕/地图隐藏由 updateCutin 按
+          // 快照 ghostTicks 差分驱动（sim 冻结同源）；此处只挂蓝残影
+          //（复用切片 47 ShadowEffectView 机制，色偏移 = 原版 ColorTransform(0,0,255)）。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const owner = p['owner'];
+          if (typeof owner === 'number') {
+            this.shadowStates.set(`fighter:${owner}`, { r: 0, g: 0, b: 255 });
+          }
+        } else if (id === 'endGhostStep') {
+          // 幽步结束（原版 effectCtrler.endGhostStep → endShadow）：停蓝残影。
+          // 地面步全程 NORMAL，残影 actionState 差分自动清理不触发——依赖显式
+          // 事件；空中步结束回 NORMAL 双路径同拍先清后消费，幂等。
+          const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
+          const owner = p['owner'];
+          if (typeof owner === 'number') {
+            this.shadowStates.delete(`fighter:${owner}`);
+          }
         } else {
           // 通用控制器特效（修复批次 44：jump/touchFloor 尘土 + hit_floor 落地尘土系
           // 此前未消费）。跳/落地尘土走火花管线（30fps 播尽自移除，规格随烘焙）。
@@ -1591,8 +1611,13 @@ export class BattleRenderer {
     const lock = next.state.cutinLock;
     const mc = this.bishaMc;
     const cutinActive = lock !== null && mc !== null;
-    this.blackLayer.visible = cutinActive;
-    if (cutinActive) {
+    // 幽步黑幕（切片 53，原版 EffectCtrler.ghostStep：_blackBack.fadIn +
+    // getMap().setVisible(false)——快照 ghostTicks 差分驱动，与切人锁同层
+    // 视觉、无横幅/立绘；幽步期不可能与切人锁并存，黑幕条件取并集）
+    const ghostLock = next.state.fighters.some((f) => f.ghostTicks > 0);
+    const blackActive = cutinActive || ghostLock;
+    this.blackLayer.visible = blackActive;
+    if (blackActive) {
       // 黑幕盖满当前视口（屏幕空间；resize 后重画）
       if (this.blackW !== this.viewW || this.blackH !== this.viewH) {
         this.blackW = this.viewW;
@@ -1603,9 +1628,9 @@ export class BattleRenderer {
     // 相机聚焦收场（原版 endBisha/endWanKai → cameraResume：双焦点 + autoZoom 接管）
     if (lock === null) this.camFocus = null;
     // 地图隐藏（原版 getMap().setVisible(false)；front 系同属地图视觉层）
-    this.mapLayer.visible = lock === null;
-    this.mapFrontFixLayer.visible = lock === null;
-    this.mapFrontLayer.visible = lock === null;
+    this.mapLayer.visible = !blackActive;
+    this.mapFrontFixLayer.visible = !blackActive;
+    this.mapFrontLayer.visible = !blackActive;
     // 横幅/立绘 = 屏幕空间（scale = fitZoom：800×600 舞台规格 → 视口像素，
     // 不随相机平移/缩放——切片 26 移出 world）
     this.cutinScreen.visible = cutinActive;

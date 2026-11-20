@@ -125,13 +125,16 @@ export function stepAssisterPhysics(ctx: SimCtx): void {
 }
 
 /** 辅助 30Hz 推进：帧触发器 + 循环触发 + 动画推进 + 退场判定。
- *  cutinLock（切片 22）：特写冻结期只推进锁主（辅助侧切人演出）。 */
-export function stepAssisterAnimation(ctx: SimCtx, cutinLock?: CutinLockState): void {
+ *  only（切片 22）：冻结期只推进锁主（辅助侧切人演出；kind+id 寻址）。 */
+export function stepAssisterAnimation(
+  ctx: SimCtx,
+  only?: Pick<CutinLockState, 'kind' | 'id'>,
+): void {
   const { fighters, stage, assisters } = ctx.state;
   const removed: number[] = [];
   for (const s of assisters) {
     if (removed.includes(s.id)) continue;
-    if (cutinLock && !(cutinLock.kind === 'assister' && cutinLock.id === s.id)) continue;
+    if (only && !(only.kind === 'assister' && only.id === s.id)) continue;
     const def = ctx.assisterDefs.get(s.assistId);
     if (!def) continue;
     const owner = fighters.find((f) => f.id === s.ownerId) ?? null;

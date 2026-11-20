@@ -373,8 +373,19 @@ export const defaultBehaviors: Record<string, BehaviorHandler> = {
     const t = num(args[0]);
     if (t > 0) ctx.setSlowDown(t);
   },
-  // walk()：脚步声（原版 se_step1~3 随机 → 事件 id 统一 step，render 层选音源）
+  // walk()：脚步声（原版 se_step1~3 随机 → 事件 id 统一 step，render 层选音源）。
+  // 幽步地面步分流（切片 53，原版 FighterEffectCtrler.walk _inGhostStep 分支）：
+  // 走标签帧改发 ghost_step 蓝色拖尾特效（XG_ghost_step，ADD 混合）不发脚步声。
   walk(ctx) {
+    if (ctx.f.ghostTicks > 0) {
+      ctx.emit('effect', {
+        id: 'ghost_step',
+        x: ctx.f.x,
+        y: ctx.f.y,
+        params: { direct: ctx.f.facing },
+      });
+      return;
+    }
     ctx.emit('sound', { id: 'step', x: ctx.f.x, y: ctx.f.y });
   },
   // jump()：起跳尘土（effect 控制器版）

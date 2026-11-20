@@ -94,6 +94,10 @@ const GENERAL_EFFECTS = [
   // 均无 blendMode/freeze；core dash@effect op 按 isInAir 分流，direct 进 params）
   { id: 'dash', className: 'XG_rush' },
   { id: 'dash_air', className: 'XG_rush_air' },
+  // 幽步蓝色拖尾（切片 53，EffectModel initEffects：ghost_step→XG_ghost_step
+  // { sound: "snd_ghost_step", blendMode: ADD }；core walk@effect op 幽步期分流，
+  // direct 进 params；音走 sound-pack EFFECT_SOUND.ghost_step）
+  { id: 'ghost_step', className: 'XG_ghost_step', blendMode: 'add' },
   { id: 'touch_floor', className: 'XG_luodi' },
   { id: 'hit_floor', className: 'XG_hitfloor' },
   { id: 'hit_floor_low', className: 'xg_hitfloor_low' },
