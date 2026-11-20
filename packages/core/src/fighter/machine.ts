@@ -899,10 +899,17 @@ export function stepIntentsFor(
       }
     }
     // 快速下落（原版 doJumpDown：↓+跳。原版代码序在 defense 之后但 doJumpDown
-    // 以 _action.clear() 覆盖防御态——净效果 = 快速下落优先，故前置检查）。
-    // 仅待机态可发起（修复批次 20：原版 jumpDown 槽被 clearAction 清空，
-    // 动作播放中不可快速下落——否则缓冲的 ↓+跳 会覆盖进行中的动作）。
-    if (down && view.buffered(Btn.jump) && f.actionState === ActionState.NORMAL) {
+    // 以 _action.clear() 覆盖防御态（_isDefense=false）——净效果 = 快速下落优先，
+    // 故前置检查）。待机/防御两态可发起（修复批次 61：原版 jumpDown() 只要求
+    // down 按住 + jump 刚按下，防御态同样触发——先按住 ↓ 再按跳也必须下穿）；
+    // 动作播放中不可快速下落（修复批次 20：原版 jumpDown 槽被 clearAction 清空，
+    // 否则缓冲的 ↓+跳 会覆盖进行中的动作）。防御态发起后槽位由落地 endAction
+    // 恢复（原版 doJumpDown _action.clear() 同语义）。
+    if (
+      down &&
+      view.buffered(Btn.jump) &&
+      (f.actionState === ActionState.NORMAL || f.actionState === ActionState.DEFENCE_ING)
+    ) {
       view.consume(Btn.up);
       view.consume(Btn.jump);
       startFastFall(f, def);

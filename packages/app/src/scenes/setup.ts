@@ -529,10 +529,12 @@ export class SetupScene implements Scene {
     const peerSide: 1 | 2 = ownSide === 1 ? 2 : 1;
     const player = ownSide === 2 ? 'p2' : 'p1';
 
-    // 键盘导航列表（本地双人）：按 row,col 行主序排序；光标下标复位到首格
+    // 键盘导航列表（本地双人）：按 row,col 行主序排序；光标下标复位
+    // P1 默认首格（原版 moveSlt(_p1Slt,0,0) = 一护）；P2 默认网格 (col9,row0)
+    // （原版 moveSlt(_p2Slt,9,0)：角色段 = 鸣人、援助段 = 该网格项；缺格回退首格）
     this.navList = [...entries].sort((a, b) => a.row - b.row || a.col - b.col);
     this.keyIdxP1 = 0;
-    this.keyIdxP2 = 0;
+    this.keyIdxP2 = Math.max(0, this.navList.findIndex((e) => e.row === 0 && e.col === 9));
     this.navListToken = this.navToken;
 
     // 头像纹理批量预载后挂格子（丢失头像类兜底 = 无头像的空格框）
@@ -578,7 +580,21 @@ export class SetupScene implements Scene {
         cell.eventMode = 'static';
         cell.cursor = 'pointer';
         cell.on('pointerover', () => {
-          if (local2p) return; // 本地双人：鼠标不参与选人（双键盘驱动，见切片 39）
+          if (local2p) {
+            // 本地双人鼠标（修复批次 61）：先控 P1，P1 份额锁满后转控 P2；
+            // 落到键盘同款通道（keyIdx + placeKeyCursor + 展示盒跟随），与键盘并行
+            const side = this.stageComplete(true) ? 2 : 1;
+            if (this.stageComplete(side === 1)) return; // 该侧锁满后鼠标无效
+            const navIdx = this.navList.indexOf(e);
+            const cur = side === 1 ? this.keyIdxP1 : this.keyIdxP2;
+            if (navIdx < 0 || cur === navIdx) return;
+            if (side === 1) this.keyIdxP1 = navIdx;
+            else this.keyIdxP2 = navIdx;
+            this.placeKeyCursor(side);
+            audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版 doHover select 音
+            this.refreshBox(side === 1 ? this.boxOwn : this.boxPeer, e);
+            return;
+          }
           // 原版 doHover：光标跟随悬停 + select 音；
           // 联机：锁满本端份额后光标冻结，hover 变更即 cursor 广播
           if (net && this.stageComplete(true)) return;
@@ -597,7 +613,21 @@ export class SetupScene implements Scene {
             if (!this.stageComplete(true)) onTap(e); // 选中即锁；锁满后忽略
             return;
           }
-          if (local2p) return; // 本地双人：锁定走键盘确认键
+          if (local2p) {
+            // 本地双人鼠标锁定（修复批次 61）：鼠标归属侧点击即锁，走键盘同款
+            // lockOwn/lockPeer（含确认音/展示盒/锁定框/推进），锁满侧忽略
+            const side = this.stageComplete(true) ? 2 : 1;
+            if (this.stageComplete(side === 1)) return;
+            const navIdx = this.navList.indexOf(e);
+            if (navIdx >= 0) {
+              if (side === 1) this.keyIdxP1 = navIdx;
+              else this.keyIdxP2 = navIdx;
+              this.placeKeyCursor(side);
+            }
+            if (side === 1) this.lockOwn(this.ctxRef!, e);
+            else this.lockPeer(this.ctxRef!, e);
+            return;
+          }
           cursor.position.set(x + ui.select.cursorOffset[0], y + ui.select.cursorOffset[1]);
           cursor.visible = true;
           audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
@@ -935,10 +965,12 @@ export class SetupScene implements Scene {
     return this.navList[idx] ?? this.stageList()[0]!;
   }
 
-  /** 键盘光标移动：同行/同列内步进，行/列边界钳制；移动音 + 展示盒跟随。 */
+  /** 键盘光标移动：同行/同列内步进，行/列边界钳制；移动音 + 展示盒跟随。
+   *  该侧份额锁满后光标冻结（原版锁定即固化、选器 disabled；确认键已有同款守卫）。 */
   private moveCursor(side: 1 | 2, dx: number, dy: number): void {
     const list = this.navList;
     if (list.length === 0) return;
+    if (this.stageComplete(side === 1)) return;
     const cur = side === 1 ? this.keyIdxP1 : this.keyIdxP2;
     const from = list[cur]!;
     const pool = list
