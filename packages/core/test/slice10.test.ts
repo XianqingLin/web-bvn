@@ -219,6 +219,37 @@ describe('切片 10：跳跃家族（jumpTimes / 起跳延迟 / 快速下落）'
     expect(end.y).toBe(500);
   });
 
+  it('防御态快速下落（先按 ↓ 进防御、下一 tick 再按跳，实测批次 64 回归）', () => {
+    // 批次 61 曾只在后置快速下落分支放宽状态门，但该分支被 DEFENCE_ING 早退块
+    // 遮蔽不可达——先按住 ↓ 进防御再按跳的序列无法下平台。原版 doJumpDown 以
+    // _action.clear() 覆盖防御态：净效果 = 回 NORMAL 待机姿势 + 快速下落。
+    const res = play(
+      makeSim({
+        floors: [{ xFrom: 200, xTo: 300, y: 300 }],
+        mutate: (s) => {
+          s.fighters[0]!.x = 250;
+          s.fighters[0]!.y = 300; // 站在平台上
+        },
+      }),
+      [
+        [1, Btn.down, 0], // 先按 ↓：进防御
+        [1, Btn.down | Btn.jump, 0], // 下一 tick 按跳：防御态快速下落
+        [80, 0, 0], // 穿过平台落到主地面
+      ],
+    );
+    const def0 = res.snaps[0]!.state.fighters[0]!;
+    expect(def0.actionState).toBe(ActionState.DEFENCE_ING); // 前置：确实进了防御
+    const first = res.snaps[1]!.state.fighters[0]!;
+    expect(first.actionState).toBe(ActionState.NORMAL); // 防御态被快速下落覆盖
+    expect(first.onGround).toBe(false);
+    expect(first.vy).toBe(2.5);
+    expect(first.jumpTimes).toBe(0);
+    const end = res.snaps.at(-1)!.state.fighters[0]!;
+    expect(end.onGround).toBe(true);
+    expect(end.y).toBe(500);
+    expect(end.slots.attack).not.toBeNull(); // 落地 endAction 重填槽位
+  });
+
   it('空中操控贯穿滞空（实测批次 59 回归）：起跳标签播尽后 airMove 仍 true 可持续位移', () => {
     // 原版起跳→跳中为 renderJumpAnimate 纯 goFrame 转换（不 clearAction）——
     // airMove 贯穿滞空；移植版 endAction 曾无条件清 → 起跳播尽（~5 动画帧）

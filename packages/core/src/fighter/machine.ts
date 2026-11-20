@@ -811,6 +811,19 @@ export function stepIntentsFor(
       exitDefense(f, def);
       return;
     }
+    // 快速下落（原版 doJumpDown 以 _action.clear() 覆盖防御态——_isDefense=false、
+    // 动作清空回待机，净效果 = ↓+跳 优先于防御分支全部检查，故置于本块首位）。
+    // 修复批次 64：批次 61 曾只放宽后置快速下落分支的状态门，但该分支被本早退块
+    // 遮蔽、DEFENCE_ING 永不可达（死代码）——先按住 ↓ 进防御、下一 tick 才按跳的
+    // 常见序列无法下平台（实测发现）。防御已清 vx/dampX，站立姿势下坠。
+    if (view.buffered(Btn.jump)) {
+      view.consume(Btn.up);
+      view.consume(Btn.jump);
+      f.actionState = ActionState.NORMAL;
+      setLabel(f, def, '站立'); // 原版 _action.clear() 动作清空回待机姿势
+      startFastFall(f, def);
+      return;
+    }
     if (view.buffered(Btn.attack) && f.slots.skill1 !== null) {
       view.consume(Btn.attack);
       startAttackByLabel(f, def, f.slots.skill1);
@@ -900,16 +913,12 @@ export function stepIntentsFor(
     }
     // 快速下落（原版 doJumpDown：↓+跳。原版代码序在 defense 之后但 doJumpDown
     // 以 _action.clear() 覆盖防御态（_isDefense=false）——净效果 = 快速下落优先，
-    // 故前置检查）。待机/防御两态可发起（修复批次 61：原版 jumpDown() 只要求
-    // down 按住 + jump 刚按下，防御态同样触发——先按住 ↓ 再按跳也必须下穿）；
+    // 故前置检查）。防御态发起走上方 DEFENCE_ING 早退块内的快速下落分支（修复
+    // 批次 64：批次 61 曾在此放宽状态门，但 DEFENCE_ING 被早退块遮蔽不可达）；
     // 动作播放中不可快速下落（修复批次 20：原版 jumpDown 槽被 clearAction 清空，
     // 否则缓冲的 ↓+跳 会覆盖进行中的动作）。防御态发起后槽位由落地 endAction
     // 恢复（原版 doJumpDown _action.clear() 同语义）。
-    if (
-      down &&
-      view.buffered(Btn.jump) &&
-      (f.actionState === ActionState.NORMAL || f.actionState === ActionState.DEFENCE_ING)
-    ) {
+    if (down && view.buffered(Btn.jump) && f.actionState === ActionState.NORMAL) {
       view.consume(Btn.up);
       view.consume(Btn.jump);
       startFastFall(f, def);
