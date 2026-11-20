@@ -155,12 +155,21 @@ export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): v
       // 落地瞬间预置下次离地的初值（原版 setInAir(false) → _g=4）
       f.gRamp = GRAVITY_START;
       if (wasAirborne) {
-        onLanded(f, def);
-        // 落地尘土（原版 FighterMcCtrler.touchFloor :1059 → effectCtrler.touchFloor
-        // → XG_luodi，控制器级无条件触发）。击飞系落地尘土/震屏（hit_floor 系列）
-        // 由 stepHurtFly 三段式子状态机在转换点发出（切片 54，原版 renderHurtFly）。
+        // 落地尘土状态门（原版 FighterMcCtrler.render/touchFloor）：原版尘土
+        // 非无条件——renderHurt 拦截 + touchFloor isAlive 守卫 → HURT_ING/DEAD
+        // 落地无尘土；HURT_FLYING 走 renderHurtFly（stepHurtFly 转换点发
+        // hit_floor 系列，切片 54）。可发尘土两类：跳跃/坠落落地（原版
+        // _isFalling 兜底 "落地" 标签）与触地续接（setTouchFloor 预约标签，
+        // 空中攻击落地同样触发——预约标签存在即视为 act 非空）。
         // 事件 id 用 'touchFloor' 与时间轴 emit 同键，渲染层按 tick+id 去重防双播。
+        const tfLand =
+          f.touchFloor !== null &&
+          f.actionState !== ActionState.HURT_ING &&
+          f.actionState !== ActionState.DEAD &&
+          def?.labels[f.touchFloor] !== undefined;
+        onLanded(f, def);
         if (
+          tfLand ||
           f.actionState === ActionState.NORMAL ||
           f.actionState === ActionState.JUMP_ING
         ) {
@@ -173,7 +182,18 @@ export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): v
     // jumpTimes——放在积分后，首个上升位移出现在下一 tick）
     if (f.jumpDelay > 0) {
       f.jumpDelay -= 1;
-      if (f.jumpDelay === 0) applyJumpLaunch(f, def);
+      if (f.jumpDelay === 0) {
+        // 起跳尘土按起跳前是否在地面分流（原版 renderJumpAnimate 延迟计满
+        // 分支 isInAir 分流：空中跳 jump_air（XG_jump_air 加色）/地面跳 jump）
+        const fromGround = f.onGround;
+        applyJumpLaunch(f, def);
+        ctx.emit('effect', {
+          id: fromGround ? 'jump' : 'jump_air',
+          x: f.x,
+          y: f.y,
+          params: {},
+        });
+      }
     }
   }
   if (onlyId !== undefined) {

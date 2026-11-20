@@ -439,3 +439,41 @@ describe('切片 13-A3：bullet 元件时间轴生命周期', () => {
     expect(end.state.fighters[1]!.hp).toBe(970);
   });
 });
+
+// ---------- 切片 56：bullet 触底（原版 Bullet.render → isTouchBottomFloor） ----------
+
+describe('切片 56：bullet 触底', () => {
+  /** 下坠弹：sy 0 + addY 3/tick，发射点 y 460（zh1atm y-40），约 10 tick 内越过 groundY=500 */
+  const FALL = { x: 5, y: { start: 0, add: 3 }, hold: -1 };
+
+  it('触底：消耗 hits（耗尽消散）+ shake(0,1,200) 同 tick', () => {
+    const def = makeFireDef({ ...FALL, hits: 1 });
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    // 触底 tick：y 过 groundY → hitTimes 1→0 → killBullet（无动画立即 despawn）+ shake
+    const snap = tickUntil(sim, (s) => s.state.bullets.length === 0, 200);
+    const shake = snap.events.find(
+      (e) => e.type === 'effect' && e.payload['id'] === 'shake',
+    );
+    expect(shake).toBeDefined();
+    expect(shake!.payload['params']).toEqual({ x: 0, y: 1, time: 200 });
+    expect(snap.events.some((e) => e.type === 'entity:despawn')).toBe(true);
+  });
+
+  it('hits=-1 触底弹持续下沉：每 tick 触底震屏、出界判定被跳过不回收', () => {
+    const def = makeFireDef(FALL); // hits 缺省 -1
+    const sim = new Sim(makeConfig([def, makeDef()], { p2x: 900 }));
+    tickUntil(sim, (s) => s.state.bullets.length > 0, 40, () => Btn.skill);
+    // 越过死亡线 bottomY+20=620（原版 return 跳过 isOutRange）仍存活
+    const snap = tickUntil(sim, (s) => (s.state.bullets[0]?.y ?? 0) > 620, 400);
+    expect(snap.state.bullets).toHaveLength(1);
+    // 触底期每 tick 发轻震
+    const shakes = snap.events.filter(
+      (e) => e.type === 'effect' && e.payload['id'] === 'shake',
+    );
+    expect(shakes.length).toBeGreaterThan(0);
+    // 寿命计满前一直存活
+    const still = runTicks(sim, 30);
+    expect(still.state.bullets).toHaveLength(1);
+  });
+});

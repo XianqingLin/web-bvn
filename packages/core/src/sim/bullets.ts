@@ -54,6 +54,15 @@ export function stepBullets(ctx: SimCtx): void {
       removed.push(b.id);
       continue;
     }
+    // 触底（原版 Bullet.render → GameLogic.isTouchBottomFloor：y > playerBottom
+    // → hit(_hitVO, null)（仅消耗 hitTimes，耗尽进命中残留；target=null 无回气/
+    // 速度分支）+ EffectCtrler.shake(0,1,200) 轻震屏；return 跳过出界判定——
+    // hitTimes=-1 的触底弹持续下沉（每 tick 重触底重震），仅寿命可收走）
+    if (b.y > stage.groundY) {
+      if (b.hitTimes > 0 && --b.hitTimes <= 0) killBullet(ctx, b);
+      ctx.emit('effect', { id: 'shake', params: { x: 0, y: 1, time: 200 } });
+      continue;
+    }
     // 出界（原版 GameLogic.isOutRange：边界 ±20；bullet allowCrossMapXY 可越界飞行）
     if (
       b.x > stage.rightBound + 20 ||

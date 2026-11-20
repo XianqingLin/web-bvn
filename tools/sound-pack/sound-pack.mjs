@@ -199,6 +199,7 @@ const HIT_SOUND = {
 // effect 事件 → fx 音（原版 EffectVO.sound：jump/touch_floor/dash/ghost_step/bisha/bisha_super）
 const EFFECT_SOUND = {
   jump: 'snd_jump',
+  jump_air: 'snd_jump', // 空中起跳尘土（原表 EffectVO.sound 与 jump 同源 snd_jump）
   touchFloor: 'snd_luodi',
   dash: 'snd_dash_air',
   ghost_step: 'snd_ghost_step', // 幽步蓝色拖尾（切片 53，EffectVO.sound snd_ghost_step）

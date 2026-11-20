@@ -128,6 +128,129 @@ describe('状态机（跳跃/落地）', () => {
   });
 });
 
+describe('起跳尘土分流 + 落地尘土状态门（切片 56）', () => {
+  const isEffect = (snap: { events: { type: string; payload: Record<string, unknown> }[] }, id: string) =>
+    snap.events.some((e) => e.type === 'effect' && e.payload['id'] === id);
+
+  it('地面跳发 jump 尘土，空中二段跳发 jump_air（原版 renderJumpAnimate isInAir 分流）', () => {
+    const sim = new Sim(makeConfig());
+    sim.tick({ p1: Btn.jump, p2: 0 }); // 预约（延迟 2→1）
+    const launch = runTicks(sim, 1); // 延迟计满 → 地面起跳
+    expect(isEffect(launch, 'jump')).toBe(true);
+    expect(isEffect(launch, 'jump_air')).toBe(false);
+    // 空中二段跳（doAirJump 延迟 1 tick，本 tick 计满即发射）
+    const air = sim.tick({ p1: Btn.jump, p2: 0 });
+    expect(isEffect(air, 'jump_air')).toBe(true);
+    expect(isEffect(air, 'jump')).toBe(false);
+  });
+
+  it('跳跃落地发 touchFloor 尘土', () => {
+    const sim = new Sim(makeConfig());
+    sim.tick({ p1: Btn.jump, p2: 0 });
+    runTicks(sim, 2);
+    let end: ReturnType<Sim['tick']> | undefined;
+    for (let i = 0; i < 120; i++) {
+      end = sim.tick({ p1: 0, p2: 0 });
+      if (end.state.fighters[0]!.onGround) break;
+    }
+    expect(end!.state.fighters[0]!.onGround).toBe(true);
+    expect(isEffect(end!, 'touchFloor')).toBe(true);
+  });
+
+  it('空中攻击触地续接（setTouchFloor 预约）落地发尘土——攻击态不吞', () => {
+    // 跳砍拉长到 60 动画帧（120 tick），攻击态持续到落地之后；
+    // 起手第 2 帧预约续接标签（落地发生在 +10 tick 内，须早于落地）
+    const base = makeDef();
+    const def = makeDef({
+      totalFrames: 200,
+      labels: { ...base.labels, 跳砍: { index: 125, duration: 60 } },
+      triggers: [
+        { frame: 127, target: 'mc', op: 'setTouchFloor', args: ['落地'] },
+        { frame: 180, target: 'mc', op: 'endAct', args: [] },
+        { frame: 181, target: 'mc', op: 'idle', args: ['站立'] },
+      ],
+      attackLabels: { k1: '砍1', k2: '跳砍' },
+      actions: {
+        k1: { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true },
+        k2: { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true },
+      },
+    });
+    const sim = new Sim(makeConfig({ def1: def }));
+    sim.tick({ p1: Btn.jump, p2: 0 });
+    runTicks(sim, 1); // 离地
+    const airAtk = sim.tick({ p1: Btn.attack, p2: 0 }); // 空中攻击 跳砍
+    expect(airAtk.state.fighters[0]!.actLabel).toBe('跳砍');
+    let end: ReturnType<Sim['tick']> | undefined;
+    let sawReserved = false;
+    for (let i = 0; i < 200; i++) {
+      end = sim.tick({ p1: 0, p2: 0 });
+      const f = end.state.fighters[0]!;
+      if (f.touchFloor === '落地') sawReserved = true;
+      if (f.onGround) break;
+    }
+    expect(sawReserved).toBe(true);
+    expect(end!.state.fighters[0]!.onGround).toBe(true);
+    // 攻击态（非 NORMAL/JUMP_ING）落地仍发尘土（原版 act = 预约标签非空）
+    expect(isEffect(end!, 'touchFloor')).toBe(true);
+  });
+
+  // 受击用例共用：P2 判定区加高（y -120..-10），起手即活——P1 升空轨迹快，
+  // 原 58-59 帧矮区跟不上；命中时机在发射 tick +2，P1 已离地
+  function tallHitDef(actions: FighterDef['actions']): FighterDef {
+    const base = makeDef();
+    const areas: FighterDef['areas'] = {};
+    for (let fr = 1; fr <= 143; fr++) {
+      const list: AreaRect[] = [{ name: 'bdmn', x: -10, y: -40, w: 20, h: 40 }];
+      if (fr >= 55 && fr <= 70) list.push({ name: 'k1atm', x: 10, y: -120, w: 30, h: 110 });
+      areas[fr] = list;
+    }
+    return { ...base, areas, actions: actions! };
+  }
+
+  it('HURT_ING 空中受击落地无尘土（原版 renderHurt 拦截）', () => {
+    // hurtTime 5000 → 硬直 150+ tick，覆盖剩余飞行时间
+    const hurtDef = tallHitDef({
+      k1: { power: 30, hitType: 1, hitx: 3, hity: 0, hurtTime: 5000, hurtType: 0, isBreakDef: false, isApplyG: true },
+    });
+    const sim = new Sim(makeConfig({ p2x: 110, def2: hurtDef }));
+    sim.tick({ p1: Btn.jump, p2: 0 });
+    runTicks(sim, 1); // 离地
+    sim.tick({ p1: 0, p2: Btn.attack }); // P2 起手，下 tick 命中空中 P1
+    let end: ReturnType<Sim['tick']> | undefined;
+    let hurt = false;
+    for (let i = 0; i < 200; i++) {
+      end = sim.tick({ p1: 0, p2: 0 });
+      if (end.state.fighters[0]!.actionState === ActionState.HURT_ING) hurt = true;
+      if (end.state.fighters[0]!.onGround) break;
+    }
+    const f = end!.state.fighters[0]!;
+    expect(hurt).toBe(true);
+    expect(f.onGround).toBe(true);
+    expect(f.actionState).toBe(ActionState.HURT_ING);
+    expect(isEffect(end!, 'touchFloor')).toBe(false);
+  });
+
+  it('DEAD 空中死亡落地无尘土（原版 touchFloor isAlive 守卫）', () => {
+    const killDef = tallHitDef({
+      k1: { power: 9999, hitType: 1, hitx: 3, hity: 0, hurtTime: 500, hurtType: 0, isBreakDef: false, isApplyG: true },
+    });
+    const sim = new Sim(makeConfig({ p2x: 110, def2: killDef }));
+    sim.tick({ p1: Btn.jump, p2: 0 });
+    runTicks(sim, 1); // 离地
+    sim.tick({ p1: 0, p2: Btn.attack }); // P2 起手，下 tick 致死空中 P1
+    let dead = false;
+    let end: ReturnType<Sim['tick']> | undefined;
+    for (let i = 0; i < 200; i++) {
+      end = sim.tick({ p1: 0, p2: 0 });
+      if (end.state.fighters[0]!.actionState === ActionState.DEAD) dead = true;
+      if (end.state.fighters[0]!.onGround) break;
+    }
+    expect(dead).toBe(true);
+    expect(end!.state.fighters[0]!.actionState).toBe(ActionState.DEAD);
+    expect(isEffect(end!, 'touchFloor')).toBe(false);
+  });
+});
+
 describe('判定区（世界坐标换算）', () => {
   it('facing=1 时世界矩形 = 本地 + 锚点', () => {
     const f = { x: 100, y: 500, facing: 1 as const };
