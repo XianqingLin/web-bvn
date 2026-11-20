@@ -215,6 +215,11 @@ export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
     ? (loserSide === 1 ? teams.p1 : teams.p2).find((s) => s.id === loser.id)
     : undefined;
   const draw = winner !== null && winner.hp <= 0;
+  // 切人锁随 KO 收编（修复批次 63）：KO 演出接管（原版 playKO pause + KO 字样
+  // → koBack resume），必杀黑幕/横幅不得悬空盖过败方特写。偏离记录：原版黑幕
+  // 待锁主 endBisha 才 fadOut（与 KO 演出并行展示），移植版 KO 序列优先——锁主
+  // 时间轴仍由 tickRoundEnd 的 stepAnimation 照常推进收尾（endBisha 触发无害）。
+  ctx.state.cutinLock = null;
   ctx.state.roundEnd = {
     winnerSide,
     winnerId: winner?.id ?? -1,
@@ -257,6 +262,13 @@ export function stepPassivePhysics(ctx: SimCtx, f: FighterState, scale = 1): voi
   f.vy = wake(f.vy, f.dampY);
   f.x += f.vx * scale;
   f.y += f.vy * scale;
+  // 版边钳制（修复批次 63，原版 GameLogic.fixGameSpritePosition：map.left+10/
+  // right-10 对全体精灵生效——KO 飞尸/尸体同样受钳）。此前无钳，飞尸滑出版边、
+  // 相机钳在版内拍空气——地图边缘 KO"拍空气"根因之一。
+  f.x = Math.min(
+    Math.max(f.x, ctx.state.stage.leftBound + 10),
+    ctx.state.stage.rightBound - 10,
+  );
   const airborne = resolveLanding(f, ctx.state.stage);
   if (airborne) {
     if (f.applyG && f.vy >= 0) {

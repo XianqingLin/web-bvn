@@ -15,11 +15,12 @@ import { slowDownScaleOf, type SimCtx } from './ctx.js';
  * 时弹体立即恢复常速（原版最后一次覆写值泄漏至弹体消失——视为原版缺陷
  * 修正，见 DESIGN §3.5 风场段）。
  */
-export function stepBullets(ctx: SimCtx): void {
+export function stepBullets(ctx: SimCtx, scale = 1): void {
   const { stage, bullets, assisters } = ctx.state;
   // slowDown 全局慢放（切片 49）：弹位移/加速 ×scale（原版 Bullet 位移与
-  // addSpeed 增量均 ×_speedPlus；寿命 holdTicks 每帧递减不缩）
-  const slowScale = slowDownScaleOf(ctx.state);
+  // addSpeed 增量均 ×_speedPlus；寿命 holdTicks 每帧递减不缩）；
+  // scale 供回合结束演出期终结慢镜头折算（原版两条 speedPlus 通道同态叠加）
+  const slowScale = slowDownScaleOf(ctx.state) * scale;
   const removed: number[] = [];
   for (const b of bullets) {
     // 命中残留段（原版 _isHit → render 早退）：停移动，仅时间轴推进

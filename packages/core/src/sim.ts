@@ -553,12 +553,14 @@ export class Sim {
 
   /**
    * 回合结束演出 tick（原版 GameEndCtrler.render 步进 + FightUI.renderEnd）：
-   * 输入采样照常（批次 35 教训）、回气/buff 照跑、角色时间轴 30Hz 推进（败方
-   * 死亡动画/胜方胜利动作）、被动物理（胜方空中自然落地——原版
-   * actionEnable=false 只封输入，物理照常）；意图/命中/推挤/道具/计时停走。
-   * KO 字样窗口后：败方仍击飞 → 终结慢镜头半速（原版 renderEnd slowDown(2,0)）
-   * 直到落地 → showWinner 延迟（原版 _showWinnerDelay 2s/1s）→ 胜利姿势
-   * （原版 case1 isAllowWinState 等待门收编）；hold 计满 → 换人或终局。
+   * 输入采样照常（批次 35 教训）。KO 字样窗口（WIN_TEXT_GATE）内全场停走
+   * （修复批次 63，原版 playKO GameCtrler.pause → koBack resume）——尸体定格
+   * 于 KO 姿态；窗口后：回气/buff 照跑、角色时间轴 30Hz 推进（败方死亡动画/
+   * 胜方胜利动作）、被动物理（胜方空中自然落地——原版 actionEnable=false 只封
+   * 输入，物理照常）、飞行道具/独立道具位移与动画走完（命中判定停走）；意图/
+   * 命中/推挤/计时停走。败方仍击飞 → 终结慢镜头半速（原版 renderEnd
+   * slowDown(2,0)）直到落地 → showWinner 延迟（原版 _showWinnerDelay 2s/1s）→
+   * 胜利姿势（原版 case1 isAllowWinState 等待门收编）；hold 计满 → 换人或终局。
    */
   private tickRoundEnd(inputs: InputFrame): void {
     const re = this.state.roundEnd!;
@@ -587,7 +589,10 @@ export class Sim {
         ) {
           // 终结慢镜头/showWinner 延迟（原版 FightUI.renderEnd：败方仍击飞 →
           // slowDown(2,0) 半速直到落地；DEAD 后 _showWinnerDelay 2s/1s；
-          // 平局不播 showWinner——原版 renderDrawGame 无此段）
+          // 平局不播 showWinner——原版 renderDrawGame 无此段）。
+          // 延迟互斥门（修复批次 63）：原版 _showWinnerDelay 分支先行——延迟
+          // 一经开跑，尸体 HURT_DOWN_TAN 弹起不再回慢镜头/重置延迟（否则弹起
+          // 期延迟清零重计，WIN 落位拍带 slow 且时序漂移）
           if (re.slow) {
             if (loser === null || loser.onGround) {
               re.slow = false;
@@ -596,7 +601,14 @@ export class Sim {
                   ? WIN_DELAY_LONG_TICKS
                   : WIN_DELAY_SHORT_TICKS;
             }
-          } else if (loser !== null && !loser.onGround) {
+          } else if (
+            re.winnerDelay === null &&
+            loser !== null &&
+            // 击飞判定 = 空中或带待发射垂直速度（原版 renderEnd 按 actionState
+            // 22/30 分流——doHurt 击飞类先置 22 再 DIE，被击飞致死者 resume 时
+            // 即 HURT_FLYING；移植版 enterDead 覆写为 DEAD，以物理等价判定）
+            (!loser.onGround || loser.vy < 0)
+          ) {
             re.slow = true;
             re.slowTicks = 0;
           } else if (re.winnerDelay === null) {
@@ -617,23 +629,41 @@ export class Sim {
         }
       }
     }
-    // 回气/buff 照跑（原版冻结期 renderAnimate 无条件）
-    for (const f of this.state.fighters) stepFighterFlow(this.ctx, f);
-    // 被动物理（无输入位移；终结慢镜头全场半速——原版 GameCtrler.slow
-    // setSpeedPlus(SPEED_PLUS/rate)；KO 演出期角色 slowDown 仍在计时的场合
-    // 折算相乘（原版两条 speedPlus 通道同态叠加）；道具/辅助/推挤/抓取停走
-    // ——清场前冻结）
-    const slowScale =
-      (re.slow ? SLOW_MOTION_SCALE : 1) * slowDownScaleOf(this.state);
-    for (const f of this.state.fighters) stepPassivePhysics(this.ctx, f, slowScale);
-    // 角色时间轴推进（胜利/死亡动画；帧触发器照常——胜利标签的贴帧音/收招
-    // 触发在此到来。慢镜头 15Hz：原版 renderAnimateGap FPS_GAME/(FPS_ANIMATE/rate)-1；
-    // 无终结慢镜头时角色 slowDown 仍生效 → animEvery 门控同主管线）
-    if (re.slow) {
-      re.slowTicks += 1;
-      if (re.slowTicks % SLOW_MOTION_ANIM_EVERY === 0) stepAnimation(this.ctx);
-    } else if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
-      stepAnimation(this.ctx);
+    // KO 字样窗口冻结（修复批次 63，原版 playKO GameCtrler.pause → koBack
+    // resume——_isRenderGame=false 门控 checkRenderAnimate/renderGameSprite）：
+    // 窗口内全场停走——被动物理/角色时间轴/回气 buff/道具全冻（尸体定格于
+    // KO 姿态；KO 字样与特效为表现层实时间，照常推进）；窗口后解冻，败方
+    // 击飞 → 终结慢镜头看倒地（原版 koBack 后 renderEnd slowDown(2,0)）。
+    const windowFrozen = !re.over && re.hold < WIN_TEXT_GATE_TICKS;
+    if (!windowFrozen) {
+      // 回气/buff 照跑（原版 renderAnimate 无条件）——KO 字样窗口期除外
+      //（原版 pause 期 _isRenderGame=false 停走，偏离修正）
+      for (const f of this.state.fighters) stepFighterFlow(this.ctx, f);
+      // 被动物理（无输入位移；终结慢镜头全场半速——原版 GameCtrler.slow
+      // setSpeedPlus(SPEED_PLUS/rate)；KO 演出期角色 slowDown 仍在计时的场合
+      // 折算相乘（原版两条 speedPlus 通道同态叠加）；推挤/抓取/辅助停走
+      // ——清场前冻结；飞行道具/独立道具位移与寿命照走（原版 resume 后
+      // renderGameSprite 照跑），命中判定停走（setAllowLoseHP(false) 折算））
+      const slowScale =
+        (re.slow ? SLOW_MOTION_SCALE : 1) * slowDownScaleOf(this.state);
+      for (const f of this.state.fighters) stepPassivePhysics(this.ctx, f, slowScale);
+      stepBullets(this.ctx, slowScale);
+      stepAttackers(this.ctx, slowScale);
+      // 角色时间轴推进（胜利/死亡动画；帧触发器照常——胜利标签的贴帧音/收招
+      // 触发在此到来。慢镜头 15Hz：原版 renderAnimateGap FPS_GAME/(FPS_ANIMATE/rate)-1；
+      // 无终结慢镜头时角色 slowDown 仍生效 → animEvery 门控同主管线）
+      if (re.slow) {
+        re.slowTicks += 1;
+        if (re.slowTicks % SLOW_MOTION_ANIM_EVERY === 0) {
+          stepAnimation(this.ctx);
+          stepBulletAnim(this.ctx);
+          stepAttackerAnim(this.ctx);
+        }
+      } else if (this.state.tick % slowDownAnimEveryOf(this.state) === 0) {
+        stepAnimation(this.ctx);
+        stepBulletAnim(this.ctx);
+        stepAttackerAnim(this.ctx);
+      }
     }
     if (re.over) return; // 终局已发，冻结待 app 切结算
     re.hold += 1;

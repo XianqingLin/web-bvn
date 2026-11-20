@@ -865,7 +865,12 @@ export class BattleRenderer {
           // EffectCtrler.BGEffect("kobg", 2)：effect 置舞台最底层、地图隐藏，
           // holdFrame = hold×30 帧计满移除并恢复地图——renderKobg 每帧推进）
           const p = (ev.payload['params'] ?? {}) as Record<string, unknown>;
-          this.spawnKobg(Math.max(1, Math.round(Number(p['hold'] ?? 2) * 30)));
+          const st = snap.state.stage;
+          this.spawnKobg(
+            Math.max(1, Math.round(Number(p['hold'] ?? 2) * 30)),
+            st.leftBound,
+            st.rightBound - st.leftBound,
+          );
         } else if (id === 'buffUp') {
           // buff 视觉（切片 51，原版 FighterBuffCtrler speedUp/attackUp/defenseUp
           // → doEffectById("buff_effect_*") + doBuffEffect("buff_*")）：一次性火花
@@ -1080,10 +1085,12 @@ export class BattleRenderer {
     if (done.length > 0) this.mcEffects = this.mcEffects.filter((e) => !done.includes(e));
   }
 
-  /** KO 背景层（KO 终结演出链，原版 BGEffect→EffectView）：MC 原点钉世界 (0,0)
-   *  + union bounds 偏移（kobg 画布 800×600 origin (0,0)），随相机变换；
-   *  地图显隐由 updateKobg 每帧接管（在 updateCutin 之后，锁态优先）。 */
-  private spawnKobg(holdFrames: number): void {
+  /** KO 背景层（KO 终结演出链，原版 BGEffect→EffectView）：MC 原点钉世界
+   *  (leftBound,0) + union bounds 偏移（kobg 画布 800×600 origin (0,0)），随相机
+   *  变换；地图显隐由 updateKobg 每帧接管（在 updateCutin 之后，锁态优先）。
+   *  mapW = 版宽——修复批次 63：原版地图即 800 宽画布全覆盖，移植版地图更宽
+   *  时右缘露 200px 底图断层 → 横向拉伸铺满版宽（黑底拉伸不可感知）。 */
+  private spawnKobg(holdFrames: number, leftBound: number, mapW: number): void {
     const eff = this.hitspark?.effects['kobg'];
     const texs = this.sparkTex.get('kobg');
     if (!eff || !texs || texs.length === 0) return;
@@ -1093,7 +1100,8 @@ export class BattleRenderer {
       this.kobgFx = null;
     }
     const body = new Sprite(texs[0]!);
-    body.position.set(eff.origin[0], eff.origin[1]);
+    body.position.set(leftBound + eff.origin[0], eff.origin[1]);
+    body.scale.x = mapW / eff.canvas[0];
     this.kobgLayer.addChild(body);
     this.kobgLayer.visible = true;
     this.kobgFx = { body, texs, accMs: 0, holdMs: holdFrames * (1000 / 30) };

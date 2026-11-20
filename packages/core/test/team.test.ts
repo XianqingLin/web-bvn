@@ -318,7 +318,9 @@ describe('团队装配（切片 36）', () => {
     const cont = play(res.sim, [[600, 0, 0]]);
     const applied = cont.snaps.find((s) => s.state.roundEnd?.winApplied === true);
     expect(applied).toBeDefined();
-    expect(applied!.state.roundEnd!.slow).toBe(false);
+    // WIN 落位拍 slow 不强制 false（批次 63 窗口冻结后时序后移）：尸体
+    // HURT_DOWN_TAN 弹起可落入延迟窗再置 slow——原版 renderEnd 的
+    // _showWinnerDelay 分支先行、弹起不清延迟，落位拍语义一致
     // 落地时刻（slow 最后为 true 的快照）→ winAppliedHold 差 = showWinner 延迟
     //（原版 _showWinnerDelay 2s/1s 折算 120/60 tick；落地拍快照 slow 仍为 true、
     //  下一拍才检出落地关慢镜头，故差值带 1 拍快照边界偏移）

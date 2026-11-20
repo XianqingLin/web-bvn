@@ -291,10 +291,10 @@ function spawnAttackerEntity(
 
 /** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。
  *  slowDown 全局慢放（切片 49）：重力增量/消费位移 ×scale（原版 FighterAttacker
- *  继承 BaseGameSprite speedPlus 语义）。 */
-export function stepAttackers(ctx: SimCtx): void {
+ *  继承 BaseGameSprite speedPlus 语义）；scale 供回合结束演出期终结慢镜头折算。 */
+export function stepAttackers(ctx: SimCtx, scale = 1): void {
   const { stage, fighters, attackers } = ctx.state;
-  const slowScale = slowDownScaleOf(ctx.state);
+  const slowScale = slowDownScaleOf(ctx.state) * scale;
   const removed: number[] = [];
   for (const a of attackers) {
     const t = fighters.find((f) => f.id !== a.ownerId) ?? null;
