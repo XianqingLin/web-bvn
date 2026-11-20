@@ -465,7 +465,7 @@ function doDefense(f: FighterState, def: FighterDef | null): void {
  *  labelLock=3 = T0/T1 两个冻结 tick + T2 转 站立（推进侧按 actLabel 分支处理）。
  *  偏离记录：解除前的 6 tick _defenseFrameDelay 计数仍按 POC 约定省略
  *  （响应性优先，有意偏离）；原版 站立 为 goFrame("站立",false) 静态单帧，
- *  移植版站立循环播放（待定项，见 docs/DESIGN）。 */
+ *  移植版站立 9 帧循环保留（2026-11-20 用户定案，播原版自有素材，见 docs/DESIGN）。 */
 function exitDefense(f: FighterState, def: FighterDef | null): void {
   f.actionState = ActionState.NORMAL;
   // 防御恢复窗口内行走门不生效（labelLock + 非待机标签），残速阻尼在此清零

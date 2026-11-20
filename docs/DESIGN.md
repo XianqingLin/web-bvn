@@ -177,7 +177,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **damping = 持久阻尼**：安装后每 tick 线性衰减，非一次性乘法；move 系附带清阻尼（批次 17）。
 - **行走物理标签门**：地面位移需 `actLabel∈{站立,走} && labelLock<=0`；idle 触发清 labelLock（批次 20）。
 - **防御定格**：抬手段播 3 帧后停住；`防御` 不在 LOOP_LABELS（批次 17）。
-- **防御恢复冻结窗口**（批次 22）：原版解除防御 = `goFrame("防御恢复",false,{call:idle,delay:1})`——isPlay=false 播放头钉首帧不推进，goFrameDelay 两 tick 后 idle 回站立（原版站立本身是 goFrame("站立",false) 静态单帧）。移植版 labelLock=3：T0/T1 冻结显示首帧、T2 转 站立。此前放完整段 防御恢复（labelLock=duration）→ 实测"卡一下"才回站立。偏离保留：解除前 6 tick `_defenseFrameDelay` 计数仍按 POC 约定省略（响应性优先）；站立循环播放（原版静态单帧）待定。
+- **防御恢复冻结窗口**（批次 22）：原版解除防御 = `goFrame("防御恢复",false,{call:idle,delay:1})`——isPlay=false 播放头钉首帧不推进，goFrameDelay 两 tick 后 idle 回站立（原版站立本身是 goFrame("站立",false) 静态单帧）。移植版 labelLock=3：T0/T1 冻结显示首帧、T2 转 站立。此前放完整段 防御恢复（labelLock=duration）→ 实测"卡一下"才回站立。偏离保留：解除前 6 tick `_defenseFrameDelay` 计数仍按 POC 约定省略（响应性优先）；站立 9 帧循环保留（2026-11-20 用户定案，有意偏离——原版 goFrame("站立",false) 静态单帧，但 SWF 素材本有约 9 帧待机动画未被播放，移植版播原版自有素材）。
 - **资源恢复**：落地与回待机都要补槽（defaultSlots）并恢复 jumpTimes，否则永久锁死（批次 18）；空中动作成功置 jumpTimes=0（对齐原版）。
 - **重力斜坡**：位移空间步长 +0.3/tick（GRAVITY_STEP）、上限 6——步长不再二次减半（批次 19 修正）。
 - **辅助 gotoAndPlay 无同标签守卫**：loop 靠同标签 rewind 保活（切片 21）；**步内跳转落点不再 +1 推进**，落点帧触发器下一步照常执行（13-A6 修复）。
