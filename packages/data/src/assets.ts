@@ -85,6 +85,12 @@ export interface FireElementAtlas {
   labels: Record<string, number>;
   /** 'main' 子对象 bounds（原版 Bullet._bulletArea 锚；无 main = 0 矩形） */
   main: { x: number; y: number; w: number; h: number };
+  /**
+   * 发射点实例在角色时间轴上的 Flash blendMode（screen/add/lighten/multiply/…）。
+   * 采集桥在隔离采集 fire 元件时丢失了这层混合，黑底图源被烤成不透明黑块；
+   * 渲染层按此值对场景混合即可消黑（原版语义）。normal 缺省不写。
+   */
+  blend?: string;
   frames: AtlasFrameRef[];
 }
 

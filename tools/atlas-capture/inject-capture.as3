@@ -1205,6 +1205,18 @@
             "main":{"x":ab.x,"y":ab.y,"w":ab.width,"h":ab.height},
             "frames":[]
          };
+         // 发射点 blendMode（批次 70）：fire 元件隔离采集时丢失角色时间轴上
+         // 实例自身的混合（screen/add/lighten/multiply…），黑底图源被烤成不透明
+         // 黑块。记录到元件元数据，渲染层按此值对场景混合即可消黑。
+         var spawnBlend:String = mc.blendMode;
+         if(spawnBlend == null)
+         {
+            spawnBlend = "normal";
+         }
+         if(spawnBlend != "normal")
+         {
+            rec.blend = spawnBlend;
+         }
          fires[name] = rec;
          for(var f0:int = 1; f0 <= mc.totalFrames; f0++)
          {

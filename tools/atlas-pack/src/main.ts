@@ -74,6 +74,8 @@ interface CaptureFireElem {
   totalFrames?: number;
   labels?: Record<string, number>;
   main?: { x: number; y: number; w: number; h: number };
+  /** 发射点实例的 blendMode（采集桥 capFireOne 记录；黑底源靠它对场景消黑） */
+  blend?: string;
   frames?: CaptureFrame[];
 }
 interface CaptureFire {
@@ -128,6 +130,7 @@ interface FireAtlasPkg {
       totalFrames: number;
       labels: Record<string, number>;
       main: { x: number; y: number; w: number; h: number };
+      blend?: string;
       frames: CaptureFrame[];
     }
   >;
@@ -352,6 +355,7 @@ function packFire(cap: CaptureFire): {
       totalFrames: e.totalFrames,
       labels: e.labels ?? {},
       main: e.main ?? { x: 0, y: 0, w: 0, h: 0 },
+      ...(e.blend && e.blend !== 'normal' ? { blend: e.blend } : {}),
       frames: e.frames,
     };
     firesBaked[nm] = { totalFrames: e.totalFrames, labels: e.labels ?? {} };
@@ -382,6 +386,9 @@ function sha1(b: Buffer | string): string {
 }
 
 function main(): void {
+  // --only=fire：只重打 fire 图集（采集桥局部重采后用）。跳过角色/地图，且不写
+  // baked/fires（其中 org/hits 由 runtime-ingest 产出，是 sim 确定性数据）。
+  const onlyFire = process.argv.includes('--only=fire');
   const files = readdirSync(captureDir).filter((f) => f.endsWith('.json') && f !== 'manifest.json');
   const charFiles = files.filter((f) => f.startsWith('atlas_char_'));
   const mapFiles = files.filter((f) => f.startsWith('atlas_map_'));
@@ -411,7 +418,7 @@ function main(): void {
     bytes: 0,
   };
 
-  for (const f of charFiles) {
+  if (!onlyFire) for (const f of charFiles) {
     const cap = JSON.parse(readFileSync(join(captureDir, f), 'utf8')) as CaptureChar;
     const kindDir = cap.kind === 'assister' ? 'assistants' : 'fighters';
     try {
@@ -434,7 +441,7 @@ function main(): void {
     }
   }
 
-  for (const f of mapFiles) {
+  if (!onlyFire) for (const f of mapFiles) {
     const cap = JSON.parse(readFileSync(join(captureDir, f), 'utf8')) as CaptureMap;
     try {
       const { atlas, layers } = packMap(cap);
@@ -459,10 +466,12 @@ function main(): void {
         join(outDir, 'fires', cap.ownerKind, `${cap.id}.atlas.json`),
         JSON.stringify(atlas),
       );
-      writeFileSync(
-        join(bakedDir, 'fires', cap.ownerKind, `${cap.id}.json`),
-        JSON.stringify(baked),
-      );
+      if (!onlyFire) {
+        writeFileSync(
+          join(bakedDir, 'fires', cap.ownerKind, `${cap.id}.json`),
+          JSON.stringify(baked),
+        );
+      }
       for (const s of sheets) {
         writeFileSync(join(outDir, 'fires', cap.ownerKind, s.file), s.bytes);
         stats.bytes += s.bytes.length;
