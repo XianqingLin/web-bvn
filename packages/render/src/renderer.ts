@@ -990,10 +990,17 @@ export class BattleRenderer {
     this.hud?.layout(this.ctx.viewW, this.ctx.viewH, fitZoom);
   }
 
-  /** 舞台五层显隐（块 9）：装载期隐藏（加载画面之下不露地图/HUD），战斗 enter 时开启。
+  /** 舞台六层显隐（块 9）：装载期隐藏（加载画面之下不露地图/HUD），战斗 enter 时开启。
    *  blackLayer/cutinLayer 的内层显隐由 update 流程自管，开关只作用于本层容器。 */
   setStageVisible(v: boolean): void {
-    for (const c of [this.bgFixed, this.blackLayer, this.cutinScreen, this.world, this.hudLayer]) {
+    for (const c of [
+      this.bgFixed,
+      this.blackLayer,
+      this.cutinScreen,
+      this.world,
+      this.shineLayer,
+      this.hudLayer,
+    ]) {
       c.visible = v;
     }
   }
@@ -1030,12 +1037,14 @@ export class BattleRenderer {
       this.blackLayer,
       this.cutinScreen,
       this.world,
+      this.shineLayer,
       this.hudLayer,
     );
     this.blackLayer.destroy();
     this.bgFixed.destroy({ children: true });
     this.cutinScreen.destroy({ children: true });
     this.world.destroy({ children: true });
+    this.shineLayer.destroy({ children: true });
     this.hudLayer.destroy({ children: true });
   }
 }
