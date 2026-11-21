@@ -10,7 +10,6 @@
  *   ?mode=net&action=create|join&room=   自动入房（6 位数字房码）→ 房间页 → 选人页自动确认
  *   ?mode=match                          随机匹配页（自动排队；双窗口联调切片 37 用）
  *   ?mode=local2p                       本地双人选人页（双键盘双光标目检用，不自动确认）
- *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）
  */
 import { Application } from 'pixi.js';
 import { connectGameDock } from '@gamedock/game-sdk';
@@ -23,7 +22,6 @@ import { NetScene } from './scenes/net.js';
 import { MatchScene } from './scenes/match.js';
 import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
-import { WinnerScene } from './scenes/winner.js';
 import { makeFlow } from './flow.js';
 
 async function boot(): Promise<void> {
@@ -123,12 +121,6 @@ async function boot(): Promise<void> {
     // dev 直通：随机匹配页（自动排队目检/双窗口联调用）
     flow.mode = 'net';
     scenes.switchTo(new MatchScene(flow));
-  } else if (mode === 'winner') {
-    // dev 直通：结算立绘演出（ichigo 胜；CONTINUE 可重开训练局）
-    flow.mode = 'solo';
-    flow.localPick = { fighter: 'ichigo', assist: 'gaara' };
-    flow.mapId = 'KonohaMura';
-    scenes.switchTo(new WinnerScene(flow, 1, null));
   } else {
     scenes.switchTo(new MenuScene(flow));
   }

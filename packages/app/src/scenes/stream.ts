@@ -1,6 +1,6 @@
 /**
- * 通用流帧播放器（TitleStream 泛化，切片 29 菜单流打磨：logo/winner 演出复用）。
- * 单帧解码显存可观（winner 帧 2013×1168 ~9MB），解码纹理常驻小窗口 + 预取，同 menu.ts 播放语义：
+ * 通用流帧播放器（TitleStream 泛化，切片 29 菜单流打磨：logo 演出复用）。
+ * 单帧解码显存可观，解码纹理常驻小窗口 + 预取，同 menu.ts 播放语义：
  * 纹理就绪才推进播放头，身后帧 release。
  *
  * 两层缓存（2026-11-17：部署环境逐帧边播边下载供不上 30fps）：
@@ -11,7 +11,7 @@ import { ImageSource, Texture } from 'pixi.js';
 import { ASSETS } from '../data.js';
 
 export interface StreamSpec {
-  /** assets/ 下帧目录（如 'ui/winner'） */
+  /** assets/ 下帧目录（如 'ui/logo'） */
   dir: string;
   /** 帧总数（PNG/WebP 序号 1..frames） */
   frames: number;

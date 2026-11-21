@@ -1,8 +1,9 @@
 /**
- * 战斗场景（切片 14）：选人结果 → sim 装配 + lockstep/训练对局 → KO 结算浮层。
+ * 战斗场景（切片 14）：选人结果 → sim 装配 + lockstep/训练对局 → 终局流转。
  * 逻辑自 main.ts（切片 4/6/7 的 dev 页）迁移，双模式：
- *   solo = 训练模式（键盘源、R 重置、ESC 回菜单、KO 后可再来一局）；
- *   net  = lockstep（pick 交换后的双端异角色异辅助配置、KO 结算浮层）。
+ *   solo = 训练模式（键盘源、R 重置、ESC 回菜单、KO 后对局浮层再来一局）；
+ *   local = 本地双人对局；net = lockstep（pick 交换后的双端异角色异辅助配置）。
+ * 终局 match:over：local 回选人页（原版 VS 语义）；net 关 socket 回菜单。
  */
 import { Container, Graphics } from 'pixi.js';
 import { Sim, Btn, type ButtonMask, type InputSource, type SimSnapshot } from '@bvn/core';
@@ -26,8 +27,8 @@ import {
 } from '../audio.js';
 import type { Flow } from '../flow.js';
 import { transOut } from './trans.js';
-import { WinnerScene } from './winner.js';
 import { MenuScene } from './menu.js';
+import { SetupScene } from './setup.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -367,7 +368,7 @@ export class BattleScene implements Scene {
       this.simTick++;
       this.acc -= TICK_MS;
       stepped = true;
-      this.checkKo(snap.events);
+      this.checkKo(snap);
     }
     // 停步看门狗（net）：>5s 无进展提示可能断线（冻结等待，判负归阶段 4）
     if (this.netClient && !this.peerLostFlag) {
@@ -396,10 +397,10 @@ export class BattleScene implements Scene {
    * 由 sim roundEnd 状态机驱动（渲染层消费），场景切换归 match:over 统一路径；
    * 团队：fighter:ko 不切场景（sim 内部走回合结束/换人），终局 match:over 同路径。
    */
-  private checkKo(events: SimSnapshot['events']): void {
+  private checkKo(snap: SimSnapshot): void {
     if (this.flow.mode === 'solo') {
       if (this.koSeen) return;
-      for (const ev of events) {
+      for (const ev of snap.events) {
         if (ev.type !== 'fighter:ko') continue;
         const fighter = ev.payload['fighter'];
         if (typeof fighter !== 'number') continue;
@@ -409,21 +410,24 @@ export class BattleScene implements Scene {
       }
       return;
     }
-    this.checkMatchOver(events);
+    this.checkMatchOver(snap);
   }
 
-  /** 团队终局事件（原版 fightFinish → WinnerStage）：match:over → 结算立绘。 */
-  private checkMatchOver(events: SimSnapshot['events']): void {
+  /** 团队终局事件（原版 VS 系 fightFinish 直回选人）：local 回选人页可重选重开；
+   *  net 无同步重开语义，两端各自关 socket 回菜单。原版街机专属结算页
+   *  WinnerStage 不移植（2026-11-21 定案整块移除）。 */
+  private checkMatchOver(snap: SimSnapshot): void {
     if (this.matchOverSeen) return;
-    for (const ev of events) {
+    for (const ev of snap.events) {
       if (ev.type !== 'match:over') continue;
       const winner = ev.payload['winner'];
       if (typeof winner !== 'number') continue;
       this.matchOverSeen = true;
-      const w = typeof winner === 'number' && (winner === 1 || winner === 2) ? winner : 0;
+      // 600ms：winner 字样定格态换气一拍再走（终局演出在 roundEnd 期已播足）
       window.setTimeout(() => {
         if (this.dead) return;
-        this.ctx?.switchTo(new WinnerScene(this.flow, w, this.socket));
+        if (this.flow.mode === 'net') this.leave();
+        else this.ctx?.switchTo(new SetupScene(this.flow, null));
       }, 600);
       break;
     }
@@ -452,22 +456,17 @@ export class BattleScene implements Scene {
     title.position.set(UI_W / 2, (UI_H - 240) / 2 + 60);
     overlay.addChild(title);
 
-    const sub = makeLabel(this.flow.mode === 'solo' ? '训练模式 KO' : '对局结束', {
-      size: 14,
-      color: 0x7a86a0,
-    });
+    const sub = makeLabel('训练模式 KO', { size: 14, color: 0x7a86a0 });
     sub.anchor.set(0.5);
     sub.position.set(UI_W / 2, (UI_H - 240) / 2 + 96);
     overlay.addChild(sub);
 
     const y = (UI_H - 240) / 2 + 130;
-    if (this.flow.mode === 'solo') {
-      const again = makeButton('再来一局', () => this.resetSolo());
-      again.position.set(UI_W / 2 - 170, y);
-      overlay.addChild(again);
-    }
+    const again = makeButton('再来一局', () => this.resetSolo());
+    again.position.set(UI_W / 2 - 170, y);
+    overlay.addChild(again);
     const menuBtn = makeButton('返回菜单', () => this.leave());
-    menuBtn.position.set(this.flow.mode === 'solo' ? UI_W / 2 + 20 : UI_W / 2 - 90, y);
+    menuBtn.position.set(UI_W / 2 + 20, y);
     overlay.addChild(menuBtn);
   }
 

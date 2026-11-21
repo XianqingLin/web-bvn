@@ -252,7 +252,7 @@ export class MenuScene implements Scene {
           this.frame = f;
           this.frameSprite.texture = tex;
         } else if (this.stream.failed(f)) {
-          this.frame = f; // 失败帧视为已过（保持上一帧画面；与 logo/winner 场景同语义，防卡死）
+          this.frame = f; // 失败帧视为已过（保持上一帧画面；与 logo 场景同语义，防卡死）
         } else {
           // 停帧等待：回退本次累积，播放头冻结在 frame+1。若放任 acc 累积，
           // f 会冲到 stop，ensure(f,4) 预取的远端帧落在 release 常驻窗之外
