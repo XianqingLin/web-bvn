@@ -1,8 +1,9 @@
 /**
  * 联机连接页（切片 34；切片 37 抽提共享助手至 net-common）：
- * 服务器地址（localStorage 记忆）+ 创建/加入房间（房码）。
+ * 服务器地址（localStorage 记忆）+ 创建/加入房间（6 位数字房码）。
  * 入房成功 → 房间页（RoomScene）；pick 交换与对局沿用既有链路。
- * 房码入口保留：私人房加入 + 后续邀请深链（切片 38）的兜底路径。
+ * 纯房码制（2026-11-21）：房间一律私人，加入只凭房码；平台邀请深链（切片 38）
+ * 携带房码落进同一入口。
  */
 import { Container, Text } from 'pixi.js';
 import { BufferedSocket, joinRoom, type WsLike } from '@bvn/net';
@@ -87,7 +88,7 @@ export class NetScene implements Scene {
     const status = this.status!;
     let room = roomOverride ?? '';
     if (action === 'join' && !room) {
-      const { done } = domInput(this.ctx!.domHost, '4 位房间码', '');
+      const { done } = domInput(this.ctx!.domHost, '6 位数字房码', '');
       room = await done;
       if (!room) {
         status.text = '已取消';

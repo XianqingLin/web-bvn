@@ -99,7 +99,7 @@ export function sendReady(socket: WsLike, ready: boolean): void {
   socket.send(JSON.stringify({ t: 'ready', ready }));
 }
 
-/** 房主：设置变更（服务器合并进快照后广播 room-info）。 */
+/** 房主：设置变更（服务器合并进快照后广播 room-info；现仅 team 可改）。 */
 export function sendRoomConfig(socket: WsLike, settings: Partial<RoomSettings>): void {
   socket.send(JSON.stringify({ t: 'room-config', settings }));
 }
@@ -110,7 +110,7 @@ export function sendBegin(socket: WsLike): void {
   socket.send(JSON.stringify({ t: 'begin' }));
 }
 
-// ---------- 匹配与浏览客户端助手（切片 37） ----------
+// ---------- 匹配客户端助手（切片 37） ----------
 
 /** 加入匹配队列（服务器两两配对 → matched + start；在房/已排队时忽略）。 */
 export function sendQueue(socket: WsLike, name?: string): void {
@@ -120,11 +120,6 @@ export function sendQueue(socket: WsLike, name?: string): void {
 /** 退出匹配队列。 */
 export function sendUnqueue(socket: WsLike): void {
   socket.send(JSON.stringify({ t: 'unqueue' }));
-}
-
-/** 请求公开房间列表（浏览页轮询）。 */
-export function sendListRooms(socket: WsLike): void {
-  socket.send(JSON.stringify({ t: 'list-rooms' }));
 }
 
 /** 发送本端选人结果（服务器透传给对端）。累计锁定与最终结果共用本消息。 */
@@ -143,8 +138,9 @@ export function sendCursor(
   socket.send(JSON.stringify({ t: 'cursor', player, stage, idx }));
 }
 
-/** 房主：地图轮盘切换/确认上行（切片 36；服务器透传给对端，客座只读实时跟随）。
- *  map = 地图 id；轮盘随机项传 'random'（确认时由房主解析成具体 id 走最终 pick）。 */
+/** 房主：地图轮盘切换/确认上行（切片 36；服务器透传给对端，客座只读实时跟随；
+ *  仅好友房地图阶段使用）。map = 地图 id；"？"随机项传 'random'
+ * （确认时由房主解析成具体 id 走最终 pick）。 */
 export function sendMapPick(socket: WsLike, player: PlayerSlot, map: string): void {
   socket.send(JSON.stringify({ t: 'map-pick', player, map }));
 }

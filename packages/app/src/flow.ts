@@ -26,7 +26,7 @@ export interface Flow {
   dock: GameDockSdk | null;
   /** 联机位次（服务器分配：create→1 / join→2；solo 恒 1） */
   player: 1 | 2;
-  /** 房间码（联机；自有服务器 4 位码） */
+  /** 房间码（联机；自有服务器 6 位数字码） */
   room: string;
   /** 本端选人 */
   localPick: Pick | null;
@@ -34,11 +34,12 @@ export interface Flow {
   peerPick: Pick | null;
   /** 团队模式（房间设置 team；匹配固定开启）——选人页 3 选 + 1 援助节奏 */
   team: boolean;
-  /** 地图阶段模式（房间设置 randomMap；切片 36）——true = 开箱抽取（两端播动画，
-   *  结果由 mapSeed 解析）；false = 房主选择（map-pick 实时广播、客座只读） */
-  randomMap: boolean;
-  /** 服务器权威种子（map-roll 广播；切片 36）——开箱抽取定格解析 + 对局 sim seed
-   *  （进 configHash 互验）。solo/local 恒 null（sim seed 用 1） */
+  /** 是否走地图选择阶段（2026-11-21 定案）：好友房/本地 = true（原版选择页，
+   *  房主定图，默认"？"随机项）；匹配 = false（援助选完直接进加载页，
+   *  对局地图由 mapSeed 按 maps[seed % n] 解析） */
+  mapSelect: boolean;
+  /** 服务器权威种子（begin 广播 seed / matched 携带）——对局 sim seed
+   *  （进 configHash 互验）；匹配模式兼作地图抽取种子。solo/local 恒 null（sim seed 用 1） */
   mapSeed: number | null;
   /** 团队模式累计选人（单挑不填；切片 36 对局侧 3+1 装配消费） */
   localTeamPick: TeamPicks | null;
@@ -64,7 +65,7 @@ export function makeFlow(): Flow {
     localPick: null,
     peerPick: null,
     team: false,
-    randomMap: false,
+    mapSelect: true,
     mapSeed: null,
     localTeamPick: null,
     peerTeamPick: null,

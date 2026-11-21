@@ -294,7 +294,7 @@ describe('房间服务器（真实进程端到端）', () => {
         const [sa, sb] = await Promise.all([pA, joinWhenReady()]);
         expect(sb.player).toBe(2);
         expect(welcomed).toHaveLength(1);
-        expect(welcomed[0]!).toMatch(/^[A-Z2-9]{4}$/);
+        expect(welcomed[0]!).toMatch(/^\d{6}$/);
 
         const [hashA, hashB] = await drivePairAsync(
           sa.client,

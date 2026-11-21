@@ -8,7 +8,8 @@
  * （免房间页/准备门），start 到达且横幅满 2.5s 即切入选人页。
  * 建连失败（断线/对端掉线）→ "连接失败，正在重新匹配"，自动回匹配中继续排队。
  *
- * 匹配固定属性（不提供选项）：团队模式开启 + 强制随机地图（服务器侧强制）。
+ * 匹配固定属性（不提供选项）：团队模式开启 + 无地图阶段（援助选完直接进加载页，
+ * 对局地图由权威 seed 按 maps[seed % n] 解析，两端同种子天然一致——2026-11-21 定案）。
  * 偏离登记：VS 横幅"头像"暂以位次色块占位（P1 蓝/P2 粉，同选人页 SIDE_COLORS
  * 色族）——平台头像资料接入归切片 38；横幅构建函数导出复用（对局前 VS 预告）。
  */
@@ -314,9 +315,9 @@ export class MatchScene implements Scene {
         flow.room = String(msg.room ?? '');
         const name = displayName(flow);
         flow.name = name || `玩家${flow.player}`;
-        // 匹配固定属性 + 权威种子（matched 直接携带，无 map-roll 消息）
+        // 匹配固定属性 + 权威种子（matched 直接携带；无地图阶段，地图由 seed 解析）
         flow.team = msg.team === true;
-        flow.randomMap = true;
+        flow.mapSelect = false;
         flow.mapSeed = typeof msg.seed === 'number' ? msg.seed : null;
         const opponent = (msg.opponent as { name?: string } | undefined)?.name ?? '对手';
         this.banner = flow.player === 1

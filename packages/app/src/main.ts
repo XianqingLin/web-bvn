@@ -7,9 +7,8 @@
  * dev 直通参数保留（headless 驱动/快速调试用，跳过开场徽标）：
  *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura；
  *                                       &intro=1 附带开局特写演出，intro 冒烟用）
- *   ?mode=net&action=create|join&room=   自动入房（4 位房间码）→ 房间页 → 选人页自动确认
+ *   ?mode=net&action=create|join&room=   自动入房（6 位数字房码）→ 房间页 → 选人页自动确认
  *   ?mode=match                          随机匹配页（自动排队；双窗口联调切片 37 用）
- *   ?mode=browse                         浏览房间页（列表轮询目检用）
  *   ?mode=local2p                       本地双人选人页（双键盘双光标目检用，不自动确认）
  *   ?mode=winner                        直接进结算立绘（ichigo 胜演出冒烟用）
  */
@@ -21,7 +20,6 @@ import { SceneHost } from './scenes/scene.js';
 import { GameLoadingScene } from './scenes/game-loading.js';
 import { MenuScene } from './scenes/menu.js';
 import { NetScene } from './scenes/net.js';
-import { BrowseScene } from './scenes/browse.js';
 import { MatchScene } from './scenes/match.js';
 import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
@@ -80,7 +78,7 @@ async function boot(): Promise<void> {
 
   // —— 场景入口（dev 直通参数见文件头） ——
   const params = new URLSearchParams(location.search);
-  // ?server= 覆盖房间服务器地址（localStorage 记忆；联机入口/浏览房间页均消费此值；
+  // ?server= 覆盖房间服务器地址（localStorage 记忆；联机入口均消费此值；
   // 正式入口与 dev 直通都生效）
   const serverParam = params.get('server');
   if (serverParam) {
@@ -125,10 +123,6 @@ async function boot(): Promise<void> {
     // dev 直通：随机匹配页（自动排队目检/双窗口联调用）
     flow.mode = 'net';
     scenes.switchTo(new MatchScene(flow));
-  } else if (mode === 'browse') {
-    // dev 直通：浏览房间页（列表轮询目检用）
-    flow.mode = 'net';
-    scenes.switchTo(new BrowseScene(flow));
   } else if (mode === 'winner') {
     // dev 直通：结算立绘演出（ichigo 胜；CONTINUE 可重开训练局）
     flow.mode = 'solo';

@@ -103,11 +103,11 @@ test('create：welcome + room-info（单人快照，默认设置）', async () =
   c.send({ t: 'create', name: '小明' });
   const welcome = await c.expect('welcome');
   assert.equal(welcome.player, 1);
-  assert.match(welcome.room, /^[A-Z2-9]{4}$/);
+  assert.match(welcome.room, /^\d{6}$/); // 6 位数字房码（2026-11-21 定案）
   const info = await c.expect('room-info');
   assert.deepEqual(info.players, [{ player: 1, name: '小明', ready: false }]);
   assert.equal(info.started, false);
-  assert.deepEqual(info.settings, { public: false, randomMap: false, team: false });
+  assert.deepEqual(info.settings, { team: false });
   c.ws.close();
 });
 
@@ -159,22 +159,21 @@ test('房间全流程：ready → room-config → begin(start) → hello×2(star
   assert.equal(rInfo.players.find((p) => p.player === 2).ready, true);
 
   // 房主改设置 → 双方收到快照（快照走 room-info，room-config 只上行）
-  host.send({ t: 'room-config', settings: { team: true, randomMap: true } });
+  host.send({ t: 'room-config', settings: { team: true } });
   await host.expect('room-info');
   const gInfo = await guest.expect('room-info');
   assert.equal(gInfo.settings.team, true);
-  assert.equal(gInfo.settings.randomMap, true);
-  assert.equal(gInfo.settings.public, false);
+  assert.deepEqual(gInfo.settings, { team: true }); // 其余键被忽略，快照仅 team
 
-  // begin → 双方 start（第一段：进选人页）+ 各自的快照回声 + 权威种子广播（切片 36）
+  // begin → 双方 start（第一段：进选人页）+ 各自的快照回声 + 权威种子广播
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
   await guest.expect('start');
   const startedInfo = await guest.expect('room-info');
   assert.equal(startedInfo.started, true);
-  const roll = await host.expect('map-roll');
-  const gRoll = await guest.expect('map-roll');
+  const roll = await host.expect('seed');
+  const gRoll = await guest.expect('seed');
   assert.equal(typeof roll.seed, 'number');
   assert.ok(roll.seed >= 1 && roll.seed < 2 ** 31);
   assert.equal(gRoll.seed, roll.seed); // 两端共享同一种子
@@ -209,10 +208,10 @@ test('begin 时客座未准备 → 非致命 error guest-not-ready，连接保�
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
-  await host.expect('map-roll');
+  await host.expect('seed');
   await guest.expect('start');
   await guest.expect('room-info');
-  await guest.expect('map-roll');
+  await guest.expect('seed');
   host.ws.close();
   guest.ws.close();
 });
@@ -276,10 +275,10 @@ test('已开局后客座掉线：房间解散（不保留空局）', async () =>
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
-  await host.expect('map-roll');
+  await host.expect('seed');
   await guest.expect('start');
   await guest.expect('room-info');
-  await guest.expect('map-roll');
+  await guest.expect('seed');
 
   guest.ws.close();
   await host.expect('peer-lost');
@@ -301,10 +300,10 @@ test('已开局房间拒绝 join → room-full', async () => {
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
-  await host.expect('map-roll');
+  await host.expect('seed');
   await guest.expect('start');
   await guest.expect('room-info');
-  await guest.expect('map-roll');
+  await guest.expect('seed');
 
   const probe = client(port);
   await probe.open;
@@ -325,10 +324,10 @@ test('选人页透传：cursor/map-pick 变更即广播 + 带累计锁定的 pic
   host.send({ t: 'begin' });
   await host.expect('start');
   await host.expect('room-info');
-  await host.expect('map-roll');
+  await host.expect('seed');
   await guest.expect('start');
   await guest.expect('room-info');
-  await guest.expect('map-roll');
+  await guest.expect('seed');
 
   // 光标消息透传（服务器不解析 UI 同步类）
   host.send({ t: 'cursor', player: 1, stage: 'fighter', idx: 5 });
@@ -499,66 +498,21 @@ test('排队中掉线：静默出队，其余人可继续配对', async () => {
   e.ws.close();
 });
 
-test('list-rooms：只列公开房（私人房不出现），joinable 反映满员/开局', async () => {
+test('房码冷却：解散后的房码近期不复用（新房间拿到不同码）', async () => {
   const port = await serverPort(proc);
-  const watcher = client(port);
-  await watcher.open;
-
-  // 无房
-  watcher.send({ t: 'list-rooms' });
-  assert.deepEqual((await watcher.expect('room-list')).rooms, []);
-
-  // 公开房出现（空位可加入）
   const host = client(port);
   await host.open;
   host.send({ t: 'create', name: '房主' });
-  await host.expect('welcome');
-  await host.expect('room-info');
-  host.send({ t: 'room-config', settings: { public: true, team: true } });
-  await host.expect('room-info');
-  watcher.send({ t: 'list-rooms' });
-  let list = (await watcher.expect('room-list')).rooms;
-  assert.equal(list.length, 1);
-  assert.equal(list[0].host, '房主');
-  assert.equal(list[0].team, true);
-  assert.equal(list[0].joinable, true);
-
-  // 私人房不出现
-  const priv = client(port);
-  await priv.open;
-  priv.send({ t: 'create', name: '私人' });
-  await priv.expect('welcome');
-  await priv.expect('room-info');
-  watcher.send({ t: 'list-rooms' });
-  list = (await watcher.expect('room-list')).rooms;
-  assert.equal(list.length, 1);
-
-  // 满员 → joinable=false
-  const guest = client(port);
-  await guest.open;
-  guest.send({ t: 'join', room: list[0].room, name: '客' });
-  await guest.expect('welcome');
-  await guest.expect('room-info');
-  await host.expect('room-info');
-  watcher.send({ t: 'list-rooms' });
-  list = (await watcher.expect('room-list')).rooms;
-  assert.equal(list.length, 1);
-  assert.equal(list[0].joinable, false);
-
-  // 开局 → joinable=false
-  guest.send({ t: 'ready', ready: true });
-  await guest.expect('room-info');
-  await host.expect('room-info');
-  host.send({ t: 'begin' });
-  await host.expect('start');
-  watcher.send({ t: 'list-rooms' });
-  list = (await watcher.expect('room-list')).rooms;
-  assert.equal(list.length, 1);
-  assert.equal(list[0].joinable, false);
-
-  watcher.ws.close();
+  const first = await host.expect('welcome');
   host.ws.close();
-  guest.ws.close();
+
+  // 解散后立即再建房：不得复用刚退役的房码（防迟到者凭旧码误入他人新房）
+  const host2 = client(port);
+  await host2.open;
+  host2.send({ t: 'create', name: '房主2' });
+  const second = await host2.expect('welcome');
+  assert.notEqual(second.room, first.room);
+  host2.ws.close();
 });
 
 test('在房时 queue 被忽略；create/join 会出队', async () => {
@@ -590,7 +544,7 @@ test('在房时 queue 被忽略；create/join 会出队', async () => {
   await new Promise((r) => setTimeout(r, 20));
   q.send({ t: 'create', name: '丁' });
   const w = await q.expect('welcome');
-  assert.match(w.room, /^[A-Z2-9]{4}$/);
+  assert.match(w.room, /^\d{6}$/);
   q.ws.close();
   host.ws.close();
 });

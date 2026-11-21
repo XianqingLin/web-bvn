@@ -1,26 +1,26 @@
 #!/usr/bin/env node
 /**
- * 房间服务器（切片 7 基础；切片 34 房间语义扩展；切片 37 匹配队列与浏览列表）。
+ * 房间服务器（切片 7 基础；切片 34 房间语义扩展；切片 37 匹配队列；
+ * 2026-11-21 纯房码制——浏览列表下线、房间一律私人、6 位数字房码）。
  * 只做房间编排与输入中继，不跑模拟。
  *
  * 职责：
  *   1. create/join（带昵称）→ 分配位次入房，welcome + room-info 快照；
+ *      加入只凭 6 位数字房码（或平台邀请深链携带房码），无公开房间列表；
  *   2. 房间语义（服务器解析，快照经 room-info 广播；设计见 docs/netplay-design.md §9）：
- *      - room-config  房主改设置 → 合并后广播 room-info；
+ *      - room-config  房主改设置（仅 team）→ 合并后广播 room-info；
  *      - ready        客座准备切换 → 广播 room-info；
  *      - begin        房主请求开始 → 校验客座已准备 → 广播 start（进选人页），
  *                     hello 计数清零；未准备回非致命 error（guest-not-ready）；
  *   3. hello 收齐 → 广播 start（第二段：进对局；与 begin 的 start 两段语义）；
  *   4. UI 同步类（cursor/map-pick）与对局类（input/hash/pick）原样透传给对端；
- *   5. 权威种子（切片 36，netplay-design §8/§9）：begin 时生成随机种子并广播
- *      map-roll，两端共享——开箱抽取动画的定格结果与对局 sim seed 都由它解析；
+ *   5. 权威种子（netplay-design §8/§9）：begin 时生成随机种子并广播 seed——
+ *      对局 sim seed 都由它来（进 configHash）；对局地图按 maps[seed % n] 解析；
  *   6. 匹配队列（切片 37，netplay-design §6/§9）：queue 入队，满 2 即配对——
- *      服务器开好房间并直接置为开局段（免房间页/准备门，匹配固定
- *      team=true + 随机地图），双方收 matched（含权威 seed）+ start；
+ *      服务器开好房间并直接置为开局段（免房间页/准备门，匹配固定 team=true、
+ *      无地图阶段），双方收 matched（含权威 seed）+ start；
  *      unqueue 退队；掉线自动出队；已配对的种子兼作 sim seed 进 configHash；
- *   7. 浏览列表（切片 37，netplay-design §5）：list-rooms 轮询 → room-list
- *      快照（公开房：房主昵称/团队标记/可加入状态），服务器不做主动推送；
- *   8. 断线清理（netplay-design.md §10）：
+ *   7. 断线清理（netplay-design.md §10）：
  *      - 未开局客座掉线 → 房间保留，房主收 peer-lost + room-info，可继续等待/邀请；
  *      - 房主掉线或已开局后任何一方掉线 → 房间解散（peer-lost，房码失效）；
  *      - 已开局房间拒绝 join（复用 room-full），无重连。
@@ -32,13 +32,30 @@ import { WebSocketServer } from 'ws';
 
 const port = Number(process.env.PORT ?? 8787);
 
-/** 房间码：4 位无易混字符（0/O/1/I/L 剔除） */
+/**
+ * 房间码：6 位数字（2026-11-21 定案：不重复、便于口播/手输）。
+ * 唯一性 = 现存房间查重 + 近期已解散房码冷却（防止迟到者凭旧码误入他人新房）；
+ * 冷却池按 FIFO 上限裁剪，防长期运行无界增长。
+ */
+const RETIRED_CAP = 512;
+const retiredCodes = new Set();
+const retiredOrder = [];
+
 function newRoomCode(rooms) {
-  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   for (;;) {
     let c = '';
-    for (let i = 0; i < 4; i++) c += alphabet[randomInt(alphabet.length)];
-    if (!rooms.has(c)) return c;
+    for (let i = 0; i < 6; i++) c += String(randomInt(10));
+    if (!rooms.has(c) && !retiredCodes.has(c)) return c;
+  }
+}
+
+/** 房码退场（解散/清空）：进冷却池，近期不复用。 */
+function retireRoomCode(code) {
+  if (retiredCodes.has(code)) return;
+  retiredCodes.add(code);
+  retiredOrder.push(code);
+  while (retiredOrder.length > RETIRED_CAP) {
+    retiredCodes.delete(retiredOrder.shift());
   }
 }
 
@@ -66,7 +83,7 @@ function cleanName(raw, slot) {
  *   names: Map<number, string>,
  *   ready: Map<number, boolean>,
  *   helloed: Set<number>,
- *   settings: {public: boolean, randomMap: boolean, team: boolean},
+ *   settings: {team: boolean},
  *   started: boolean,
  *   dead: boolean,
  * }>} */
@@ -103,26 +120,13 @@ function broadcastRoomInfo(room) {
   for (const p of room.players.values()) send(p, roomInfoMsg(room));
 }
 
-/** 公开房间快照（浏览列表；started 房也列出但 joinable=false，§5 可加入/已满状态）。 */
-function roomListMsg() {
-  const list = [];
-  for (const room of rooms.values()) {
-    if (room.dead || !room.settings.public) continue;
-    list.push({
-      room: room.id,
-      host: room.names.get(1) ?? '玩家1',
-      team: room.settings.team,
-      joinable: !room.started && room.players.size < 2,
-      started: room.started,
-    });
-  }
-  return { t: 'room-list', rooms: list };
-}
+/** 公开房间列表已下线（2026-11-21 纯房码制）：list-rooms/room-list 消息移除。 */
 
-/** 解散房间：通知剩余成员后销毁，房码失效（their ws 之后 close 不再处理）。 */
+/** 解散房间：通知剩余成员后销毁，房码失效并进冷却池（their ws 之后 close 不再处理）。 */
 function dissolve(room) {
   room.dead = true;
   rooms.delete(room.id);
+  retireRoomCode(room.id);
   for (const p of room.players.values()) send(p, { t: 'peer-lost' });
   room.players.clear();
 }
@@ -137,7 +141,8 @@ function unqueue(conn) {
 
 /**
  * 配对（切片 37）：出队两个存活连接 → 开房并直接置为开局段。
- * 匹配固定属性（netplay-design §6）：team=true + randomMap=true，不提供选项；
+ * 匹配固定属性（netplay-design §6）：team=true、无地图阶段（援助选完直接进加载页，
+ * 对局地图由权威 seed 按 maps[seed % n] 解析），不提供选项；
  * 免房间页/准备门（偏离登记：设计稿"matched 后走 create/join 等价路径"收敛为
  * 服务器直接装配——同一条连接、同一套房间机器，少两轮 ready/begin 往返）。
  */
@@ -165,7 +170,7 @@ function matchPair() {
       ]),
       ready: new Map(),
       helloed: new Set(),
-      settings: { public: false, randomMap: true, team: true },
+      settings: { team: true },
       started: true, // 出生即开局段：matched → start 直进选人页
       dead: false,
     };
@@ -208,7 +213,7 @@ wss.on('connection', (ws) => {
           names: new Map([[1, cleanName(msg.name, 1)]]),
           ready: new Map(),
           helloed: new Set(),
-          settings: { public: false, randomMap: false, team: false },
+          settings: { team: false },
           started: false,
           dead: false,
         };
@@ -254,16 +259,12 @@ wss.on('connection', (ws) => {
         unqueue(conn);
         break;
       }
-      case 'list-rooms': {
-        send(ws, roomListMsg());
-        break;
-      }
       case 'room-config': {
         if (!room || room.dead || player !== 1 || room.started) return;
         const s = msg.settings ?? {};
-        for (const k of ['public', 'randomMap', 'team']) {
-          if (typeof s[k] === 'boolean') room.settings[k] = s[k];
-        }
+        // 纯房码制仅剩 team 一项（2026-11-21：public/randomMap 随浏览列表与地图
+        // 勾选下线）；未知键一律忽略，防客户端伪造键污染快照
+        if (typeof s.team === 'boolean') room.settings.team = s.team;
         broadcastRoomInfo(room);
         break;
       }
@@ -284,10 +285,10 @@ wss.on('connection', (ws) => {
         room.helloed.clear(); // start 两段语义：begin 的 start 清零，hello 收齐再发第二次
         for (const p of room.players.values()) send(p, { t: 'start' });
         broadcastRoomInfo(room);
-        // 权威种子（切片 36）：两端共享同一 seed——开箱抽取定格结果本地按
-        // maps[seed % n] 解析（同 select 数据天然一致），并进 configHash 互验
+        // 权威种子：两端共享同一 seed——对局 sim seed（进 configHash 互验）；
+        // 对局地图由选人页房主定（含"？"随机项），非 seed 抽取
         const seed = randomInt(1, 2 ** 31);
-        for (const p of room.players.values()) send(p, { t: 'map-roll', seed });
+        for (const p of room.players.values()) send(p, { t: 'seed', seed });
         break;
       }
       case 'hello': {
@@ -311,7 +312,7 @@ wss.on('connection', (ws) => {
         break;
       }
       default:
-        break; // welcome/error/start/room-info/map-roll/matched/room-list 由服务器产生，客户端发来的一律忽略
+        break; // welcome/error/start/room-info/seed/matched 由服务器产生，客户端发来的一律忽略
     }
   });
 
@@ -333,6 +334,7 @@ wss.on('connection', (ws) => {
     if (room.players.size === 0) {
       rooms.delete(room.id);
       room.dead = true;
+      retireRoomCode(room.id); // 空房销毁：房码进冷却池，近期不复用
     } else {
       broadcastRoomInfo(room);
     }

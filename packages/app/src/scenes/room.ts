@@ -1,8 +1,10 @@
 /**
- * 房间页（切片 34）：入房后的等待/设置/开始门。
+ * 房间页（切片 34；2026-11-21 纯房码制）：入房后的等待/设置/开始门。
  *
- * 房主：常备（无准备按钮）+ 开始按钮（客座已准备才可点）+ 三项设置
- * （公开/随机地图/团队，客座只读实时跟随）；客座：准备/取消准备切换按钮。
+ * 房间一律私人（凭 6 位数字房码或平台邀请加入，无公开列表）：房主：常备
+ * （无准备按钮）+ 开始按钮（客座已准备才可点）+ 团队模式一项设置（客座只读
+ * 实时跟随）；客座：准备/取消准备切换按钮。地图在选人页尾的地图选择阶段由
+ * 房主定（默认"？"随机项），房间页不再有地图相关设置。
  * 状态机：socket.onmessage 常驻接管，room-info 快照驱动渲染（服务器权威，
  * 本端只上行 room-config/ready，不本地乐观翻转）；start → 移交选人页。
  * 异常流按 netplay-design §10：客座掉线房主继续等待；房主掉线客座回菜单。
@@ -128,8 +130,8 @@ export class RoomScene implements Scene {
         };
         // 团队模式随快照同步（选人页 3+1 节奏依据；切片 35）
         this.flow.team = (msg.settings as RoomSettings).team === true;
-        // 地图阶段模式随快照同步（开箱抽取 vs 房主选择；切片 36）
-        this.flow.randomMap = (msg.settings as RoomSettings).randomMap === true;
+        // 好友房走地图选择阶段（房主定图；匹配路径由 MatchScene 置 false）
+        this.flow.mapSelect = true;
         this.render();
         break;
       case 'error':
@@ -214,10 +216,9 @@ export class RoomScene implements Scene {
       body.addChild(row);
     });
 
-    // 设置区：房主可改（点击上行 room-config，room-info 回声驱动翻转），客座只读
+    // 设置区：房主可改（点击上行 room-config，room-info 回声驱动翻转），客座只读；
+    // 纯房码制仅剩模式一项（2026-11-21）
     const settings: { label: string; value: string; key: keyof RoomSettings }[] = [
-      { label: '公开房间', value: state.settings.public ? '公开' : '私人', key: 'public' },
-      { label: '地图', value: state.settings.randomMap ? '随机抽取' : '房主选择', key: 'randomMap' },
       { label: '模式', value: state.settings.team ? '团队 3+1' : '单挑 1v1', key: 'team' },
     ];
     settings.forEach((s, i) => {

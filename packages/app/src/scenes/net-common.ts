@@ -1,6 +1,6 @@
 /**
- * 联机页共享助手（切片 37）：服务器地址行 + 建连，供 NetScene / MatchScene /
- * BrowseScene 三个联机入口复用（NetScene 原有逻辑抽提）。
+ * 联机页共享助手（切片 37）：服务器地址行 + 建连，供 NetScene / MatchScene
+ * 两个联机入口复用（NetScene 原有逻辑抽提；BrowseScene 已随纯房码制下线）。
  */
 import { Text } from 'pixi.js';
 import { domInput, makeLabel } from '../ui.js';

@@ -24,18 +24,17 @@
  *    同角色允许（镜像对决合法，自身重复亦允许）；
  *  - pick 覆盖式累计上行（3s 重发兜底幂等）；地图尾沿用最终 pick（map 仅 P1，
  *    P2 收到即移交加载页）；
- *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/map-pick/map-roll/peer-lost 分派），
+ *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/map-pick/seed/peer-lost 分派），
  *    断线按 netplay-design §10 提示后回主菜单。
  *
- * 地图阶段（切片 36，规格 docs/netplay-design.md §8）：
- *  - 房主选择（randomMap=false）：房主轮盘可操作，每次切换 map-pick 广播；
- *    客座只读面板实时跟随（轮盘同款渲染、无交互），房主确认走最终 pick.map；
- *  - 开箱抽取（randomMap=true）：两端播同一动画——CS:GO 式横向缩略图长条
- *    滚动减速定格，定格结果 = maps[seed % n]（服务器权威种子 map-roll 广播，
- *    begin 时到达；兼作对局 sim seed 进 configHash）；不可跳过/重抽，
- *    定格后两端各自独立进加载页（时长确定性一致，无需握手）；
- *  - 滚动演出 = easeInOutQuint 单段缓动（起步加速→高速→滑入停框近似规格分段），
- *    行程 ~3.4s + 定格高亮 0.8s；地图名随居中项实时更新，定格播确认音。
+ * 地图阶段（切片 36 建；2026-11-21 收缩，规格 docs/netplay-design.md §8）：
+ *  - 好友房（mapSelect=true）：仅房主选择页一种形态——房主轮盘可操作，每次切换
+ *    map-pick 广播；客座只读面板实时跟随（轮盘同款渲染、无交互），房主确认走
+ *    最终 pick.map（"？"随机项确认时由房主解析成具体 id）；
+ *  - 匹配（mapSelect=false）：无地图阶段——援助选满直接进加载页，对局地图由
+ *    权威 seed 按 maps[seed % n] 解析（matched 携带，两端同种子天然一致，
+ *    兼作对局 sim seed 进 configHash）；开箱抽取动画随 randomMap 设置整体下线；
+ *  - 默认选中项 = "？"随机场景（原版 map.xml random 首项实位，mapIndex 0）。
  *
  * 本地双人（切片 39；复刻原版 isVsPeople() 语义，同一台键盘搬回来）：
  *  - 双光标各自键盘驱动：P1 = WASD 移动 + J 确认；P2 = 方向键移动 + 小键盘 1 确认；
@@ -156,27 +155,6 @@ export class SetupScene implements Scene {
   /** 离场定时器（断线回菜单） */
   private readonly timers: number[] = [];
 
-  // —— 地图开箱抽取（切片 36；randomMap=true 的联机地图阶段）——
-  /** 滚动动画状态（update 驱动；null = 非 roll 模式/未起播/已定格） */
-  private rollAnim: {
-    strip: Container;
-    label: Text;
-    dist: number;
-    startX: number;
-    startAt: number;
-    travelMs: number;
-    holdMs: number;
-    stride: number;
-    cellW: number;
-    /** 定格地图（select.maps 目标项；两端由同一 seed 解析，天然一致） */
-    target: { id: string; name: string };
-    /** 地图序列（strip 内按 index % maps.length 取名） */
-    maps: { id: string; name: string }[];
-    finished: boolean;
-  } | null = null;
-  /** 已进地图阶段但 map-roll 种子在途（到达后起播；正常在选人期已到，防御用） */
-  private rollPending = false;
-
   constructor(
     private readonly flow: Flow,
     /** 联机 socket（net 场景交接；solo/local 省略） */
@@ -186,9 +164,9 @@ export class SetupScene implements Scene {
   async enter(ctx: SceneCtx): Promise<void> {
     this.ctxRef = ctx;
     clearTrans(); // 原版 SelectFighterStage.build → clearTrans：清残留黑幕（异常退场等）
-    // 非 net 流（solo/local 直进）：清联机会话残留（地图模式/种子归联机会话）
+    // 非 net 流（solo/local 直进）：清联机会话残留（地图阶段/种子归联机会话）
     if (this.flow.mode !== 'net') {
-      this.flow.randomMap = false;
+      this.flow.mapSelect = true;
       this.flow.mapSeed = null;
     }
     // 对局音频（切片 27）：选人页 BGM（原版 SelectFighterStage BGM(select)）
@@ -291,7 +269,8 @@ export class SetupScene implements Scene {
     this.startLocal(ctx);
   }
 
-  /** dev 直通（联机）：免点击走完累计锁定；P1 直接确认默认地图进交换等待。 */
+  /** dev 直通（联机）：免点击走完累计锁定；好友房 P1 直接确认默认地图进交换等待，
+   *  匹配路径（无地图阶段）两端直接收尾进加载页。 */
   private autoConfirmNet(ctx: SceneCtx): void {
     const need = this.flow.team ? 3 : 1;
     const ids = ['ichigo', 'naruto', 'sasuke'].slice(0, need);
@@ -304,13 +283,15 @@ export class SetupScene implements Scene {
       assists: this.localLocked.assists.map((e) => e.id),
     };
     this.commitPicks();
-    if (this.flow.player === 1 && !this.flow.randomMap) {
+    if (!this.flow.mapSelect) {
+      // 匹配路径（两端）：无地图阶段，权威 seed 本地解析后直接移交
+      this.finishNetNoMap(ctx);
+    } else if (this.flow.player === 1) {
       this.mapId = 'KonohaMura';
       this.mapChosen = true;
       this.netMapConfirmed(ctx);
     } else {
-      // 客座（房主选择路径）与开箱抽取（randomMap，两端）：地图阶段由消息泵驱动
-      // （map-pick 跟随 / map-roll 种子起播，泵接管时机早于本调用，种子已就位）
+      // 好友房客座：地图阶段由消息泵驱动（map-pick 跟随房主切换）
       this.phase = 'map';
       this.renderPhase(ctx);
     }
@@ -422,11 +403,8 @@ export class SetupScene implements Scene {
         }
       });
     } else if (this.phase === 'map') {
-      if (net && this.flow.randomMap) {
-        // 开箱抽取（切片 36）：两端播同一动画，定格结果由服务器种子本地解析，不可跳过
-        this.renderMapRoll();
-      } else if (net && this.flow.player === 2) {
-        // 客座只读（房主选择路径）：map-pick 广播实时跟随房主切换
+      if (net && this.flow.player === 2) {
+        // 客座只读（好友房）：map-pick 广播实时跟随房主切换
         this.renderMaps(root, { interactive: false });
         if (this.status) this.status.text = '等待房主选择地图…';
       } else {
@@ -864,13 +842,31 @@ export class SetupScene implements Scene {
           : '';
   }
 
-  /** 双方齐套 → 本地推导推进下一阶段（判定输入一致结果一致，无需服务器裁决）。 */
+  /** 双方齐套 → 本地推导推进下一阶段（判定输入一致结果一致，无需服务器裁决）。
+   *  匹配路径（mapSelect=false）援助齐套后无地图阶段，直接收尾进加载页。 */
   private checkAdvance(ctx: SceneCtx): void {
     if (this.phase !== 'fighter' && this.phase !== 'assist') return;
     if (!this.stageComplete(true) || !this.stageComplete(false)) return;
+    if (this.flow.mode === 'net' && this.phase === 'assist' && !this.flow.mapSelect) {
+      this.finishNetNoMap(ctx);
+      return;
+    }
     this.phase = this.phase === 'fighter' ? 'assist' : 'map';
     this.hoverIdx = null;
     this.transitionPhase(ctx, () => this.renderPhase(ctx));
+  }
+
+  /** 匹配路径收尾（两端对称、各自独立，无需握手——同原开箱"无需握手"语义）：
+   *  对局地图由权威 seed 按 maps[seed % n] 解析（两端同种子 → 同图 → configHash
+   *  一致），最终 pick 随地图上行（对端在途时由 3s 重发兜底/接收侧守卫消化）。 */
+  private finishNetNoMap(ctx: SceneCtx): void {
+    if (this.done || this.netDead) return;
+    const maps = this.select!.maps;
+    const seed = this.flow.mapSeed ?? 1;
+    this.commitPicks();
+    this.flow.mapId = maps[Math.abs(Math.trunc(seed)) % maps.length]!.id;
+    this.sendFinalPick();
+    this.gotoLoading();
   }
 
   // ---------- 本地双人双键盘（切片 39；原版 isVsPeople 语义搬回同一台键盘） ----------
@@ -1034,8 +1030,10 @@ export class SetupScene implements Scene {
       case 'map-pick':
         this.onPeerMapPick(msg);
         break;
-      case 'map-roll':
-        this.onMapRoll(msg);
+      case 'seed':
+        // 服务器权威种子（begin 广播）：记下即用——对局 sim seed 进 configHash；
+        // 匹配路径无此消息（seed 随 matched 携带）
+        this.flow.mapSeed = msg.seed;
         break;
       case 'peer-lost':
         this.onNetDown();
@@ -1095,26 +1093,16 @@ export class SetupScene implements Scene {
     }
   }
 
-  /** 房主轮盘切换跟随（切片 36，房主选择路径；客座只读，phase 须为 map 且非 roll 模式）。 */
+  /** 房主轮盘切换跟随（切片 36，好友房路径；客座只读，phase 须为 map）。 */
   private onPeerMapPick(msg: Extract<NetMessage, { t: 'map-pick' }>): void {
     if (this.flow.mode !== 'net' || this.done || msg.player === this.flow.player) return;
-    if (this.flow.randomMap || this.phase !== 'map' || !this.mapPicSprite) return;
+    if (this.phase !== 'map' || !this.mapPicSprite) return;
     const entries = this.mapEntries();
     const idx = entries.findIndex((e) => (e.id ?? 'random') === msg.map);
     if (idx < 0) return;
     this.mapIndex = idx;
     this.showMapPic(this.mapPicSprite, entries);
     if (this.status) this.status.text = `房主浏览：${entries[idx]!.name}（等待确认）`;
-  }
-
-  /** 服务器权威种子（切片 36，begin 时广播）：到达即记录；roll 模式地图阶段
-   *  已进入且种子在途时据此起播（正常在选人期已随缓冲补交到达，防御用）。 */
-  private onMapRoll(msg: Extract<NetMessage, { t: 'map-roll' }>): void {
-    this.flow.mapSeed = msg.seed;
-    if (this.rollPending && this.phase === 'map' && !this.done && !this.netDead) {
-      this.rollPending = false;
-      void this.startMapRoll(msg.seed);
-    }
   }
 
   /** 对端盒显示对端当前阶段最近锁定项（覆盖快照最后一条）。 */
@@ -1156,10 +1144,12 @@ export class SetupScene implements Scene {
 
   // ---------- 地图轮盘（原版 MapSelectUI 规格） ----------
 
+  /** 地图轮盘条目。"？"随机场景 = 首项（原版 map_config random 实证首位，
+   *  默认 mapIndex 0 即落在它上；2026-11-21 定案 + 原位归位），缩略图 random.webp。 */
   private mapEntries(): { id: string | null; name: string }[] {
     return [
+      { id: null, name: '随机场景' }, // 原版 random 项（random.webp）
       ...this.select!.maps.map((m) => ({ id: m.id as string | null, name: m.name })),
-      { id: null, name: '随机地图' }, // 原版 random 项（random.webp）
     ];
   }
 
@@ -1288,120 +1278,6 @@ export class SetupScene implements Scene {
     if (this.mapNameLabel) this.mapNameLabel.text = e.name;
   }
 
-  // ---------- 地图开箱抽取（切片 36，netplay-design §8） ----------
-
-  /** 开箱抽取入口（两端同款）：种子未到先挂等待态，到即起播。 */
-  private renderMapRoll(): void {
-    if (this.flow.mapSeed == null) {
-      this.rollPending = true; // map-roll 到达后 onMapRoll 起播
-      if (this.status) this.status.text = '等待地图种子…';
-      return;
-    }
-    void this.startMapRoll(this.flow.mapSeed);
-  }
-
-  /** 起播：预载全部缩略图 → 组长条（地图序列重复 3 遍，定格实例取中段）→
-   *  update 按 easeInOutQuint 推进行程，定格高亮 holdMs 后两端各自进加载页。 */
-  private async startMapRoll(seed: number): Promise<void> {
-    const maps = this.select!.maps;
-    const token = this.loadToken;
-    const target = maps[Math.abs(Math.trunc(seed)) % maps.length]!;
-    if (this.status) this.status.text = '地图抽取中…';
-    // 缩略图全量预载（两端同 select 数据 → 同图集，动画后帧一致）
-    const texs = await Promise.all(
-      maps.map((m) => Assets.load<Texture>(`${ASSETS}/${this.uiData!.maps.dir}/${m.id}.webp`)),
-    );
-    if (this.destroyedFlag || token !== this.loadToken || this.phase !== 'map') return;
-
-    const CELL_W = 300;
-    const CELL_H = 160;
-    const STRIDE = CELL_W + 24;
-    const CY = 300;
-    const CX = OX + STAGE_W / 2;
-    const targetCell = maps.length + Math.abs(Math.trunc(seed)) % maps.length; // 中段实例
-
-    // 裁剪：长条只露舞台区（滚出舞台外的格子不可见）
-    const mask = new Graphics();
-    mask.rect(OX, CY - 130, STAGE_W, 260).fill({ color: 0xffffff });
-    const strip = new Container();
-    strip.mask = mask;
-    for (let i = 0; i < maps.length * 3; i++) {
-      const k = i % maps.length;
-      const sp = new Sprite(texs[k]!);
-      sp.width = CELL_W;
-      sp.height = CELL_H;
-      sp.position.set(i * STRIDE, 0);
-      strip.addChild(sp);
-    }
-    strip.position.set(0, CY - CELL_H / 2);
-    this.phaseRoot!.addChild(mask, strip);
-
-    // 中央高亮框 + 居中项名牌（复用地图轮盘名牌位）
-    const frame = new Graphics();
-    frame
-      .rect(CX - CELL_W / 2 - 6, CY - CELL_H / 2 - 6, CELL_W + 12, CELL_H + 12)
-      .stroke({ width: 4, color: 0xffd54f, alpha: 0.95 });
-    this.phaseRoot!.addChild(frame);
-    const [tx, ty] = this.uiData!.select.mapTextPos;
-    const label = new Text('', {
-      fontFamily: 'system-ui, "Microsoft YaHei", sans-serif',
-      fontSize: 14,
-      fill: 0xffffff,
-      stroke: { color: 0x000000, width: 2 },
-    });
-    label.anchor.set(0.5, 0);
-    label.position.set(OX + tx + 183 / 2, ty + 6);
-    this.phaseRoot!.addChild(label);
-
-    this.rollAnim = {
-      strip,
-      label,
-      // 起步第 1 格居中 → 定格目标格居中（行程穿过整圈 + 目标位，~4.4k px）
-      startX: CX - CELL_W / 2 - STRIDE,
-      dist: -(targetCell - 1) * STRIDE,
-      startAt: performance.now(),
-      travelMs: 3400,
-      holdMs: 800,
-      stride: STRIDE,
-      cellW: CELL_W,
-      target,
-      maps,
-      finished: false,
-    };
-  }
-
-  /** 缓动：easeInOutQuint——起步加速、中段高速、长尾滑入停框（规格 §8 分段的
-   *  单段近似；登记偏离：分段边界不逐一复刻，总时长 ~4.2s 吻合"约 4 秒"）。 */
-  private static readonly quintInOut = (u: number): number =>
-    u < 0.5 ? 16 * u ** 5 : 1 - (-2 * u + 2) ** 5 / 2;
-
-  /** 滚动推进（update 调用）：行程结束定格，holdMs 计满播确认音并移交加载页。 */
-  private tickRoll(now: number): void {
-    const r = this.rollAnim;
-    if (!r || r.finished) return;
-    const cx = OX + STAGE_W / 2;
-    const t = now - r.startAt;
-    if (t <= r.travelMs) {
-      const u = Math.max(0, Math.min(1, t / r.travelMs));
-      const x = r.startX + r.dist * SetupScene.quintInOut(u);
-      r.strip.x = x;
-      // 名牌随居中项更新（strip 内 index → maps 序取模）
-      const i = Math.round((cx - r.cellW / 2 - x) / r.stride);
-      const m = r.maps[((i % r.maps.length) + r.maps.length) % r.maps.length];
-      r.label.text = m?.name ?? '';
-    } else {
-      r.strip.x = r.startX + r.dist; // 定格：目标格居中
-      r.label.text = r.target.name;
-    }
-    if (t >= r.travelMs + r.holdMs) {
-      r.finished = true;
-      audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim（定格确认音）
-      if (this.status) this.status.text = `地图：${r.target.name}`;
-      this.flow.mapId = r.target.id;
-      this.gotoLoading(); // 两端时长确定性一致，各自独立移交（无需握手）
-    }
-  }
-
   // ---------- 交换与开打 ----------
 
   /** 单机确认时的最终选人（随机项此时解析；联机在锁定时已解析）。 */
@@ -1441,8 +1317,6 @@ export class SetupScene implements Scene {
     // 嵌套动画叠加层走带（切片 45；板帧恒 0——选人页无板帧驱动，常显循环）
     this.vortexFx?.update(0, dtMs);
     for (const fx of this.mapFxPlayers) fx.update(0, dtMs);
-    // 开箱抽取滚动推进（切片 36；定格后移交加载页，本场景 done 退出）
-    this.tickRoll(performance.now());
     // 联机 3s 重发兜底（覆盖语义幂等；对端收齐后进下一阶段，残余重发无害）：
     // 选人阶段（含地图等待）重发累计锁定，交换中重发最终 pick（含地图）
     if (this.flow.mode === 'net' && this.socket && !this.done && !this.netDead) {
@@ -1459,8 +1333,6 @@ export class SetupScene implements Scene {
     this.destroyedFlag = true;
     this.loadToken++;
     this.ctxRef = null;
-    this.rollAnim = null;
-    this.rollPending = false;
     this.vortexFx?.dispose();
     this.vortexFx = null;
     for (const fx of this.mapFxPlayers) fx.dispose();
