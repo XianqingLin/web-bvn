@@ -5,10 +5,10 @@
  * 选人界面布局与角色元数据的烘焙管线（切片 14）：
  *   - char_list / assist_list 的网格布局（行列 + offset + more 形态切换目标）；
  *   - fighter.xml / assistant.xml 的中文名与 comic_type（0=死神 1=火影，随机池用）；
- *   - fighter.xml 的胜者立绘类（face/win_cls）与台词（says/say_item，`|` 换行）
- *     —— 结算立绘演出用（切片 29 菜单流打磨；辅助无此数据，置 null/[]）；
  *   - map.xml 的地图中文名（random 项由 UI 自己处理，不烘进来）。
- * 输出 schema bvn/select@2；纯文本解析（源 XML 均为机器生成的单行文档）。
+ * 输出 schema bvn/select@3；纯文本解析（源 XML 均为机器生成的单行文档）。
+ * （切片 29 曾烘焙胜者立绘类 win_cls / 台词 say_item 供结算立绘页消费；
+ *   结算画面为原版街机模式专属，2026-11-21 定案不移植并整块移除，字段随之下线。）
  *
  * 用法：node tools/select-pack/select-pack.mjs [--xfl-root DIR] [--out FILE]
  *   缺省 --xfl-root OpenBleachVsNaruto/swf_output --out packages/data/baked/select.json
@@ -80,22 +80,34 @@ function parseMaps(xml) {
   return maps;
 }
 
-/**
- * fighter.xml → id → { win 立绘类, says 台词列表 }（结算立绘用，切片 29）。
- * win = face/@win_cls（ui.json faces 按类名寻址；可指向其他形态的立绘类，
- * 如 ichigo_vizored → ichigo_vizored_half_w）；缺 win_cls = 无立绘（原版隐藏立绘格）。
- * says = say_item 文本列表（`|` 为换行分隔，由 UI 转换）。
- */
-function parseWinnerMeta(xml) {
-  const map = new Map();
-  const re = /<fighter id="([^"]*)"[^>]*>((?:(?!<\/fighter>)[\s\S])*)<\/fighter>/g;
-  let m;
-  while ((m = re.exec(xml))) {
-    const win = /win_cls="([^"]*)"/.exec(m[2])?.[1] ?? null;
-    const says = [...m[2].matchAll(/<say_item>([^<]*)<\/say_item>/g)].map((x) => x[1]);
-    map.set(m[1], { win, says });
-  }
-  return map;
+/** char_list / assist_list 行展开为平铺条目（row/col 保留布局；offset = 行 offset + 条目
+ *  offset 合成像素偏移——原版 SelectStageConfigVO.newListByXML 把行 offset 克隆给该行全部
+ *  条目再叠加条目 offset，空位不显示但占列号）。 */
+function flatten(listRows, names, kind, swfMap) {
+  const out = [];
+  listRows.forEach((row, r) => {
+    const [rx, ry] = (row.offset ?? '0,0').split(',').map(Number);
+    row.items.forEach((item, c) => {
+      if (!item.id) return; // 空位
+      const meta = names.get(item.id) ?? RANDOM_META.get(item.id);
+      if (!meta) throw new Error(`${kind} 条目 ${item.id} 在 name 配置中缺失`);
+      const [ix, iy] = (item.offset ?? '0,0').split(',').map(Number);
+      out.push({
+        id: item.id,
+        name: meta.name,
+        comicType: meta.comicType,
+        row: r,
+        col: c,
+        offset: rx || ry || ix || iy ? `${rx + ix},${ry + iy}` : null,
+        more: item.more,
+        /** 共用 swf 基名（fighter.xml file url；形态角色 ≠ id，随机项 null） */
+        swf: swfMap?.get(item.id)?.swf ?? null,
+        /** 原版进场形态帧（fighter.xml startFrame；缺省 1 = 首含动画形态） */
+        startFrame: swfMap?.get(item.id)?.startFrame ?? 1,
+      });
+    });
+  });
+  return out;
 }
 
 const selectXml = readFileSync(resolve(XFL_ROOT, 'assets/config/select.xml'), 'utf8');
@@ -113,50 +125,13 @@ const RANDOM_META = new Map([
   ['random_naruto', { name: '随机(火影)', comicType: 1 }],
 ]);
 
-/** char_list / assist_list 行展开为平铺条目（row/col 保留布局；offset = 行 offset + 条目
- *  offset 合成像素偏移——原版 SelectStageConfigVO.newListByXML 把行 offset 克隆给该行全部
- *  条目再叠加条目 offset，空位不显示但占列号）。 */
-function flatten(listRows, names, kind, swfMap, winnerMeta) {
-  const out = [];
-  listRows.forEach((row, r) => {
-    const [rx, ry] = (row.offset ?? '0,0').split(',').map(Number);
-    row.items.forEach((item, c) => {
-      if (!item.id) return; // 空位
-      const meta = names.get(item.id) ?? RANDOM_META.get(item.id);
-      if (!meta) throw new Error(`${kind} 条目 ${item.id} 在 name 配置中缺失`);
-      const wm = winnerMeta?.get(item.id);
-      const [ix, iy] = (item.offset ?? '0,0').split(',').map(Number);
-      out.push({
-        id: item.id,
-        name: meta.name,
-        comicType: meta.comicType,
-        row: r,
-        col: c,
-        offset: rx || ry || ix || iy ? `${rx + ix},${ry + iy}` : null,
-        more: item.more,
-        /** 共用 swf 基名（fighter.xml file url；形态角色 ≠ id，随机项 null） */
-        swf: swfMap?.get(item.id)?.swf ?? null,
-        /** 原版进场形态帧（fighter.xml startFrame；缺省 1 = 首含动画形态） */
-        startFrame: swfMap?.get(item.id)?.startFrame ?? 1,
-        /** 胜者立绘类（fighter.xml face/@win_cls；随机/辅助/无立绘 null） */
-        win: wm?.win ?? null,
-        /** 台词（fighter.xml says/say_item，`|` 换行；随机/辅助 []） */
-        says: wm?.says ?? [],
-      });
-    });
-  });
-  return out;
-}
-
-const winnerMeta = parseWinnerMeta(fighterXml);
 const doc = {
-  schema: 'bvn/select@2',
+  schema: 'bvn/select@3',
   chars: flatten(
     parseRoster(/<char_list>(.*?)<\/char_list>/.exec(selectXml)[1]),
     fighterNames,
     'char',
     parseSwfBase(fighterXml),
-    winnerMeta,
   ),
   assists: flatten(parseRoster(/<assist_list>(.*?)<\/assist_list>/.exec(selectXml)[1]), assistantNames, 'assist'),
   maps: parseMaps(mapXml),
