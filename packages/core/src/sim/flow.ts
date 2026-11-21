@@ -79,10 +79,11 @@ export const ROUND_END_TICKS = 180;
 /** 演出总时长（KO 字样窗口 + 胜利动作；换人/终局推进与 skip 基准）。 */
 export const ROUND_END_TOTAL_TICKS = WIN_TEXT_GATE_TICKS + ROUND_END_TICKS;
 /**
- * 胜方回合间血量回复比例（原版 0.165×(timeRate+1)，timeRate = 剩余回合时间比；
- * 移植版无回合计时器 → timeRate=1 → 0.33。比例量不折算，偏离记录）。
+ * 胜方回合间血量回复基数（原版 GameEndCtrler.renderEND case1：addPercent =
+ * 0.165 × (timeRate + 1)，timeRate = gameTime/gameTimeMax 剩余回合时间比，
+ * gameTime == -1 时 1——多局制切片归位，此前固定 0.33 偏离登记撤销）。
  */
-export const WIN_RECOVER_LOST_RATE = 0.33;
+export const WIN_RECOVER_BASE = 0.165;
 
 // —— 能量（原版 GameConfig/FighterMain，速率 ×SPEED_PLUS=0.5） ——
 const ENERGY_ADD_NORMAL = 1; // 2 × 0.5
@@ -192,9 +193,9 @@ function introHoldTicks(step: number): number {
 
 /**
  * KO → 回合结束演出置位（原版 doGameEnd → GameEndCtrler.initlize；非训练对局
- * 通用——team 换人 + 1v1 终局同一状态机，1v1 的结束判定自 app 层 checkKo 收编
- * 进 sim）。演出已置位不重复置位；胜方同 tick 亦死（双 KO）→ draw（原版
- * isDrawGame）。
+ * 通用——team 换人 + 1v1 同一状态机，1v1 的结束判定自 app 层 checkKo 收编
+ * 进 sim；多局制切片：置位即逐局计胜）。演出已置位不重复置位；胜方同 tick
+ * 亦死（双 KO）→ draw（原版 isDrawGame）。
  * 同拍表现事件（原版 FightUI.playKO）：hit_end 打点特效 + 白闪 α0.5 + 屏震；
  * 必杀中 KO → kobg 背景层（原版 bsKO → BGEffect("kobg", 2)——地图隐藏，
  * hold 2×30 帧，移除时恢复）；平局（原版 playKO(null)）无 hit_end/白闪。
@@ -215,6 +216,12 @@ export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
     ? (loserSide === 1 ? teams.p1 : teams.p2).find((s) => s.id === loser.id)
     : undefined;
   const draw = winner !== null && winner.hp <= 0;
+  // 胜场逐局计（多局制切片归位，原版 doGameEnd 置位时 p1Wins++/p2Wins++——
+  // 此前自 finishMatch 计一次的偏离撤销；平局不计，原版 drawGame 不走 doGameEnd）
+  if (!draw) {
+    if (winnerSide === 1) ctx.state.match.p1Wins += 1;
+    else ctx.state.match.p2Wins += 1;
+  }
   // 切人锁随 KO 收编（修复批次 63）：KO 演出接管（原版 playKO pause + KO 字样
   // → koBack resume），必杀黑幕/横幅不得悬空盖过败方特写。偏离记录：原版黑幕
   // 待锁主 endBisha 才 fadOut（与 KO 演出并行展示），移植版 KO 序列优先——锁主
@@ -246,6 +253,68 @@ export function maybeBeginRoundEnd(ctx: SimCtx, loser: FighterState): void {
     ctx.emit('effect', { id: 'kobg', params: { hold: 2 } });
   }
   ctx.emit('effect', { id: 'shake', params: { x: 5, y: 0, time: 1.5 } });
+}
+
+/**
+ * timeover 置位（多局制切片，原版 GameCtrler.timeover）：回合计时归零 →
+ * actionEnable=false + hp 比较——高者 gameEnd（胜场逐局计）、相等 drawGame。
+ * roundEnd 置位复用 KO 状态机（timerOver=true 分流表现/时间轴），无 KO 表现链
+ * （原版 playTimeOver 无 hit_end/白闪/kobg/屏震）。败方未死：loserId = hp 低者。
+ * 防御性卫语句：演出态已置位不重复置位（与 maybeBeginRoundEnd 同门）。
+ */
+function beginTimerOver(ctx: SimCtx): void {
+  if (ctx.state.roundEnd != null) return;
+  const [f1, f2] = ctx.state.fighters;
+  const winnerSide: 1 | 2 = (f1?.hp ?? 0) >= (f2?.hp ?? 0) ? 1 : 2;
+  const loserSide: 1 | 2 = winnerSide === 1 ? 2 : 1;
+  const winner = winnerSide === 1 ? f1 : f2;
+  const loser = winnerSide === 1 ? f2 : f1;
+  const teams = ctx.state.match.teams;
+  const loserSlot = teams
+    ? (loserSide === 1 ? teams.p1 : teams.p2).find((s) => s.id === loser?.id)
+    : undefined;
+  const draw = (f1?.hp ?? 0) === (f2?.hp ?? 0);
+  // 胜场逐局计（原版 timeover → gameEnd(winner, loser) → doGameEnd wins++）
+  if (!draw) {
+    if (winnerSide === 1) ctx.state.match.p1Wins += 1;
+    else ctx.state.match.p2Wins += 1;
+  }
+  ctx.state.roundEnd = {
+    winnerSide,
+    winnerId: winner?.id ?? -1,
+    loserId: loser?.id ?? -1,
+    loserQi: loser?.qi ?? 0,
+    loserComicType: loserSlot?.comicType ?? -1,
+    draw,
+    timerOver: true,
+    winApplied: false,
+    winAppliedHold: 0,
+    perfect: false,
+    hold: 0,
+    slow: false,
+    slowTicks: 0,
+    winnerDelay: null,
+    over: false,
+  };
+  ctx.emit('round:end', { round: ctx.state.match.round, winner: winnerSide });
+}
+
+/**
+ * 回合计时步进（多局制切片，原版 GameCtrler.renderGameTime：挂在 renderAnimate
+ * ——30Hz 动画帧——内，独立计数器每 31 次调用 gameTime--，归零 → timeover；
+ * fightTime=60 ≈ 62 真实秒）。折算 = 每 62 tick 减 1（31 动画帧 × 2 tick）。
+ * 门控 = 原版 `actionEnable && !_startCtrler && !_endCtrler`——port 由调用点
+ * 保证（stepMatchFlow 仅正常管线/tickIntro skip 收尾调用；冻结/演出/特写/幽步
+ * 分支不调）。偏离登记：递减相位 roundFrame % 62 === 0（原版独立计数器不随
+ * 回合重置，相位对局内恒定）；slowDown 期计时照走（原版 renderAnimate 同门
+ * 降频计时变慢——挂身慢放累计对局内秒级，影响可忽略）。
+ */
+export function stepRoundTimer(ctx: SimCtx): void {
+  const m = ctx.state.match;
+  if (m.gameTimeMax === -1) return;
+  if (m.roundFrame % 62 !== 0) return;
+  m.gameTime -= 1;
+  if (m.gameTime <= 0) beginTimerOver(ctx);
 }
 
 /**
@@ -285,57 +354,103 @@ export function stepPassivePhysics(ctx: SimCtx, f: FighterState, scale = 1): voi
   }
 }
 
-/** 演出计满分流：1v1 终局或换人入场（原版 GameCtrler.runNext/fightFinish）。 */
+/**
+ * 1v1 回合重开（多局制切片，原版 buildNextRound(false) 净效果：GameStage.resetFight
+ * 双方满血回出生点 + idle + startNextRound() 无特写——仅 startKOmc 字样重播，
+ * 气保留（原版 FighterMain 实例不动）、gameTime 重置满（原版 nextRound））。
+ */
+function restartRound1v1(ctx: SimCtx): void {
+  const m = ctx.state.match;
+  ctx.state.fighters.forEach((f, i) => {
+    const isP1 = i === 0;
+    f.x = isP1 ? m.p1SpawnX : m.p2SpawnX;
+    f.y = (isP1 ? m.p1SpawnY : m.p2SpawnY) ?? ctx.state.stage.groundY;
+    f.facing = isP1 ? 1 : -1;
+    f.vx = 0;
+    f.vy = 0;
+    f.dampX = 0;
+    f.dampY = 0;
+    f.gRamp = GRAVITY_START;
+    f.onGround = true;
+    // 满血（原版 GameLogic.resetFighterHp）
+    f.hp = f.hpMax;
+    // idle（原版 resetFight .idle()）：WIN_ING/受击残留清位
+    if (f.actionState === ActionState.INTRO_ING) f.actionState = ActionState.NORMAL;
+    recoverToNormal(f, ctx.defOf(f));
+  });
+  ctx.state.roundEnd = undefined;
+  m.round += 1;
+  m.roundFrame = 0;
+  m.gameTime = m.gameTimeMax;
+  clearField(ctx);
+  // 字样重播（原版 startNextRound → showStart，无特写/语音）：intro 直入字样步
+  //（step 7 不可跳，bannerRound/bannerFight 音由 stepIntroAdvance 驱动）
+  ctx.state.intro = { step: INTRO_STEP_START, hold: 0 };
+  ctx.emit('round:start', { round: m.round });
+}
+
+/** 演出计满分流：1v1 三局两胜推进或 team 换人/终局（原版 GameCtrler.runNext）。 */
 export function advanceRoundEnd(ctx: SimCtx, re: RoundEndState): void {
-  const teams = ctx.state.match.teams;
+  const m = ctx.state.match;
+  const teams = m.teams;
   if (!teams) {
-    // 1v1 终局（原版 nextFighter 无备选 → fightFinish；无换人）。
-    // 平局 = 双 KO（原版 drawGame 重开该轮——port 单局制判和局，winner 0，
-    // app 分流；偏离记录）
-    finishMatch(ctx, re.draw ? 0 : re.winnerSide);
+    // 1v1 三局两胜（多局制切片归位，原版 runNext isSingleMode 分支：
+    // p1Wins<2 && p2Wins<2 → buildNextRound(false) 重开该轮，否则 fightFinish；
+    // 胜场已于置位时逐局计。平局不计胜场（原版 drawGame 不走 doGameEnd）→
+    // 恒重开——此前"KO 即终局/双 KO 判和局"系漏读原版 single 分支，偏离撤销）
+    if (re.draw || (m.p1Wins < 2 && m.p2Wins < 2)) {
+      restartRound1v1(ctx);
+      return;
+    }
+    finishMatch(ctx, re.winnerSide);
     return;
   }
   if (re.draw) {
     // 平局（原版 startNextTeamFight drawGame 分支）：双侧均有备 → 双方换人
     // 全量开场；一侧耗尽 → 该侧判负终局；双侧耗尽 → 按胜方侧判定（原版该
-    // 边角以尸体重启回合，视为缺陷修正，偏离记录）
-    const dead1 = ctx.state.fighters.find((f) => teams.p1.some((s) => s.id === f.id))?.id;
-    const dead2 = ctx.state.fighters.find((f) => teams.p2.some((s) => s.id === f.id))?.id;
-    const has1 = dead1 !== undefined && teams.pending1.length > 0;
-    const has2 = dead2 !== undefined && teams.pending2.length > 0;
+    // 边角以尸体重启回合，视为缺陷修正，偏离记录）。timeover 平局时败方
+    // 未死——按在场者（而非死者）定位换入位（原版 getNextFighter 不看死亡）；
+    // 气继承对 timeover 平局不建模（原版残留 lastLoserData stale 语义，偏离）
+    const cur1 = ctx.state.fighters.find((f) => teams.p1.some((s) => s.id === f.id))?.id;
+    const cur2 = ctx.state.fighters.find((f) => teams.p2.some((s) => s.id === f.id))?.id;
+    const has1 = cur1 !== undefined && teams.pending1.length > 0;
+    const has2 = cur2 !== undefined && teams.pending2.length > 0;
     if (!has1 || !has2) {
       finishMatch(ctx, has1 ? 1 : 2);
       return;
     }
     // 气继承：双侧都以记录的败方气量为基准（原版 draw 分支 lastLoserData
-    // 指向首个败者，偏离记录：后死者气量丢弃）
-    rotateIn(ctx, 1, dead1, re.loserQi, re.loserComicType);
-    rotateIn(ctx, 2, dead2, re.loserQi, re.loserComicType);
+    // 指向首个败者，偏离记录：后死者气量丢弃；KO 平局才有基准）
+    rotateIn(ctx, 1, cur1!, re.loserQi, re.loserComicType);
+    rotateIn(ctx, 2, cur2!, re.loserQi, re.loserComicType);
     repositionRound(ctx);
     ctx.state.roundEnd = undefined;
-    ctx.state.match.round += 1;
-    ctx.state.match.roundFrame = 0;
+    m.round += 1;
+    m.roundFrame = 0;
+    m.gameTime = m.gameTimeMax;
     clearField(ctx);
     beginIntro(ctx, 0);
-    ctx.emit('round:start', { round: ctx.state.match.round });
+    ctx.emit('round:start', { round: m.round });
     return;
   }
   const loserSide: 1 | 2 = teams.p1.some((s) => s.id === re.loserId) ? 1 : 2;
   const pending = loserSide === 1 ? teams.pending1 : teams.pending2;
   if (pending.length === 0) {
-    // 败方无备可选 → 终局（原版 nextFighter 返回 false → fightFinish）
+    // 败方无备可选 → 终局（原版 nextFighter 返回 false → fightFinish；
+    // timeover 败方活人同样被换下判定覆盖——原版 nextFighter 不看死亡）
     finishMatch(ctx, re.winnerSide);
     return;
   }
   rotateIn(ctx, loserSide, re.loserId, re.loserQi, re.loserComicType);
   repositionRound(ctx);
   ctx.state.roundEnd = undefined;
-  ctx.state.match.round += 1;
-  ctx.state.match.roundFrame = 0;
+  m.round += 1;
+  m.roundFrame = 0;
+  m.gameTime = m.gameTimeMax;
   clearField(ctx);
   // 换人开场：入场方 = 败方侧（原版 introTeamId = loseTeam），获得特写/开场
   beginIntro(ctx, loserSide);
-  ctx.emit('round:start', { round: ctx.state.match.round });
+  ctx.emit('round:start', { round: m.round });
 }
 
 /**
@@ -350,23 +465,25 @@ export function applyWinnerPose(ctx: SimCtx, re: RoundEndState, winner: FighterS
   winner.actionState = ActionState.WIN_ING;
   setLabel(winner, ctx.defOf(winner), '胜利');
   if (ctx.state.match.teams != null) {
-    winner.hp = Math.min(
-      winner.hpMax,
-      winner.hp + (winner.hpMax - winner.hp) * WIN_RECOVER_LOST_RATE,
-    );
+    // 回血率 = 0.165 × (timeRate + 1)（多局制切片归位，原版
+    // GameEndCtrler.renderEND case1；timeRate = 剩余回合时间比，无时限 = 1）
+    const m = ctx.state.match;
+    const timeRate = m.gameTimeMax === -1 ? 1 : m.gameTime / m.gameTimeMax;
+    const rate = WIN_RECOVER_BASE * (timeRate + 1);
+    winner.hp = Math.min(winner.hpMax, winner.hp + (winner.hpMax - winner.hp) * rate);
   }
 }
 
 /**
  * 终局（原版 fightFinish）：match:over 表现事件 + 冻结待 app 切结算。
  * 演出态保留（over=true），tickRoundEnd 继续跑动画直至场景切换。
- * winner 0 = 平局（1v1 双 KO，胜场不计）。
+ * 胜场已在置位时逐局计（原版 doGameEnd）。round 仍推进（原版 runNext 的
+ * nextRound() 先行——终局判定在 round++ 之后）。
  */
-function finishMatch(ctx: SimCtx, winner: 0 | 1 | 2): void {
+function finishMatch(ctx: SimCtx, winner: 1 | 2): void {
   const re = ctx.state.roundEnd!;
   re.over = true;
-  if (winner === 1) ctx.state.match.p1Wins += 1;
-  else if (winner === 2) ctx.state.match.p2Wins += 1;
+  ctx.state.match.round += 1;
   ctx.emit('match:over', { winner });
 }
 
@@ -502,6 +619,9 @@ export function stepMatchFlow(ctx: SimCtx): void {
   }
   for (const f of ctx.state.fighters) stepFighterFlow(ctx, f);
   ctx.state.match.roundFrame += 1;
+  // 回合计时（多局制切片，原版 renderGameTime：仅正常管线走此步——冻结/
+  // intro/演出/特写/幽步期停走，与原版 actionEnable 门控同构）
+  stepRoundTimer(ctx);
 }
 
 /** 单角色流程步（stepMatchFlow/tickIntro 共享；intro 冻结期照跑 =

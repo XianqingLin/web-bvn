@@ -23,6 +23,9 @@ export const WALK_SPEED = 4;
 export const DEFAULT_GROUND_Y = 500;
 export const DEFAULT_HP = 1000;
 
+/** 回合计时默认上限（秒；原版 ConfigVO.fightTime = 60，游戏内设置可调）。 */
+export const FIGHT_TIME_DEFAULT = 60;
+
 /** 能量上限（原版 FighterMain.energyMax=100）。 */
 export const ENERGY_MAX = 100;
 /** 辅助气上限（原版 fzqiMax=100；满气才可召唤，召唤即清零）。 */
@@ -348,6 +351,22 @@ export interface MatchState {
   roundFrame: number;
   p1Wins: number;
   p2Wins: number;
+  /**
+   * 回合计时上限（秒；原版 GameRunDataVO.gameTimeMax = ConfigVO.fightTime，
+   * 默认 60、游戏内设置可调；训练模式 -1 = 无时限）。-1 时不递减。
+   */
+  gameTimeMax: number;
+  /** 回合计时剩余（秒；每 30 tick 减 1 ≈ 原版 renderGameTime 的 30 渲染帧门）。
+   *  归零 → timeover：hp 高者胜、相等平局重开（原版 GameCtrler.timeover）。
+   *  每回合重置满（原版 GameRunDataVO.nextRound）。 */
+  gameTime: number;
+  /** 1v1 出生点（原版 map.p1pos/p2pos 开局抄录；三局两胜回合重开复位用；
+   *  team 模式复位走 teams 槽位，此字段闲置不删） */
+  p1SpawnX: number;
+  p2SpawnX: number;
+  /** 出生高度（缺省 = stage.groundY；undefined JSON 省略） */
+  p1SpawnY?: number;
+  p2SpawnY?: number;
   /** 团队模式 roster/换人状态（team 模式才有；undefined = 1v1，JSON 省略零漂移） */
   teams?: TeamsState | undefined;
 }
@@ -474,8 +493,16 @@ export interface RoundEndState {
   loserQi: number;
   /** KO 时败方 comicType（同系加成判定，原版 lastLoserData.comicType） */
   loserComicType: number;
-  /** 平局（同 tick 双 KO / 胜方亦死；原版 isDrawGame → 双方换人） */
+  /** 平局（同 tick 双 KO / 胜方亦死 / timeover hp 相等；原版 isDrawGame → 重开/换人） */
   draw: boolean;
+  /**
+   * timeover 路径（多局制切片，原版 GameCtrler.timeover）：回合计时归零置位，
+   * 败方未死（hp 低者/平局）。渲染据此播 timeover/drawgame 字样替代 KO 字样；
+   * 无 hit_end/白闪/kobg/屏震（原版 playTimeOver 无 KO 表现链）、无终结慢镜头
+   * （败方活人无飞尸），showWinner 延迟恒 1s（原版 timeoverBack）。undefined
+   * = KO 路径（JSON 省略——KO 剧本快照零漂移）。
+   */
+  timerOver?: boolean | undefined;
   /** 胜方 WIN 状态已落（false = 仍在等 KO 字样窗口/慢镜头/showWinner 延迟/必杀万解收尾） */
   winApplied: boolean;
   /** winApplied 时刻的 hold（胜利动作 hold 与换人/终局推进的基准；false 时恒 0） */
@@ -495,7 +522,8 @@ export interface RoundEndState {
   /** showWinner 延迟（原版 _showWinnerDelay：败方 DEAD 后 2s/1s 再出胜利
    *  姿势；null = 未置——KO 字样窗口内/慢镜头中/平局不置） */
   winnerDelay: number | null;
-  /** true = 胜方侧无人可换（1v1 恒终局），match:over 已发，冻结待 app 切结算 */
+  /** true = 终局（team 败方 roster 耗尽 / 1v1 三局两胜胜场≥2），match:over 已发，
+   *  冻结待 app 切结算 */
   over: boolean;
 }
 
@@ -640,6 +668,12 @@ export interface SimConfig {
    */
   intro?: boolean;
   /**
+   * 回合计时上限秒数（多局制切片，原版 ConfigVO.fightTime 默认 60、游戏内
+   * 设置可调 20/40/60/99——port 先常量配置，设置 UI 留待后续）。训练模式
+   * 恒 -1（原版 TRAINING 模式 buildGame 置 gameTimeMax=-1）。缺省 60。
+   */
+  fightTime?: number;
+  /**
    * 团队模式 roster（3+1 的 3 名出场序，per side；缺省 = 1v1）。存在时：
    * config.fighters 须含全部 roster id（可含 3+1 之外的多余项——忽略），
    * 只有各队队首进入 SimState.fighters，其余进 MatchState.teams 槽位；
@@ -696,10 +730,11 @@ export function createInitialState(config: SimConfig): SimState {
   const activeIds = config.teams
     ? new Set([config.teams.p1[0]!, config.teams.p2[0]!])
     : null;
-  const fighters: FighterState[] = [...config.fighters]
+  // side 序配置（id 升序；fighters 装配与出生点抄录共用）
+  const sideFcs = [...config.fighters]
     .filter((fc) => activeIds === null || activeIds.has(fc.id))
-    .sort((a, b) => a.id - b.id)
-    .map((fc, i) => ({
+    .sort((a, b) => a.id - b.id);
+  const fighters: FighterState[] = sideFcs.map((fc, i) => ({
       id: fc.id,
       x: fc.x,
       y: fc.y ?? config.stage.groundY,
@@ -773,6 +808,15 @@ export function createInitialState(config: SimConfig): SimState {
       roundFrame: 0,
       p1Wins: 0,
       p2Wins: 0,
+      // 回合计时（多局制切片，原版 GameRunDataVO.reset：gameTimeMax =
+      // ConfigVO.fightTime；训练模式 buildGame 置 -1 无时限）
+      gameTimeMax: config.training ? -1 : (config.fightTime ?? FIGHT_TIME_DEFAULT),
+      gameTime: config.training ? -1 : (config.fightTime ?? FIGHT_TIME_DEFAULT),
+      // 出生点（原版 map.p1pos/p2pos 抄录；三局两胜回合重开复位用）
+      p1SpawnX: sideFcs[0]!.x,
+      p2SpawnX: sideFcs[1]!.x,
+      ...(sideFcs[0]!.y !== undefined ? { p1SpawnY: sideFcs[0]!.y } : {}),
+      ...(sideFcs[1]!.y !== undefined ? { p2SpawnY: sideFcs[1]!.y } : {}),
       // teams 缺省不落键——1v1 全量哈希零漂移（见 SimState.intro 注）
       ...(teams !== undefined ? { teams } : {}),
     },

@@ -61,6 +61,7 @@ import {
   stepIntroAdvance,
   stepMatchFlow,
   stepPassivePhysics,
+  stepRoundTimer,
   WIN_DELAY_LONG_TICKS,
   WIN_DELAY_SHORT_TICKS,
   WIN_TEXT_GATE_TICKS,
@@ -539,6 +540,8 @@ export class Sim {
         stepAttackerAnim(this.ctx);
       }
       this.state.match.roundFrame += 1;
+      // 回合计时补步（多局制切片，原版 skip tick 恢复 actionEnable → 计时跑）
+      stepRoundTimer(this.ctx);
       return;
     }
     // 回气照跑（原版冻结期 renderAnimate 无条件：能量/辅助气回充、buff 计时）
@@ -590,6 +593,8 @@ export class Sim {
           // 终结慢镜头/showWinner 延迟（原版 FightUI.renderEnd：败方仍击飞 →
           // slowDown(2,0) 半速直到落地；DEAD 后 _showWinnerDelay 2s/1s；
           // 平局不播 showWinner——原版 renderDrawGame 无此段）。
+          // timeover 路径（多局制切片，原版 playTimeOver → timeoverBack）：
+          // 字样播完 _showWinnerDelay 恒 1s——败方活人无飞尸，无终结慢镜头。
           // 延迟互斥门（修复批次 63）：原版 _showWinnerDelay 分支先行——延迟
           // 一经开跑，尸体 HURT_DOWN_TAN 弹起不再回慢镜头/重置延迟（否则弹起
           // 期延迟清零重计，WIN 落位拍带 slow 且时序漂移）
@@ -601,6 +606,8 @@ export class Sim {
                   ? WIN_DELAY_LONG_TICKS
                   : WIN_DELAY_SHORT_TICKS;
             }
+          } else if (re.winnerDelay === null && re.timerOver === true) {
+            re.winnerDelay = WIN_DELAY_SHORT_TICKS;
           } else if (
             re.winnerDelay === null &&
             loser !== null &&
@@ -634,7 +641,10 @@ export class Sim {
     // 窗口内全场停走——被动物理/角色时间轴/回气 buff/道具全冻（尸体定格于
     // KO 姿态；KO 字样与特效为表现层实时间，照常推进）；窗口后解冻，败方
     // 击飞 → 终结慢镜头看倒地（原版 koBack 后 renderEnd slowDown(2,0)）。
-    const windowFrozen = !re.over && re.hold < WIN_TEXT_GATE_TICKS;
+    // timeover 路径无冻结窗（原版 playTimeOver 无 GameCtrler.pause——仅
+    // actionEnable=false 封输入，物理/时间轴照常）。
+    const windowFrozen =
+      !re.over && re.timerOver !== true && re.hold < WIN_TEXT_GATE_TICKS;
     if (!windowFrozen) {
       // 回气/buff 照跑（原版 renderAnimate 无条件）——KO 字样窗口期除外
       //（原版 pause 期 _isRenderGame=false 停走，偏离修正）

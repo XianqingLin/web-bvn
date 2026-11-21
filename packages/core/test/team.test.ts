@@ -67,11 +67,14 @@ function makeDef(id: string): FighterDef {
 /**
  * 团队配置：hp=25（砍1 单击必杀）、p1 roster [1,3,5]（comicType 0,0,1）、
  * p2 roster [2,4,6]（comicType 0,1,0）；p2 首名出生气 50（换人气继承验证用）。
+ * fightTime -1（无时限）：team 流转用例不引入回合计时变量（winRate 0.33 折算
+ * 期望保持确定），计时行为由多局制专测覆盖。
  */
 function makeTeamConfig(opts: { p2Roster?: number[]; p1Hp?: number } = {}): SimConfig {
   const def = makeDef('test');
   return {
     seed: 1,
+    fightTime: -1,
     stage: { leftBound: 0, rightBound: 1000, groundY: 500, bottomY: 600, floors: [] },
     fighters: [
       { id: 1, x: 100, hp: opts.p1Hp ?? 25, qi: 500, comicType: 0, def },
@@ -249,7 +252,7 @@ describe('团队装配（切片 36）', () => {
     expect(a.sim.serializeState()).toBe(b.sim.serializeState());
   });
 
-  it('1v1 终局演出收编：KO 置位 roundEnd（teams 不落键）→ hold 计满 match:over', () => {
+  it('1v1 三局两胜：KO 置位 roundEnd 逐局计胜 → 演出计满重开该轮 → 两胜 fightFinish', () => {
     const def = makeDef('test');
     const cfg: SimConfig = {
       seed: 1,
@@ -264,23 +267,46 @@ describe('团队装配（切片 36）', () => {
       [260, 0, 0], // KO@~30 → hold≈257：KO 字样窗口 + showWinner 延迟过、WIN 已应用
     ]);
     const st = stateOf(res);
-    // 终局演出置位（1v1 与 team 同一状态机，原版 GameEndCtrler 通用语义）
+    // 回合演出置位（1v1 与 team 同一状态机，原版 GameEndCtrler 通用语义）
     expect(st.roundEnd).toBeDefined();
     expect(st.roundEnd!.winnerId).toBe(1);
     expect(st.roundEnd!.loserId).toBe(2);
     expect(st.roundEnd!.winApplied).toBe(true);
+    // 胜场逐局计（原版 doGameEnd 置位时 wins++，多局制切片自 finishMatch 移出）
+    expect(st.match.p1Wins).toBe(1);
+    expect(st.match.p2Wins).toBe(0);
     // 胜方未满血（挨过 p2 首击？无——p1 hp 25 满血反杀）→ perfect
     expect(st.roundEnd!.perfect).toBe(true);
     // 1v1 无回血（原版 case1 isTeamMode 门）
     expect(st.fighters.find((f) => f.id === 1)!.hp).toBe(25);
     expect(st.match.teams).toBeUndefined();
-    // 演出未计满：无 match:over
+    // 演出未计满：无 match:over（三局两胜 wins<2 也不终局）
     expect(res.events.some((e) => e.type === 'match:over')).toBe(false);
-    // hold 计满 → 终局（match:over winner 1）
-    const cont = play(res.sim, [[200, 0, 0]]);
-    expect(cont.events.some((e) => e.type === 'match:over' && e.payload['winner'] === 1)).toBe(true);
-    expect(stateOf(cont).roundEnd?.over).toBe(true);
-    expect(stateOf(cont).match.p1Wins).toBe(1);
+    // hold 计满 → wins<2 → 重开该轮（原版 buildNextRound(false)）：round 2、
+    // 双方满血回出生点、intro 直入字样步、gameTime 重置满、无 match:over
+    //（推进 ~450 重开、字样 156 tick 至 ~606——取 290 快照在字样期内）
+    const cont = play(res.sim, [[290, 0, 0]]);
+    const r2 = stateOf(cont);
+    expect(r2.match.round).toBe(2);
+    expect(r2.roundEnd).toBeUndefined();
+    expect(r2.intro).toBeDefined();
+    expect(r2.intro!.step).toBe(7);
+    expect(r2.fighters.map((f) => f.id)).toEqual([1, 2]);
+    expect(r2.fighters.every((f) => f.hp === 25)).toBe(true);
+    expect(r2.match.gameTime).toBe(r2.match.gameTimeMax);
+    expect(cont.events.some((e) => e.type === 'round:start')).toBe(true);
+    expect(cont.events.some((e) => e.type === 'match:over')).toBe(false);
+    // 第二局：字样播完（156 tick）后再 KO → wins 2 → 演出计满 fightFinish
+    const cont2 = play(cont.sim, [
+      [200, 0, 0],
+      [1, Btn.attack, 0],
+      [520, 0, 0],
+    ]);
+    expect(cont2.events.some((e) => e.type === 'match:over' && e.payload['winner'] === 1)).toBe(true);
+    const end = stateOf(cont2);
+    expect(end.roundEnd?.over).toBe(true);
+    expect(end.match.p1Wins).toBe(2);
+    expect(end.match.round).toBe(3);
   });
 
   it('KO 终结演出链：hit_end 打点事件 + 击飞败方终结慢镜头（半速 → 落地 → 延迟 → WIN）', () => {
