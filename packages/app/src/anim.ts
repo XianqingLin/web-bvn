@@ -45,6 +45,14 @@ export function tweenOf(
   opts: { ease?: (k: number) => number; delayMs?: number; done?: () => void } = {},
 ): void {
   const paths = Object.keys(to);
+  // overwrite 语义（TweenLite 同名属性覆盖）：同对象同属性的旧补间作废。否则
+  // menu 主菜单连发两次 layout(true)（关旧组 + 开新组）会对同一按钮连发两个
+  // 位移补间，tickTweens 逆序遍历下旧补间每帧最后写入反而获胜——把后开的
+  // 父项钉在关态位上、盖住新子项（联机对战 → 本地双人把 NET PLAY 压在 1v1 槽位）。
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    if (tw && tw.obj === obj && tw.paths.some((p) => paths.includes(p))) tweens.splice(i, 1);
+  }
   tweens.push({
     obj,
     paths,
