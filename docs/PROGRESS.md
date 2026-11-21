@@ -61,6 +61,7 @@
 ## 三、遗留池（低价值/待定，按需立项）
 
 - **特效收编残余**（2026-11-20 全面盘点——原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照——后余项，已完成切片见 git 历史与 DESIGN §3.5；按观感收益排序）：
+  - atlas-pack 全量重跑副作用（2026-11-21 实证）：会把 `baked/fires/*.json` 的 `org`/`hits`（runtime-ingest 产出的火系命中框，sim 确定性数据）覆盖成仅 totalFrames+labels 的版本——baked/fires 不属 atlas-pack 产物边界，重打包后须 `git checkout -- packages/data/baked/fires/` 还原；收口方向 = packFire 读 existing baked 合并保留或拆出独立 bake 步；
   - 豁免：kenshin 必杀特写立绘（2026-11-20 深查定案——非单纯引用错配：语料 9 处 `bisha(true,"Kenshin_1")` 与注册键 bsface1/bsface2 双向对不上，且 kenshin.swf 无 bsface1 类（SymbolClass 全表实证）、FFDec 全量位图导出亦无任何人物立绘——原版作者从未制作该立绘，无资产可接线，移植版与原版等效。除非自制立绘补缺，否则维持豁免）；
   - ~~角色侧 attacker 元件脚本·视觉缺口~~（2026-11-21 收官：采集桥两段式定位改「命中即采」修僵尸引用 + wanted 元件下钻补嵌套弹体后，fire 全量 41 包重采——177/177 元件全内容、0 missing；旧桥僵尸污染造成的 120 个假"全静态"清零，余 12 个 tf=1 单帧弹体与 1 个隐形判定载体（obito zh3mc，仅 atm 标记无自绘美术）均忠实原版；道具本体淡入淡出/混合类逐帧动画随批次 37 parts 机制一并收编）。
 - 嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值）；
