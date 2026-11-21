@@ -24,7 +24,6 @@ import {
 import {
   defenseGapTicks,
   defenseHoldTicks,
-  enterDead,
   enterGuardBreak,
   enterHurt,
   hitZonesWorld,
@@ -562,18 +561,19 @@ export function applyHit(
     // setVelocity/playHurtFly 照常执行——KO 飞尸语义，终结慢镜头的前提；
     // 此前提前 return 无击退，偏离修正 2026-11-20 KO 终结演出链）。受击回气仍
     // 不吃（applyHit hp≤0 提前返回，KO 路径不吃受击回气——偏离记录不变）。
-    // 偏离修正（修复批次 65，边缘 KO 尸体直立定格）：击飞类（hurtType≠0）致死
-    // 不当场 enterDead——原版 doHurt 致死只发 DIE + isAlive=false，代码继续走
-    // playHurtFly，尸体由 renderHurtFly 子状态机推进 击飞→落地→弹起→击飞_倒，
-    // case 4 首查 isAlive 才转 DEAD（躺姿定格，跳过起身；machine.advanceAnimation
-    // mcHold 分支 hp≤0 门）。原版所有致死分路径（防御削血 doDefenseHit、钢身
-    // doSteelHurt）同样汇入 doHurt，此处分流对齐；hp≤0 已被命中判定各入口排除
-    // （tgt.hp<=0 门），飞尸不可再被打。非击飞致死维持当场 enterDead。
+    // 致死不分流（修复批次 66，原版 doHurt :1883-1887 FFDec 实证）：致死只发
+    // DIE + isAlive=false，hurtType 分流照走——击飞类 playHurtFly 尸体走完整
+    // 三段式（批次 65 收编）；硬直类进 HURT_ING 硬直，renderHurtAnimate 计尽查
+    // isAlive → 空中再 hurtFly 起飞 / 地面 playHurtDown 倒地段 → case 4 DEAD
+    // 躺姿（machine.resolveStaggerDeath，anim 层在转换点发 die voice）。此前
+    // 硬直致死当场 enterDead +「失败」标签系移植自创（原版正常 KO 败方不播
+    // 失败——doLose 仅街机 continue 界面 FighterMain.lose 调用），已撤销。
+    // hp≤0 已被命中判定各入口排除（tgt.hp<=0 门），尸体不可再被打。
     const hurtKind = enterHurt(target, targetDef, hit, attackerFacing, !target.onGround);
-    if (hurtKind !== 'fly') enterDead(target, targetDef);
-    // 死亡语音（原版 DIE voice：击飞致死在 doHurt 即播、硬直致死在倒地硬直结束播；
-    // 移植版统一提前到 KO 时刻——偏离记录）
-    ctx.emit('voice', { fighter: target.id, kind: 'die' });
+    // 死亡语音：击飞致死 doHurt 即播（原版 doHurt fly 分支 isAlive=false →
+    // playVoice(2,1)）；硬直致死于硬直计尽收尾转换点播（renderHurtAnimate →
+    // playVoice(2,1)，anim 层发出）——此前统一提前到 KO 时刻的偏离撤销。
+    if (hurtKind === 'fly') ctx.emit('voice', { fighter: target.id, kind: 'die' });
     // bsKo = KO 时刻任一方必杀施法中（原版 FightUI.playKO bsKO 门
     // isBishaIng(p1)||isBishaIng(p2)）→ KO 音分流 snd_ko_bs
     ctx.emit('fighter:ko', {
@@ -601,9 +601,14 @@ export function applyHit(
       target.hp -= hit.power / 10;
       if (target.hp <= 0) {
         target.hp = 0;
-        // 破防致死：破防击退照常（同上 KO 击退语义）后 enterDead 覆写
+        // 破防致死（修复批次 66，原版 doBreakDefense FighterMcCtrler.as:2116-2159
+        // FFDec 实证）：削血后无 DIE 检查——照常进破防硬直（42 动画帧），此前
+        // 当场 enterDead 系移植自创。偏离登记：原版硬直计尽 isAlive 仍 true →
+        // hurtResume 回站立（0 血可再被命中直至 DIE，回合由再次命中/timeover
+        // 收束）；port 以 hp≤0 代 isAlive（命中判定 hp≤0 门），回站立不可再
+        // 命中 → 回合软锁，故照硬直致死收尾（计尽 resolveStaggerDeath → DEAD
+        // 躺姿；die voice 同转换点）。KO/回合置位仍在命中时刻（终结演出链前提）。
         enterGuardBreak(target, targetDef, hit, attackerFacing);
-        enterDead(target, targetDef);
         ctx.emit('fighter:ko', {
           fighter: target.id,
           bsKo: ctx.state.fighters.some((f) => isBishaIngState(f.actionState)),

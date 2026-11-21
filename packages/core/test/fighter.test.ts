@@ -28,6 +28,7 @@ function makeDef(overrides: Partial<FighterDef> = {}): FighterDef {
     砍1: { index: 54, duration: 17 },
     被打: { index: 71, duration: 8 },
     击飞: { index: 79, duration: 10 },
+    击飞_弹: { index: 143, duration: 9 },
     击飞_倒: { index: 89, duration: 9 },
     起身: { index: 98, duration: 9 },
     跳砍: { index: 107, duration: 15 },
@@ -52,7 +53,7 @@ function makeDef(overrides: Partial<FighterDef> = {}): FighterDef {
     },
     labels,
     areas,
-    totalFrames: 143,
+    totalFrames: 152,
     triggers: [
       // 对齐真实数据（修复批次 20）：动作标签尾部 endAct + idle 重定向——
       // 时间轴顺流只发生在无收尾脚本的连续标签（必杀桩帧家族），
@@ -230,23 +231,40 @@ describe('起跳尘土分流 + 落地尘土状态门（切片 56）', () => {
     expect(isEffect(end!, 'touchFloor')).toBe(false);
   });
 
-  it('DEAD 空中死亡落地无尘土（原版 touchFloor isAlive 守卫）', () => {
+  it('硬直致死（空中计尽）：重新击飞起飞 → 三段式倒地 → DEAD 击飞_倒（原版 renderHurtAnimate isInAir 分支，批次 66）', () => {
+    // 真空中命中：P1 jumpPower 30（留空 ~10 物理 tick）+ 离地 2 tick 后被
+    // tallHitDef 命中；hurtTime 100 → 硬直 6 动画帧——慢镜头下（物理/动画同
+    // 折半）6 动画帧 < 剩余飞行物理 tick，计尽时仍在空中 → resolveStaggerDeath
+    // 空中分支（原版 hurtFly(getVec2) 直落）→ 落地三段式 → case 4 DEAD
     const killDef = tallHitDef({
-      k1: { power: 9999, hitType: 1, hitx: 3, hity: 0, hurtTime: 500, hurtType: 0, isBreakDef: false, isApplyG: true },
+      k1: { power: 9999, hitType: 1, hitx: 3, hity: 0, hurtTime: 100, hurtType: 0, isBreakDef: false, isApplyG: true },
     });
-    const sim = new Sim(makeConfig({ p2x: 110, def2: killDef }));
+    const sim = new Sim(makeConfig({ p2x: 110, def1: { ...makeDef(), jumpPower: 30 }, def2: killDef }));
     sim.tick({ p1: Btn.jump, p2: 0 });
-    runTicks(sim, 1); // 离地
-    sim.tick({ p1: 0, p2: Btn.attack }); // P2 起手，下 tick 致死空中 P1
+    runTicks(sim, 2); // 离地升至半空
+    sim.tick({ p1: 0, p2: Btn.attack }); // P2 起手，数 tick 内命中空中 P1
+    let sawAirborneHit = false;
+    let sawRelaunch = false;
+    let sawDown = false;
     let dead = false;
     let end: ReturnType<Sim['tick']> | undefined;
-    for (let i = 0; i < 200; i++) {
+    for (let i = 0; i < 400; i++) {
       end = sim.tick({ p1: 0, p2: 0 });
-      if (end.state.fighters[0]!.actionState === ActionState.DEAD) dead = true;
-      if (end.state.fighters[0]!.onGround) break;
+      const f = end.state.fighters[0]!;
+      if (f.hp <= 0 && f.actionState === ActionState.HURT_ING && !f.onGround) {
+        sawAirborneHit = true; // 确证命中发生在空中
+      }
+      if (f.hp <= 0 && f.actionState === ActionState.HURT_FLYING) sawRelaunch = true;
+      if (f.actionState === ActionState.HURT_DOWN) sawDown = true;
+      if (f.actionState === ActionState.DEAD) dead = true;
+      if (dead && f.onGround) break;
     }
+    expect(sawAirborneHit, '致死命中发生在空中（本测试前提）').toBe(true);
+    expect(sawRelaunch, '硬直计尽仍在空中 → 重新击飞起飞（原版 hurtFly(getVec2)）').toBe(true);
+    expect(sawDown, '落地后走倒地段 击飞_倒').toBe(true);
     expect(dead).toBe(true);
     expect(end!.state.fighters[0]!.actionState).toBe(ActionState.DEAD);
+    expect(end!.state.fighters[0]!.actLabel, '躺姿定格 击飞_倒（case 4）').toBe('击飞_倒');
     expect(isEffect(end!, 'touchFloor')).toBe(false);
   });
 });
@@ -320,7 +338,7 @@ describe('命中判定与结算', () => {
     expect(end.state.fighters[1]!.actLabel).toBe('站立');
   });
 
-  it('击杀：hp 归零进 DEAD 并发 fighter:ko', () => {
+  it('击杀：KO 事件 + 硬直致死收尾（硬直播尽 → 倒地段 → DEAD 躺姿；批次 66）', () => {
     const def = makeDef({
       actions: {
         k1: { power: 2000, hitType: 1, hitx: 3, hity: 0, hurtTime: 300, hurtType: 0, isBreakDef: false, isApplyG: true },
@@ -330,16 +348,27 @@ describe('命中判定与结算', () => {
     sim.tick({ p1: Btn.attack, p2: 0 });
     let ko = false;
     let voiceDie = false;
+    let sawTan = false;
+    let sawDown = false;
+    let sawDead = false;
+    let sawFail = false;
     let end;
-    for (let i = 0; i < 40; i++) {
+    for (let i = 0; i < 300; i++) {
       end = sim.tick({ p1: 0, p2: 0 });
+      const f = end.state.fighters[1]!;
       if (end.events.some((e) => e.type === 'fighter:ko')) ko = true;
       if (end.events.some((e) => e.type === 'voice' && e.payload.kind === 'die')) voiceDie = true;
+      if (f.actLabel === '击飞_弹') sawTan = true;
+      if (f.actionState === ActionState.HURT_DOWN) sawDown = true;
+      if (f.actionState === ActionState.DEAD) sawDead = true;
+      if (f.actLabel === '失败') sawFail = true;
     }
-    expect(ko).toBe(true);
-    expect(voiceDie).toBe(true); // KO 同 tick 发死亡语音信号（切片 27）
-    expect(end!.state.fighters[1]!.actionState).toBe(ActionState.DEAD);
-    expect(end!.state.fighters[1]!.hp).toBe(0);
+    expect(ko, 'KO 事件仍在命中时刻（终结演出链前提）').toBe(true);
+    expect(voiceDie, '死亡语音在硬直计尽收尾转换点（原版 renderHurtAnimate playVoice(2,1)）').toBe(true);
+    expect(sawTan, '地面收尾先播 击飞_弹 倒地段（原版 playHurtDown）').toBe(true);
+    expect(sawDown, '随后 击飞_倒 倒地段').toBe(true);
+    expect(sawDead, '最终 DEAD 躺姿（case 4）').toBe(true);
+    expect(sawFail, '正常 KO 败方不播 失败 标签（原版 doLose 仅街机 continue 界面）').toBe(false);
   });
 
   it('钢身：掉血但不受击状态变化', () => {

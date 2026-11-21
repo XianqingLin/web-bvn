@@ -1090,6 +1090,71 @@ function flowTarget(
 }
 
 /**
+ * 硬直致死收尾（原版 FighterMcCtrler.renderHurtAnimate 计尽 !isAlive 分支
+ * ：2008-2023，FFDec 导出实证；批次 66 收编）：HURT_ING 硬直计尽且 hp≤0：
+ * - 空中：hurtFly(getVec2().x×direct, getVec2().y)——getVec2 = _velocity2 通道，
+ *   硬直期恒 0（doHurt 硬直只写 _velocity）→ playHurtFly(0,0,false) 直落再飞：
+ *   击飞 定格 + 轻击飞门（hity=0≤5 → _hurtFlyFrame=15）+ setVelocity(0,0) +
+ *   damping(0,0.5) + isApplyG=true + _hurtFlyState=1——尸体直落后走完整三段式
+ *   （击飞→落地→弹起→击飞_倒 → case 4 DEAD 躺姿）；
+ * - 地面：playHurtDown 倒地段——击飞_弹 定格 + shake(0,2) + hitFloor(1) +
+ *   damping(2)（=HURT_FLOOR_DAMP_X 折算），2 动画帧后 playHurtDown2 → 击飞_倒
+ *   定格 + HURT_DOWN → case 4 首查 isAlive → DEAD 躺姿（advanceAnimation
+ *   mcHold 分支 hp≤0 门 → enterDeadLying）。
+ * 偏离登记（批次 66）：破防致死原版硬直计尽后 isAlive 仍 true → hurtResume
+ * 回站立（0 血可再被命中直至 DIE，回合由再次命中/timeover 收束）；port 以
+ * hp≤0 代 isAlive（命中判定 hp≤0 门），回站立将不可再命中 → 回合软锁，故
+ * 破防致死同样走本收尾。die voice（playVoice(2,1)）与倒地段特效由 anim 层
+ * 在转换点发出（advanceAnimation 无事件出口）。
+ * @returns 'fly' 空中再起飞 | 'down' 地面倒地段
+ */
+export function resolveStaggerDeath(
+  f: FighterState,
+  def: FighterDef | null,
+): 'fly' | 'down' {
+  f.attackId = null;
+  if (!f.onGround) {
+    // 原版 playHurtFly(0,0,false) 等价：getVec2 = velocity2 硬直期恒 0 → 直落
+    f.actionState = ActionState.HURT_FLYING;
+    f.applyG = true;
+    f.hurtHeavy = false;
+    f.hurtFlyStage = 1;
+    f.hurtFlyTimer = HURT_JUMP_FRAMES;
+    f.hurtFlyHold = 0;
+    f.hurtApexY = f.y;
+    f.hurtHity = 0;
+    f.vx = 0;
+    f.vy = 0;
+    f.dampX = HURT_FLY_DAMP_X;
+    f.dampY = HURT_DAMP_Y;
+    f.labelLock = 0;
+    f.touchFloor = null;
+    f.hurtTimer = 0;
+    // 飞行姿势定格（原版 goFrame("击飞", false) 首帧停；param3=false 无 被打 过渡）
+    setLabel(f, def, '击飞');
+    f.mcHold = true;
+    const flyRange = def?.labels['击飞'];
+    if (f.actLabel === '击飞' && flyRange) f.animFrame = flyRange.index + 1;
+    return 'fly';
+  }
+  // 地面倒地段（原版 playHurtDown）：击飞_弹 定格 2 动画帧（stepHurtFly
+  // case 5 计满 → enterHurtDown 击飞_倒）；actionState 保持 HURT_ING
+  //（原版 playHurtDown2 才置 23）。
+  f.hurtFlyStage = 5;
+  f.hurtFlyHold = 0;
+  setLabel(f, def, '击飞_弹');
+  f.mcHold = true;
+  const tanRange = def?.labels['击飞_弹'];
+  if (f.actLabel === '击飞_弹' && tanRange) f.animFrame = tanRange.index + 1;
+  f.dampX = HURT_FLOOR_DAMP_X;
+  f.hurtTimer = 0;
+  return 'down';
+}
+
+/** 硬直致死收尾转换点 anim 层事件出口标记（voice + 倒地段落地特效）。 */
+export type StaggerDeathOut = 'fly' | 'down';
+
+/**
  * 动画帧推进（30Hz，管线第 5 步；无 def 角色只走状态计时）。
  *
  * 语义：f.animFrame 是「当前采样帧」——每次调用先对当前帧触发
@@ -1099,12 +1164,14 @@ function flowTarget(
  * `_CHK` 续接（切片 5）：原版 MC 时间轴连续播放，招2 播完自然滑入
  * 招2_CHK（zh2atm 判定区在 _CHK 段）。规则：标签播尽且存在
  * `<label>_CHK` 且帧号连续（chk.index == cur.index+cur.duration）→ 续播。
+ *
+ * @returns 硬直致死收尾转换标记（计尽查 isAlive 分支触发时；否则 null）
  */
 export function advanceAnimation(
   f: FighterState,
   def: FighterDef | null,
   onFrame?: (frame: number) => void,
-): void {
+): StaggerDeathOut | null {
   if (f.labelLock > 0) f.labelLock -= 1;
   if (!def) {
     if (
@@ -1112,9 +1179,13 @@ export function advanceAnimation(
       f.actionState === ActionState.HURT_DOWN
     ) {
       f.hurtTimer -= 1;
-      if (f.hurtTimer <= 0) recoverToNormal(f, def);
+      if (f.hurtTimer <= 0) {
+        // 硬直致死收尾（def-less 简道与 def 路径同构）
+        if (f.hp <= 0) return resolveStaggerDeath(f, null);
+        recoverToNormal(f, def);
+      }
     }
-    return;
+    return null;
   }
   maintainAirLabel(f, def);
   const range0 = f.actLabel !== null ? def.labels[f.actLabel] : undefined;
@@ -1134,13 +1205,13 @@ export function advanceAnimation(
       //（enterDeadLying 不换标签、mcHold 保持——区别 enterDead 的 失败 标签）
       if (f.hp <= 0) {
         enterDeadLying(f);
-        return;
+        return null;
       }
       if (f.hurtTimer === riseFrames(def)) setLabel(f, def, '起身');
       f.hurtTimer -= 1;
       if (f.hurtTimer <= 0) recoverToNormal(f, def);
     }
-    return;
+    return null;
   }
   // 1. 采样当前帧
   onFrame?.(f.animFrame);
@@ -1153,7 +1224,13 @@ export function advanceAnimation(
       setLabel(f, def, '起身');
     }
     f.hurtTimer -= 1;
-    if (f.hurtTimer <= 0) recoverToNormal(f, def);
+    if (f.hurtTimer <= 0) {
+      // 硬直致死收尾（批次 66，原版 renderHurtAnimate 计尽查 isAlive
+      // FighterMcCtrler.as:2008-2023）：hp≤0 → 空中再 hurtFly 起飞 / 地面
+      // playHurtDown 倒地段 → case 4 DEAD 躺姿；voice/特效由 anim 层发出
+      if (f.hp <= 0) return resolveStaggerDeath(f, def);
+      recoverToNormal(f, def);
+    }
   }
   // 3. 推进
   const label = f.actLabel;
@@ -1161,14 +1238,14 @@ export function advanceAnimation(
   let looped = false;
   // 本 tick 采样刚消费了 stop 触发（mcHold 置位）——播放头钉在冻结帧，
   // 与原版一致：stop 帧本身被采样/显示，下一 tick 起由入口处的 mcHold 门接管
-  if (f.mcHold) return;
+  if (f.mcHold) return null;
   if (range) {
     // 防御恢复冻结窗口（修复批次 30）：原版 goFrame("防御恢复",false,...,{call:idle,
     // delay:1})——isPlay=false 播放头钉在首帧不推进，goFrameDelay 两个动画 tick 后
     // 回调 idle → 站立。labelLock=3：T0/T1 两个冻结 tick 显示首帧，T2 转 站立。
     // POC 曾放完整段 防御恢复（labelLock=duration）→ 实测"卡一下"才回站立。
     if (label === '防御恢复') {
-      if (f.labelLock > 0) return;
+      if (f.labelLock > 0) return null;
       // 转 站立 = 原版 goFrame delay 计满的 idle("站立") 回调：setAllAct 重填槽
       // + 恢复跳跃/空中攻击次数（修复批次 31：doDefense 清槽后无人重填——
       // 防御恢复→站立 走 setLabel 直转，站立为循环标签 endAction 不可达，
@@ -1177,7 +1254,7 @@ export function advanceAnimation(
       f.jumpTimes = JUMP_TIMES_START;
       f.airHitTimes = 1;
       setLabel(f, def, '站立');
-      return;
+      return null;
     }
     // 防御定格（原版 goFrame("防御", true, 3) + FighterMC.renderAnimate：
     // 手动推进 3 帧后 _renderMainAnimate=false，时间轴停住，按住多久都静止；
@@ -1239,6 +1316,7 @@ export function advanceAnimation(
       }
     }
   }
+  return null;
 }
 
 /** 空中姿势标签（起跳/跳中/落）。空中恢复（recoverToNormal 空中分支）落地
@@ -1423,7 +1501,10 @@ export interface HurtFlyFx {
  *   （setVecY(-下落深度/25 夹 [3,8])）+ HURT_DOWN_TAN + hit_floor + 震屏
  *   （vecy 夹 [0.5,3]，实际恒 3）；
  * - 3 弹起空中：展示 ≥2 动画帧且再次触地 → 击飞_倒 定格 + hit_floor_low +
- *   震屏 shake(0,1)；随后走 HURT_DOWN 定格计时（15 动画帧）→ 起身。
+ *   震屏 shake(0,1)；随后走 HURT_DOWN 定格计时（15 动画帧）→ 起身；
+ * - 5 硬直致死倒地段等待（批次 66）：击飞_弹 定格 2 动画帧 → 击飞_倒
+ *   （原版 playHurtDown 延时段；尸体在 HURT_DOWN 首个动画帧即转 DEAD——
+ *   advanceAnimation mcHold 分支 hp≤0 门）。
  *
  * 偏离登记（修复批次 65 更正，2026-11-20）：击飞类（hurtType≠0）致死不当场
  * DEAD——原版 doHurt 致死只发 DIE + isAlive=false，代码继续 playHurtFly，
@@ -1486,6 +1567,15 @@ export function stepHurtFly(f: FighterState, def: FighterDef | null): HurtFlyFx[
       enterHurtDown(f, def, false);
       fx.push({ id: 'shake', params: { x: 0, y: 2, time: 0 } });
       fx.push({ id: 'hit_floor_low', params: {} });
+      break;
+    }
+    case 5: {
+      // 硬直致死倒地段等待（批次 66，原版 playHurtDown goFrame("击飞_弹",false,
+      // {call:playHurtDown2, delay:2})）：击飞_弹 定格 2 动画帧后 → 击飞_倒
+      //（playHurtDown2 不发特效——落地特效在转换点已由 anim 层即发）
+      f.hurtFlyHold += 1;
+      if (f.hurtFlyHold < 2) break;
+      enterHurtDown(f, def, false);
       break;
     }
   }

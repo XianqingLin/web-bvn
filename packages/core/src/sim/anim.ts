@@ -7,7 +7,7 @@ import {
   worldRect,
   type FighterDef,
 } from '../fighter/def.js';
-import { advanceAnimation, setLabel, stepHurtFly, stepIntentsFor } from '../fighter/machine.js';
+import { advanceAnimation, setLabel, stepHurtFly, stepIntentsFor, type StaggerDeathOut } from '../fighter/machine.js';
 import { evaluateTriggerCondition, type BehaviorContext } from '../fighter/behaviors.js';
 import { stepHurtBreak, stepPassiveTimers } from './passive.js';
 import type { SimCtx } from './ctx.js';
@@ -100,6 +100,21 @@ function stepHurtFlyEmit(
   }
 }
 
+/** 硬直致死收尾转换点事件（批次 66，原版 renderHurtAnimate 计尽 !isAlive 分支
+ *  ：die voice playVoice(2,1) + 地面倒地段 playHurtDown 的 shake(0,2)/hitFloor(1)
+ *  ——震屏 y 已含原版 powY×2 折算）。 */
+function emitStaggerDeath(
+  ctx: SimCtx,
+  f: FighterState,
+  kind: StaggerDeathOut,
+): void {
+  if (kind === 'down') {
+    ctx.emit('effect', { id: 'shake', x: f.x, y: f.y, params: { x: 0, y: 4, time: 0 } });
+    ctx.emit('effect', { id: 'hit_floor_low', x: f.x, y: f.y, params: {} });
+  }
+  ctx.emit('voice', { fighter: f.id, kind: 'die' });
+}
+
 // 5. [动画帧] 动画推进 / 判定区刷新 / 帧触发器（判定区在命中判定时按帧查询）。
 // only（切片 22 切入 / 切片 53 复用）：冻结期只推进锁主（cutinLock）或瞬身者
 //（幽步冻结）的时间轴——kind+id 寻址，type 不参与。
@@ -110,14 +125,15 @@ export function stepAnimation(ctx: SimCtx, only?: Pick<CutinLockState, 'kind' | 
     if (only && !(only.kind === 'fighter' && only.id === f.id)) continue;
     const def = ctx.defOf(f);
     if (!def) {
-      advanceAnimation(f, null);
+      const death0 = advanceAnimation(f, null);
+      if (death0 !== null) emitStaggerDeath(ctx, f, death0);
       stepHurtFlyEmit(ctx, f, null);
       continue;
     }
     // 帧触发器（behaviors 注册表分派；同帧触发按注册顺序执行；
     // 索引按当前形态寻址——形态切换后即用新形态时间轴）
     const byFrame = ctx.triggerIndex.get(f.id)?.get(f.formIndex);
-    advanceAnimation(f, def, (frame) => {
+    const death = advanceAnimation(f, def, (frame) => {
       const list = byFrame?.get(frame);
       if (!list) return;
       const ctx2: BehaviorContext = {
@@ -146,6 +162,7 @@ export function stepAnimation(ctx: SimCtx, only?: Pick<CutinLockState, 'kind' | 
         if (handler) handler(ctx2, t.args, t.target);
       }
     });
+    if (death !== null) emitStaggerDeath(ctx, f, death);
     stepHurtFlyEmit(ctx, f, def);
     // 被动残效计时（切片 55，原版 FighterMain.renderAnimate 帧计数：爆发
     // 命中窗/钢身残效/替身残效/被动冷却；30Hz 同律）

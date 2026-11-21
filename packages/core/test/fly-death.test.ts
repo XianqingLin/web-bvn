@@ -193,16 +193,132 @@ describe('击飞致死飞尸演出（修复批次 65）', () => {
     expect(corpse.actLabel).toBe('击飞_倒');
   });
 
-  it('非击飞致死维持当场 DEAD + 失败 标签（hurtType==0 路径不变）', () => {
-    const { snaps, koTick } = playKill({
+  it('硬直致死（hurtType==0）：KO tick 保持 HURT_ING 被打；计尽 → 倒地段 击飞_弹/击飞_倒 → DEAD 躺姿（批次 66）', () => {
+    const { snaps, koTick, extra } = playKill({
       ...KILL_HEAVY,
       hurtType: 0,
       hity: 0,
     });
     expect(koTick).toBeGreaterThanOrEqual(0);
     const f = snaps[koTick]!.state.fighters[1]!;
-    expect(f.actionState).toBe(ActionState.DEAD);
-    expect(f.actLabel).toBe('失败');
+    expect(
+      f.actionState,
+      '硬直致死 KO tick 不当场 DEAD（原版 doHurt 致死继续 HURT_ING 硬直）',
+    ).toBe(ActionState.HURT_ING);
+    expect(f.actLabel).toBe('被打');
+    const after = snaps.slice(koTick);
+    const fxAll = after.flatMap(effectIds);
+    expect(fxAll, '倒地段应发 hit_floor_low（原版 playHurtDown hitFloor(1)）').toContain(
+      'hit_floor_low',
+    );
+    const tan = after.find((s) => s.state.fighters[1]!.actLabel === '击飞_弹');
+    expect(tan, '地面收尾先播 击飞_弹（原版 playHurtDown 延时段）').toBeDefined();
+    const down = after.find(
+      (s) => s.state.fighters[1]!.actionState === ActionState.HURT_DOWN,
+    );
+    expect(down, '随后 击飞_倒 倒地段（原版 playHurtDown2）').toBeDefined();
+    expect(down!.state.fighters[1]!.actLabel).toBe('击飞_倒');
+    const deadIdx = after.findIndex(
+      (s) =>
+        s.state.fighters[1]!.actionState === ActionState.DEAD &&
+        s.state.fighters[1]!.onGround,
+    );
+    expect(deadIdx).toBeGreaterThan(0);
+    const corpse = after[deadIdx]!.state.fighters[1]!;
+    expect(corpse.actLabel, '躺姿定格 = 击飞_倒（原版 case 4 不 goFrame）').toBe('击飞_倒');
+    expect(corpse.mcHold, '躺姿保持冻结').toBe(true);
+    for (const s of after.slice(0, deadIdx + 1)) {
+      const lbl = s.state.fighters[1]!.actLabel;
+      expect(lbl, '正常 KO 败方不播 失败').not.toBe('失败');
+      expect(lbl, '尸体不起身').not.toBe('起身');
+    }
+    const voiceIdx = after.findIndex((s) =>
+      s.events.some((e) => e.type === 'voice' && e.payload.kind === 'die'),
+    );
+    expect(voiceIdx, 'die voice 随硬直计尽收尾转换点发出（非 KO tick）').toBeGreaterThan(0);
+    for (const s of extra) {
+      const cf = s.state.fighters[1]!;
+      expect(cf.actionState).toBe(ActionState.DEAD);
+      expect(cf.actLabel).toBe('击飞_倒');
+    }
+  });
+
+  it('破防致死：KO tick 不当场 DEAD——破防硬直播尽 → 倒地段 → DEAD 躺姿（批次 66，原版 doBreakDefense 无 DIE 检查）', () => {
+    // P1 破防技（isBreakDef，drain = 能量上限 90%）：hit1 削血 50（hp 150→100）、
+    // 能量 100→10；hit2 削血 50（hp 100→50 > 0 不走 KO 分支）、能量 < 90 →
+    // 破防削血 power/10 = 100 → hp 归 0 走破防致死
+    const def = makeDef('t');
+    const atkDef: FighterDef = {
+      ...makeDef('atk'),
+      actions: {
+        k1: {
+          power: 1000,
+          hitType: 1,
+          hitx: 3,
+          hity: 0,
+          hurtTime: 300,
+          hurtType: 0,
+          isBreakDef: true,
+          isApplyG: true,
+        },
+      },
+      attackLabels: { k1: '砍1' },
+      triggers: [
+        { frame: 174, target: 'mc', op: 'endAct', args: [] },
+        { frame: 175, target: 'mc', op: 'idle', args: ['站立'] },
+      ],
+    };
+    for (const fr of [172, 173]) {
+      atkDef.areas[fr] = [
+        { name: 'bdmn', x: -10, y: -40, w: 20, h: 40 },
+        { name: 'k1atm', x: 10, y: -40, w: 30, h: 30 },
+      ];
+    }
+    const sim = new Sim({
+      seed: 1,
+      stage: { leftBound: 0, rightBound: 1000, groundY: 500, bottomY: 600, floors: [] },
+      fighters: [
+        { id: 1, x: 300, def: atkDef },
+        { id: 2, x: 330, hp: 150, def },
+      ],
+    } as never);
+    const snaps: SimSnapshot[] = [];
+    let koTick = -1;
+    for (let i = 0; i < 800; i++) {
+      // i=2 / i=42 两度出刀；P2 全程按住 ↓ 防御
+      const p1 = i === 2 || i === 42 ? Btn.attack : 0;
+      const snap = sim.tick({ p1, p2: Btn.down });
+      snaps.push(snap);
+      if (koTick < 0 && snap.events.some((e) => e.type === 'fighter:ko')) koTick = i;
+      if (
+        koTick >= 0 &&
+        snap.state.fighters[1]!.actionState === ActionState.DEAD &&
+        snap.state.fighters[1]!.onGround
+      ) {
+        break;
+      }
+    }
+    expect(koTick).toBeGreaterThanOrEqual(0);
+    const f = snaps[koTick]!.state.fighters[1]!;
+    expect(f.hp).toBe(0);
+    expect(
+      f.actionState,
+      '破防致死 KO tick 不当场 DEAD（原版 doBreakDefense 削血后照常进破防硬直）',
+    ).toBe(ActionState.HURT_ING);
+    expect(f.actLabel).toBe('被打');
+    const after = snaps.slice(koTick);
+    const tan = after.find((s) => s.state.fighters[1]!.actLabel === '击飞_弹');
+    expect(tan, '破防硬直播尽走同款倒地段收尾（port 偏离登记：原版回站立）').toBeDefined();
+    const dead = after.find(
+      (s) =>
+        s.state.fighters[1]!.actionState === ActionState.DEAD &&
+        s.state.fighters[1]!.onGround,
+    );
+    expect(dead).toBeDefined();
+    expect(dead!.state.fighters[1]!.actLabel).toBe('击飞_倒');
+    for (const s of after) {
+      expect(s.state.fighters[1]!.actLabel, '不播 失败').not.toBe('失败');
+    }
   });
 
   it('playHurtFly 强制重力：击飞类命中 isApplyG=false 仍 applyG=true（防止尸体悬空）', () => {
