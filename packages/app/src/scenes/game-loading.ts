@@ -16,6 +16,7 @@ import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { ASSETS, loadAudio, loadLoading, loadSelect, loadUi } from '../data.js';
 import { buildLoadingBar, tickLoadingBar, type LoadingBar } from './bar.js';
+import { LogoScene } from './logo.js';
 import { UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
 
@@ -127,9 +128,7 @@ export class GameLoadingScene implements Scene {
     // 定场后 → 开场徽标（原版 loadGameBack → goStage(LogoStage)）
     if (this.finishedAt >= 0 && performance.now() - this.finishedAt >= FINISH_HOLD_MS) {
       this.finishedAt = -1; // 防重入（switchTo 异步 enter 期间 update 已停，双保险）
-      void import('./logo.js').then(({ LogoScene }) => {
-        if (this.ctxRef) this.ctxRef.switchTo(new LogoScene(this.flow));
-      });
+      if (this.ctxRef) this.ctxRef.switchTo(new LogoScene(this.flow));
     }
   }
 

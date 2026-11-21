@@ -8,6 +8,7 @@ import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { loadUi, type UiData } from '../data.js';
 import { FrameStream } from './stream.js';
+import { MenuScene } from './menu.js';
 import type { Flow } from '../flow.js';
 
 /** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
@@ -82,9 +83,7 @@ export class LogoScene implements Scene {
     if (this.frame >= logo.stop) {
       // 帧脚本 stop()+COMPLETE → 进主菜单
       this.destroyed = true;
-      void import('./menu.js').then(({ MenuScene }) => {
-        if (this.ctx) this.ctx.switchTo(new MenuScene(this.flow));
-      });
+      if (this.ctx) this.ctx.switchTo(new MenuScene(this.flow));
       return;
     }
     // 常驻窗口：身后 2 帧、身前 6 帧

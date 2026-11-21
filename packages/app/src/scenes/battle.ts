@@ -26,6 +26,8 @@ import {
 } from '../audio.js';
 import type { Flow } from '../flow.js';
 import { transOut } from './trans.js';
+import { WinnerScene } from './winner.js';
+import { MenuScene } from './menu.js';
 
 const TICK_MS = 1000 / 60;
 
@@ -421,9 +423,7 @@ export class BattleScene implements Scene {
       const w = typeof winner === 'number' && (winner === 1 || winner === 2) ? winner : 0;
       window.setTimeout(() => {
         if (this.dead) return;
-        void import('./winner.js').then(({ WinnerScene }) => {
-          this.ctx?.switchTo(new WinnerScene(this.flow, w, this.socket));
-        });
+        this.ctx?.switchTo(new WinnerScene(this.flow, w, this.socket));
       }, 600);
       break;
     }
@@ -480,7 +480,7 @@ export class BattleScene implements Scene {
     const ctx = this.ctx;
     if (!ctx) return;
     this.socket?.close();
-    void import('./menu.js').then(({ MenuScene }) => ctx.switchTo(new MenuScene(this.flow)));
+    ctx.switchTo(new MenuScene(this.flow));
   }
 
   exit(): void {

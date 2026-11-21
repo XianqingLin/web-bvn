@@ -55,6 +55,7 @@ import { picksOf, teamPicksOf, type Flow } from '../flow.js';
 import { BattleScene, fighterId, type BattleLoadout, type RosterEntry } from './battle.js';
 import { clearTrans, transIn, transOut } from './trans.js';
 import { buildLoadingBar, tickLoadingBar, type LoadingBar } from './bar.js';
+import { MenuScene } from './menu.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
@@ -478,7 +479,7 @@ export class LoadingScene implements Scene {
     clearTrans(); // 转场中被 ESC 打断：撤黑幕（原版 StageCtrler.clearTrans 语义）
     this.socket?.close();
     audioOf(ctx.ctx)?.bgm(null); // 原版 LoadingStage.destory BGM(null)
-    void import('./menu.js').then(({ MenuScene }) => ctx.switchTo(new MenuScene(this.flow)));
+    ctx.switchTo(new MenuScene(this.flow));
   }
 
   update(dtMs: number): void {

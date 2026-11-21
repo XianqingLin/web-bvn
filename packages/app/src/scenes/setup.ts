@@ -74,6 +74,8 @@ import {
 import type { Flow, Pick } from '../flow.js';
 import { OverlayFx } from './fx.js';
 import { LoadingScene } from './loading.js';
+import { MenuScene } from './menu.js';
+import { NetScene } from './net.js';
 import { transIn, clearTrans } from './trans.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
@@ -318,9 +320,9 @@ export class SetupScene implements Scene {
     const { switchTo } = ctx;
     if (this.flow.mode === 'net') {
       this.socket?.close();
-      void import('./net.js').then(({ NetScene }) => switchTo(new NetScene(this.flow)));
+      switchTo(new NetScene(this.flow));
     } else {
-      void import('./menu.js').then(({ MenuScene }) => switchTo(new MenuScene(this.flow)));
+      switchTo(new MenuScene(this.flow));
     }
   }
 
@@ -1132,7 +1134,7 @@ export class SetupScene implements Scene {
     this.timers.push(
       window.setTimeout(() => {
         if (this.ctxRef && !this.destroyedFlag) {
-          void import('./menu.js').then(({ MenuScene }) => this.ctxRef!.switchTo(new MenuScene(this.flow)));
+          this.ctxRef.switchTo(new MenuScene(this.flow));
         }
       }, 1200),
     );
