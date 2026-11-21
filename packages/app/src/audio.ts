@@ -117,6 +117,10 @@ export class AudioSubsystem implements Subsystem {
   private urlOf(kind: 'se' | 'swc' | 'fx' | 'bgm' | 'banner', name: string): string | null {
     const mf = this.mf;
     if (!mf) return null;
+    // 已解析 URL 透传（修复：KO 链/幽步启动音调用处传的是清单 value——
+    // `mf.swc.ko` = 'swc/snd_ko.mp3'——按键查表必 miss → 静音；脚步音源
+    // 清单只存 URL 数组无键可查，同样走透传）。清单键不含 '/'，不冲突。
+    if (name.includes('/')) return name;
     if (kind === 'se') {
       if (name === 'hit1') return mf.se.hit1;
       if (name === 'hit2') return mf.se.hit2;
