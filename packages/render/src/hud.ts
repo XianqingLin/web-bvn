@@ -20,17 +20,19 @@
  *   - 能量标签 flash 用 alpha 闪烁近似（原版切 inner mc 帧，语义未收编）；
  *   - 辅助格红点 = 被动提示（切片 57 收编）：可见性按原版 isCanHurtBreak
  *     语义由快照派生（energy/qi/hurtChain/hurtBreakCd），不再用 fzqi 满近似；
- *   - 计时器恒显示 ∞（单局流程无时限）；
  *   - 宽屏血条延伸：原版 800 宽下血条外缘搭进计时板近缘 ~9px，逐元素钉边后
  *     该重叠随中线外移变成空隙 → 血条横向拉伸每侧补 (visW-800)/2（原版位形
  *     scale 恒 1；横线条纹理拉伸不可感知，与切人横幅/bgFixed 同款适配）。
  *
- * 遗留（未收编，登记 PROGRESS 遗留池）：startKOmc 结算段（KO/timeover/winner/
- * drawgame——回合结算流程未接）与 start_final 段（round≥5）、win 胜利星
- * （p1Wins/p2Wins 恒 0 不显示）、scoremc、被动条 sp、回合数字 shape_007。开局段
- * （start+fight）已收编（intro 切片：core 冻结期快照驱动，intro.step===7 期间
- * 30Hz 流帧；Round 数字 = nummc 收编修正，批次 43——帧位图数字区烘焙擦除 +
- * startko-num 合成帧按 min(round,5) 选组叠放）。
+ * 多局制渲染收编（PROGRESS §2.5 渲染块）：计时板数字（FightTimeUI time_txtmc，
+ * gameTime 驱动、训练显 ∞）、start_final 段（round≥5 开局分支，go:fight 重定向
+ * 复用 fight 段）、timeover/drawgame 结算段（timerOver 路径 + bannerTimeover/
+ * bannerDraw 播报音沿 onBanner 回调）、胜利星逐局累积（WinUI w1/w2 双槽）。
+ *
+ * 遗留（未收编，登记 PROGRESS 遗留池）：scoremc（街机得分板，归 §2.3 块 6）、
+ * 被动条 sp。开局段（start+fight）已收编（intro 切片：core 冻结期快照驱动，
+ * intro.step===7 期间 30Hz 流帧；Round 数字 = nummc 收编修正，批次 43——帧位图
+ * 数字区烘焙擦除 + startko-num 合成帧按 min(round,5) 选组叠放）。
  */
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
@@ -47,6 +49,8 @@ const ENERGY_FLASH_RATE = 0.3;
 const HITS_FADE_MS = 400;
 /** 连击数字上限（MCNumber 无上限；显示池按 4 位封顶） */
 const HITS_MAX_DIGITS = 4;
+/** 时间板数字上限（MCNumber bits=2 起步；自定义 fightTime>99 支持到 3 位） */
+const TIME_NUM_MAX_DIGITS = 3;
 /** 原版 GameConfig.FPS_GAME（FighterHpBar redbar 延迟 1.5×FPS 帧） */
 const FPS_GAME = 60;
 /** 辅助脸尺寸（原版 getFighterFace 缺省 size 50×50） */
@@ -73,7 +77,14 @@ export interface HudData {
       labelPos: [number, number];
     };
     win: { p1: [number, number]; p2: [number, number]; w1: [number, number]; w2: [number, number] };
-    time: { bgPos: [number, number]; infPos: [number, number] };
+    time: {
+      bgPos: [number, number];
+      infPos: [number, number];
+      /** 时间数字（time_txtmc/MCNumber，多局制收编）：局部 (-22,-15)、逐位步进
+       *  20px、两位零填充；旧 baked 缺省 = 恒显 ∞ */
+      numPos?: [number, number];
+      numDigitW?: number;
+    };
   };
   qi: {
     p1Origin: [number, number];
@@ -132,6 +143,11 @@ export interface HudData {
       /** per-round 组合居中 delta（回合 1..digits；批次 62 烘焙，缺省退 centerDelta） */
       centerDeltas?: number[];
     };
+    /** start_final 段（round≥5 开局分支，多局制收编）：45 帧独立烘焙
+     *  （startko-final），段内 go:fight 由运行时重定向复用 startko fight 段
+     *  （资产帧 46..79）→ 总帧数与 start 段等长；centerDelta = 稳态固定值
+     *  （逐字弹入期不逐帧居中）。旧 baked 缺省 = 恒用 start 段。 */
+    final?: { frames: number; centerDelta?: number };
   };
   /** 结算字样（回合结算流程收编）：ko = startKOmc KO 段；winner = 嵌套 winnermc
    *  独立时间轴（perfectFrom = Perfect 段起始资产帧，非 perfect 定格于其前帧）。
@@ -139,6 +155,11 @@ export interface HudData {
   endKO?: {
     ko: { frames: number; fps: number; pos: [number, number] };
     winner: { frames: number; perfectFrom: number; posP1: [number, number]; posP2: [number, number] };
+    /** timeover/drawgame 结算段（多局制收编；与 ko 段同画布同摆位）：
+     *  timerOver 置位即播 timeover，平局续播 drawgame（定格段尾至重开），
+     *  非平局被 winner 字样替换。旧 baked 缺省 = 不挂载。 */
+    timeover?: { frames: number; fps: number; pos: [number, number] };
+    drawgame?: { frames: number; fps: number; pos: [number, number] };
   };
 }
 
@@ -155,6 +176,14 @@ export interface HudFighterSpec {
 /** HUD 资源清单（app 装配后挂 BattleAssetsSpec.hud） */
 export interface HudSpec {
   data: HudData;
+  /**
+   * 结算段播报音回调（多局制收编）：HUD 检测 timeover/drawgame 字样段显示
+   * 沿时调用（原版 mc_043 声音层贴帧音 sound_009/bannerTimeover、
+   * sound_008/bannerDraw）；core 不持渲染常量（drawgame 段起点 = timeover
+   * 段帧数×2 的表现换算）故不走 sim sound 事件，由渲染沿驱动。双端快照
+   * 一致 → 同拍触发（音频非 sim 状态，不影响确定性）。
+   */
+  onBanner?: (id: 'bannerTimeover' | 'bannerDraw') => void;
   fighters: { p1: HudFighterSpec; p2: HudFighterSpec };
   /**
    * 团队 roster 大脸/能量标签（切片 36）：fighter id → 装配（roster 全员）；
@@ -162,6 +191,16 @@ export interface HudSpec {
    * 解析各侧出战者，切脸/能量标签帧随之切换（faces 预载免异步闪白）。
    */
   teamFighters?: Record<number, HudFighterSpec> | undefined;
+}
+
+/** 胜利星槽位动画态（updateWinStars 推进） */
+interface WinStarState {
+  /** 已点亮（wins 达槽且 winApplied 落位起播；wins 回退复位） */
+  activated: boolean;
+  /** 段动画播放中（dtMs 推进，播尽定格段尾） */
+  playing: boolean;
+  /** 段内帧游标（浮点 30fps 步进） */
+  f: number;
 }
 
 /** 单侧 HUD 动态件句柄（build 顺序：hp → energy → qi → hits 逐块填充） */
@@ -255,13 +294,25 @@ export class FightHud {
   private startKODelta: number | null = null;
   /** 开局字样 Round 数字（nummc 收编修正，批次 43；updateStartKO 驱动） */
   private startKONum: Sprite | null = null;
+  /** 时间板 ∞ / 数字件（updateTime 驱动；多局制收编） */
+  private timeInfSp: Sprite | null = null;
+  private timeNumSp: Sprite[] | null = null;
   /** 结算字样（回合结算流程收编；updateEndKO 驱动，全快照驱动免渲染态）：
-   *  KO 字样单件 + winner 字样双侧件（按胜方侧显隐）+ 胜利星双侧件（仅 1v1） */
+   *  KO 字样单件 + winner 字样双侧件（按胜方侧显隐）+ timeover/drawgame 段
+   *  单件（timerOver 路径，多局制收编）+ 胜利星双侧双槽件（w1/w2，仅 1v1） */
   private endKOSp: Sprite | null = null;
   private winnerSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
-  private winStarSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
+  private timeoverSp: Sprite | null = null;
+  private drawgameSp: Sprite | null = null;
+  /** 胜利星（多局制逐局累积）：[w1, w2] 槽位件 + 槽位动画态。原版 WinUI：
+   *  wins=1 → team1 播 w1 / team2 播 w2（P2 a=-1 镜像）；wins=2 → 另一槽；
+   *  播尽定格段尾（槽位件独立时间轴）→ 逐局累积可见。 */
+  private winStarSp: { 1: Sprite[]; 2: Sprite[] } = { 1: [], 2: [] };
+  private winStarAnim: { 1: WinStarState[]; 2: WinStarState[] } = { 1: [], 2: [] };
   /** roundEnd 出现沿检测（换人/新回合 roundEnd 卸下后复位显隐） */
   private endRoundSeen = false;
+  /** timeover 播报音沿（每 roundEnd 实例一次；roundEnd 卸下复位） */
+  private timeoverBannerFired = false;
   /** 团队换人（切片 36）：双侧大脸/能量标签可换件 + roster 脸纹理缓存 */
   private faceSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
   private energyLabelSp: { 1: Sprite | null; 2: Sprite | null } = { 1: null, 2: null };
@@ -355,13 +406,27 @@ export class FightHud {
     const en1 = this.buildEnergy(s1, 1, this.spec.fighters.p1.comicType, 1);
     const en2 = this.buildEnergy(s2, 2, this.spec.fighters.p2.comicType, -1);
     en2.scale.x = -1;
-    // —— 计时板（mc_038；单局恒显 ∞）——
+    // —— 计时板（mc_038；FightTimeUI：gameTimeMax==-1 显 ∞，否则数字）——
     const time = new Container();
     const timeBg = this.sprite('time-bg');
     timeBg.position.set(d.hp.time.bgPos[0], d.hp.time.bgPos[1]);
     const inf = this.sprite('time-inf');
     inf.position.set(d.hp.time.infPos[0], d.hp.time.infPos[1]);
     time.addChild(timeBg, inf);
+    this.timeInfSp = inf;
+    // 时间数字（time_txtmc/MCNumber 多局制收编）：两位零填充、逐位步进
+    // numDigitW；MCNumber.createNum gotoAndStop(1+digit) → 帧 N = 数字 N-1
+    if (this.frames.has('time-num') && d.hp.time.numPos) {
+      const dw = d.hp.time.numDigitW ?? 20;
+      this.timeNumSp = [];
+      for (let i = 0; i < TIME_NUM_MAX_DIGITS; i++) {
+        const sp = new Sprite(Texture.EMPTY);
+        sp.position.set(d.hp.time.numPos[0] + i * dw, d.hp.time.numPos[1]);
+        sp.visible = false;
+        time.addChild(sp);
+        this.timeNumSp.push(sp);
+      }
+    }
     // —— 气条侧件（mc_026 等价物；P2 容器镜像 + 段字/READY 双翻）——
     const qi1 = this.buildQi(s1, 1);
     const qi2 = this.buildQi(s2, -1);
@@ -464,27 +529,56 @@ export class FightHud {
         this.winnerSp[side] = sp;
       }
     }
-    // 胜利星（win 40 帧段；原版 FightUI.showWins 仅 single 模式显示，
-    // wins=1 → w1 位）：p1/p2 = win_pN 容器位（P2 a=-1 镜像 → w1 偏移翻 x），
-    // 绝对位 = hpbarmc 原点 + 容器 + w1。
+    // timeover/drawgame 结算段（多局制收编）：与 KO 段同画布同摆位
+    //（playTimeOver y=0 语义），timerOver 路径按段序显隐
+    if (d.endKO?.timeover && this.frames.has('startko-timeover')) {
+      const sp = new Sprite(Texture.EMPTY);
+      sp.visible = false;
+      this.root.addChild(sp);
+      this.pinned.push({
+        c: sp,
+        x: d.endKO.timeover.pos[0],
+        y: d.endKO.timeover.pos[1],
+        mx: 'center',
+        my: 'top',
+      });
+      this.timeoverSp = sp;
+    }
+    if (d.endKO?.drawgame && this.frames.has('startko-drawgame')) {
+      const sp = new Sprite(Texture.EMPTY);
+      sp.visible = false;
+      this.root.addChild(sp);
+      this.pinned.push({
+        c: sp,
+        x: d.endKO.drawgame.pos[0],
+        y: d.endKO.drawgame.pos[1],
+        mx: 'center',
+        my: 'top',
+      });
+      this.drawgameSp = sp;
+    }
+    // 胜利星双槽（多局制逐局累积，原版 WinUI）：w1/w2 槽位件各侧各一
+    //（P2 a=-1 镜像 → 槽位偏移翻 x）；绝对位 = hpbarmc 原点 + 容器 + 槽位。
+    // 原版 team1 wins=1 播 w1 / wins=2 播 w2，team2 反序（镜像下视觉同侧递进）
     if (this.frames.has('win')) {
       const w = d.hp.win;
-      const p1x = o[0] + w.p1[0] + w.w1[0];
-      const p1y = o[1] + w.p1[1] + w.w1[1];
-      const p2x = o[0] + w.p2[0] - w.w1[0];
-      const p2y = o[1] + w.p2[1] + w.w1[1];
       for (const side of [1, 2] as const) {
-        const sp = new Sprite(Texture.EMPTY);
-        sp.visible = false;
-        this.root.addChild(sp);
-        this.pinned.push({
-          c: sp,
-          x: side === 1 ? p1x : p2x,
-          y: side === 1 ? p1y : p2y,
-          mx: side === 1 ? 'left' : 'right',
-          my: 'top',
-        });
-        this.winStarSp[side] = sp;
+        const base = side === 1 ? w.p1 : w.p2;
+        const sign = side === 1 ? 1 : -1;
+        for (const off of [w.w1, w.w2]) {
+          const sp = new Sprite(Texture.EMPTY);
+          sp.visible = false;
+          this.root.addChild(sp);
+          this.pinned.push({
+            c: sp,
+            x: o[0] + base[0] + sign * off[0],
+            y: o[1] + base[1] + off[1],
+            mx: side === 1 ? 'left' : 'right',
+            my: 'top',
+          });
+          this.winStarSp[side].push(sp);
+          this.winStarAnim[side].push({ activated: false, playing: false, f: 0 });
+        }
       }
     }
 
@@ -831,8 +925,33 @@ export class FightHud {
     }
     if (f1) this.updateSide(this.sides[1]!, f1, f2 ?? f1, dtMs);
     if (f2) this.updateSide(this.sides[2]!, f2, f1 ?? f2, dtMs);
+    this.updateTime(snap);
     this.updateStartKO(snap);
     this.updateEndKO(snap);
+    this.updateWinStars(snap, dtMs);
+  }
+
+  /** 时间板（FightTimeUI 语义）：gameTimeMax==-1 显 ∞ 隐数字；否则反向，
+   *  两位零填充秒数（gameTime 归零即 timeover 置位，显示钳 0）。 */
+  private updateTime(snap: SimSnapshot): void {
+    if (!this.timeNumSp) return;
+    const m = snap.state.match;
+    const timed = m.gameTimeMax !== -1;
+    if (this.timeInfSp) this.timeInfSp.visible = !timed;
+    if (!timed) {
+      for (const sp of this.timeNumSp) sp.visible = false;
+      return;
+    }
+    const str = String(Math.max(0, m.gameTime)).padStart(2, '0');
+    for (let i = 0; i < this.timeNumSp.length; i++) {
+      const sp = this.timeNumSp[i]!;
+      if (i < str.length) {
+        sp.texture = this.frame('time-num', Number(str[i])) ?? sp.texture;
+        sp.visible = true;
+      } else {
+        sp.visible = false;
+      }
+    }
   }
 
   /** 出战者切换：换大脸纹理 + 能量标签帧（团队 roster 预载纹理同步切换）。 */
@@ -869,6 +988,29 @@ export class FightHud {
     const d = this.data.startKO;
     const numSpec = d.num;
     const f = Math.floor(intro.hold / 2);
+    // start_final 路径（round≥5，原版 showStart gotoAndStop("start_final")）：
+    // final 段 45 帧独立驱动；renderStartAndKO 到 go:fight 标签时 gotoAndStop
+    // ("fight") 重定向 → 复用 startko fight 段（资产帧 46..79，总帧数 79 与
+    // start 路径等长，INTRO_START_TICKS 不变）。居中 = 稳态固定 delta（逐字
+    // 弹入期不逐帧居中）；无数字槽（原版 r5 nummc 段死代码佐证）。
+    const finalSpec = d.final;
+    if (finalSpec != null && snap.state.match.round >= 5) {
+      const delta = finalSpec.centerDelta ?? d.centerDelta ?? ROUND_CENTER_DELTA_FALLBACK;
+      if (delta !== this.startKODelta) {
+        this.startKODelta = delta;
+        if (this.startKOPin) this.startKOPin.x = d.pos[0] + delta;
+        if (this.startKONumPin && numSpec) {
+          this.startKONumPin.x = d.pos[0] + numSpec.pos[0] + delta;
+        }
+        this.relayout();
+      }
+      sp.texture =
+        f < finalSpec.frames
+          ? (this.frame('startko-final', f) ?? sp.texture)
+          : (this.frame('startko', Math.min(f, d.frames - 1)) ?? sp.texture);
+      if (this.startKONum) this.startKONum.visible = false;
+      return;
+    }
     const assetFrame = f + 1;
     const round = Math.min(Math.max(snap.state.match.round, 1), numSpec?.digits ?? 1);
     const fallback = d.centerDelta ?? ROUND_CENTER_DELTA_FALLBACK;
@@ -902,37 +1044,46 @@ export class FightHud {
   }
 
   /**
-   * 结算字样（回合结算流程收编，原版 FightUI.playKO/showWinner + WinUI）：
-   * 全快照驱动（roundEnd.hold 为 sim tick 计数，30Hz 帧率 = 每 2 tick 一帧）：
+   * 结算字样（回合结算流程收编，原版 FightUI.playKO/playTimeOver/playDrawGame/
+   * showWinner + WinUI）：全快照驱动（roundEnd.hold 为 sim tick 计数，30Hz
+   * 帧率 = 每 2 tick 一帧）：
    *   - KO 字样：置位 0.5s 后播（原版 playKO2 setTimeout 500ms，KO 音效同步）
-   *     47 帧播尽即隐（末帧空黑语义）；
+   *     47 帧播尽即隐（末帧空黑语义）；timerOver 不播（原版 showEnd 分流
+   *     playTimeOver——无 playKO 延迟/表现链）；
+   *   - timeover 字样（timerOver 路径，多局制收编）：置位即时起播 44 帧定格
+     段尾（原版 playTimeOver gotoAndStop("timeover")——段尾脚本 stop 等
+     COMPLETE）；显示沿经 onBanner 回调发 bannerTimeover（原版声音层贴帧音
+     sound_009 段首）；
+   *   - drawgame 字样（平局续播）：timeover 段计满（44 帧×2 tick）后续播 43
+     帧定格段尾至重开（原版 timeoverBack → playDrawGame）；续播沿发
+     bannerDraw（sound_008）；
    *   - winner 字样：winApplied 起播 winnermc 1..29（perfect 续播至 56）定格
-     （原版帧脚本 frame29/frame56 stop+COMPLETE）；平局不播（原版 drawgame
-     字样段未收编，偏离记录）；
-   *   - 胜利星：仅 1v1（原版 FightUI.showWins isSingleMode 门），winApplied
-     起播 bleach/naruto 段按胜方 comicType，播至段末定格（wins=1 恒 w1 位，
-     w2 多胜场未收编——1v1 单局单 KO 无此窗口）。
+     （原版帧脚本 frame29/frame56 stop+COMPLETE）；平局不播（原版
+     renderDrawGame 无 showWinner）；timerOver 非平局起播时替换 timeover 字样
+     （原版 showWinner gotoAndStop("winner") 覆写）。
    */
   private updateEndKO(snap: SimSnapshot): void {
     const re = snap.state.roundEnd;
     if (re == null) {
       if (this.endRoundSeen) {
-        // 换人/新回合：复位显隐（下一 KO 重播）
+        // 换人/新回合：复位显隐（下一 KO 重播）。胜利星不在此复位——
+        // 逐局累积（updateWinStars 按 wins 收敛，新对局 wins 回退全灭）
         this.endRoundSeen = false;
+        this.timeoverBannerFired = false;
         if (this.endKOSp) this.endKOSp.visible = false;
+        if (this.timeoverSp) this.timeoverSp.visible = false;
+        if (this.drawgameSp) this.drawgameSp.visible = false;
         for (const side of [1, 2] as const) {
           const w = this.winnerSp[side];
           if (w) w.visible = false;
-          const s = this.winStarSp[side];
-          if (s) s.visible = false;
         }
       }
       return;
     }
     this.endRoundSeen = true;
     const d = this.data.endKO;
-    // —— KO 字样（30 tick 延迟 + 每 2 sim tick 一帧）——
-    if (this.endKOSp && d) {
+    // —— KO 字样（30 tick 延迟 + 每 2 sim tick 一帧；timerOver 不播）——
+    if (this.endKOSp && d && !re.timerOver) {
       const f = Math.floor((re.hold - 30) / 2);
       if (f >= 0 && f < d.ko.frames) {
         this.endKOSp.texture = this.frame('startko-ko', f) ?? this.endKOSp.texture;
@@ -940,6 +1091,50 @@ export class FightHud {
       } else {
         this.endKOSp.visible = false;
       }
+    } else if (this.endKOSp) {
+      this.endKOSp.visible = false;
+    }
+    // —— timeover/drawgame 字样（timerOver 路径，原版 playTimeOver/playDrawGame）——
+    const drawStart = (d?.timeover?.frames ?? 0) * 2; // 30Hz 帧 → sim tick
+    if (this.timeoverSp && d?.timeover && re.timerOver) {
+      const f = Math.floor(re.hold / 2);
+      if (re.draw) {
+        // 平局：timeover 段计满 → drawgame 段续播定格段尾（重开前恒显）
+        if (this.drawgameSp && d.drawgame && re.hold >= drawStart) {
+          this.timeoverSp.visible = false;
+          if (!this.drawgameSp.visible) this.spec.onBanner?.('bannerDraw');
+          this.drawgameSp.visible = true;
+          const g = Math.floor((re.hold - drawStart) / 2);
+          this.drawgameSp.texture =
+            this.frame('startko-drawgame', Math.min(g, d.drawgame.frames - 1)) ??
+            this.drawgameSp.texture;
+        } else {
+          this.timeoverSp.visible = true;
+          this.timeoverSp.texture =
+            this.frame('startko-timeover', Math.min(f, d.timeover.frames - 1)) ??
+            this.timeoverSp.texture;
+          if (this.drawgameSp) this.drawgameSp.visible = false;
+        }
+      } else {
+        // 非平局：winApplied 起 winner 字样替换（原版 showWinner 覆写段）
+        if (re.winApplied) {
+          this.timeoverSp.visible = false;
+        } else {
+          this.timeoverSp.visible = true;
+          this.timeoverSp.texture =
+            this.frame('startko-timeover', Math.min(f, d.timeover.frames - 1)) ??
+            this.timeoverSp.texture;
+        }
+        if (this.drawgameSp) this.drawgameSp.visible = false;
+      }
+    } else {
+      if (this.timeoverSp) this.timeoverSp.visible = false;
+      if (this.drawgameSp) this.drawgameSp.visible = false;
+    }
+    // timeover 置位显示沿（原版 playTimeOver 即时起播 → sound_009 段首）
+    if (this.timeoverSp && re.timerOver && !this.timeoverBannerFired) {
+      this.timeoverBannerFired = true;
+      this.spec.onBanner?.('bannerTimeover');
     }
     // —— winner 字样（winApplied 起播；draw 不播）——
     const wSp = re.winnerSide === 1 ? this.winnerSp[1] : this.winnerSp[2];
@@ -961,41 +1156,69 @@ export class FightHud {
     } else if (wSp) {
       wSp.visible = false;
     }
-    // —— 胜利星（仅 1v1；bleach 10..29 / naruto 30..40 资产帧段）——
-    const star = re.winnerSide === 1 ? this.winStarSp[1] : this.winStarSp[2];
-    for (const side of [1, 2] as const) {
-      const sp = this.winStarSp[side];
-      if (sp && sp !== star) sp.visible = false;
-    }
-    const teams = snap.state.match.teams;
-    if (star && re.winApplied && !re.draw && teams == null) {
-      const seg = this.winnerComicType(snap, re) === 1 ? ([30, 40] as const) : ([10, 29] as const);
-      const f = Math.floor((re.hold - re.winAppliedHold) / 2);
-      if (f >= 0) {
-        star.texture = this.frame('win', Math.min(seg[0] - 1 + f, seg[1] - 1)) ?? star.texture;
-        star.visible = true;
-      } else {
-        star.visible = false;
-      }
-    } else if (star) {
-      star.visible = false;
-    }
   }
 
-  /** 胜方 comicType（胜利星段选择；team 按 roster id，1v1 按 side 装配）。 */
-  private winnerComicType(snap: SimSnapshot, re: NonNullable<SimSnapshot['state']['roundEnd']>): number {
-    if (re.winnerId > 2) {
-      const spec = this.spec.teamFighters?.[re.winnerId];
-      if (spec) return spec.comicType;
+  /**
+   * 胜利星逐局累积（多局制收编，原版 FightUI.showWins isSingleMode 门 +
+   * WinUI.show）：wins≥k 点亮槽 k（team1: w1→w2，team2 镜像反序——build 已按
+   * 侧换算绝对位）；点亮沿 = winApplied 落位（原版 showWins 于 showWinner 同
+   * 拍）起播 in_bleach/in_naruto 段（按本侧 comicType）定格段尾；槽位件独立
+   * 时间轴 → 先行槽保持定格，逐局累积。wins 回退（新对局）全灭复位。
+   */
+  private updateWinStars(snap: SimSnapshot, dtMs: number): void {
+    if (!this.frames.has('win')) return;
+    const teams = snap.state.match.teams;
+    const re = snap.state.roundEnd;
+    const fps = this.data.winAnim.fps;
+    for (const side of [1, 2] as const) {
+      // 仅 1v1（原版 isSingleMode 门）
+      const wins = teams == null ? (side === 1 ? snap.state.match.p1Wins : snap.state.match.p2Wins) : 0;
+      const stars = this.winStarSp[side];
+      const anims = this.winStarAnim[side];
+      // 1v1 装配 comicType（原版按胜方 FighterVO；1v1 恒 side 装配）
+      const ct = side === 1 ? this.spec.fighters.p1.comicType : this.spec.fighters.p2.comicType;
+      const seg = ct === 1 ? ([30, 40] as const) : ([10, 29] as const);
+      const segLen = seg[1] - seg[0] + 1;
+      for (let k = 0; k < stars.length; k++) {
+        const sp = stars[k]!;
+        const st = anims[k]!;
+        if (wins < k + 1) {
+          if (sp.visible || st.activated) {
+            sp.visible = false;
+            sp.texture = Texture.EMPTY;
+            st.activated = false;
+            st.playing = false;
+            st.f = 0;
+          }
+          continue;
+        }
+        if (!st.activated) {
+          if (re != null && re.winApplied && !re.draw && re.winnerSide === side) {
+            // 点亮沿：起播（原版 showWins gotoAndPlay）
+            st.activated = true;
+            st.playing = true;
+            st.f = 0;
+          } else if (re == null) {
+            // 兜底：快照链上无 winApplied 窗口（HUD 中途挂载等）→ 静态点亮
+            st.activated = true;
+            st.playing = false;
+            st.f = segLen - 1;
+          } else {
+            continue; // 演出未落位，槽位待点亮
+          }
+        }
+        if (st.playing) {
+          st.f += dtMs / (1000 / fps);
+          if (st.f >= segLen) {
+            st.playing = false;
+            st.f = segLen - 1;
+          }
+        }
+        sp.texture =
+          this.frame('win', seg[0] - 1 + Math.floor(Math.min(st.f, segLen - 1))) ?? sp.texture;
+        sp.visible = true;
+      }
     }
-    const fs = snap.state.fighters.find((f) => f.id === re.winnerId);
-    if (fs) {
-      const spec = this.spec.teamFighters?.[fs.id];
-      if (spec) return spec.comicType;
-    }
-    return re.winnerSide === 1
-      ? this.spec.fighters.p1.comicType
-      : this.spec.fighters.p2.comicType;
   }
 
   /** f = 本侧角色；target = 对面角色（连击隐藏按目标状态判定）。 */
@@ -1165,6 +1388,14 @@ export class FightHud {
     this.startKOPin = null;
     this.startKONumPin = null;
     this.startKODelta = null;
+    this.timeInfSp = null;
+    this.timeNumSp = null;
+    this.endKOSp = null;
+    this.winnerSp = { 1: null, 2: null };
+    this.timeoverSp = null;
+    this.drawgameSp = null;
+    this.winStarSp = { 1: [], 2: [] };
+    this.winStarAnim = { 1: [], 2: [] };
   }
 }
 

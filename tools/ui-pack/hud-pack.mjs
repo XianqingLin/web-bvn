@@ -103,6 +103,8 @@ let startKONumSpec = null;
 let startKOWordDelta = 39.5;
 /** 逐帧居中 delta（数字块产出；数字窗口内为词 delta 占位，运行时按回合覆盖） */
 let startKOFrameDeltas = null;
+/** start_final 段居中 delta（决胜段块产出；无则运行时退 centerDelta） */
+let startKOFinalDelta = null;
 async function put(name, src) {
   copyFileSync(src, join(OUT_ASSETS, `${name}.png`));
   el[name] = `ui/hud/${name}.png`;
@@ -188,6 +190,10 @@ await putShape('face-assist-frame', 103, 55, 37);
 await putFrames('ready-anim', spriteDir(108, 'READY 动画'), 20, 20);
 await putShape('time-bg', 162, 75, 54);
 await put('time-inf', join(spriteDir(165, '无限符号'), '1.png'));
+// 时间数字 time_txtmc = sprite 250（XFL mc_016，10 帧：帧 N = 数字 N-1，位图 26×31；
+// FightTimeUI：gameTimeMax==-1 显 ∞，否则 MCNumber(cls,0,startFrame=1,mcWidth=20,bits=2)
+// @ui 局部 (-22,-15)——两位零填充、逐位步进 20px）
+await putFrames('time-num', spriteDir(250, 'time_txtmc 数字'), 10, 10);
 // 连击：HITS 字 sprite 52 (59×30)；数字 sprite 22 (10帧，帧 N = 数字 N-1)
 await put('hits-label', join(spriteDir(52, 'HITS 字'), '1.png'));
 await putFrames('num', spriteDir(22, '连击数字'), 10, 10);
@@ -412,6 +418,67 @@ await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
   el['startko-ko'] = 'ui/hud/startko-ko';
 }
 
+// —— 结算字样 timeover/drawgame 段 + 开局 start_final 段（多局制渲染收编）：
+// XFL 标签（0 基）：start_final@94 dur45 / timeover@219 dur43 / drawgame@266 dur42，
+// 帧脚本实证（mc_043_42.as）：timeover 段尾 addFrameScript(262)=frame263 stop+COMPLETE
+// → 播 0 基 219..262 = PNG 220..263（44 帧）；drawgame 段尾 addFrameScript(308)=frame309
+// stop+COMPLETE → 播 0 基 266..308 = PNG 267..309（43 帧）。摆位：playTimeOver 设
+// startKOmc.y=0（playKO2 同款覆写）→ PNG(0,0) 落 ui_fight (13,103)，与 KO 段同。
+// start_final：showStart round≥5 分支（FightUI.as:288 gotoAndStop("start_final")）→
+// 播 0 基 94..138 = PNG 95..139（45 帧），段内无脚本；renderStartAndKO 到 go:fight
+// 标签（0 基 139）时 gotoAndStop("fight") 重定向复用 fight 段（startko 资产帧 46..79）
+// → start_final 路径总帧数 = 45+34 = 79 与 start 路径等长（INTRO_START_TICKS 不变）。
+// 摆位同 start 段（showStart y=-50）→ pos = startKO.pos。
+{
+  const dir = spriteDir(228, 'startKOmc 字样');
+  mkdirSync(join(OUT_ASSETS, 'startko-final'), { recursive: true });
+  const FINAL_FROM = 95; // 0 基 94 = PNG 95
+  const FINAL_FRAMES = 45; // 0 基 94..138
+  for (let i = 0; i < FINAL_FRAMES; i++) {
+    copyFileSync(join(dir, `${FINAL_FROM + i}.png`), join(OUT_ASSETS, 'startko-final', `${i + 1}.png`));
+  }
+  el['startko-final'] = 'ui/hud/startko-final';
+  // 居中 delta = 稳态帧（45）bbox 实测固定值——入场为逐字弹入（delta 序列
+  // 196→114.5→-21 阶梯状，每字 ~21px），逐帧居中会随弹字抖动 → 固定 delta
+  // 保持原版原地弹出（同 start 段词 delta 策略；alphaBBox 为字样数字块局部，
+  // 此处就地复刻）
+  const alphaBBox = (data, w, h) => {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4 + 3] > 0) {
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    return x1 < x0 ? null : { x0, y0, x1, y1 };
+  };
+  const steadyFr = await sharp(join(OUT_ASSETS, 'startko-final', `${FINAL_FRAMES}.png`))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const steadyBb = alphaBBox(steadyFr.data, steadyFr.info.width, steadyFr.info.height);
+  if (!steadyBb) throw new Error('hud-pack: startko-final 稳态帧无内容');
+  startKOFinalDelta = 387 - (steadyBb.x0 + steadyBb.x1) / 2;
+  const TO_FROM = 220; // 0 基 219 = PNG 220
+  const TO_FRAMES = 44; // 0 基 219..262（含段尾脚本帧）
+  mkdirSync(join(OUT_ASSETS, 'startko-timeover'), { recursive: true });
+  for (let i = 0; i < TO_FRAMES; i++) {
+    copyFileSync(join(dir, `${TO_FROM + i}.png`), join(OUT_ASSETS, 'startko-timeover', `${i + 1}.png`));
+  }
+  el['startko-timeover'] = 'ui/hud/startko-timeover';
+  const DG_FROM = 267; // 0 基 266 = PNG 267
+  const DG_FRAMES = 43; // 0 基 266..308（含段尾脚本帧）
+  mkdirSync(join(OUT_ASSETS, 'startko-drawgame'), { recursive: true });
+  for (let i = 0; i < DG_FRAMES; i++) {
+    copyFileSync(join(dir, `${DG_FROM + i}.png`), join(OUT_ASSETS, 'startko-drawgame', `${i + 1}.png`));
+  }
+  el['startko-drawgame'] = 'ui/hud/startko-drawgame';
+}
+
 // —— 胜利字样（winnermc = mc_042，sprite 221，嵌套于 mc_043 winner 段）：
 // 帧脚本实证（mc_042_44.as）：自身时间轴 1..28 "Winner" 缩放入场；frame29 非
 // perfect stop+COMPLETE（定格 Winner）；perfect 续播至 frame56 stop（定格
@@ -457,8 +524,10 @@ const doc = {
     },
     /** 胜利星（mc_036）：w1/w2 槽位；in_bleach/in_naruto 帧段 */
     win: { p1: [-92.25, 35.3], p2: [39.75, 35.3], w1: [29.5, -8], w2: [-0.5, -8] },
-    /** 时间板（mc_038）：bg 75×54 @(-37.5,-27)；∞ 43×27 @(-43,0) */
-    time: { bgPos: [-37.5, -27], infPos: [-43, 0] },
+    /** 时间板（mc_038）：bg 75×54 @(-37.5,-27)；∞ 43×27 @(-43,0)；数字
+     *  time_txtmc@(-22,-15)（FightTimeUI MCNumber，逐位步进 20px，两位零填充；
+     *  gameTimeMax==-1 显 ∞ 隐数字，否则反之） */
+    time: { bgPos: [-37.5, -27], infPos: [-43, 0], numPos: [-22, -15], numDigitW: 20 },
   },
   qi: {
     /** fzqi1/fzqi2 舞台原点（P2 a=-1 镜像） */
@@ -518,16 +587,28 @@ const doc = {
     centerDelta: startKOWordDelta,
     ...(startKOFrameDeltas ? { frameDeltas: startKOFrameDeltas } : {}),
     ...(startKONumSpec ? { num: startKONumSpec } : {}),
+    /** start_final 段（round≥5 开局分支，FightUI.as:288）：45 帧独立烘焙，
+     *  段内 go:fight 标签由运行时重定向复用 startko fight 段（资产帧 46..79）；
+     *  pos 沿用 startKO 布局，centerDelta = "Final Round" 稳态 bbox 实测固定值
+     *  （逐字弹入期不逐帧居中——原版原地弹出语义）。旧 baked 缺省 = 恒用 start 段。 */
+    ...(el['startko-final']
+      ? { final: { frames: 45, ...(startKOFinalDelta !== null ? { centerDelta: startKOFinalDelta } : {}) } }
+      : {}),
   },
   /** 结算字样（回合结算流程收编）：ko = startKOmc KO 段（XFL 144..190，47 帧
    *  @30fps，末帧空黑），pos = ui_fight 摆放点（playKO2 y=0 + PNG 画布原点）；
    *  winner = 嵌套 winnermc（sprite 221）独立时间轴，frames = 56（帧脚本
    *  frame29 非 perfect 定格 / frame56 perfect 定格），perfectFrom = Perfect
    *  段起始资产帧号，posP1/posP2 = 原点 ui_fight 摆位（$winnerX 30|546 按胜方
-   *  侧、$winnerY 90 + showWinner startKOmc.y=30）。 */
+   *  侧、$winnerY 90 + showWinner startKOmc.y=30）；timeover/drawgame = 结算段
+   *  （多局制收编：timeover 44 帧 / drawgame 43 帧，均含段尾 stop 脚本帧，
+   *  末帧定格语义——timeover 平局经 drawgame 续播、非平局被 winner 字样替换），
+   *  pos = ui_fight 摆放点（playTimeOver y=0 + PNG 画布原点，与 ko 段同）。 */
   endKO: {
     ko: { frames: 47, fps: 30, pos: [13, 103] },
     winner: { frames: 56, perfectFrom: 30, posP1: [30, 120], posP2: [546, 120] },
+    timeover: { frames: 44, fps: 30, pos: [13, 103] },
+    drawgame: { frames: 43, fps: 30, pos: [13, 103] },
   },
 };
 

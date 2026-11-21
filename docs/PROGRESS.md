@@ -48,10 +48,10 @@
 
 **立项根因**：原版反编译源实证（GameCtrler.as:680-688/498-533/616-666、GameEndCtrler.as、GameRunDataVO.as、FightUI.as:288/296-405、ConfigVO.fightTime=60）——**原版 1v1 是三局两胜多局制**，DESIGN §3.5 团队回合流段"1v1 无 pending 恒终局（原版 nextFighter 无备选 → fightFinish）"系漏读（nextFighter 无备选只对 team 分支成立；single 分支 `p1Wins<2 && p2Wins<2 → buildNextRound(false)` 重开）——未登记偏离，本项归位。用户定案（2026-11-21）：恢复三局两胜、回合计时 60 秒跟原版（原版设置可调 20/40/60/99，port 先 SimConfig 常量）。
 
-- **core**：MatchState + gameTime/gameTimeMax（秒，每 30 tick 减 1，原版 renderGameTime；训练/无时限 -1）/1v1 出生点；RoundEndState + timerOver；wins 逐局计（原版 doGameEnd 置位时 ++，自 finishMatch 移出）；1v1 演出毕 wins<2 → 重开该轮（原版 resetFight 双方满血回位 + startNextRound 无特写字样，port intro 直入字样步）else fightFinish；平局不计胜场恒重开（原版 drawGame）；timeover：gameTime 归零 → hp 高者胜/hp 相等 drawGame（原版 timeover）；team 换人路径 gameTime 重置（原版 nextRound）；胜方回血率归位 `0.165×(timeRate+1)`（原版 GameEndCtrler.renderEND case1，timeRate = gameTime/gameTimeMax，无时限=1）。
-- **渲染收编**：计时板数字（现恒 ∞）、timeover/drawgame/start_final 字样段（触发条件实证 round≥5 用 start_final，FightUI.as:288）、胜利星逐局累积、bannerTimeover/bannerDraw/bannerFinal 音接线（audio.ts 已就位）。
-- **门禁**：行为有意变更 → replay 9 剧本 + batch 基线全量 verify-drift 归因后重冻。
-- **偏离登记**（本项内定案）：①计时递减相位 roundFrame % 62 === 0（原版 renderGameTime 挂 30Hz renderAnimate 内独立计数器 31 次减 1，fightTime=60 ≈ 62 真实秒；原版计数器不随回合重置；slowDown 期 port 计时照走、原版随动画帧同门降频——挂身慢放累计秒级可忽略）；②timeover 平局 team 换人气无继承（原版用上一局残留 lastLoserData，stale 语义不建模）；③双侧 roster 耗尽且平局的边角按胜方侧判定（维持既有偏离）。
+- **core**：MatchState + gameTime/gameTimeMax（秒，每 30 tick 减 1，原版 renderGameTime；训练/无时限 -1）/1v1 出生点；RoundEndState + timerOver；wins 逐局计（原版 doGameEnd 置位时 ++，自 finishMatch 移出）；1v1 演出毕 wins<2 → 重开该轮（原版 resetFight 双方满血回位 + startNextRound 无特写字样，port intro 直入字样步）else fightFinish；平局不计胜场恒重开（原版 drawGame）；timeover：gameTime 归零 → hp 高者胜/hp 相等 drawGame（原版 timeover）；team 换人路径 gameTime 重置（原版 nextRound）；胜方回血率归位 `0.165×(timeRate+1)`（原版 GameEndCtrler.renderEND case1，timeRate = gameTime/gameTimeMax，无时限=1）。✅ 2026-11-21 完成（commit e66440e）。
+- **渲染收编** ✅ 2026-11-21 完成：计时板数字（FightTimeUI time_txtmc=sprite 250 / MCNumber 两位零填充逐位 20px，gameTime 驱动、训练显 ∞）；start_final 段（round≥5 开局分支，FightUI.as:288；XFL 0 基 94..138 独立烘焙 45 帧 + renderStartAndKO go:fight 标签 gotoAndStop("fight") 重定向语义 → 运行时复用 startko fight 段，总帧数 79 与 start 路径等长；居中 delta = 稳态固定值——逐字弹入期不逐帧居中，原版原地弹出语义；段内无数字槽——原版 r5 nummc 段死代码佐证）；timeover/drawgame 结算段（段尾帧脚本 stop+COMPLETE 实证定帧数 44/43，timerOver 置位即时起播 timeover、平局续播 drawgame 定格段尾至重开、非平局被 winner 字样替换——原版 playTimeOver/playDrawGame/showWinner）；胜利星逐局累积（WinUI.show wins→槽位语义：team1 w1→w2 / team2 镜像反序，点亮沿 = winApplied 落位起播 in_bleach/in_naruto 定格段尾，wins 回退全灭）；bannerFinal = core intro hold 0 按 round≥5 分流（原版声音层贴帧 sound_006）；bannerTimeover/bannerDraw = HUD 显示沿 onBanner 回调（core 不持表现段帧数常量，双端快照一致同拍触发）。
+- **门禁**：core 侧 commit e66440e（行为有意变更 → replay 9 剧本重冻 + batch 重冻，已过）；渲染收编零状态变更 → replay 9 剧本零漂移 + batch 基线复验过（2026-11-21）。
+- **偏离登记**（本项内定案）：①计时递减相位 roundFrame % 62 === 0（原版 renderGameTime 挂 30Hz renderAnimate 内独立计数器 31 次减 1，fightTime=60 ≈ 62 真实秒；原版计数器不随回合重置；slowDown 期 port 计时照走、原版随动画帧同门降频——挂身慢放累计秒级可忽略）；②timeover 平局 team 换人气无继承（原版用上一局残留 lastLoserData，stale 语义不建模）；③双侧 roster 耗尽且平局的边角按胜方侧判定（维持既有偏离）；④timerOver 非平局 winner 字样起播锚 = winAppliedHold（hold 120 门 + 延迟 60 = 180），原版 timeover 段计满（hold 88）+ 1s 延迟 ≈ 148 起播——0.5s 内偏差，避免为对齐而动 core 计时；⑤start_final 居中 delta 稳态固定（原版逐字弹入原地语义，逐帧居中会抖动）。
 
 ---
 
@@ -63,7 +63,7 @@
 - 嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值）；
 - 佐助防御时人物模糊待复测（疑 autoZoom 近身上采样变糊，全角色共有）；
 - more= 形态切换未实现（含黄框交互）；重开局仅 solo（net CONTINUE 隐藏）；
-- HUD 展示件：scoremc 计分板（2026-11-21 实证修订——语义为**街机模式得分板**：addScoreByHitTarget/addScoreByKO/WinnerStage "SCORE xxx"，真前置 = §2.3 块 6 街机模式，非多局制）/ shape_007 回合指示（反编译脚本零引用，无语义，豁免）；timeover/drawgame/start_final 段 + 计时板数字 + bannerTimeover/bannerDraw/bannerFinal 音接线 → 已随多局制立项收编（§2.5 渲染块）；3.6 版血条 HP 数字（纯显示层增强）；
+- HUD 展示件：scoremc 计分板（2026-11-21 实证修订——语义为**街机模式得分板**：addScoreByHitTarget/addScoreByKO/WinnerStage "SCORE xxx"，真前置 = §2.3 块 6 街机模式，非多局制）/ shape_007 回合指示（反编译脚本零引用，无语义，豁免）；timeover/drawgame/start_final 段 + 计时板数字 + bannerTimeover/bannerDraw/bannerFinal 音接线 → 已随 §2.5 渲染块收编完成（2026-11-21）；3.6 版血条 HP 数字（纯显示层增强）；
 - 菜单/选人页背景嵌套动画——主菜单 title 侧运行时叠加层路线已证伪暂缓（select 侧旋涡/地图面板 fx 已收编，元件独立、无遮挡污染，路线可行）。title 重立项前提：换参考基准——FFDec 脚本导出复刻嵌套时间轴语义（**时间轴语义以 ffdec -export script 实证为准，二进制解析/模板匹配类核对已两次证伪**）或嵌套区域整段视频化，叠加层模板匹配路线不再走。证伪根因三条：① FFDec 帧导出把嵌套 MovieClip 冻结在未知内部帧，"原板"作为校准基准不可信；② 叠加层落点依赖模板匹配，被上层元件覆盖污染 + 画面平滑自相似产生假匹配；③ z 序正确性需拆双板，复杂度与残差不成比例。
 
 ---

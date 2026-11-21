@@ -396,6 +396,10 @@ export class LoadingScene implements Scene {
           hitspark: { baked: hitspark! },
           hud: {
             data: hud!,
+            // 结算段播报音沿（多局制收编）：HUD timeover/drawgame 显示沿 →
+            // banner 音（原版 mc_043 声音层贴帧音；bannerFinal 由 core intro
+            // round≥5 随 sim sound 事件下发，不在此列）
+            onBanner: (id) => audioOf(ctx.ctx)?.se(id, 'banner'),
             // 血条大脸 = select id+'_m'（102×64）；辅助脸 = 辅助 id 50×50 网格脸
             //（原版 getFighterFace 缺省 size）；能量标签帧 = comicType（0=死神 1=火影）
             fighters: {

@@ -159,9 +159,12 @@ export function stepIntroAdvance(ctx: SimCtx): void {
   if (intro.step === INTRO_STEP_START) {
     // 开场字样播报音（修复批次 62，原版 startKOmc 声音层贴帧音）：资产帧 1
     // （= SWF 帧 11，hold 0）回合播报 sound_007 / 资产帧 47（= SWF 帧 57，
-    // hold 92）Fight! sound_005。决胜回合播报（SWF 帧 96，start_final 段）与
-    // 结算段 TimeOver/DrawGame 音随渲染收编另行接线（遗留池）。
-    if (intro.hold === 0) ctx.emit('sound', { id: 'bannerRound' });
+    // hold 92）Fight! sound_005。round≥5 用 start_final 段（FightUI.as:288
+    // round<5 分支）→ 决胜播报 sound_006/bannerFinal（多局制收编；原版该音
+    // 起于段内帧 2，取 hold 0 与 bannerRound 同款近似）。结算段 TimeOver/
+    // DrawGame 音为渲染沿驱动（HUD onBanner——core 不持表现段帧数常量）。
+    if (intro.hold === 0)
+      ctx.emit('sound', { id: ctx.state.match.round >= 5 ? 'bannerFinal' : 'bannerRound' });
     else if (intro.hold === INTRO_FIGHT_SOUND_HOLD) ctx.emit('sound', { id: 'bannerFight' });
     intro.hold += 1;
     if (intro.hold >= INTRO_START_TICKS) endIntro(ctx);
