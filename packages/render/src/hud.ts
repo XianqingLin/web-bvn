@@ -29,8 +29,8 @@
  * 复用 fight 段）、timeover/drawgame 结算段（timerOver 路径 + bannerTimeover/
  * bannerDraw 播报音沿 onBanner 回调）、胜利星逐局累积（WinUI w1/w2 双槽）。
  *
- * 遗留（未收编，登记 PROGRESS 遗留池）：scoremc（街机得分板，归 §2.3 块 6）、
- * 被动条 sp。开局段（start+fight）已收编（intro 切片：core 冻结期快照驱动，
+ * 遗留（未收编）：被动条 sp（登记 PROGRESS 遗留池）。scoremc 街机得分板随
+ * 结算画面/街机模式定案不做一并出池（2026-11-21）。开局段（start+fight）已收编（intro 切片：core 冻结期快照驱动，
  * intro.step===7 期间 30Hz 流帧；Round 数字 = nummc 收编修正，批次 43——帧位图
  * 数字区烘焙擦除 + startko-num 合成帧按 min(round,5) 选组叠放）。
  */
