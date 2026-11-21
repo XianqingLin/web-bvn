@@ -12,7 +12,8 @@
  *                                                  （角色/辅助语音：snd_hurt1~3/snd_die 等命名类；
  *                                                  匿名 chid 音 = 时间轴贴帧音，另立切片不采）
  *   6. FighterTester.swf 内嵌 fight.swf 匿名音   → assets/audio/banner/（startKOmc 声音层
- *                                                  播报音：bannerRound/bannerFight/...，批次 62）
+ *                                                  播报音：bannerRound/bannerFight/...，批次 62；
+ *                                                  nummc 声音层数字语音 bannerNum1..4，批次 68）
  *   产出 baked/audio.json（schema bvn/audio@1）：SE/swc/fx/banner/bgm 清单 + fighter.xml/map.xml
  *   BGM 配置 + 命中音映射（原版 EffectModel addHitEffect/addDefenseEffect/steel 烘焙）
  *   + effect 事件 → fx 音映射 + 语音类绑定（voices）。
@@ -164,13 +165,23 @@ let banner = {};
 //   帧 96  sound_006 (cid 206) = 决胜回合播报（start_final 段，渲染侧未收编，烘焙备用）
 //   帧 221 sound_009 (cid 224) = TimeOver（结算段）
 //   帧 267 sound_008 (cid 227) = DrawGame（结算段）
-// chid 映射硬编码（资产 git 版本化；导出数 ≠ 5 即报警断言，防止静默漂移）。
+// chid 映射硬编码（资产 git 版本化；导出缺失即报警断言，防止静默漂移）。
 const BANNER_CHID = {
   177: 'bannerRound',
   199: 'bannerFight',
   206: 'bannerFinal',
   224: 'bannerTimeover',
   227: 'bannerDraw',
+};
+// nummc（mc_041，sprite 196）声音层贴帧音（批次 68）：r1..r4 段数字语音
+// One/Two/Three/Four——StartSound 贴 SWF 帧 16/33/50/66，与各段 stop 帧
+// （addFrameScript 0 基 16/33/50/66）交叉实证；r5 段无音（start_final 路径
+// 无数字槽佐证）。
+const NUM_CHID = {
+  184: 'bannerNum1',
+  187: 'bannerNum2',
+  190: 'bannerNum3',
+  193: 'bannerNum4',
 };
 {
   const src = join(SCRATCH, 'banner_src');
@@ -185,7 +196,7 @@ const BANNER_CHID = {
   rmSync(bannerDir, { recursive: true, force: true });
   mkdirSync(bannerDir, { recursive: true });
   banner = {};
-  for (const [chid, name] of Object.entries(BANNER_CHID)) {
+  for (const [chid, name] of Object.entries({ ...BANNER_CHID, ...NUM_CHID })) {
     const file = readdirSync(sndDir).find((f) => new RegExp(`^${chid}\\.(mp3|wav)$`, 'i').exec(f));
     if (!file) throw new Error(`sound-pack: banner 音 ${name}（cid ${chid}）导出缺失`);
     cpSync(join(sndDir, file), join(bannerDir, `${name}.mp3`));

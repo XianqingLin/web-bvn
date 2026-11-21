@@ -179,6 +179,24 @@ describe('intro 切片：开局特写+语音演出', () => {
     expect(end).toBeGreaterThan(200);
   });
 
+  it('字样段播报音贴帧：bannerRound@0 / bannerNum1@46 / bannerFight@92（批次 68）', () => {
+    const sim = new Sim(makeConfig(false));
+    const snaps = drive(sim, 400);
+    const sounds: { hold: number; id: string }[] = [];
+    for (const s of snaps) {
+      if (s.state.intro?.step !== 7) continue;
+      for (const e of s.events) {
+        if (e.type === 'sound')
+          sounds.push({ hold: s.state.intro.hold, id: String(e.payload['id']) });
+      }
+    }
+    // hold 0 回合播报 + hold 46 Round 数字语音（nummc r1 段贴帧音，原版资产帧
+    // 24 = 弹入窗口锚 18 + 段内偏移 6）+ hold 92 Fight!
+    expect(sounds.map((x) => x.id)).toEqual(['bannerRound', 'bannerNum1', 'bannerFight']);
+    const h0 = sounds[0]!.hold;
+    expect(sounds.slice(1).map((x) => x.hold - h0)).toEqual([46, 92]);
+  });
+
   it('冻结期流程步照跑：能量/辅助气维持满值（满值起步不可观测回充，烟雾断言管线不崩）', () => {
     const sim = new Sim(makeConfig(true));
     const snaps = drive(sim, 60);

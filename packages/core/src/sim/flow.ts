@@ -35,6 +35,15 @@ const INTRO_RESUME_TICKS = 30;
 const INTRO_START_TICKS = 156;
 /** Fight! 播报音 hold（startKOmc 资产帧 47 = SWF 帧 57，30Hz 贴帧音 × 2 sim tick） */
 const INTRO_FIGHT_SOUND_HOLD = 92;
+/**
+ * Round 数字语音 hold（nummc=mc_041 声音层贴帧音，批次 68）：mc_043 帧脚本在
+ * SWF 帧 27/28 两次 nummc.gotoAndPlay("r"+round)（第二次重置生效，恰为批次 67
+ * 实证的弹入窗口起点 = 资产帧 18），音贴在 rN 段标签帧 +6（r4 段短 1 帧 +5，
+ * SWF 帧位 16/33/50/66 与各段 stop@17/34/51/67 交叉实证）→ 资产帧 24（r1..r3）
+ * /23（r4），hold =（资产帧−1）×2。r5 起走 start_final 段无数字槽无音。
+ * 索引 = round−1。
+ */
+const INTRO_NUM_SOUND_HOLD = [46, 46, 46, 44] as const;
 /** 字样段（step 7）：出场后不可跳（原版 _step<5 才可 skip） */
 export const INTRO_STEP_START = 7;
 
@@ -166,6 +175,11 @@ export function stepIntroAdvance(ctx: SimCtx): void {
     if (intro.hold === 0)
       ctx.emit('sound', { id: ctx.state.match.round >= 5 ? 'bannerFinal' : 'bannerRound' });
     else if (intro.hold === INTRO_FIGHT_SOUND_HOLD) ctx.emit('sound', { id: 'bannerFight' });
+    // Round 数字语音（批次 68，nummc 声音层贴帧音）：round 1..4 各报 One/Two/
+    // Three/Four（bannerNum1..4）；round≥5 start_final 段无数字语音
+    const round = ctx.state.match.round;
+    if (round >= 1 && round <= 4 && intro.hold === INTRO_NUM_SOUND_HOLD[round - 1])
+      ctx.emit('sound', { id: `bannerNum${round}` });
     intro.hold += 1;
     if (intro.hold >= INTRO_START_TICKS) endIntro(ctx);
     return;

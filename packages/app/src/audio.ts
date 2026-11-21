@@ -349,9 +349,10 @@ export class AudioSubsystem implements Subsystem {
           } else if (id === 'hit1' || id === 'hit2') {
             this.se(id, 'se');
           } else if (id.startsWith('banner')) {
-            // 开场字样播报音（批次 62，core intro step 7 按贴帧音 hold 下发：
-            // bannerRound = 回合播报、bannerFight = Fight!；决胜/结算音待渲染
-            // start_final/结算段收编后接线）
+            // 开场字样/数字播报音（批次 62 起接线，core intro step 7 按贴帧音
+            // hold 下发）：bannerRound/Fight/Final = 回合/Fight!/决胜播报，
+            // bannerNum1..4 = Round 数字语音（批次 68），bannerTimeover/
+            // bannerDraw = 结算段（HUD onBanner 渲染沿）
             this.se(id, 'banner');
           }
           break;
