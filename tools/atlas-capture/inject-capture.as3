@@ -734,9 +734,13 @@
       // "真实场景底"混合——白底 darken 在游戏里白区透出场景，透明底整帧合成
       // 却把它拍成不透明白矩形。此类子对象拆出整帧合成：base 只画 normal
       // 子对象，每个 blend 子对象单独采集 png 并记录 blend 值（帧条目 parts），
-      // 渲染层对场景做对应混合。嵌套（非顶层）blend 仍随整帧压平（已知局限：
-      // add/screen 类在暗底上与透明底近似，darken/multiply 类嵌套用法待出现
-      // 实证失真再扩）。'layer' 只做组合隔离、视觉等价 normal，不拆。
+      // 渲染层对场景做对应混合。
+      // 修复（2026-11-21，斑防御黑底实证）：嵌套 blend 同病同治——防御护栏
+      // mc_043 内 screen 肋骨/add 光效（黑底图源）压平进 base 会把黑底烤成
+      // 不透明黑块并把 body 盖没。此处对顶层 normal 子对象的 display 树下钻
+      // 收集 blend 后代，base 隐藏全部 blend 节点、每个 blend 节点（顶层+嵌套）
+      // 单独隔离采集。blend 节点内部不再下钻（其内部混合在节点自身合成面上
+      // 进行，属节点自有内容——嵌套 blend 套 blend 的用法待实证失真再扩）。
       private function capShotFrame(item:Object, rootRef:DisplayObject, mc:MovieClip, f:int, seen:Object, pngList:Array, nextId:Function, outFrames:Array, skipRe:RegExp) : void
       {
             // 内容 bounds：rootRef 局部坐标系，排除判定区标记节点
@@ -760,7 +764,7 @@
                {
                   if(b.width > 0 && b.height > 0)
                   {
-                     blends.push({"ch":ch,"blend":bm,"b":b});
+                     blends.push({"ch":ch,"blend":bm,"b":b,"top":null});
                   }
                   continue;
                }
@@ -786,45 +790,74 @@
                }
                has = true;
             }
-            // base：blend 子对象临时隐藏后整帧渲染（与旧版唯一的差异 = 不含 blend 内容）
+            // 嵌套 blend 收集：下钻顶层 normal 子对象的 display 树
+            var nested:Array = [];
+            for(var i2:int = 0; i2 < mc.numChildren; i2++)
+            {
+               var tc:DisplayObject = mc.getChildAt(i2);
+               if(tc == null)
+               {
+                  continue;
+               }
+               var tnm:String = tc.name;
+               if(tnm == null || skipRe.test(tnm))
+               {
+                  continue;
+               }
+               if(tc.blendMode != "normal" && tc.blendMode != "layer")
+               {
+                  continue; // 顶层 blend 自身已拆，内部混合属节点自有内容
+               }
+               var tcont:DisplayObjectContainer = tc as DisplayObjectContainer;
+               if(tcont == null)
+               {
+                  continue;
+               }
+               var tb:Rectangle = tc.getBounds(rootRef);
+               if(tb.width <= 0 || tb.height <= 0)
+               {
+                  continue;
+               }
+               capCollectNestedBlends(tcont,tc,rootRef,nested,skipRe,0);
+            }
+            var allBlends:Array = blends.concat(nested);
+            // base：全部 blend 节点（顶层+嵌套）临时隐藏后整帧渲染（与旧版唯一
+            // 差异 = 不含 blend 内容）
             var basePng:int = -1;
             var baseX:Number = 0;
             var baseY:Number = 0;
             if(has)
             {
-               for(var vi:int = 0; vi < blends.length; vi++)
+               var savedBase:Array = [];
+               for(var vi:int = 0; vi < allBlends.length; vi++)
                {
-                  blends[vi].ch.visible = false;
+                  var hc:DisplayObject = allBlends[vi].ch;
+                  savedBase.push([hc,hc.visible]);
+                  hc.visible = false;
                }
                var base:Object = capRenderRegion(item,rootRef,rx,ry,rx2,ry2,f,seen,pngList,nextId);
-               for(var vr:int = 0; vr < blends.length; vr++)
+               for(var vr:int = savedBase.length - 1; vr >= 0; vr--)
                {
-                  blends[vr].ch.visible = true;
+                  savedBase[vr][0].visible = savedBase[vr][1];
                }
                basePng = base.png;
                baseX = base.x;
                baseY = base.y;
             }
-            // parts：每个 blend 子对象单独采集（隐藏其余全部子对象，仅留目标；
+            // parts：每个 blend 节点单独采集（隔离到只剩目标子树可见；
             // 混合对透明底 = 源不变，png 保留"混合前源内容"供渲染层对场景混合）
             var parts:Array = null;
-            if(blends.length > 0)
+            if(allBlends.length > 0)
             {
                parts = [];
-               for(var bi:int = 0; bi < blends.length; bi++)
+               for(var bi:int = 0; bi < allBlends.length; bi++)
                {
-                  var bl:Object = blends[bi];
-                  var saved:Array = [];
-                  for(var si:int = 0; si < mc.numChildren; si++)
-                  {
-                     var sc:DisplayObject = mc.getChildAt(si);
-                     saved.push(sc.visible);
-                     sc.visible = sc == bl.ch;
-                  }
+                  var bl:Object = allBlends[bi];
+                  var saved:Array = capIsolateForPart(mc,bl,allBlends);
                   var part:Object = capRenderRegion(item,rootRef,bl.b.x,bl.b.y,bl.b.x + bl.b.width,bl.b.y + bl.b.height,f,seen,pngList,nextId);
-                  for(var ri:int = 0; ri < saved.length; ri++)
+                  for(var ri:int = saved.length - 1; ri >= 0; ri--)
                   {
-                     mc.getChildAt(ri).visible = saved[ri];
+                     saved[ri][0].visible = saved[ri][1];
                   }
                   if(part.png >= 0)
                   {
@@ -856,6 +889,103 @@
             {
                outFrames[f - 1]["parts"] = parts;
             }
+      }
+
+      // 嵌套 blend 后代收集（capShotFrame 用）：container 树下钻，收集
+      // blendMode ≠ normal/layer 的后代节点；blend 节点内部不再下钻；
+      // top = 该节点的顶层 normal 祖先（part 隔离时的顶层锚）。
+      private function capCollectNestedBlends(container:DisplayObjectContainer, top:DisplayObject, rootRef:DisplayObject, out:Array, skipRe:RegExp, depth:int) : void
+      {
+         if(depth > 6)
+         {
+            return;
+         }
+         for(var i:int = 0; i < container.numChildren; i++)
+         {
+            var ch:DisplayObject = container.getChildAt(i);
+            if(ch == null)
+            {
+               continue;
+            }
+            var nm:String = ch.name;
+            if(nm == null || skipRe.test(nm))
+            {
+               continue;
+            }
+            var b:Rectangle = ch.getBounds(rootRef);
+            var bm:String = ch.blendMode;
+            if(bm != "normal" && bm != "layer")
+            {
+               if(b.width > 0 && b.height > 0)
+               {
+                  out.push({"ch":ch,"blend":bm,"b":b,"top":top});
+               }
+               continue;
+            }
+            var sub:DisplayObjectContainer = ch as DisplayObjectContainer;
+            if(sub != null)
+            {
+               capCollectNestedBlends(sub,top,rootRef,out,skipRe,depth + 1);
+            }
+         }
+      }
+
+      // part 采集隔离：整树只留 target 子树可见，返回 [对象, 原可见性] 对偶表。
+      // 顶层：隐藏除 target 顶层祖先（顶层 target = 自身）外全部顶层子对象；
+      // 隐藏其余全部 blend 节点（含 target 子树外的嵌套 blend）；嵌套 target
+      // 再沿其祖先链隐藏非链路兄弟（链路容器保持可见）。
+      private function capIsolateForPart(mc:MovieClip, target:Object, allBlends:Array) : Array
+      {
+         var touched:Array = [];
+         var topAncestor:DisplayObject = target.top != null ? target.top : target.ch;
+         for(var i:int = 0; i < mc.numChildren; i++)
+         {
+            var c:DisplayObject = mc.getChildAt(i);
+            if(c == null || c == topAncestor)
+            {
+               continue;
+            }
+            touched.push([c,c.visible]);
+            c.visible = false;
+         }
+         for(var j:int = 0; j < allBlends.length; j++)
+         {
+            var o:DisplayObject = allBlends[j].ch;
+            if(o == target.ch)
+            {
+               continue;
+            }
+            touched.push([o,o.visible]);
+            o.visible = false;
+         }
+         if(target.top != null)
+         {
+            capHideOffPathSiblings(touched,target.top as DisplayObjectContainer,target.ch);
+         }
+         return touched;
+      }
+
+      // container 子树内隐藏除 target 链路外全部子对象（链路容器保持可见递归）
+      private function capHideOffPathSiblings(touched:Array, container:DisplayObjectContainer, target:DisplayObject) : void
+      {
+         for(var i:int = 0; i < container.numChildren; i++)
+         {
+            var c:DisplayObject = container.getChildAt(i);
+            if(c == null || c == target)
+            {
+               continue;
+            }
+            var sub:DisplayObjectContainer = c as DisplayObjectContainer;
+            if(sub != null && sub.contains(target))
+            {
+               capHideOffPathSiblings(touched,sub,target);
+            }
+            else
+            {
+               touched.push([c,c.visible]);
+               c.visible = false;
+            }
+         }
       }
 
       // 区域渲染 + 哈希去重落盘（capShotFrame base/part 共用）：pngId<0 = 渲染失败
