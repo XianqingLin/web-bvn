@@ -14,6 +14,7 @@ import {
 import {
   applyJumpLaunch,
   onLanded,
+  pollTouchFloorPending,
   stepGhost,
   walkSpeed,
 } from '../fighter/machine.js';
@@ -172,6 +173,14 @@ export function stepPhysics(ctx: SimCtx, views: InputView[], onlyId?: number): v
         }
       }
       f.onGround = true;
+      // 触地续接·预约轮询消费（原版 renderFloorAction 头 `if(!_isTouchFloor)
+      // touchFloor()`）：预约在「已落地」状态挂上（落地早于同 tick 的
+      // setTouchFloor 帧触发，或站地中被预约）时，onLanded 已跑过、无人消费
+      // → 此处站地逐 tick 兜底消费。修复批次 68（2026-11-21）：斑目 砍技2
+      // 小跳先落地、预约后挂上，stop@241 冻结后 endAct/idle 永不可达 →
+      // vx=movePercent 残速 + dampX=0 永久滑步。落地当 tick 的预约仍由
+      // onLanded 消费（行为零漂移），本轮询只接住其后的预约。
+      pollTouchFloorPending(f, def);
     }
     // 起跳延迟（原版 renderJumpAnimate：延迟计满才施加跳跃速度并消耗
     // jumpTimes——放在积分后，首个上升位移出现在下一 tick）

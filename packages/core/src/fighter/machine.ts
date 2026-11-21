@@ -1378,6 +1378,49 @@ export function onLanded(f: FighterState, def: FighterDef | null): void {
 }
 
 /**
+ * 触地续接·预约轮询消费（原版 renderFloorAction 头 `if(!_isTouchFloor)
+ * touchFloor()`——消费不依赖落地事件，只要站地每 tick 轮询）。
+ * 移植版此前只在 onLanded（落地事件）消费：预约在「已落地」状态挂上
+ * （如 砍技2 小跳在 setTouchFloor 帧触发前落地）即永久悬空 → stop 冻结后
+ * endAct/idle 不可达 → 砍技2 永久滑步卡死（2026-11-21 用户实测修复）。
+ * 语义 = 原版 touchFloor() → doAction(label)：setVelocity(0,0)（清速度/阻尼）
+ * + goFrame（换标签解冻 mcHold）+ 空中攻击次数重置。
+ * HURT 系/死亡/万解/幽步不消费（原版 render() 各早退分支拦截，不达
+ * renderFloorAction）；缺标签 = 原版 checkFrame/doAction 静默（预约保留）。
+ */
+export function pollTouchFloorPending(
+  f: FighterState,
+  def: FighterDef | null,
+): void {
+  if (f.touchFloor === null) return;
+  if (
+    f.actionState === ActionState.DEAD ||
+    f.actionState === ActionState.HURT_ING ||
+    f.actionState === ActionState.HURT_FLYING ||
+    f.actionState === ActionState.HURT_DOWN ||
+    f.actionState === ActionState.HURT_DOWN_TAN ||
+    f.actionState === ActionState.HURT_ACT_ING ||
+    f.actionState === ActionState.WAN_KAI_ING ||
+    f.ghostTicks > 0
+  ) {
+    return;
+  }
+  const tf = def?.labels[f.touchFloor];
+  if (!tf) return;
+  // 原版 touchFloor() → doAction：setVelocity(0,0)——续接不带残速起手
+  f.vx = 0;
+  f.vy = 0;
+  f.dampX = 0;
+  f.dampY = 0;
+  f.actLabel = f.touchFloor;
+  f.animFrame = tf.index + 1;
+  f.labelLock = 0;
+  f.mcHold = false; // 原版 touchFloor() → goFrame：触地续接解冻 stop 冻结
+  f.touchFloor = null;
+  f.airHitTimes = 1; // 原版 touchFloor：空中攻击次数重置
+}
+
+/**
  * 受击进入（原版 doHurt 子集）。hp/死亡结算由调用方处理。
  * @param attackerFacing 攻击者朝向（原版 hitx *= owner.direct）
  * @returns 'fly' 击飞 | 'stagger' 硬直
