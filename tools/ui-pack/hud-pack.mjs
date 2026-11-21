@@ -218,55 +218,90 @@ await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
   }
   el['startko'] = 'ui/hud/startko';
 
-  // —— Round 数字（nummc 收编修正，批次 43）——
+  // —— Round 数字（nummc 收编修正，批次 43；揭示合成重构，批次 67）——
   // 原版 nummc（mc_041）由 mc_043 帧脚本 nummc.gotoAndPlay("r"+$round) 控制
   // （FightUI.showStart: startKOmc.$round = round）：数字 1..5 = 静态位图
-  // （swf id 182/185/188/191/194，画布锚 mc_041(10,2)）+ 实例级遮罩揭示动画。
+  // （swf id 182/185/188/191/194，画布锚 mc_041(10,2)）+ 实例矩阵缩放弹入。
   // FFDec 帧导出不执行脚本 → 原始嵌套时间轴被烘进位图（数字 1 于资产帧
-  // 18-43、数字 2 于 44-45），第二回合起字样错轮、回合 1 末尾还闪数字 2。
+  // 18-43、数字 2 于 44-45——静态导出不执行 nummc 的 stop() 所致，运行时
+  // 无此泄漏），第二回合起字样错轮、回合 1 末尾还闪数字 2。
   // 修正：字样帧位图数字区擦除 + 数字位图独立导出逐帧合成（数字窗口 =
-  // 揭示 18-27 + 稳定 28-45；帧 46+ Fight! 文本侵入数字矩形故不擦）。
-  // 偏离登记（2026-11-19）：① 数字 2-5 的揭示借数字 1 的逐帧 alpha 遮罩
-  // （原版为遮罩扫掠纯 alpha 语义，揭示瞬间的加色闪光 RGB 无法由 alpha
-  // 遮罩复原，~0.3s 微差）；② 原版 round≥5 用 start_final 段（XFL 另段未
-  // 收编）→ 恒用 start 段，数字按 min(round,5) 封顶（3v3 最多 5 回合）。
+  // 弹入 18-27 + 稳定 28-45；帧 46+ Fight! 文本侵入数字矩形故不擦）。
+  // 偏离登记（2026-11-19 立项 / 2026-11-21 批次 67 重构揭示合成）：① 揭示
+  // 并非遮罩扫掠——XFL mc_043 数字层实证 nummc 实例矩阵仅 scaleY 补间
+  // （d 0.127→1.361 过冲→1.0 加速补间，tx 恒定），数字位图自身静态
+  // （mc_041 帧导出 bbox 恒定实证）；批次 43 的"alpha 遮罩反推"（借数字 1
+  // 逐帧 aK/aStable）系误读，反推 alpha 非单调（数字闪现→变暗→硬切满帧）。
+  // 改实测 scaleY 曲线（sprite 228 揭示帧 a>0 像素质量比 ∝ d：0.125/1.057/
+  // 1.368/…/1.010，与 XFL 关键帧 0.127/1.361 吻合）+ 底边锚（画布 y≈453.5，
+  // 各帧 y0 反解恒 452~454）行插值纵向缩放；x 不缩放（揭示期 x bbox
+  // 441..512 恒定实证）。② 原版 round≥5 用 start_final 段——已随多局制
+  // 渲染收编 → 数字按 min(round,4) 封顶（start_final 段无数字槽）。
   const NUM = {
     /** 数字擦除区（字样画布坐标；词右缘 x431、数字画布 x[441,527] y[340,457]
-     *  + 揭示闪光 y~296 起外扩） */
+     *  + 弹入过冲上探 y~299（批次 67 实测：过冲帧 y0=299，旧注"揭示闪光
+     *  y~296 外扩"即过冲帧软边，无独立闪光层） */
     erase: { x0: 433, y0: 290, x1: 540, y1: 460 },
     /** 数字帧合成画布（数字位图锚 (441,340) 的外扩裁剪）与摆放点 */
     crop: { x0: 441, y0: 290, w: 87, h: 171 },
-    /** 数字显示窗口（资产帧号）：揭示 18-27 + 稳定 28-45 */
+    /** 数字显示窗口（资产帧号）：弹入 18-27 + 稳定 28-45 */
     from: 18,
     to: 45,
     /** swf 位图 id = 数字 1..5（-selectid image:png_gif_jpeg_alpha 导出，
      *  JPEG3 alpha 噪点以分离 alpha 通道规避） */
     ids: [182, 185, 188, 191, 194],
-    /** 揭示遮罩参照 alpha（a_stable=0 的闪光区按 a_k/REF 计） */
-    flashRef: 200,
   };
   const pngOf = (assetFrame) => join(dir, `${assetFrame + 9}.png`); // 资产帧 N ↔ PNG N+9
-  const cropRaw = async (path) => {
-    const { data, info } = await sharp(path)
-      .extract({ left: NUM.crop.x0, top: NUM.crop.y0, width: NUM.crop.w, height: NUM.crop.h })
+  // —— 弹入 scaleY 实测（批次 67）——
+  // sprite 228 揭示帧（资产 18..27）数字区（x≥434，词右缘 x≤433）a>0 像素
+  // 计数 ÷ 稳定帧计数 = scaleY（纵向缩放下质量 ∝ d；x 不缩放故宽度恒定）。
+  const blobCount = async (assetFrame) => {
+    const { data, info } = await sharp(pngOf(assetFrame))
       .ensureAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
-    return data;
-  };
-  // 揭示遮罩（数字 1 逐帧 alpha ÷ 稳定帧 alpha；闪光区按 flashRef）
-  const aStable = await cropRaw(pngOf(28));
-  const masks = [];
-  for (let n = NUM.from; n <= 27; n++) {
-    const aK = await cropRaw(pngOf(n));
-    const mask = Buffer.alloc(NUM.crop.w * NUM.crop.h);
-    for (let i = 0; i < mask.length; i++) {
-      const s = aStable[i * 4 + 3];
-      const k = aK[i * 4 + 3];
-      mask[i] = s > 0 ? Math.min(255, Math.round((k / s) * 255)) : Math.min(255, Math.round((k / NUM.flashRef) * 255));
+    let n = 0;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 434; x < info.width; x++) {
+        if (data[(y * info.width + x) * 4 + 3] > 0) n++;
+      }
     }
-    masks.push(mask);
+    return n;
+  };
+  const stableBlob = await (async () => {
+    const { data, info } = await sharp(pngOf(28)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    let n = 0;
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = 0; y < info.height; y++) {
+      for (let x = 434; x < info.width; x++) {
+        if (data[(y * info.width + x) * 4 + 3] > 0) {
+          n++;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    return { n, y1 };
+  })();
+  const dOf = [];
+  for (let n = NUM.from; n <= 27; n++) dOf.push(await blobCount(n) / stableBlob.n);
+  // 曲线形态 = 升→过冲（峰值在揭示窗第 3 帧）→回落：首帧矮条、过冲 >1.3、
+  // 收尾贴 1，过冲后单调回落（形态漂移即源资产变更报警）
+  const peak = Math.max(...dOf);
+  const peakAt = dOf.indexOf(peak);
+  if (dOf[0] > 0.3 || peakAt !== 2 || peak < 1.3 || dOf[dOf.length - 1] < 0.97) {
+    throw new Error(`hud-pack: 数字弹入 scaleY 曲线形态异常（首帧 ${dOf[0].toFixed(3)} / 过冲 ${peak.toFixed(3)}@${peakAt} / 收尾 ${dOf[dOf.length - 1].toFixed(3)}）`);
   }
+  if (dOf.some((d, i) => i > 2 && d > dOf[i - 1])) {
+    throw new Error('hud-pack: 数字弹入 scaleY 回落段非单调递减（sprite 228 揭示帧实测漂移）');
+  }
+  /** 弹入底边锚（crop 局部 y）：稳定 blob 底缘（画布 y1 实测 453）+0.5 半像素 */
+  const anchorY = stableBlob.y1 + 0.5 - NUM.crop.y0;
   // 数字位图导出 + RGBA 组合（jpg 色 + alpha.png 第 4 通道）
   const numDir = join(SCRATCH, 'numimg');
   rmSync(numDir, { recursive: true, force: true });
@@ -305,16 +340,41 @@ await putFrames('win', spriteDir(157, '胜利星'), 40, 40);
       const canvas = Buffer.alloc(NUM.crop.w * NUM.crop.h * 4);
       const gx = 0; // 数字锚 (441,340) − 裁剪原点 (441,290)
       const gy = 50;
-      const useMask = n <= 27;
-      for (let y = 0; y < g.h; y++) {
-        for (let x = 0; x < g.w; x++) {
-          const gi = (y * g.w + x) * 4;
-          const ci = ((y + gy) * NUM.crop.w + (x + gx)) * 4;
-          const m = useMask ? masks[n - NUM.from][y * NUM.crop.w + x] / 255 : 1;
-          canvas[ci] = g.data[gi];
-          canvas[ci + 1] = g.data[gi + 1];
-          canvas[ci + 2] = g.data[gi + 2];
-          canvas[ci + 3] = Math.round((g.data[gi + 3] / 255) * m * 255);
+      // 弹入期（资产 18..27）= 稳定 glyph 底边锚（anchorY）纵向缩放：dest 行
+      // y ← src 行 = anchorY + (y − anchorY)/sy，双线性行插值（alpha 与 RGB
+      // 同步插值）；稳定期直拷贝。x 恒不缩放（原版 tx 恒定 + x bbox 实证）。
+      const sy = n <= 27 ? dOf[n - NUM.from] : 1;
+      if (sy === 1) {
+        for (let y = 0; y < g.h; y++) {
+          for (let x = 0; x < g.w; x++) {
+            const gi = (y * g.w + x) * 4;
+            const ci = ((y + gy) * NUM.crop.w + (x + gx)) * 4;
+            canvas[ci] = g.data[gi];
+            canvas[ci + 1] = g.data[gi + 1];
+            canvas[ci + 2] = g.data[gi + 2];
+            canvas[ci + 3] = g.data[gi + 3];
+          }
+        }
+      } else {
+        const y0 = Math.max(0, Math.round(anchorY + (gy - anchorY) * sy));
+        const y1 = Math.min(NUM.crop.h - 1, Math.round(anchorY + (gy + g.h - 1 - anchorY) * sy));
+        for (let y = y0; y <= y1; y++) {
+          const s = anchorY + (y - anchorY) / sy;
+          const s0 = Math.floor(s);
+          const fr = s - s0;
+          const r0 = Math.min(Math.max(s0 - gy, 0), g.h - 1);
+          const r1 = Math.min(Math.max(s0 + 1 - gy, 0), g.h - 1);
+          for (let x = 0; x < g.w; x++) {
+            const i0 = (r0 * g.w + x) * 4;
+            const i1 = (r1 * g.w + x) * 4;
+            const a = g.data[i0 + 3] + (g.data[i1 + 3] - g.data[i0 + 3]) * fr;
+            if (a <= 0) continue;
+            const ci = (y * NUM.crop.w + (x + gx)) * 4;
+            canvas[ci] = Math.round(g.data[i0] + (g.data[i1] - g.data[i0]) * fr);
+            canvas[ci + 1] = Math.round(g.data[i0 + 1] + (g.data[i1 + 1] - g.data[i0 + 1]) * fr);
+            canvas[ci + 2] = Math.round(g.data[i0 + 2] + (g.data[i1 + 2] - g.data[i0 + 2]) * fr);
+            canvas[ci + 3] = Math.round(a);
+          }
         }
       }
       const idx = (d - 1) * per + (n - NUM.from) + 1;
