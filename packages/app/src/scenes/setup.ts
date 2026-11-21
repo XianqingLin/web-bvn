@@ -17,7 +17,6 @@
  * 联机双光标（切片 35，规格 docs/netplay-design.md §7；solo 流不受影响）：
  *  - 复刻原版本地双人"双光标各自操作互不阻塞"，从同一台键盘搬到两台客户端：
  *    本端光标跟随本端鼠标 hover，变更即 cursor 广播（轻量覆盖消息）；
- *  - 双色框：双方锁定格各按位次色描边（P1 蓝/P2 粉，同格双锁内外框区分）；
  *  - 选中即锁：点击即锁定、无反悔；随机项此刻解析成具体角色后按最终项同步；
  *    锁满本端份额后本端光标冻结、点击忽略；
  *  - 双方齐套本地推导推进（角色 → 援助 → 地图），判定输入一致结果一致；
@@ -48,7 +47,7 @@
  * 骨架期限制（记录，切片 14 沿用）：
  *  - 原版 more= 形态切换未实现（数据保留，more= 项格框黄色提示）；
  */
-import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
+import { Assets, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js';
 import {
   sendCursor,
   sendMapPick,
@@ -80,9 +79,6 @@ import { transIn, clearTrans } from './trans.js';
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
 const OX = (UI_W - STAGE_W) / 2;
-
-/** P1/P2 位次色（原版 P1 蓝 / P2 粉光标同族色；规格层不锁死色值）。 */
-const SIDE_COLORS: Record<1 | 2, number> = { 1: 0x2f9bff, 2: 0xff5fa2 };
 
 /** 展示框（大头像 + 名字）引用。 */
 interface BoxRefs {
@@ -124,10 +120,6 @@ export class SetupScene implements Scene {
   private hoverIdx: number | null = null;
   /** 对端光标当前格子下标（null = 尚未收到） */
   private peerCursorIdx: number | null = null;
-  /** 锁定框层（当前阶段双方锁定格，redrawLocks 重绘） */
-  private lockLayer: Graphics | null = null;
-  /** lockLayer 所属装料批次（阶段切换作废） */
-  private lockToken = 0;
   /** 展示框引用：own = 本端；联机另有对端盒（solo 仅 own） */
   private boxOwn: BoxRefs | null = null;
   private boxPeer: BoxRefs | null = null;
@@ -396,7 +388,6 @@ export class SetupScene implements Scene {
     this.cursor = null;
     this.peerCursor = null;
     this.peerCursorIdx = null;
-    this.lockLayer = null;
     this.boxOwn = null;
     this.boxPeer = null;
     clearTweens(); // 旧阶段格子的退场补间随 phaseRoot 销毁一并作废
@@ -661,14 +652,6 @@ export class SetupScene implements Scene {
         }
         root.addChild(cursor);
         if (this.peerCursor) root.addChild(this.peerCursor);
-        // 锁定框层（联机/本地双人双色框）
-        if (dual) {
-          const lockLayer = new Graphics();
-          root.addChild(lockLayer);
-          this.lockLayer = lockLayer;
-          this.lockToken = token;
-          this.redrawLocks();
-        }
         // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
         this.boxOwn = this.mountBox(root, ownSide);
         if (dual) this.boxPeer = this.mountBox(root, peerSide);
@@ -840,7 +823,6 @@ export class SetupScene implements Scene {
     list.push(resolved);
     audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
     this.refreshBox(this.boxOwn, resolved);
-    this.redrawLocks();
     this.updateNetStatus();
     this.checkAdvance(ctx);
   }
@@ -851,7 +833,6 @@ export class SetupScene implements Scene {
     this.peerStageLocks().push(resolved.id);
     audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
     this.refreshBox(this.boxPeer, resolved);
-    this.redrawLocks();
     this.updateNetStatus();
     this.checkAdvance(ctx);
   }
@@ -863,26 +844,6 @@ export class SetupScene implements Scene {
       (x) => !x.id.startsWith('random') && (e.comicType < 0 || x.comicType === e.comicType),
     );
     return candidates[Math.floor(Math.random() * candidates.length)] ?? e;
-  }
-
-  /** 重绘当前阶段锁定框（本端内框 / 对端外框，各按位次色；同格双锁可分辨）。 */
-  private redrawLocks(): void {
-    const g = this.lockLayer;
-    if (!g || this.lockToken !== this.loadToken) return;
-    g.clear();
-    const list = this.stageList();
-    const ownColor = SIDE_COLORS[this.flow.player === 2 ? 2 : 1];
-    const peerColor = SIDE_COLORS[this.flow.player === 2 ? 1 : 2];
-    for (const e of this.localStageLocks()) {
-      const [x, y] = this.cellPos(e, list);
-      g.rect(x - 2, y - 2, 64, 64).stroke({ width: 3, color: ownColor, alpha: 0.9 });
-    }
-    for (const id of this.peerStageLocks()) {
-      const e = list.find((x) => x.id === id);
-      if (!e) continue;
-      const [x, y] = this.cellPos(e, list);
-      g.rect(x - 6, y - 6, 72, 72).stroke({ width: 2, color: peerColor, alpha: 0.9 });
-    }
   }
 
   /** 阶段状态行：本端进度 + 对方进度（联机"对方" = 对端；本地双人 = P2）。 */
@@ -1113,7 +1074,6 @@ export class SetupScene implements Scene {
         assists: [...msg.locked.assists],
       };
       this.commitPicks();
-      this.redrawLocks();
       this.updateNetStatus();
       this.refreshPeerBoxLocked();
       if (this.phase === 'exchange') {
@@ -1258,10 +1218,12 @@ export class SetupScene implements Scene {
     // 点缩略图即确认（原版 kuang 语义；随机项确认时解析）。客座只读无此交互
     if (interactive) pic.on('pointertap', () => this.confirmMap(entries[this.mapIndex]!));
 
-    // 左右箭头热区（透明命中区，PNG 坐标）；联机房主切换后 map-pick 广播
+    // 左右箭头热区（透明命中区，对齐 96 箭头 fx 实位 (57,118)/(584,118) 57×50 外扩 5px；
+    // 空 Container 无 hitArea 不参与命中，故显式给矩形）；联机房主切换后 map-pick 广播
     const mkHit = (x: number, dir: -1 | 1) => {
       const hit = new Container();
-      hit.position.set(x, 105);
+      hit.position.set(x, 113);
+      hit.hitArea = new Rectangle(0, 0, 67, 60);
       if (interactive) {
         hit.eventMode = 'static';
         hit.cursor = 'pointer';
@@ -1274,8 +1236,8 @@ export class SetupScene implements Scene {
       }
       panel.addChild(hit);
     };
-    mkHit(5, -1); // 左箭头（PNG x≈18..57）
-    mkHit(577, 1); // 右箭头（PNG x≈585..625）
+    mkHit(52, -1); // 左箭头
+    mkHit(579, 1); // 右箭头
 
     // 名牌 + 地图名（原版 select_map_txt_mc：舞台坐标 (308.5,533)，居中）
     const [tx, ty] = ui.select.mapTextPos;
