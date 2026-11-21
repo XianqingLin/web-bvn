@@ -455,7 +455,75 @@
             "h": 142.25
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            3,
+            0
+          ]
+        },
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "zh30atm",
+            "hit"
+          ]
+        },
+        {
+          "frame": 15,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 33,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 49,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 51,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        },
+        {
+          "frame": 52,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xff0000"
+            }
+          ]
+        },
+        {
+          "frame": 52,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        },
+        {
+          "frame": 55,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh2mc": {
       "totalFrames": 48,
@@ -692,7 +760,93 @@
             "h": 77.85
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15,
+            0
+          ]
+        },
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "zh20atm",
+            "hit"
+          ]
+        },
+        {
+          "frame": 5,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 11,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 17,
+          "target": "effect",
+          "op": "walk",
+          "args": []
+        },
+        {
+          "frame": 23,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 25,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        },
+        {
+          "frame": 26,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            5,
+            -10
+          ]
+        },
+        {
+          "frame": 26,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            1,
+            0.5
+          ]
+        },
+        {
+          "frame": 28,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 37,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 40,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "tk2atm": {
       "totalFrames": 14,
@@ -763,7 +917,15 @@
             "h": 160.95
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 9,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "tkatm": {
       "totalFrames": 14,

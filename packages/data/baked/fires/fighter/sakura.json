@@ -188,7 +188,62 @@
             "h": 89.35
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            12,
+            -7
+          ]
+        },
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0,
+            1
+          ]
+        },
+        {
+          "frame": 6,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            "touchfloor"
+          ]
+        },
+        {
+          "frame": 10,
+          "target": "attacker",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 15,
+          "target": "effect",
+          "op": "shake",
+          "args": [
+            0,
+            3
+          ]
+        },
+        {
+          "frame": 15,
+          "target": "attacker",
+          "op": "stopMove",
+          "args": []
+        },
+        {
+          "frame": 20,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh31atm": {
       "totalFrames": 11,

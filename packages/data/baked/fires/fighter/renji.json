@@ -39,7 +39,21 @@
             "h": 124.05000000000001
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 3,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "sbsmc": {
       "totalFrames": 41,
@@ -184,7 +198,15 @@
             "h": 95.65
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 40,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     }
   }
 }

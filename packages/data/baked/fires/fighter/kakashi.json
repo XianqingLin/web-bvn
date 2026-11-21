@@ -219,7 +219,87 @@
             "h": 41.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 10,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            20,
+            0
+          ]
+        },
+        {
+          "frame": 10,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "zh20atm",
+            "hit"
+          ]
+        },
+        {
+          "frame": 17,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            5,
+            0
+          ]
+        },
+        {
+          "frame": 30,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15,
+            0
+          ]
+        },
+        {
+          "frame": 40,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            5,
+            0
+          ]
+        },
+        {
+          "frame": 40,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 62,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        },
+        {
+          "frame": 63,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            5,
+            0
+          ]
+        },
+        {
+          "frame": 64,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 68,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "tz2atm": {
       "totalFrames": 9,
@@ -709,7 +789,30 @@
             "h": 78.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            12,
+            0
+          ]
+        },
+        {
+          "frame": 52,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 84,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "cbsmc": {
       "totalFrames": 103,
@@ -989,7 +1092,21 @@
             "h": 166.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 30,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 60,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh13atm": {
       "totalFrames": 14,

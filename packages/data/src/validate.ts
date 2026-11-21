@@ -499,6 +499,28 @@ export function validateFirePackage(pkg: FirePackage): ValidationResult {
         }
       }
     }
+    // 角色侧 attacker 元件脚本（2026-11-21）：可选 triggers，帧 1 基
+    if (tl.triggers !== undefined) {
+      if (!Array.isArray(tl.triggers)) {
+        out.errors.push(`fires[${name}].triggers: 必须是触发器数组`);
+      } else {
+        for (const [i, t] of tl.triggers.entries()) {
+          if (!Number.isInteger(t?.frame) || t.frame < 1) {
+            out.errors.push(`fires[${name}].triggers[${i}]: 帧号必须是 ≥1 的整数`);
+            continue;
+          }
+          if (Number.isInteger(tl.totalFrames) && t.frame > tl.totalFrames) {
+            out.warnings.push(`fires[${name}].triggers[${i}]: 帧号 ${t.frame} 超出 totalFrames ${tl.totalFrames}`);
+          }
+          if (t.target !== 'attacker' && t.target !== 'effect') {
+            out.errors.push(`fires[${name}].triggers[${i}]: target 必须是 attacker|effect`);
+          }
+          if (typeof t.op !== 'string' || t.op === '') {
+            out.errors.push(`fires[${name}].triggers[${i}]: 缺 op`);
+          }
+        }
+      }
+    }
   }
   return out;
 }

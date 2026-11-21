@@ -13,8 +13,9 @@ import type {
   AttackerSpawnSpec,
 } from '../fighter/behaviors.js';
 import type { AssistAttackerSpawnSpec } from '../fighter/assister.js';
+import { currentBodyRect, rectsOverlap, SPEED_PLUS, worldRect } from '../fighter/def.js';
 import type { SimCtx } from './ctx.js';
-import { slowDownScaleOf } from './ctx.js';
+import { resolveAttackerActionId, slowDownScaleOf, wake } from './ctx.js';
 import { GRAVITY_CAP, GRAVITY_START, GRAVITY_STEP } from './physics.js';
 
 /** 独立道具寿命占位（素材缺口：内层时间轴未导出，切片 10 收紧） */
@@ -41,10 +42,15 @@ export function stepAttackerAnim(ctx: SimCtx): void {
     const jumped = a.frameJumped; // 外部跳转落点帧：本步分派不推进
     a.frameJumped = false;
     if (!jumped && a.animFrame < a.animTotal) a.animFrame += 1;
+    // 元件脚本：viaAssist → 辅助 def attackerScripts（切片 21）；角色生成 →
+    // owner def attackerScripts（2026-11-21，fires[name].triggers 编译来源）
     const scripts =
       a.scriptAssistId !== null
         ? ctx.assisterDefs.get(a.scriptAssistId)?.attackerScripts?.[a.name]
-        : undefined;
+        : (() => {
+            const owner = ctx.state.fighters.find((f) => f.id === a.ownerId) ?? null;
+            return owner !== null ? ctx.defOf(owner)?.attackerScripts?.[a.name] : undefined;
+          })();
     if (scripts) {
       let removedSelf = false;
       for (const t of scripts.triggers) {
@@ -92,6 +98,22 @@ function dispatchAttackerScript(ctx: SimCtx, a: AttackerState, t: FrameTrigger):
         a.frameJumped = true;
         return false;
       }
+      case 'gotoAndStop': {
+        // 原版 FighterAttackerCtrler.gotoAndStop：跳转 + 定格（renderAnimate 停）
+        const arg = t.args[0];
+        if (typeof arg === 'string') {
+          const f = a.animLabels[arg];
+          if (f === undefined) return false;
+          a.animFrame = f;
+        } else if (typeof arg === 'number') {
+          a.animFrame = arg;
+        } else {
+          return false;
+        }
+        a.animHold = true;
+        a.frameJumped = true;
+        return false;
+      }
       case 'stopFollowTarget':
         a.followX = false;
         a.followY = false;
@@ -100,6 +122,64 @@ function dispatchAttackerScript(ctx: SimCtx, a: AttackerState, t: FrameTrigger):
         return true;
       case 'endAct':
         return false;
+      // —— 角色侧脚本原语（2026-11-21，原版 FighterAttackerCtrler） ——
+      // move(x,y)：setVelocity(x*direct, y)——原版 setVelocity 附带清阻尼
+      case 'move': {
+        a.vx = numArg(t.args[0]) * SPEED_PLUS * a.facing;
+        a.vy = numArg(t.args[1]) * SPEED_PLUS;
+        a.dampX = 0;
+        a.dampY = 0;
+        return false;
+      }
+      // damping(x,y)：setDamping ×SPEED_PLUS（每 tick 线性衰减量）
+      case 'damping': {
+        a.dampX = numArg(t.args[0]) * SPEED_PLUS;
+        a.dampY = numArg(t.args[1]) * SPEED_PLUS;
+        return false;
+      }
+      // stopMove：setVelocity(0,0) 附带清阻尼
+      case 'stopMove': {
+        a.vx = 0;
+        a.vy = 0;
+        a.dampX = 0;
+        a.dampY = 0;
+        return false;
+      }
+      // setTouchFloor(label)：触地续接预约（stepAttackers 触地消费）
+      case 'setTouchFloor': {
+        a.touchFloor = typeof t.args[0] === 'string' ? t.args[0] : null;
+        return false;
+      }
+      // setCrossMap(v)：越界/触底豁免（原版 isAllowCrossX/isAllowCrossBottom）
+      case 'setCrossMap': {
+        a.isCross = t.args[0] !== false;
+        return false;
+      }
+      // moveToTarget(x,y)：一次性重定位到目标 ± 偏移（x 沿朝向镜像；NaN 保轴）
+      case 'moveToTarget': {
+        const t0 = ctx.state.fighters.find((f) => f.id !== a.ownerId) ?? null;
+        if (t0 === null) return false;
+        const ox = t.args[0];
+        const oy = t.args[1];
+        if (typeof ox === 'number') a.x = t0.x + ox * a.facing;
+        if (typeof oy === 'number') a.y = t0.y + oy;
+        return false;
+      }
+      // setHitTarget(checker, action)：命中续接预约（stepAttackers 巡检，
+      // checker 区与目标 body 相交 → gotoAndPlay(action)）
+      case 'setHitTarget': {
+        a.hitTargetChecker = typeof t.args[0] === 'string' ? t.args[0] : null;
+        a.hitTargetAction = typeof t.args[1] === 'string' ? t.args[1] : null;
+        return false;
+      }
+      // fire(mcName, params)：从道具内发射弹体（原版 FighterAttackerCtrler.
+      // fire → FIRE_BULLET → new Bullet(childMc, params)——位置 = 命名子对象
+      // 在当前帧的元件局部矩形（镜像到原点），hitVO 按动作表解析（精确 →
+      // 去 atm）；owner 沿道具（角色生成弹体命中回气归 owner，同 FighterAttacker.hit）
+      case 'fire': {
+        dispatchAttackerFire(ctx, a, t.args);
+        return false;
+      }
       default:
         return false;
     }
@@ -115,9 +195,69 @@ function dispatchAttackerScript(ctx: SimCtx, a: AttackerState, t: FrameTrigger):
     case 'shine':
       ctx.emit('effect', { id: 'shine', x: a.x, y: a.y, params: { arg: t.args[0] } });
       return false;
+    // effect.walk/dash：尘土特效（原版 EffectCtrler.walk/dash，direct = 道具朝向）
+    case 'walk':
+      ctx.emit('effect', { id: 'walk', x: a.x, y: a.y, params: { direct: a.facing } });
+      return false;
+    case 'dash':
+      ctx.emit('effect', { id: 'dash', x: a.x, y: a.y, params: { direct: a.facing } });
+      return false;
+    // effect.shake(x,y)：震屏（原版 EffectCtrler.shake 语义，参数直传）
+    case 'shake':
+      ctx.emit('effect', {
+        id: 'shake',
+        x: a.x,
+        y: a.y,
+        params: { x: numArg(t.args[0]), y: numArg(t.args[1]) },
+      });
+      return false;
+    // effect.slowDown(t)：全局慢放（原版 EffectCtrler.slowDown；走 sim 桥）
+    case 'slowDown': {
+      if (typeof t.args[0] === 'number' && t.args[0] > 0) ctx.setSlowDown(t.args[0]);
+      return false;
+    }
     default:
       return false;
   }
+}
+
+function numArg(v: unknown): number {
+  return typeof v === 'number' ? v : 0;
+}
+
+/**
+ * 角色侧 attacker 元件内 fire（原版 FighterAttackerCtrler.fire，2026-11-21）：
+ * 命名子对象取当前帧命中数据（fires[name].hits[animFrame] 镜像到原点），
+ * HitVO 按动作表解析（精确 → 去首个 atm），Bullet 归 owner fighter
+ * （原版 hv.owner = _attacker → FighterAttacker.hit 回气归 owner fighter）。
+ * 子对象缺当前帧数据/无动作表 = 确定性静默（原版 setAnimateFrameOut 延迟
+ * 一帧重试的语义不建模——语料 fire 调用帧与其元件帧一致）。
+ */
+function dispatchAttackerFire(
+  ctx: SimCtx,
+  a: AttackerState,
+  args: unknown[],
+): void {
+  const name = typeof args[0] === 'string' ? args[0] : null;
+  if (name === null) return;
+  const owner = ctx.state.fighters.find((f) => f.id === a.ownerId) ?? null;
+  if (owner === null) return;
+  const def = ctx.defOf(owner);
+  const tl = def?.fires?.[a.name];
+  const area = tl?.hits?.[String(a.animFrame)]?.find((r) => r.name === name);
+  const actions = def?.actions;
+  if (!area || actions === undefined) return;
+  const actionId = resolveAttackerActionId(name, actions);
+  if (actionId === null || actions[actionId] === undefined) return;
+  ctx.spawnAttackerFireBullet({
+    attacker: a,
+    ownerId: a.ownerId,
+    name,
+    local: area,
+    hit: actions[actionId]!,
+    params: (args[1] ?? {}) as Record<string, unknown>,
+    ...(def?.fires?.[name] ? { anim: def.fires![name] } : {}),
+  });
 }
 
 /**
@@ -282,6 +422,15 @@ function spawnAttackerEntity(
     animLabels: { ...(anim?.labels ?? {}), ...(args.scriptLabels ?? {}) },
     scriptAssistId: args.scriptAssistId,
     frameJumped: false,
+    // 角色侧脚本驱动字段（2026-11-21）：出生静止、无预约
+    vx: 0,
+    vy: 0,
+    dampX: 0,
+    dampY: 0,
+    touchFloor: null,
+    hitTargetChecker: null,
+    hitTargetAction: null,
+    isCross: false,
   };
   ctx.state.nextEntityId += 1;
   ctx.state.attackers.push(attacker);
@@ -289,9 +438,17 @@ function spawnAttackerEntity(
   ctx.emit('entity:spawn', { kind: 'attacker', id: attacker.id, name: attacker.name, owner: ownerId });
 }
 
-/** 独立道具每 tick 推进：follow 轴重定位 / 重力 / 回退寿命（动画推进在 stepAttackerAnim）。
- *  slowDown 全局慢放（切片 49）：重力增量/消费位移 ×scale（原版 FighterAttacker
- *  继承 BaseGameSprite speedPlus 语义）；scale 供回合结束演出期终结慢镜头折算。 */
+/**
+ * 独立道具每 tick 推进（原版 FighterAttacker.render + FighterAttackerCtrler.
+ * render）：follow 轴重定位 / 显式速度+阻尼（角色侧脚本 move/damping，
+ * 2026-11-21——原版 FighterAttacker 继承 BaseGameSprite：速度 ×speedPlus 每
+ * tick 位移、num_wake 线性衰减，与角色同律）/ 重力 / 触地续接消费（原版
+ * _touchFloor 门：触地即 gotoAndPlay 预约标签）/ 命中续接巡检（原版
+ * renderCheckTargetHit：checker 区与目标 body 相交 → gotoAndPlay(action)）/
+ * 回退寿命（动画推进在 stepAttackerAnim）。
+ * slowDown 全局慢放（切片 49）：位移/重力增量 ×scale（原版 FighterAttacker
+ * 继承 BaseGameSprite speedPlus 语义）；scale 供回合结束演出期终结慢镜头折算。
+ */
 export function stepAttackers(ctx: SimCtx, scale = 1): void {
   const { stage, fighters, attackers } = ctx.state;
   const slowScale = slowDownScaleOf(ctx.state) * scale;
@@ -302,6 +459,23 @@ export function stepAttackers(ctx: SimCtx, scale = 1): void {
     // 非 follow 轴生成后固定（原版 attacker 是绝对定位实体）
     if (a.followX && t !== null) a.x = t.x + a.offsetX * a.facing;
     if (a.followY && t !== null) a.y = t.y + a.offsetY;
+    // 显式速度/阻尼（原版 BaseGameSprite render：velocity×speedPlus 位移 +
+    // num_wake 线性衰减；角色侧脚本 move/damping 驱动，此前恒 0 零漂移）
+    a.vx = wake(a.vx, a.dampX);
+    a.vy = wake(a.vy, a.dampY);
+    a.x += a.vx * slowScale;
+    a.y += a.vy * slowScale;
+    // 触地续接消费（原版 FighterAttackerCtrler.render 的 _touchFloor 门）：
+    // 底边触及地面即 gotoAndPlay 预约标签；applyG 与否同为几何判定
+    if (a.touchFloor !== null && a.y + a.fbHit.y + a.fbHit.h >= stage.groundY) {
+      const tf = a.animLabels[a.touchFloor];
+      if (tf !== undefined) {
+        a.animFrame = tf;
+        a.animHold = false;
+        a.frameJumped = true;
+      }
+      a.touchFloor = null;
+    }
     if (a.applyG) {
       // 底边 = 原点 + 回退矩形底（B5 原点锚定；回退 org=中心时与旧
       // a.y + a.h 中心语义等价）
@@ -312,6 +486,33 @@ export function stepAttackers(ctx: SimCtx, scale = 1): void {
       } else {
         a.gRamp = Math.min(a.gRamp + GRAVITY_STEP * slowScale, GRAVITY_CAP);
         a.y += a.gRamp * slowScale;
+      }
+    }
+    // 命中续接巡检（原版 FighterAttackerCtrler.renderCheckTargetHit 每 tick）：
+    // checker 命名区（当前帧命中数据沿朝向镜像到原点）与目标 body 相交
+    // → gotoAndPlay(action 标签)（跳帧 + frameJumped 下一动画步分派落点帧）
+    if (a.hitTargetChecker !== null && a.hitTargetAction !== null && t !== null) {
+      const owner = fighters.find((f) => f.id === a.ownerId) ?? null;
+      const tl =
+        a.viaAssist && a.scriptAssistId !== null
+          ? ctx.assisterDefs.get(a.scriptAssistId)?.fires?.[a.name]
+          : owner !== null
+            ? ctx.defOf(owner)?.fires?.[a.name]
+            : undefined;
+      const area = tl?.hits?.[String(a.animFrame)]?.find((r) => r.name === a.hitTargetChecker);
+      const tDef = ctx.defOf(t);
+      const bodyLocal = tDef
+        ? currentBodyRect({ animFrame: t.animFrame, def: tDef })
+        : null;
+      if (area && bodyLocal && rectsOverlap(worldRect(a, area), worldRect(t, bodyLocal))) {
+        const tf = a.animLabels[a.hitTargetAction];
+        if (tf !== undefined) {
+          a.animFrame = tf;
+          a.animHold = false;
+          a.frameJumped = true;
+        }
+        a.hitTargetChecker = null;
+        a.hitTargetAction = null;
       }
     }
     // 寿命：有元件时间轴由 stepAttackerAnim 播尽移除；无时间轴走占位回退

@@ -102,7 +102,15 @@
             "h": 174.25
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 15,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh3mc": {
       "totalFrames": 67,

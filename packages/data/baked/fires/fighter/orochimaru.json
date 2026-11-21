@@ -48,7 +48,15 @@
             "h": 347.90000000000003
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 7,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "kj2mc": {
       "totalFrames": 18,
@@ -85,7 +93,21 @@
             "h": 113.65
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 4,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh1atm": {
       "totalFrames": 16,

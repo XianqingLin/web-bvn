@@ -39,7 +39,37 @@
             "h": 39.85
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15
+          ]
+        },
+        {
+          "frame": 15,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        },
+        {
+          "frame": 15,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 22,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "kj2mc": {
       "totalFrames": 36,
@@ -121,7 +151,43 @@
             "h": 203.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15
+          ]
+        },
+        {
+          "frame": 7,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            2
+          ]
+        },
+        {
+          "frame": 7,
+          "target": "effect",
+          "op": "playSoundHit1",
+          "args": []
+        },
+        {
+          "frame": 14,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 20,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "sbsmc": {
       "totalFrames": 73,
@@ -509,7 +575,15 @@
             "h": 61.65
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 50,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "bsatm": {
       "totalFrames": 1,
@@ -1187,7 +1261,67 @@
             "h": 133.8
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            20,
+            20
+          ]
+        },
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "main",
+            "hit"
+          ]
+        },
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            "hit_floor"
+          ]
+        },
+        {
+          "frame": 4,
+          "target": "attacker",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 5,
+          "target": "attacker",
+          "op": "stopMove",
+          "args": []
+        },
+        {
+          "frame": 5,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            null
+          ]
+        },
+        {
+          "frame": 36,
+          "target": "attacker",
+          "op": "stopMove",
+          "args": []
+        },
+        {
+          "frame": 41,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh1atm": {
       "totalFrames": 16,

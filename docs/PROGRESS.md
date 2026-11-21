@@ -62,6 +62,10 @@
 
 - **特效收编残余**（2026-11-20 全面盘点——原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照——后余项，已完成切片见 git 历史与 DESIGN §3.5；按观感收益排序）：
   - 豁免：kenshin 必杀特写立绘（2026-11-20 深查定案——非单纯引用错配：语料 9 处 `bisha(true,"Kenshin_1")` 与注册键 bsface1/bsface2 双向对不上，且 kenshin.swf 无 bsface1 类（SymbolClass 全表实证）、FFDec 全量位图导出亦无任何人物立绘——原版作者从未制作该立绘，无资产可接线，移植版与原版等效。除非自制立绘补缺，否则维持豁免）；
+- **角色侧 attacker 元件脚本·视觉缺口**（2026-11-21 引擎/数据已收编，见 DESIGN §3.5「角色侧 attacker 元件脚本」；剩 fire 元件**视觉**采集缺口，需人工重跑 capture）：
+  - pain 招2/招3/上必杀的道具本体（zh2mc/zh3mc/sbs1）capture 全帧空（原版 SWF 实证有内容——sprite 286 内含 shape/zh20atm 子对象；采集桥为何对这三个元件取不到 bounds 待 diag:fire:fighter:pain 排查）；
+  - attacker 语境 fire 的弹体元件（pain zh1atm/zh13atm）不在 fire-names 名单（脚本提取前 fire() 调用不在 baked triggers 里）——已重跑 `node tools/fire-script-pack/fire-script-pack.mjs` 后重跑 `node tools/atlas-capture/collect-fire-names.mjs` 即会带上；重采 `capture-only.txt = fire:fighter:pain`；
+  - 部分道具本体为静态单帧（如 pain zh1mc 全 36 帧同一 png——动画由缺失的 move 脚本驱动，脚本收编后仅剩淡入淡出类嵌套动画不呈现，观感近似原版静态层）。
 - 嵌套元件时间轴音 99 处（zh2mc/hitmc 演出件，需 ghost 时间轴，低价值）；
 - 佐助防御时人物模糊待复测（疑 autoZoom 近身上采样变糊，全角色共有）；
 - more= 形态切换未实现（含黄框交互）；终局流转已定案（2026-11-21 结算画面整块移除）：solo 对局浮层"再来一局"、local 回选人页、net 关 socket 回菜单（无跨端原地重开）；

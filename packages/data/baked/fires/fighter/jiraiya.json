@@ -122,7 +122,66 @@
             "h": 102.35
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            10,
+            -10
+          ]
+        },
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0,
+            0.5
+          ]
+        },
+        {
+          "frame": 4,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            "hitfloor"
+          ]
+        },
+        {
+          "frame": 9,
+          "target": "attacker",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 10,
+          "target": "effect",
+          "op": "shake",
+          "args": [
+            0,
+            3
+          ]
+        },
+        {
+          "frame": 10,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFFFFFF"
+            }
+          ]
+        },
+        {
+          "frame": 10,
+          "target": "attacker",
+          "op": "stopMove",
+          "args": []
+        }
+      ]
     }
   }
 }

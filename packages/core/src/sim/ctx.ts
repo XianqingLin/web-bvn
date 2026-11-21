@@ -71,6 +71,16 @@ export interface SimCtx {
   spawnAssistBullet(spec: AssistBulletSpawnSpec): void;
   /** 生成独立道具（behaviors.addAttacker 引擎桥） */
   spawnAttacker(spec: AttackerSpawnSpec): void;
+  /** 角色侧 attacker 元件内 fire 弹体（dispatchAttackerFire 桥，2026-11-21） */
+  spawnAttackerFireBullet(spec: {
+    attacker: import('../state.js').AttackerState;
+    ownerId: number;
+    name: string;
+    local: { name: string; x: number; y: number; w: number; h: number };
+    hit: import('../fighter/def.js').HitDef;
+    params: Record<string, unknown>;
+    anim?: { totalFrames: number; labels: Record<string, number> };
+  }): void;
   /** 辅助生成独立道具（assister.addAttacker 引擎桥） */
   spawnAssistAttacker(spec: AssistAttackerSpawnSpec): void;
   /** 召唤辅助（stepIntents 辅助键） */

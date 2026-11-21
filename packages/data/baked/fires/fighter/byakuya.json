@@ -34,7 +34,15 @@
             "h": 33
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 6,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "tzmc": {
       "totalFrames": 15,
@@ -71,7 +79,15 @@
             "h": 54
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 12,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "bsmc": {
       "totalFrames": 40,
@@ -324,7 +340,25 @@
             "h": 179.55
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 30,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF00FF"
+            }
+          ]
+        },
+        {
+          "frame": 34,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     }
   }
 }

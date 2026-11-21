@@ -146,7 +146,47 @@
             "h": 40.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            0,
+            30
+          ]
+        },
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            "floor"
+          ]
+        },
+        {
+          "frame": 6,
+          "target": "attacker",
+          "op": "stop",
+          "args": []
+        },
+        {
+          "frame": 7,
+          "target": "effect",
+          "op": "shake",
+          "args": [
+            0,
+            3
+          ]
+        },
+        {
+          "frame": 13,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh1atm": {
       "totalFrames": 10,

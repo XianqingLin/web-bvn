@@ -275,7 +275,35 @@
             "h": 129.4
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15,
+            0
+          ]
+        },
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "mian",
+            "hit"
+          ]
+        },
+        {
+          "frame": 29,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        }
+      ]
     },
     "zh2_effect2": {
       "totalFrames": 8,
@@ -356,7 +384,15 @@
             "h": 285.15
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh2_effect": {
       "totalFrames": 8,
@@ -408,7 +444,15 @@
             "h": 100.30000000000001
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 6,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh1atm": {
       "totalFrames": 21,
@@ -842,7 +886,67 @@
             "h": 129.39999999999998
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            13,
+            15
+          ]
+        },
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            "floor"
+          ]
+        },
+        {
+          "frame": 10,
+          "target": "attacker",
+          "op": "gotoAndPlay",
+          "args": [
+            "loop"
+          ]
+        },
+        {
+          "frame": 22,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            13,
+            0
+          ]
+        },
+        {
+          "frame": 44,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        },
+        {
+          "frame": 48,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF0000"
+            }
+          ]
+        },
+        {
+          "frame": 51,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh12atm": {
       "totalFrames": 21,
@@ -956,7 +1060,32 @@
             "h": 112.64999999999999
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            0,
+            -10
+          ]
+        },
+        {
+          "frame": 12,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        },
+        {
+          "frame": 16,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "cbsmc": {
       "totalFrames": 35,
@@ -993,7 +1122,15 @@
             "h": 774.2
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh3_effect": {
       "totalFrames": 8,
@@ -1292,7 +1429,41 @@
             "h": 127.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15,
+            0
+          ]
+        },
+        {
+          "frame": 3,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "mian",
+            "hit"
+          ]
+        },
+        {
+          "frame": 29,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        },
+        {
+          "frame": 38,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh2mc": {
       "totalFrames": 37,
@@ -1410,7 +1581,32 @@
             "h": 112.64999999999999
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            6,
+            0
+          ]
+        },
+        {
+          "frame": 14,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            4
+          ]
+        },
+        {
+          "frame": 18,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     }
   }
 }

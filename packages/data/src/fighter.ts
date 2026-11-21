@@ -157,6 +157,24 @@ export function compileFighterRuntime(
     totalFrames: form.totalFrames,
     triggers,
     attackLabels,
+    // 角色侧 attacker 元件脚本（2026-11-21，原版 $attacker_ctrler.*）：fires
+    // 包带 triggers 的元件 → def.attackerScripts[name]（labels 1 基已对齐，
+    // triggers 帧号 1 基已对齐；stepAttackerAnim 分派，与辅助侧切片 21 同机制）
+    ...(fires && Object.values(fires).some((tl) => tl.triggers?.length)
+      ? {
+          attackerScripts: Object.fromEntries(
+            Object.entries(fires)
+              .filter(([, tl]) => tl.triggers?.length)
+              .map(([name, tl]) => [
+                name,
+                {
+                  labels: { ...tl.labels },
+                  triggers: tl.triggers!.map((t) => ({ ...t })),
+                },
+              ]),
+          ),
+        }
+      : {}),
     ...(fires ? { fires } : {}),
   };
 }

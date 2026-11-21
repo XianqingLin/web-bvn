@@ -362,6 +362,17 @@ export interface FireTimeline {
   org?: { x: number; y: number };
   /** 逐帧命中区（键 = 1 基帧号字符串；缺帧 = 该帧无判定；B5） */
   hits?: Record<string, FireHitAreaDef[]>;
+  /**
+   * 元件帧脚本（角色侧 attacker 元件，原版 $attacker_ctrler.*，2026-11-21）。
+   * 帧号 1 基（XFL 0 基 +1，与 compileFighterRuntime 同规则）；target ∈
+   * {attacker, effect}；op 语料：move/damping/stopMove/fire/setHitTarget/
+   * setTouchFloor/setCrossMap/moveToTarget/gotoAndPlay/gotoAndStop/stop/
+   * stopFollowTarget/removeSelf/endAct + effect.shine/playSoundHit1/2/dash/
+   * shake/walk/slowDown。消费：compileFighterRuntime → FighterDef.
+   * attackerScripts，stepAttackerAnim 逐帧分派（角色生成与 viaAssist 道具
+   * 同机制）。辅助侧 attackerScripts 走 AssistantPackage 原字段（切片 21）。
+   */
+  triggers?: TriggerDef[];
 }
 
 /** fire 元件元数据包（baked/fires/<ownerKind>/<id>.json，schema bvn/fire@1）。 */

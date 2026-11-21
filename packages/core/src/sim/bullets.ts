@@ -1,8 +1,8 @@
-import { SPEED_PLUS, worldRect } from '../fighter/def.js';
-import type { BulletState } from '../state.js';
+import { SPEED_PLUS, worldRect, type HitDef } from '../fighter/def.js';
+import type { AttackerState, BulletState } from '../state.js';
 import type { BulletSpawnSpec } from '../fighter/behaviors.js';
 import type { AssistBulletSpawnSpec } from '../fighter/assister.js';
-import { slowDownScaleOf, type SimCtx } from './ctx.js';
+import { attackerLocalRect, slowDownScaleOf, type SimCtx } from './ctx.js';
 
 /**
  * 飞行道具每 tick 推进（原版 Bullet.render）。
@@ -191,8 +191,7 @@ export function spawnBullet(ctx: SimCtx, spec: BulletSpawnSpec): void {
 }
 
 /** 辅助 fire 桥（原版 Bullet 构造，owner is FighterMain 不成立 → 命中不回气）。 */
-export function spawnAssistBullet(ctx: SimCtx, spec: AssistBulletSpawnSpec): void {
-  const { self, ownerId, name, local, hit, params } = spec;
+export function spawnAssistBullet(ctx: SimCtx, spec: AssistBulletSpawnSpec): void {  const { self, ownerId, name, local, hit, params } = spec;
   const world = worldRect(self, local);
   const axis = (v: number | { start?: number; add?: number; max?: number; min?: number } | undefined) => {
     if (typeof v === 'number') return { start: v, add: 0, max: 999, min: -999 };
@@ -233,6 +232,81 @@ export function spawnAssistBullet(ctx: SimCtx, spec: AssistBulletSpawnSpec): voi
     animTotal: spec.anim?.totalFrames ?? 0,
     animFrame: 1,
     animLabels: spec.anim ? { ...spec.anim.labels } : {},
+    hitAnim: false,
+  };
+  ctx.state.nextEntityId += 1;
+  ctx.state.bullets.push(bullet);
+  ctx.state.bullets.sort((a, b) => a.id - b.id);
+  ctx.emit('entity:spawn', { kind: 'bullet', id: bullet.id, name: bullet.name, owner: ownerId });
+}
+
+/**
+ * 角色侧 attacker 元件内 fire 弹体（原版 FighterAttackerCtrler.fire →
+ * FIRE_BULLET → new Bullet(childMc, params)，2026-11-21）：位置 = 命名子
+ * 对象在当前帧的元件局部矩形（镜像到道具原点，同 attackerLocalRect 约定），
+ * 朝向沿道具 facing（原版 Bullet.direct = owner direct）；速度/寿命/命中
+ * 次数参数语义与 behaviors.fire 同（x/y 数值或轴对象、hold 秒、hits 次）。
+ * ownerId 沿道具 owner fighter（原版 hv.owner = _attacker → 命中回气归 owner）。
+ */
+export function spawnAttackerFireBullet(
+  ctx: SimCtx,
+  spec: {
+    attacker: AttackerState;
+    ownerId: number;
+    name: string;
+    local: { name: string; x: number; y: number; w: number; h: number };
+    hit: HitDef;
+    params: Record<string, unknown>;
+    anim?: { totalFrames: number; labels: Record<string, number> };
+  },
+): void {
+  const { attacker, ownerId, name, local, hit, params, anim } = spec;
+  const world = attackerLocalRect(attacker, local);
+  const axis = (v: unknown) => {
+    if (typeof v === 'number') return { start: v, add: 0, max: 999, min: -999 };
+    const o = (v ?? {}) as Record<string, unknown>;
+    return {
+      start: typeof o.start === 'number' ? o.start : 0,
+      add: typeof o.add === 'number' ? o.add : 0,
+      max: typeof o.max === 'number' ? o.max : 999,
+      min: typeof o.min === 'number' ? o.min : -999,
+    };
+  };
+  const ax = axis(params.x);
+  const ay = axis(params.y);
+  const hold =
+    params.hold === undefined || params.hold === null
+      ? -1
+      : params.hold === -1
+        ? -1
+        : Math.round((params.hold as number) * 60);
+  const bullet: BulletState = {
+    id: ctx.state.nextEntityId,
+    ownerId,
+    facing: attacker.facing,
+    name,
+    x: world.x,
+    y: world.y,
+    w: world.w,
+    h: world.h,
+    sx: ax.start,
+    sy: ay.start,
+    addX: ax.add,
+    addY: ay.add,
+    minX: ax.min,
+    maxX: ax.max,
+    minY: ay.min,
+    maxY: ay.max,
+    holdTicks: hold,
+    hitTimes: typeof params.hits === 'number' ? params.hits : -1,
+    hp: typeof params.hp === 'number' ? params.hp : 100,
+    hpMax: typeof params.hp === 'number' ? params.hp : 100,
+    hit: { ...hit },
+    hitAble: true,
+    viaAssist: attacker.viaAssist,
+    animTotal: anim?.totalFrames ?? 0,
+    animFrame: 1,
+    animLabels: anim ? { ...anim.labels } : {},
     hitAnim: false,
   };
   ctx.state.nextEntityId += 1;

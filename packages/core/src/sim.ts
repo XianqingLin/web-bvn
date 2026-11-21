@@ -34,7 +34,7 @@ import {
 } from './sim/ctx.js';
 import { stepIntents, stepAnimation } from './sim/anim.js';
 import { releaseGrab, resolveLanding, stepPhysics, stepPush } from './sim/physics.js';
-import { spawnBullet, spawnAssistBullet, stepBullets, stepBulletAnim } from './sim/bullets.js';
+import { spawnBullet, spawnAssistBullet, spawnAttackerFireBullet, stepBullets, stepBulletAnim } from './sim/bullets.js';
 import {
   removeAttackers,
   spawnAttacker,
@@ -254,6 +254,7 @@ export class Sim {
       setSlowDown: (t) => self.setSlowDown(t),
       releaseGrab: (f) => releaseGrab(ctx, f),
       spawnBullet: (spec) => spawnBullet(ctx, spec),
+      spawnAttackerFireBullet: (spec) => spawnAttackerFireBullet(ctx, spec),
       spawnAssistBullet: (spec) => spawnAssistBullet(ctx, spec),
       spawnAttacker: (spec) => spawnAttacker(ctx, spec),
       spawnAssistAttacker: (spec) => spawnAssistAttacker(ctx, spec),

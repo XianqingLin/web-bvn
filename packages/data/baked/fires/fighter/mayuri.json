@@ -258,7 +258,74 @@
             "h": 156.70000000000002
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            15,
+            -6
+          ]
+        },
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0,
+            0.4
+          ]
+        },
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "setTouchFloor",
+          "args": [
+            "hit"
+          ]
+        },
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "zh20atm",
+            "hit"
+          ]
+        },
+        {
+          "frame": 16,
+          "target": "attacker",
+          "op": "gotoAndPlay",
+          "args": [
+            "loop"
+          ]
+        },
+        {
+          "frame": 17,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x00FF00"
+            }
+          ]
+        },
+        {
+          "frame": 17,
+          "target": "attacker",
+          "op": "stopMove",
+          "args": []
+        },
+        {
+          "frame": 28,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "cbsmc": {
       "totalFrames": 91,
@@ -646,7 +713,39 @@
             "h": 152.54999999999998
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            10,
+            0
+          ]
+        },
+        {
+          "frame": 40,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 42,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 48,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     }
   }
 }

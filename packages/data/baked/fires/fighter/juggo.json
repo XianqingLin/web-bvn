@@ -116,7 +116,41 @@
             "h": 126.35
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            30,
+            0
+          ]
+        },
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "setHitTarget",
+          "args": [
+            "hitmc",
+            "hit"
+          ]
+        },
+        {
+          "frame": 2,
+          "target": "attacker",
+          "op": "setCrossMap",
+          "args": [
+            true
+          ]
+        },
+        {
+          "frame": 5,
+          "target": "attacker",
+          "op": "stop",
+          "args": []
+        }
+      ]
     },
     "zh2mc": {
       "totalFrames": 79,
@@ -237,7 +271,27 @@
             "h": 79.5
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 16,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 49,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 56,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        }
+      ]
     }
   }
 }

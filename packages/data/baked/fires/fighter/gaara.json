@@ -39,7 +39,15 @@
             "h": 111.85000000000001
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 5,
+          "target": "attacker",
+          "op": "stopFollowTarget",
+          "args": []
+        }
+      ]
     },
     "cbsmc": {
       "totalFrames": 196,
@@ -360,7 +368,37 @@
             "h": 111.44999999999999
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 61,
+          "target": "attacker",
+          "op": "gotoAndPlay",
+          "args": [
+            "miss"
+          ]
+        },
+        {
+          "frame": 160,
+          "target": "attacker",
+          "op": "gotoAndPlay",
+          "args": [
+            "end"
+          ]
+        },
+        {
+          "frame": 183,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "bsmc": {
       "totalFrames": 139,
@@ -518,7 +556,45 @@
             "h": 122.44999999999999
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 17,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 50,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        },
+        {
+          "frame": 62,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        },
+        {
+          "frame": 120,
+          "target": "attacker",
+          "op": "removeSelf",
+          "args": []
+        },
+        {
+          "frame": 124,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 127,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh1atm": {
       "totalFrames": 20,

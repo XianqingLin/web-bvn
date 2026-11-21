@@ -106,6 +106,15 @@ export interface FighterDef {
   triggers: FrameTrigger[];
   /** 已验证存在的攻击动作 id → 动画标签（缺失 = 动作不可用） */
   attackLabels: Record<string, string>;
+  /**
+   * 角色侧 attacker 元件脚本（2026-11-21，原版 $attacker_ctrler.*）：
+   * addAttacker 元件名 → {labels, triggers}；stepAttackerAnim 对角色生成的
+   * 道具逐帧分派（与切片 21 辅助侧同机制，fires[name].triggers 编译来源）。
+   */
+  attackerScripts?: Record<
+    string,
+    { labels: Record<string, number>; triggers: FrameTrigger[] }
+  >;
   /** fire 元件时间轴元数据（baked fires 包注入；缺元件 = 该 fire 无动画生命周期） */
   fires?: Record<string, FireTimelineDef>;
 }
@@ -119,8 +128,16 @@ export interface FighterDef {
 export interface FireTimelineDef {
   totalFrames: number;
   labels: Record<string, number>;
+  /** 元件原点在 owner 根时间轴坐标系的摆放位（direct=1；B5 生成锚定） */
   org?: { x: number; y: number };
+  /** 逐帧命中区（键 = 1 基帧号字符串；缺帧 = 该帧无判定；B5） */
   hits?: Record<string, { name: string; x: number; y: number; w: number; h: number }[]>;
+  /**
+   * 元件帧脚本（角色侧 attacker 元件，2026-11-21；原版 $attacker_ctrler.*）：
+   * 帧号 1 基、target ∈ {attacker, effect}；compileFighterRuntime 收编进
+   * FighterDef.attackerScripts（辅助侧走 AssistantPackage 原字段，切片 21）。
+   */
+  triggers?: FrameTrigger[];
 }
 
 /**

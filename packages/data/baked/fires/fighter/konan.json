@@ -120,7 +120,21 @@
             "h": 87.9
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 21,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 25,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh3mc": {
       "totalFrames": 46,
@@ -184,7 +198,25 @@
             "h": 69.25
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 20,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF0000"
+            }
+          ]
+        },
+        {
+          "frame": 23,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh21mc": {
       "totalFrames": 20,
@@ -239,7 +271,27 @@
             "h": 107.69999999999999
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 8,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "stopFollowTarget",
+          "args": []
+        },
+        {
+          "frame": 13,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     },
     "zh2mc": {
       "totalFrames": 30,
@@ -276,7 +328,21 @@
             "h": 88.25
           }
         ]
-      }
+      },
+      "triggers": [
+        {
+          "frame": 3,
+          "target": "effect",
+          "op": "shine",
+          "args": []
+        },
+        {
+          "frame": 6,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
     }
   }
 }

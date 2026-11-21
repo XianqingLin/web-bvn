@@ -344,6 +344,23 @@ export interface AttackerState {
   /** 本动画帧发生过 gotoAndPlay 跳转（外部/元件脚本）：下一动画步分派落点帧
    *  触发器且不推进（同帧 rewind 用标志传递，值比较无法区分） */
   frameJumped: boolean;
+  // —— 角色侧 attacker 元件脚本驱动（2026-11-21，原版 $attacker_ctrler 语义）
+  // —— 原版 FighterAttacker 继承 BaseGameSprite：速度/阻尼/触地续接/命中
+  // 续接检查全部实体自带；切片 21 此前只建了 viaAssist 道具脚本通道，
+  // 角色生成道具（pain 招1/招2 等语料 23 角色）无脚本即无法位移/续接。
+  /** 水平/垂直速度（原版 setVelocity ×SPEED_PLUS 入 60Hz 位移空间） */
+  vx: number;
+  vy: number;
+  /** 每 tick 线性衰减量（原版 setDamping ×SPEED_PLUS） */
+  dampX: number;
+  dampY: number;
+  /** 触地续接预约标签（原版 _touchFloorFrame；触地即 gotoAndPlay） */
+  touchFloor: string | null;
+  /** 命中续接检查（原版 setHitTarget）：checker = 命名区，action = 跳转标签 */
+  hitTargetChecker: string | null;
+  hitTargetAction: string | null;
+  /** 越界豁免（原版 setCrossMap：isAllowCrossX/isAllowCrossBottom） */
+  isCross: boolean;
 }
 
 export interface MatchState {

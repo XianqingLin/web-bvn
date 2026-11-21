@@ -122,6 +122,7 @@ core 通过快照附带的事件队列向 render/app 发表现信号。**新增�
 - 辅助 owner 系 buff（B4，target='fighter'）：`buffSpeedUpByOwnerSpeed(rate, hold)`——原版 `var ownerSpeed = getOwner().speed; speedUp(ownerSpeed × rate, hold)` 惯用语的数据化（expr 首参跨期不可求值，此前静默 0 值）；值 = 召唤者 def 基速 × rate，存原值消费 ×SPEED_PLUS
 - 风场（B4 temari，windField desc）：注册帧采样目标 heavy/speed（`LEVEL[min(heavy, len)-1]`、`finalSpeed = 目标基速 × level`）与自身朝向（闭包捕获不随转向变化）；步进每动画帧拉扯目标（HURT_DOWN=23 卫语句不拉）；弹速级为**派生值**——`stepBullets` 按在场风场辅助实时求值 `speedLevel = level × (弹朝向==direct ? -1 : 1)`，位移乘 `(1−speedLevel)`，仅作用敌方弹（同队跳过），不进 SimState（多辅助同场 id 序后者覆盖 = 原版单槽覆写序）
 - attacker 元件脚本（切片 21，target='attacker'，数据进 `AssisterDef.attackerScripts`，仅 viaAssist 道具分派）：`stop`（= animHold 定格冻结）、`gotoAndPlay(label|frame)`（解除定格）、`stopFollowTarget`、`removeSelf`（返回移除标记，同帧不再推进）；`endAct` 元件语境 no-op；B5 起 `if` 条件触发器分派（`dispatchAttackerCond`：cond 成立走 then 否则 else，分支体调用仍走元件脚本原语；查询 op 仅 `justHit`——madara miss 分支卫语句 `if(!justHit("x")){gotoAndPlay("y")}` 由导出器提取为 cond 触发器）
+- attacker 元件脚本·角色侧扩展（2026-11-21，原版 `$attacker_ctrler.*`，数据进 `FighterDef.attackerScripts`，来源 fires[name].triggers 由 `tools/fire-script-pack` 从 XFL 提取；角色生成与 viaAssist 道具同机制分派）：`move(x,y)`/`damping(x,y)`/`stopMove`（道具速度/阻尼，×SPEED_PLUS 同角色律）、`gotoAndStop`（跳转+定格）、`setTouchFloor(label)`（触地续接预约，stepAttackers 消费）、`setCrossMap(v)`（越界豁免位）、`moveToTarget(x,y)`（一次性重定位）、`setHitTarget(checker, action)`（命中续接预约：stepAttackers 每 tick 巡检 checker 区 ∩ 目标 body → gotoAndPlay(action)）、`fire(mcName, params)`（元件内再发射弹体：位置 = 当前帧命中区镜像到原点，params 语义同 fire 桥，owner 沿道具 owner）+ effect 系 `walk`/`dash`（尘土）/`shake`/`slowDown`
 
 ## 并行开发纪律
 
