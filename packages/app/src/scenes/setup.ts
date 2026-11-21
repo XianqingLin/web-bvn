@@ -1210,8 +1210,12 @@ export class SetupScene implements Scene {
     // 点缩略图即确认（原版 kuang 语义；随机项确认时解析）。客座只读无此交互
     if (interactive) pic.on('pointertap', () => this.confirmMap(entries[this.mapIndex]!));
 
-    // 左右箭头热区（透明命中区，对齐 96 箭头 fx 实位 (57,118)/(584,118) 57×50 外扩 5px；
-    // 空 Container 无 hitArea 不参与命中，故显式给矩形）；联机房主切换后 map-pick 广播
+    // 左右箭头热区（透明命中区，对齐 96 箭头 fx 实际覆盖域外扩 5px）。注意 fx 的
+    // 原点语义：spec.pos 是元件原点位（右 584 / 左 57），OverlayFx 的 Sprite 锚点
+    // (0,0)，左箭头 scale -1 绕原点翻转 → 实际画在 0..57（贴面板左缘，与右箭头
+    // 584..641 关于 321 对称）——热区按视觉覆盖域算，不按原点位（此前按绕中心
+    // 镜像假设给 52..119，热区落在箭头右侧空白上，左箭头点不中）；空 Container
+    // 无 hitArea 不参与命中，故显式给矩形。联机房主切换后 map-pick 广播
     const mkHit = (x: number, dir: -1 | 1) => {
       const hit = new Container();
       hit.position.set(x, 113);
@@ -1228,8 +1232,8 @@ export class SetupScene implements Scene {
       }
       panel.addChild(hit);
     };
-    mkHit(52, -1); // 左箭头
-    mkHit(579, 1); // 右箭头
+    mkHit(-5, -1); // 左箭头（视觉域 0..57，外扩 5px）
+    mkHit(579, 1); // 右箭头（视觉域 584..641，外扩 5px）
 
     // 名牌 + 地图名（原版 select_map_txt_mc：舞台坐标 (308.5,533)，居中）
     const [tx, ty] = ui.select.mapTextPos;
