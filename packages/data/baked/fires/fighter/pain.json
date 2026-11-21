@@ -4,6 +4,126 @@
   "ownerKind": "fighter",
   "id": "pain",
   "fires": {
+    "zh13atm": {
+      "totalFrames": 20,
+      "labels": {
+        "hit": 14,
+        "loop": 13
+      }
+    },
+    "zh1": {
+      "totalFrames": 44,
+      "labels": {},
+      "org": {
+        "y": 23.7,
+        "x": 22.9
+      },
+      "hits": {
+        "11": [
+          {
+            "x": 30.3,
+            "y": -44.5,
+            "w": 50.900000000000006,
+            "name": "zh13atm",
+            "h": 27
+          }
+        ],
+        "12": [
+          {
+            "x": 30.3,
+            "y": -44.5,
+            "w": 50.900000000000006,
+            "name": "zh13atm",
+            "h": 27
+          }
+        ]
+      },
+      "triggers": [
+        {
+          "frame": 11,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0xFF0000"
+            }
+          ]
+        },
+        {
+          "frame": 11,
+          "target": "attacker",
+          "op": "fire",
+          "args": [
+            "zh13atm",
+            {
+              "x": 18,
+              "hold": 1,
+              "hits": 1
+            }
+          ]
+        },
+        {
+          "frame": 43,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
+    },
+    "sbs1": {
+      "totalFrames": 48,
+      "labels": {},
+      "org": {
+        "y": 23.3,
+        "x": 59.35
+      },
+      "hits": {
+        "6": [
+          {
+            "x": -52.2,
+            "y": -58.5,
+            "w": 116.3,
+            "name": "sbs1atm",
+            "h": 57.5
+          }
+        ],
+        "7": [
+          {
+            "x": -52.2,
+            "y": -58.5,
+            "w": 116.3,
+            "name": "sbs1atm",
+            "h": 57.5
+          }
+        ],
+        "8": [
+          {
+            "x": -52.2,
+            "y": -58.5,
+            "w": 116.3,
+            "name": "sbs1atm",
+            "h": 57.5
+          }
+        ],
+        "9": [
+          {
+            "x": -52.2,
+            "y": -58.5,
+            "w": 116.3,
+            "name": "sbs1atm",
+            "h": 57.5
+          }
+        ]
+      },
+      "triggers": [
+        {
+          "frame": 10,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
+    },
     "zh3mc2": {
       "totalFrames": 28,
       "labels": {},
@@ -12,67 +132,132 @@
         "x": -27.85
       }
     },
-    "kj2mc": {
-      "totalFrames": 38,
+    "xld": {
+      "totalFrames": 40,
       "labels": {},
       "org": {
-        "y": -61,
-        "x": -4.95
+        "y": 23.7,
+        "x": 22.9
       },
       "hits": {
-        "5": [
+        "9": [
           {
-            "x": 9,
-            "y": 28.55,
-            "w": 53.75,
-            "name": "kj2atm",
-            "h": 55.60000000000001
+            "x": 17.95,
+            "y": -75.2,
+            "w": 127.85000000000001,
+            "name": "sbs4atm",
+            "h": 68.45
           }
         ],
-        "6": [
+        "10": [
           {
-            "x": 9,
-            "y": 28.55,
-            "w": 53.75,
-            "name": "kj2atm",
-            "h": 55.60000000000001
+            "x": 17.95,
+            "y": -75.2,
+            "w": 127.85000000000001,
+            "name": "sbs4atm",
+            "h": 68.45
           }
         ],
-        "7": [
+        "11": [
           {
-            "x": 9,
-            "y": 28.55,
-            "w": 53.75,
-            "name": "kj2atm",
-            "h": 55.60000000000001
-          }
-        ],
-        "8": [
-          {
-            "x": 9,
-            "y": 28.55,
-            "w": 53.75,
-            "name": "kj2atm",
-            "h": 55.60000000000001
+            "x": 17.95,
+            "y": -75.2,
+            "w": 127.85000000000001,
+            "name": "sbs4atm",
+            "h": 68.45
           }
         ]
       },
       "triggers": [
         {
-          "frame": 5,
-          "target": "effect",
-          "op": "shine",
-          "args": [
-            {
-              "$expr": "0x000000"
-            }
-          ]
-        },
-        {
-          "frame": 9,
+          "frame": 39,
           "target": "attacker",
           "op": "endAct",
           "args": []
+        }
+      ]
+    },
+    "rjd": {
+      "totalFrames": 20,
+      "labels": {},
+      "org": {
+        "y": -41.85,
+        "x": -54.1
+      },
+      "hits": {
+        "5": [
+          {
+            "x": 20.25,
+            "y": 28,
+            "w": 76.45,
+            "name": "sbs2atm",
+            "h": 21.5
+          }
+        ],
+        "6": [
+          {
+            "x": 20.25,
+            "y": 28,
+            "w": 76.45,
+            "name": "sbs2atm",
+            "h": 21.5
+          }
+        ],
+        "7": [
+          {
+            "x": 20.25,
+            "y": 28,
+            "w": 76.45,
+            "name": "sbs2atm",
+            "h": 21.5
+          }
+        ]
+      },
+      "triggers": [
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0.3,
+            0
+          ]
+        },
+        {
+          "frame": 5,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            20,
+            0
+          ]
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            6,
+            0
+          ]
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0.5,
+            0
+          ]
         }
       ]
     },
@@ -334,6 +519,166 @@
         "x": -27.85
       }
     },
+    "tkmc": {
+      "totalFrames": 20,
+      "labels": {},
+      "org": {
+        "y": -41.85,
+        "x": -54.1
+      },
+      "hits": {
+        "5": [
+          {
+            "x": 20.25,
+            "y": 28,
+            "w": 76.45,
+            "name": "tk2atm",
+            "h": 21.5
+          }
+        ],
+        "6": [
+          {
+            "x": 20.25,
+            "y": 28,
+            "w": 76.45,
+            "name": "tk2atm",
+            "h": 21.5
+          }
+        ],
+        "7": [
+          {
+            "x": 20.25,
+            "y": 28,
+            "w": 76.45,
+            "name": "tk2atm",
+            "h": 21.5
+          }
+        ]
+      },
+      "triggers": [
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            2,
+            0
+          ]
+        },
+        {
+          "frame": 1,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0.3,
+            0
+          ]
+        },
+        {
+          "frame": 4,
+          "target": "effect",
+          "op": "playSoundHit2",
+          "args": []
+        },
+        {
+          "frame": 5,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            20,
+            0
+          ]
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "move",
+          "args": [
+            6,
+            0
+          ]
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "damping",
+          "args": [
+            0.5,
+            0
+          ]
+        },
+        {
+          "frame": 8,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
+    },
+    "kj2mc": {
+      "totalFrames": 38,
+      "labels": {},
+      "org": {
+        "y": -61,
+        "x": -4.95
+      },
+      "hits": {
+        "5": [
+          {
+            "x": 9,
+            "y": 28.55,
+            "w": 53.75,
+            "name": "kj2atm",
+            "h": 55.60000000000001
+          }
+        ],
+        "6": [
+          {
+            "x": 9,
+            "y": 28.55,
+            "w": 53.75,
+            "name": "kj2atm",
+            "h": 55.60000000000001
+          }
+        ],
+        "7": [
+          {
+            "x": 9,
+            "y": 28.55,
+            "w": 53.75,
+            "name": "kj2atm",
+            "h": 55.60000000000001
+          }
+        ],
+        "8": [
+          {
+            "x": 9,
+            "y": 28.55,
+            "w": 53.75,
+            "name": "kj2atm",
+            "h": 55.60000000000001
+          }
+        ]
+      },
+      "triggers": [
+        {
+          "frame": 5,
+          "target": "effect",
+          "op": "shine",
+          "args": [
+            {
+              "$expr": "0x000000"
+            }
+          ]
+        },
+        {
+          "frame": 9,
+          "target": "attacker",
+          "op": "endAct",
+          "args": []
+        }
+      ]
+    },
     "zh2mc": {
       "totalFrames": 68,
       "labels": {
@@ -576,6 +921,13 @@
         "x": -77.05
       }
     },
+    "zh1atm": {
+      "totalFrames": 20,
+      "labels": {
+        "hit": 14,
+        "loop": 13
+      }
+    },
     "zh1mc": {
       "totalFrames": 36,
       "labels": {},
@@ -747,344 +1099,6 @@
         },
         {
           "frame": 36,
-          "target": "attacker",
-          "op": "endAct",
-          "args": []
-        }
-      ]
-    },
-    "zh1": {
-      "totalFrames": 44,
-      "labels": {},
-      "org": {
-        "y": 23.7,
-        "x": 22.9
-      },
-      "hits": {
-        "11": [
-          {
-            "x": 30.3,
-            "y": -44.5,
-            "w": 50.900000000000006,
-            "name": "zh13atm",
-            "h": 27
-          }
-        ],
-        "12": [
-          {
-            "x": 30.3,
-            "y": -44.5,
-            "w": 50.900000000000006,
-            "name": "zh13atm",
-            "h": 27
-          }
-        ]
-      },
-      "triggers": [
-        {
-          "frame": 11,
-          "target": "effect",
-          "op": "shine",
-          "args": [
-            {
-              "$expr": "0xFF0000"
-            }
-          ]
-        },
-        {
-          "frame": 11,
-          "target": "attacker",
-          "op": "fire",
-          "args": [
-            "zh13atm",
-            {
-              "x": 18,
-              "hold": 1,
-              "hits": 1
-            }
-          ]
-        },
-        {
-          "frame": 43,
-          "target": "attacker",
-          "op": "endAct",
-          "args": []
-        }
-      ]
-    },
-    "xld": {
-      "totalFrames": 40,
-      "labels": {},
-      "org": {
-        "y": 23.7,
-        "x": 22.9
-      },
-      "hits": {
-        "9": [
-          {
-            "x": 17.95,
-            "y": -75.2,
-            "w": 127.85000000000001,
-            "name": "sbs4atm",
-            "h": 68.45
-          }
-        ],
-        "10": [
-          {
-            "x": 17.95,
-            "y": -75.2,
-            "w": 127.85000000000001,
-            "name": "sbs4atm",
-            "h": 68.45
-          }
-        ],
-        "11": [
-          {
-            "x": 17.95,
-            "y": -75.2,
-            "w": 127.85000000000001,
-            "name": "sbs4atm",
-            "h": 68.45
-          }
-        ]
-      },
-      "triggers": [
-        {
-          "frame": 39,
-          "target": "attacker",
-          "op": "endAct",
-          "args": []
-        }
-      ]
-    },
-    "sbs1": {
-      "totalFrames": 48,
-      "labels": {},
-      "org": {
-        "y": 23.3,
-        "x": 59.35
-      },
-      "hits": {
-        "6": [
-          {
-            "x": -52.2,
-            "y": -58.5,
-            "w": 116.3,
-            "name": "sbs1atm",
-            "h": 57.5
-          }
-        ],
-        "7": [
-          {
-            "x": -52.2,
-            "y": -58.5,
-            "w": 116.3,
-            "name": "sbs1atm",
-            "h": 57.5
-          }
-        ],
-        "8": [
-          {
-            "x": -52.2,
-            "y": -58.5,
-            "w": 116.3,
-            "name": "sbs1atm",
-            "h": 57.5
-          }
-        ],
-        "9": [
-          {
-            "x": -52.2,
-            "y": -58.5,
-            "w": 116.3,
-            "name": "sbs1atm",
-            "h": 57.5
-          }
-        ]
-      },
-      "triggers": [
-        {
-          "frame": 10,
-          "target": "attacker",
-          "op": "endAct",
-          "args": []
-        }
-      ]
-    },
-    "rjd": {
-      "totalFrames": 20,
-      "labels": {},
-      "org": {
-        "y": -41.85,
-        "x": -54.1
-      },
-      "hits": {
-        "5": [
-          {
-            "x": 20.25,
-            "y": 28,
-            "w": 76.45,
-            "name": "sbs2atm",
-            "h": 21.5
-          }
-        ],
-        "6": [
-          {
-            "x": 20.25,
-            "y": 28,
-            "w": 76.45,
-            "name": "sbs2atm",
-            "h": 21.5
-          }
-        ],
-        "7": [
-          {
-            "x": 20.25,
-            "y": 28,
-            "w": 76.45,
-            "name": "sbs2atm",
-            "h": 21.5
-          }
-        ]
-      },
-      "triggers": [
-        {
-          "frame": 1,
-          "target": "attacker",
-          "op": "move",
-          "args": [
-            2,
-            0
-          ]
-        },
-        {
-          "frame": 1,
-          "target": "attacker",
-          "op": "damping",
-          "args": [
-            0.3,
-            0
-          ]
-        },
-        {
-          "frame": 5,
-          "target": "attacker",
-          "op": "move",
-          "args": [
-            20,
-            0
-          ]
-        },
-        {
-          "frame": 8,
-          "target": "attacker",
-          "op": "move",
-          "args": [
-            6,
-            0
-          ]
-        },
-        {
-          "frame": 8,
-          "target": "attacker",
-          "op": "damping",
-          "args": [
-            0.5,
-            0
-          ]
-        }
-      ]
-    },
-    "tkmc": {
-      "totalFrames": 20,
-      "labels": {},
-      "org": {
-        "y": -41.85,
-        "x": -54.1
-      },
-      "hits": {
-        "5": [
-          {
-            "x": 20.25,
-            "y": 28,
-            "w": 76.45,
-            "name": "tk2atm",
-            "h": 21.5
-          }
-        ],
-        "6": [
-          {
-            "x": 20.25,
-            "y": 28,
-            "w": 76.45,
-            "name": "tk2atm",
-            "h": 21.5
-          }
-        ],
-        "7": [
-          {
-            "x": 20.25,
-            "y": 28,
-            "w": 76.45,
-            "name": "tk2atm",
-            "h": 21.5
-          }
-        ]
-      },
-      "triggers": [
-        {
-          "frame": 1,
-          "target": "attacker",
-          "op": "move",
-          "args": [
-            2,
-            0
-          ]
-        },
-        {
-          "frame": 1,
-          "target": "attacker",
-          "op": "damping",
-          "args": [
-            0.3,
-            0
-          ]
-        },
-        {
-          "frame": 4,
-          "target": "effect",
-          "op": "playSoundHit2",
-          "args": []
-        },
-        {
-          "frame": 5,
-          "target": "attacker",
-          "op": "move",
-          "args": [
-            20,
-            0
-          ]
-        },
-        {
-          "frame": 8,
-          "target": "attacker",
-          "op": "move",
-          "args": [
-            6,
-            0
-          ]
-        },
-        {
-          "frame": 8,
-          "target": "attacker",
-          "op": "damping",
-          "args": [
-            0.5,
-            0
-          ]
-        },
-        {
-          "frame": 8,
           "target": "attacker",
           "op": "endAct",
           "args": []

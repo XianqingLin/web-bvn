@@ -6,6 +6,12 @@
  * 名单格式：{ fighter: {<id>: [name...]}, assister: {<id>: [name...]} }
  * 同名元件可能在多个动作重复触发——去重即可。
  *
+ * 两个来源（2026-11-21）：
+ *   - baked/fighters|assistants/<id>.json 的 op fire/addAttacker（mc 层触发器）；
+ *   - baked/fires/<fighter|assister>/<id>.json 的 attacker 元件 triggers
+ *     （角色侧 attacker 元件脚本切片 879fd62 起，fire-script-pack 提取——
+ *     元件内 fire 弹体名只在这里，如 pain zh1atm/zh13atm）。
+ *
  * 用法：node dist/collect-fire-names.js [captureDir]
  */
 import { existsSync, readdirSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -40,21 +46,22 @@ function collectNames(pkg) {
 }
 
 const out = { fighter: {}, assister: {} };
-for (const [kind, dir] of [
-  ['fighter', 'fighters'],
-  ['assister', 'assistants'],
+for (const [kind, dirs] of [
+  ['fighter', ['fighters', 'fires/fighter']],
+  ['assister', ['assistants', 'fires/assister']],
 ]) {
-  const abs = join(ROOT, 'packages/data/baked', dir);
-  if (!existsSync(abs)) {
-    console.error(`collect-fire-names: 缺目录 ${abs}`);
-    process.exit(2);
-  }
-  for (const file of readdirSync(abs)) {
-    if (!file.endsWith('.json')) continue;
-    const id = file.replace(/\.json$/, '');
-    const pkg = JSON.parse(readFileSync(join(abs, file), 'utf8'));
-    const names = collectNames(pkg);
-    if (names.length > 0) out[kind][id] = names;
+  for (const dir of dirs) {
+    const abs = join(ROOT, 'packages/data/baked', dir);
+    if (!existsSync(abs)) continue; // fires 包缺失（工具未跑过）时静默跳过
+    for (const file of readdirSync(abs)) {
+      if (!file.endsWith('.json')) continue;
+      const id = file.replace(/\.json$/, '');
+      const pkg = JSON.parse(readFileSync(join(abs, file), 'utf8'));
+      const names = collectNames(pkg);
+      if (names.length === 0) continue;
+      const prev = out[kind][id] ?? [];
+      out[kind][id] = [...prev, ...names.filter((n) => !prev.includes(n))];
+    }
   }
 }
 

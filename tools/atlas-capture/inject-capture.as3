@@ -963,18 +963,24 @@
          {
             wanted[String(names[ni])] = true;
          }
-         // 阶段一：递归扫描定位元件实例（首个命中即定，同名同库符号时间轴一致）。
-         // root 的子对象多为未命名 instanceNNN（内层 MC 不叫 "mc"），fire 元件
-         // 摆在内层时间轴关键帧上——逐 root 帧重扫，后代 MovieClip 逐帧推进枚举
-         // 直接子对象，深度 3 足够（root > 内层 > 嵌套）。
-         var found:Object = {};
-         _capFoundCount = 0;
+         // 扫描与栅格化合并为「命中即采」（2026-11-21 重构）：
+         // 旧两段式（先全树扫描存引用、后逐元件栅格化）在 pain 实证失效——
+         // 定位与栅格化之间隔着整个内层时间轴扫描，父时间轴关键帧跨越会把
+         // 已存引用变为僵尸（gotoAndStop 不再物化内容，pain 12/14 元件全帧
+         // 空）。改为命中命名元件时立刻栅格化其完整时间轴（同 capChar 的
+         // gotoAndStop→推进子件→立即截图语义，引用不跨帧存活）；嵌套 wanted
+         // 弹体（pain zh1atm/zh13atm 摆在 zh1mc 自身时间轴上）在扫描其父
+         // 元件帧时递归即采。逐 root 帧重扫 + 后代逐帧推进枚举（深度 3）。
+         var captured:Object = {};
+         var fires:Object = {};
+         var seen:Object = {};
+         var pngCount:int = 0;
+         var pngList:Array = [];
+         var fireSkipRe:RegExp = /^(atm|bdmn|AImain|main)/;
+         // png 目录带 ownerKind：fighter/assister 的 id 可能同名（byakuya 双栖）
+         item.pngPrefix = "fire_" + item.ownerKind + "_" + item.id;
          for(var r:int = 1; r <= root.totalFrames; r++)
          {
-            if(_capFoundCount >= names.length)
-            {
-               break;
-            }
             try
             {
                root.gotoAndStop(r);
@@ -983,80 +989,19 @@
             {
                capBootLog("fire locate root " + item.id + " r" + r + " ERR: " + re.message);
             }
-            capSweepFind(root,wanted,found,3,item.id,r,names.length);
+            capFireScan(root,item,wanted,captured,fires,seen,pngList,function():int
+            {
+               pngCount++;
+               return pngCount;
+            },fireSkipRe,3,item.id,r);
          }
-         // 阶段二：逐元件栅格化自身时间轴 + 记录元数据
-         var seen:Object = {};
-         var pngCount:int = 0;
-         var pngList:Array = [];
-         var fires:Object = {};
-         var fireSkipRe:RegExp = /^(atm|bdmn|AImain|main)/;
-         // png 目录带 ownerKind：fighter/assister 的 id 可能同名（byakuya 双栖）
-         item.pngPrefix = "fire_" + item.ownerKind + "_" + item.id;
          for(var nmS:String in wanted)
          {
-            var mc:MovieClip = found[nmS] as MovieClip;
-            if(mc == null)
+            if(captured[nmS] != true)
             {
                fires[nmS] = {"missing":true};
                capLog("fire " + item.id + " " + nmS + " 时间轴上未找到");
-               continue;
             }
-            // main 锚：Bullet.setHitVO 的 _bulletArea 来源（无 main 回退元件自身
-            // bounds，同原版）；坐标 = 相对元件原点（direct=1 空间）
-            var anchor:DisplayObject = mc.getChildByName("main");
-            if(anchor == null)
-            {
-               anchor = mc;
-            }
-            var ab:Rectangle = anchor.getBounds(mc);
-            var rec:Object = {
-               "rootX":mc.x,
-               "rootY":mc.y,
-               "totalFrames":mc.totalFrames,
-               "labels":capLabelsOf(mc),
-               "main":{"x":ab.x,"y":ab.y,"w":ab.width,"h":ab.height},
-               "frames":[]
-            };
-            for(var f0:int = 1; f0 <= mc.totalFrames; f0++)
-            {
-               rec.frames.push({"frame":f0,"png":-1});
-            }
-            if(_capDiag)
-            {
-               _capDiagSeen = {};
-               _capDiagPrev = {};
-            }
-            for(var f2:int = 1; f2 <= mc.totalFrames; f2++)
-            {
-               try
-               {
-                  mc.gotoAndStop(f2);
-               }
-               catch(e:Error)
-               {
-                  capBootLog("fire goto " + item.id + " " + nmS + " f" + f2 + " ERR: " + e.message);
-               }
-               if(_capDiag)
-               {
-                  capDiagChildren(mc,capDiagTag(nmS + "@fire" + _capRootFrame,f2,"PRE"),1);
-               }
-               capAdvanceChildren(mc,fireSkipRe);
-               if(_capDiag)
-               {
-                  capDiagChildren(mc,capDiagTag(nmS + "@fire" + _capRootFrame,f2,"POST"),1);
-               }
-               capShotFrame(item,mc,mc,f2,seen,pngList,function():int
-               {
-                  pngCount++;
-                  return pngCount;
-               },rec.frames,fireSkipRe);
-            }
-            if(_capProbe)
-            {
-               capProbeChildren(mc,item.id + ":fire:" + nmS);
-            }
-            fires[nmS] = rec;
          }
          var outData:Object = {
             "kind":"fire",
@@ -1071,34 +1016,17 @@
          capLog("captured fire " + item.ownerKind + ":" + item.id + " 元件=" + names.length + " pngs=" + pngList.length);
       }
 
-      private function capLabelsOf(mc:MovieClip) : Object
+      // 命中即采的递归扫描（capFire 主体）：枚举 mc 直接子对象，wanted 命名
+      // 元件命中即完整栅格化（capFireOne）；未命中且多帧的继续逐帧推进下钻
+      // （depth 层，与旧 capSweepFind 同语义）。
+      private function capFireScan(mc:MovieClip, item:Object, wanted:Object, captured:Object, fires:Object, seen:Object, pngList:Array, nextId:Function, skipRe:RegExp, depth:int, id:String, r:int) : void
       {
-         var out:Object = {};
-         var labels:Array = mc.currentLabels;
-         for(var i:int = 0; i < labels.length; i++)
-         {
-            out[String(labels[i].name)] = int(labels[i].frame);
-         }
-         return out;
-      }
-
-      // 递归扫描定位：枚举 mc 直接子对象，命中 wanted 记入 found；其余
-      // 多帧 MovieClip 逐帧推进下钻（depth 层）。仅枚举不栅格化，成本低。
-      // _capFoundCount 达到 wanted 总数即全树提前退出。
-      private var _capFoundCount:int = 0;
-
-      private function capSweepFind(mc:MovieClip, wanted:Object, found:Object, depth:int, id:String, r:int, wantedTotal:int) : void
-      {
-         if(depth <= 0 || mc.totalFrames < 1 || _capFoundCount >= wantedTotal)
+         if(depth <= 0 || mc.totalFrames < 1)
          {
             return;
          }
          for(var f:int = 1; f <= mc.totalFrames; f++)
          {
-            if(_capFoundCount >= wantedTotal)
-            {
-               return;
-            }
             try
             {
                mc.gotoAndStop(f);
@@ -1114,22 +1042,107 @@
                {
                   continue;
                }
-               if(found[ch.name] != null)
+               if(wanted[ch.name] == true && captured[ch.name] != true && ch.totalFrames >= 1)
                {
-                  continue;
-               }
-               if(wanted[ch.name] == true && ch.totalFrames >= 1)
-               {
-                  found[ch.name] = ch;
-                  _capFoundCount++;
-                  continue;
+                  capFireOne(item,ch,ch.name,wanted,captured,fires,seen,pngList,nextId,skipRe);
                }
                if(depth > 1 && ch.totalFrames > 1)
                {
-                  capSweepFind(ch,wanted,found,depth - 1,id,r,wantedTotal);
+                  capFireScan(ch,item,wanted,captured,fires,seen,pngList,nextId,skipRe,depth - 1,id,r);
                }
             }
          }
+      }
+
+      // 单个 fire 元件命中即采：元数据 + 完整时间轴栅格化；扫描自身帧时
+      // 命中嵌套 wanted 弹体递归即采（引用即时消费，不跨帧存活）。
+      private function capFireOne(item:Object, mc:MovieClip, name:String, wanted:Object, captured:Object, fires:Object, seen:Object, pngList:Array, nextId:Function, skipRe:RegExp) : void
+      {
+         captured[name] = true;
+         // main 锚：Bullet.setHitVO 的 _bulletArea 来源（无 main 回退元件自身
+         // bounds，同原版）；坐标 = 相对元件原点（direct=1 空间）
+         var anchor:DisplayObject = mc.getChildByName("main");
+         if(anchor == null)
+         {
+            anchor = mc;
+         }
+         var ab:Rectangle = anchor.getBounds(mc);
+         var rec:Object = {
+            "rootX":mc.x,
+            "rootY":mc.y,
+            "totalFrames":mc.totalFrames,
+            "labels":capLabelsOf(mc),
+            "main":{"x":ab.x,"y":ab.y,"w":ab.width,"h":ab.height},
+            "frames":[]
+         };
+         fires[name] = rec;
+         for(var f0:int = 1; f0 <= mc.totalFrames; f0++)
+         {
+            rec.frames.push({"frame":f0,"png":-1});
+         }
+         if(_capDiag)
+         {
+            _capDiagSeen = {};
+            _capDiagPrev = {};
+         }
+         for(var f2:int = 1; f2 <= mc.totalFrames; f2++)
+         {
+            try
+            {
+               mc.gotoAndStop(f2);
+            }
+            catch(e:Error)
+            {
+               capBootLog("fire goto " + item.id + " " + name + " f" + f2 + " ERR: " + e.message);
+            }
+            if(_capDiag)
+            {
+               capDiagChildren(mc,capDiagTag(name + "@fire" + _capRootFrame,f2,"PRE"),1);
+            }
+            capAdvanceChildren(mc,skipRe);
+            if(_capDiag)
+            {
+               capDiagChildren(mc,capDiagTag(name + "@fire" + _capRootFrame,f2,"POST"),1);
+            }
+            capShotFrame(item,mc,mc,f2,seen,pngList,nextId,rec.frames,skipRe);
+            // 嵌套 wanted 弹体（如 pain zh1atm 摆在 zh1mc 的时间轴上）
+            for(var i:int = 0; i < mc.numChildren; i++)
+            {
+               var ch:MovieClip = mc.getChildAt(i) as MovieClip;
+               if(ch == null || ch.name == null)
+               {
+                  continue;
+               }
+               if(wanted[ch.name] == true && captured[ch.name] != true && ch.totalFrames >= 1)
+               {
+                  capFireOne(item,ch,ch.name,wanted,captured,fires,seen,pngList,nextId,skipRe);
+               }
+            }
+         }
+         if(_capProbe)
+         {
+            capProbeChildren(mc,item.id + ":fire:" + name);
+         }
+         var empty:int = 0;
+         for(var fc:int = 0; fc < rec.frames.length; fc++)
+         {
+            if(rec.frames[fc].png < 0)
+            {
+               empty++;
+            }
+         }
+         capBootLog("FIREDONE " + item.id + " " + name + " tf=" + rec.totalFrames + " empty=" + empty);
+      }
+
+      private function capLabelsOf(mc:MovieClip) : Object
+      {
+         var out:Object = {};
+         var labels:Array = mc.currentLabels;
+         for(var i:int = 0; i < labels.length; i++)
+         {
+            out[String(labels[i].name)] = int(labels[i].frame);
+         }
+         return out;
       }
 
       // ---------- 地图 capture：逐子图层 PNG + 偏移 ----------
