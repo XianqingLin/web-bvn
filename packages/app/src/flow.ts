@@ -18,8 +18,10 @@ export interface TeamPicks {
 export interface Flow {
   /** solo = 单机训练；local = 本地双人（P1/P2 同机键盘）；net = 联机 lockstep */
   mode: 'solo' | 'local' | 'net';
-  /** 房间服务器地址（联机；localStorage 记忆） */
+  /** 房间服务器地址（联机；localStorage 记忆；节点择优结果写这里） */
   serverUrl: string;
+  /** 当前节点选择结果（server-selection；UI 显示与诊断用） */
+  nodeInfo?: { nodeId: string; reason: string; rttP50?: number };
   /** 本端显示昵称（房间页/VS 横幅；平台昵称，standalone 回退"玩家N"） */
   name: string;
   /** 平台 SDK（boot 时 connectGameDock；standalone 时联机走自有服务器，账号信息仅作显示） */

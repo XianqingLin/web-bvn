@@ -111,6 +111,20 @@ test('create：welcome + room-info（单人快照，默认设置）', async () =
   c.ws.close();
 });
 
+test('ping → pong（id 原样回 + queue 数字，纯只读不触发房间语义）', async () => {
+  const port = await serverPort(proc);
+  const c = client(port);
+  await c.open;
+  c.send({ t: 'ping', id: 42 });
+  const pong = await c.expect('pong');
+  assert.equal(pong.id, 42);
+  assert.equal(typeof pong.queue, 'number');
+  assert.ok(Number.isInteger(pong.queue) && pong.queue >= 0);
+  // 纯只读：ping 不应产生 welcome / room-info / matched 等房间消息
+  await assert.rejects(c.next(120), /超时/);
+  c.ws.close();
+});
+
 async function serverPort(p) {
   return new Promise((res, rej) => {
     const onData = (d) => {

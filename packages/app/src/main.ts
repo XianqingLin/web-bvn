@@ -23,6 +23,7 @@ import { MatchScene } from './scenes/match.js';
 import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
 import { makeFlow } from './flow.js';
+import { resolveJoinNode, selectNode } from './nodes.js';
 
 async function boot(): Promise<void> {
   const app = new Application();
@@ -85,7 +86,20 @@ async function boot(): Promise<void> {
   }
   const mode = params.get('mode');
   if (!mode) {
-    // 正式入口：游戏初始化封面（原版 GameLoadingStage"绊"）→ 开场徽标 → 主菜单
+    // 正式入口：深链跨节点加入引导（?room=&node=，文档 server-selection §4）
+    // → 之后后台异步择优节点（与封面动画并行，不阻塞；?server= 强制指定优先）。
+    // 两者都只写 flow.serverUrl——联机场景进房时统一读它，对局协议零改动。
+    const joinRoomCode = params.get('room');
+    const joinNode = params.get('node');
+    void (async () => {
+      if (joinRoomCode && joinNode) {
+        await resolveJoinNode(flow, joinRoomCode, joinNode);
+        // 深链带 node = 用户显式指定目标节点，等价于 manual，跳过后台自动择优
+        return;
+      }
+      await selectNode(flow);
+    })();
+    // 游戏初始化封面（原版 GameLoadingStage"绊"）→ 开场徽标 → 主菜单
     scenes.switchTo(new GameLoadingScene(flow));
     return;
   }

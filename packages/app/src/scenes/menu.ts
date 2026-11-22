@@ -21,6 +21,7 @@ import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { makeLabel, UI_H, UI_W } from '../ui.js';
+import { nodeDisplayText, showNodePanel } from '../nodes.js';
 import { tickTweens, tweenOf, clearTweens } from '../anim.js';
 import type { Flow } from '../flow.js';
 import { ASSETS, loadUi, type UiData } from '../data.js';
@@ -157,6 +158,8 @@ export class MenuScene implements Scene {
   private switchTo: ((s: Scene) => void) | null = null;
   private ctx: SceneCtx | null = null;
   private hoveredBtn: MenuBtn | null = null;
+  private nodeLabel: Text | null = null;
+  private nodeRefreshAcc = 0;
 
   constructor(private readonly flow: Flow) {}
 
@@ -204,6 +207,21 @@ export class MenuScene implements Scene {
     version.position.set(OX + 800 - this.uiData.menu.versionPad[0] - version.width, UI_H - this.uiData.menu.versionPad[1] - version.height);
     root.addChild(version);
 
+    // 节点选择标签（server-selection）：显示当前节点/延迟，点击弹切换面板。
+    // 后台 selectNode 可能尚未完成，初始显示"检测中"，update 里低频刷新。
+    const nodeLabel = makeLabel(nodeDisplayText(this.flow), { size: 14, color: 0x8fd0ff });
+    nodeLabel.anchor.set(1, 0);
+    nodeLabel.position.set(OX + 800 - 12, 12);
+    nodeLabel.eventMode = 'static';
+    nodeLabel.cursor = 'pointer';
+    nodeLabel.on('pointertap', () => {
+      if (this.ctx) showNodePanel(this.flow, this.ctx.domHost, () => {
+        nodeLabel.text = nodeDisplayText(this.flow);
+      });
+    });
+    root.addChild(nodeLabel);
+    this.nodeLabel = nodeLabel;
+
     // 流帧：预取头几帧后开播
     this.stream = new FrameStream({ dir: title.dir, frames: title.frames, from: title.introFrom, to: title.menuStop });
     this.stream.ensure(title.introFrom, 5);
@@ -238,6 +256,15 @@ export class MenuScene implements Scene {
 
   update(dtMs: number): void {
     tickTweens(dtMs);
+    // 节点标签低频刷新（后台择优完成后文本才更新），不影响 sim 帧
+    if (this.nodeLabel) {
+      this.nodeRefreshAcc += dtMs;
+      if (this.nodeRefreshAcc >= 500) {
+        this.nodeRefreshAcc = 0;
+        const text = nodeDisplayText(this.flow);
+        if (this.nodeLabel.text !== text) this.nodeLabel.text = text;
+      }
+    }
     if (!this.stream || !this.frameSprite || !this.uiData) return;
     const t = this.uiData.title;
     if (this.phase === 'intro' || this.phase === 'menu-anim') {

@@ -4,3 +4,4 @@ export * from './lockstep.js';
 export * from './rollback.js';
 export * from './session.js';
 export * from './buffered.js';
+export * from './node-select.js';

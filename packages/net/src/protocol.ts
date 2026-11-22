@@ -98,7 +98,12 @@ export type NetMessage =
   /** 权威种子（服务器生成，begin 时广播；2026-11-21 更名 map-roll → seed——开箱抽取
    *  动画下线后它只是种子载体）。兼作对局 sim seed 进 configHash（netplay-design §9）；
    *  匹配路径无此消息（seed 随 matched 携带） */
-  | { t: 'seed'; seed: number };
+  | { t: 'seed'; seed: number }
+  // ---------- 节点测速（server-selection §5；服务器只读回显，不入房/不排队） ----------
+  /** 客户端 → 房间服：测速探针（id 原样回；服务器收到不解析房间语义） */
+  | { t: 'ping'; id: number }
+  /** 房间服 → 客户端：测速回显。queue = 当前匹配队列长度（择优负载软加权用） */
+  | { t: 'pong'; id: number; queue: number };
 
 /**
  * 对局配置指纹：seed + 舞台 + 角色标识（+ 辅助，切片 14 联机注入；

@@ -347,8 +347,19 @@ export class BattleScene implements Scene {
         this.hint('对端断开——冻结等待（对手回到房间可继续）');
       },
       onConfigMismatch: () => this.hint('配置不一致：两端选人/地图必须相同'),
+      // 节点迁移证伪诊断：逐次打印回滚区间（区间越长 = 远端输入迟到越多 = RTT 越拖后腿）
+      onRollback: (from, to) => {
+        console.log(`[BVN rollback] tick ${from}→${to}（重演 ${to - from} tick）`);
+      },
     });
     this.rb = session;
+    // console 里随时读 __bvnNet() 看累计回滚次数 / 最近起点 tick（只读诊断钩子）
+    (window as unknown as { __bvnNet?: () => unknown }).__bvnNet = () => ({
+      rollbackCount: session.rollbackCount,
+      lastRollbackFrom: session.lastRollbackFrom,
+      mode: flow.mode,
+      server: flow.serverUrl,
+    });
   }
 
   update(_dtMs: number): void {
@@ -435,6 +446,13 @@ export class BattleScene implements Scene {
       const winner = ev.payload['winner'];
       if (typeof winner !== 'number') continue;
       this.matchOverSeen = true;
+      // 节点迁移证伪诊断：对局结束汇总一局累计回滚次数（用数字判断 RTT 是否真瓶颈）
+      if (this.rb) {
+        console.log(
+          `[BVN net] 对局结束：累计回滚 ${this.rb.rollbackCount} 次，` +
+            `最近起点 tick ${this.rb.lastRollbackFrom}，节点 ${this.flow.serverUrl}`,
+        );
+      }
       // 600ms：winner 字样定格态换气一拍再走（终局演出在 roundEnd 期已播足）
       window.setTimeout(() => {
         if (this.dead) return;

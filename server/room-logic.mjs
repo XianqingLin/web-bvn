@@ -152,6 +152,12 @@ export function createRoomServer({ randomInt }) {
     if (!msg || typeof msg !== 'object') return;
 
     switch (msg.t) {
+      case 'ping': {
+        // 纯只读健康探测：不入房、不排队、不触发任何房间语义，不依赖房间状态。
+        // queue = 当前匹配队列长度，供客户端择优选 nodes 时软加权负载。
+        send(ws, { t: 'pong', id: msg.id, queue: matchQueue.length });
+        break;
+      }
       case 'create': {
         if (room) return;
         unqueue(conn);
