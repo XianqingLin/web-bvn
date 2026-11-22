@@ -332,13 +332,16 @@ export class FightHud {
 
   /** 装载纹理并搭静态树（renderer.load 内 await）。 */
   async load(baseUrl: string): Promise<void> {
-    for (const [name, path] of Object.entries(this.data.elements)) {
-      if (path.endsWith('.webp')) {
-        this.tex.set(name, await Assets.load<Texture>(`${baseUrl}/${path}`));
-      } else {
-        this.frames.set(name, await this.loadFrames(`${baseUrl}/${path}`));
-      }
-    }
+    // 元素纹理并发装载（原串行 await：帧集多的 HUD 要数十次往返才搭完静态树）
+    await Promise.all(
+      Object.entries(this.data.elements).map(async ([name, path]) => {
+        if (path.endsWith('.webp')) {
+          this.tex.set(name, await Assets.load<Texture>(`${baseUrl}/${path}`));
+        } else {
+          this.frames.set(name, await this.loadFrames(`${baseUrl}/${path}`));
+        }
+      }),
+    );
     // 团队 roster 大脸预载（切片 36）：换人切脸同步换纹理，免异步闪白
     if (this.spec.teamFighters) {
       await Promise.all(
@@ -351,15 +354,25 @@ export class FightHud {
     this.build();
   }
 
-  /** 帧集目录：1.webp 起连续装载，缺失即止。 */
+  /** 帧集目录：1.webp 起连续装载，缺失即止。按批并发（每批 8 张），语义不变但往返从 N 降到 N/8。 */
   private async loadFrames(url: string): Promise<Texture[]> {
     const out: Texture[] = [];
-    for (let i = 1; ; i++) {
-      try {
-        out.push(await Assets.load<Texture>(`${url}/${i}.webp`));
-      } catch {
-        break;
+    const BATCH = 8;
+    for (let start = 1; ; start += BATCH) {
+      const results = await Promise.all(
+        Array.from({ length: BATCH }, (_, k) =>
+          Assets.load<Texture>(`${url}/${start + k}.webp`).catch(() => null),
+        ),
+      );
+      let stopped = false;
+      for (const tex of results) {
+        if (!tex) {
+          stopped = true;
+          break;
+        }
+        out.push(tex);
       }
+      if (stopped) break;
     }
     return out;
   }

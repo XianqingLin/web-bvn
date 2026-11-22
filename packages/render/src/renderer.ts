@@ -42,6 +42,30 @@ import { McEffectFx, ShineFx, SparkFx } from './renderer/fx/particles.js';
 import { BuffAuraFx, GlowFx, ShadowFx, SpecialFx } from './renderer/fx/attached.js';
 import { CutinFx, KobgFx, PassiveFx } from './renderer/fx/cutin.js';
 
+/**
+ * 批量并发加载纹理：每完成一张即回调（加载页按"帧"上报进度），并发上限避免请求洪水。
+ * 修复加载条在最后 10% 长时间不动：原先 hitspark 等 600+ 张图串行下载且整整一段只
+ * 回报一次进度，实际下载几十秒而进度条目标值不动。并发 + 逐帧回报让条形持续走动。
+ */
+async function loadTextures(
+  urls: readonly string[],
+  onEach?: () => void,
+  concurrency = 12,
+): Promise<Texture[]> {
+  const out = new Array<Texture>(urls.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(concurrency, urls.length) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= urls.length) return;
+      out[i] = await Assets.load<Texture>(urls[i]!);
+      onEach?.();
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
 export class BattleRenderer {
   private world: Container;
   /** 背景层容器：随视口缩放但不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外） */
@@ -258,7 +282,10 @@ export class BattleRenderer {
       (spec.assisters?.length ?? 0) +
       fireCount +
       (spec.bisha ? spec.bisha.mc.frames + effectFrames + faceCount : 0) +
-      (spec.hitspark ? Object.keys(spec.hitspark.baked.effects).length : 0) +
+      // hitspark 按实际帧数计数（不是特效数）：进度分母必须匹配逐帧 tick 的粒度
+      (spec.hitspark
+        ? Object.values(spec.hitspark.baked.effects).reduce((s, e) => s + e.frames, 0)
+        : 0) +
       (spec.hud ? 1 : 0);
     let done = 0;
     const tick = () => {
@@ -317,21 +344,23 @@ export class BattleRenderer {
 
     // 切人插图（切片 22）：mc 流帧全量 + 出场者立绘（仅当前对局涉及的包）
     if (spec.bisha) {
-      this.ctx.assets.bishaMc = spec.bisha.mc;
-      this.ctx.assets.bishaBandTex = [];
-      for (let i = 1; i <= spec.bisha.mc.frames; i++) {
-        this.ctx.assets.bishaBandTex.push(await Assets.load<Texture>(`${spec.baseUrl}/${spec.bisha.mc.dir}/${i}.webp`));
-        tick();
-      }
+      const bisha = spec.bisha;
+      this.ctx.assets.bishaMc = bisha.mc;
+      this.ctx.assets.bishaBandTex = await loadTextures(
+        Array.from(
+          { length: bisha.mc.frames },
+          (_, i) => `${spec.baseUrl}/${bisha.mc.dir}/${i + 1}.webp`,
+        ),
+        tick,
+      );
       // 必杀光效流帧（切片 26）：bisha(XG_bs) / bisha_super(XG_cbs)
       this.ctx.assets.bishaEffects = {};
       this.ctx.assets.effectTex.clear();
       for (const [id, eff] of Object.entries(spec.bisha.effects ?? {})) {
-        const texs: Texture[] = [];
-        for (let i = 1; i <= eff.frames; i++) {
-          texs.push(await Assets.load<Texture>(`${spec.baseUrl}/${eff.dir}/${i}.webp`));
-          tick();
-        }
+        const texs = await loadTextures(
+          Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
+          tick,
+        );
         this.ctx.assets.bishaEffects[id] = eff;
         this.ctx.assets.effectTex.set(id, texs);
       }
@@ -343,16 +372,17 @@ export class BattleRenderer {
         spec.bisha.mc.canvasOrigin[0] * mcSx0,
         spec.bisha.mc.mcPos[1] + spec.bisha.mc.canvasOrigin[1],
       );
+      const faceEntries: { key: string; url: string }[] = [];
       for (const atlasId of new Set([
         ...spec.fighters.map((f) => f.atlasId),
         ...(spec.assisters ?? []).map((a) => a.atlasId),
       ])) {
         for (const [faceName, path] of Object.entries(spec.bisha.faces[atlasId] ?? {})) {
-          const tex = await Assets.load<Texture>(`${spec.baseUrl}/${path}`);
-          this.ctx.assets.bishaFaceTex.set(`${atlasId}:${faceName}`, tex);
-          tick();
+          faceEntries.push({ key: `${atlasId}:${faceName}`, url: `${spec.baseUrl}/${path}` });
         }
       }
+      const faceTexs = await loadTextures(faceEntries.map((e) => e.url), tick);
+      faceEntries.forEach((e, i) => this.ctx.assets.bishaFaceTex.set(e.key, faceTexs[i]!));
     } else {
       this.ctx.assets.bishaMc = null;
     }
@@ -363,12 +393,12 @@ export class BattleRenderer {
       this.ctx.assets.sparkTex.clear();
       this.sparks.resetWarnings();
       for (const [id, eff] of Object.entries(this.ctx.assets.hitspark.effects)) {
-        const texs: Texture[] = [];
-        for (let i = 1; i <= eff.frames; i++) {
-          texs.push(await Assets.load<Texture>(`${spec.baseUrl}/${eff.dir}/${i}.webp`));
-        }
+        // 逐帧 tick + 批量并发：原先 647 张图串行下载且只回调一次，进度条在 ~90% 假死
+        const texs = await loadTextures(
+          Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
+          tick,
+        );
         this.ctx.assets.sparkTex.set(id, texs);
-        tick();
       }
     } else {
       this.ctx.assets.hitspark = null;
