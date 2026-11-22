@@ -21,7 +21,7 @@ import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { makeLabel, UI_H, UI_W } from '../ui.js';
-import { nodeDisplayText, showNodePanel } from '../nodes.js';
+import { nodeStatusLines, startNodeMonitor, loadManifest, SEED_MANIFEST } from '../nodes.js';
 import { tickTweens, tweenOf, clearTweens } from '../anim.js';
 import type { Flow } from '../flow.js';
 import { ASSETS, loadUi, type UiData } from '../data.js';
@@ -158,8 +158,11 @@ export class MenuScene implements Scene {
   private switchTo: ((s: Scene) => void) | null = null;
   private ctx: SceneCtx | null = null;
   private hoveredBtn: MenuBtn | null = null;
-  private nodeLabel: Text | null = null;
+  private nodeTitle: Text | null = null;
+  private nodeLatency: Text | null = null;
+  private nodeManifest = SEED_MANIFEST;
   private nodeRefreshAcc = 0;
+  private stopNodeMonitor: (() => void) | null = null;
 
   constructor(private readonly flow: Flow) {}
 
@@ -207,20 +210,24 @@ export class MenuScene implements Scene {
     version.position.set(OX + 800 - this.uiData.menu.versionPad[0] - version.width, UI_H - this.uiData.menu.versionPad[1] - version.height);
     root.addChild(version);
 
-    // 节点选择标签（server-selection）：显示当前节点/延迟，点击弹切换面板。
-    // 后台 selectNode 可能尚未完成，初始显示"检测中"，update 里低频刷新。
-    const nodeLabel = makeLabel(nodeDisplayText(this.flow), { size: 14, color: 0x8fd0ff });
-    nodeLabel.anchor.set(1, 0);
-    nodeLabel.position.set(OX + 800 - 12, 12);
-    nodeLabel.eventMode = 'static';
-    nodeLabel.cursor = 'pointer';
-    nodeLabel.on('pointertap', () => {
-      if (this.ctx) showNodePanel(this.flow, this.ctx.domHost, () => {
-        nodeLabel.text = nodeDisplayText(this.flow);
-      });
+    // 节点状态块（server-selection）：左下角两行——所属节点 + 实时延迟。
+    // 纯展示（2026-11-22 决策变更：取消玩家手动切换，无节点面板入口）。
+    // 后台 selectNode 可能尚未完成，初始显示"检测中"；update 里低频刷新文本，
+    // startNodeMonitor 周期探测写回最新 RTT。
+    const nodeLines = nodeStatusLines(this.flow, this.nodeManifest);
+    const nodeTitle = makeLabel(nodeLines.title, { size: 13, color: 0x8fd0ff });
+    const nodeLatency = makeLabel(nodeLines.latency, { size: 13, color: 0x9fe8a8 });
+    nodeTitle.position.set(OX + 12, UI_H - 48);
+    nodeLatency.position.set(OX + 12, UI_H - 30);
+    root.addChild(nodeTitle, nodeLatency);
+    this.nodeTitle = nodeTitle;
+    this.nodeLatency = nodeLatency;
+    this.stopNodeMonitor = startNodeMonitor(this.flow, () => this.refreshNodeText());
+    void loadManifest().then((m) => {
+      if (this.destroyed) return;
+      this.nodeManifest = m;
+      this.refreshNodeText();
     });
-    root.addChild(nodeLabel);
-    this.nodeLabel = nodeLabel;
 
     // 流帧：预取头几帧后开播
     this.stream = new FrameStream({ dir: title.dir, frames: title.frames, from: title.introFrom, to: title.menuStop });
@@ -256,14 +263,11 @@ export class MenuScene implements Scene {
 
   update(dtMs: number): void {
     tickTweens(dtMs);
-    // 节点标签低频刷新（后台择优完成后文本才更新），不影响 sim 帧
-    if (this.nodeLabel) {
-      this.nodeRefreshAcc += dtMs;
-      if (this.nodeRefreshAcc >= 500) {
-        this.nodeRefreshAcc = 0;
-        const text = nodeDisplayText(this.flow);
-        if (this.nodeLabel.text !== text) this.nodeLabel.text = text;
-      }
+    // 节点状态块低频刷新文本（选择完成/监控探测/切节点后由这里上屏）
+    this.nodeRefreshAcc += dtMs;
+    if (this.nodeRefreshAcc >= 500) {
+      this.nodeRefreshAcc = 0;
+      this.refreshNodeText();
     }
     if (!this.stream || !this.frameSprite || !this.uiData) return;
     const t = this.uiData.title;
@@ -298,6 +302,8 @@ export class MenuScene implements Scene {
 
   exit(): void {
     this.destroyed = true;
+    this.stopNodeMonitor?.();
+    this.stopNodeMonitor = null;
     window.removeEventListener('keydown', this.onKey);
     for (const id of this.timers) window.clearTimeout(id);
     clearTweens();
@@ -306,6 +312,14 @@ export class MenuScene implements Scene {
   }
 
   // ---------- 流程 ----------
+
+  /** 节点状态块文本刷新（nodeStatusLines → 两行 Text，变化才写）。 */
+  private refreshNodeText(): void {
+    if (!this.nodeTitle || !this.nodeLatency) return;
+    const lines = nodeStatusLines(this.flow, this.nodeManifest);
+    if (this.nodeTitle.text !== lines.title) this.nodeTitle.text = lines.title;
+    if (this.nodeLatency.text !== lines.latency) this.nodeLatency.text = lines.latency;
+  }
 
   private async skipIntro(): Promise<void> {
     if (!this.skipEnabled || !this.uiData || this.phase !== 'intro') return;

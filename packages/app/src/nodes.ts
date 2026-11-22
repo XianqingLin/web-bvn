@@ -1,7 +1,8 @@
 /**
  * 节点选择系统（docs/server-selection.md，2026-11-22 立项）。
  *
- * 房间服从"烘死单地址"升级为"多节点清单 + 自动测速择优 + 手动切换"。
+ * 房间服从"烘死单地址"升级为"多节点清单 + 自动测速择优"（2026-11-22 决策变更：
+ * 取消玩家手动切换，节点只由后台自动择优/跨节点加入锁定，无切换 UI）。
  * 本模块是纯 app 层：不碰 sim/core，对局期协议零改动。唯一出口是选出的
  * serverUrl 写回 flow.serverUrl。设计规格与边界见 docs/server-selection.md。
  */
@@ -199,18 +200,6 @@ export async function selectNode(flow: Flow): Promise<Selection> {
   return sel;
 }
 
-/** 手动切换节点（Menu 面板调用）：写偏好 + 重选。 */
-export async function switchNode(flow: Flow, nodeId: string): Promise<Selection> {
-  savePreference({ mode: 'manual', manualId: nodeId });
-  return selectNode(flow);
-}
-
-/** 恢复自动选择（Menu 面板调用）。 */
-export async function restoreAuto(flow: Flow): Promise<Selection> {
-  savePreference({ mode: 'auto' });
-  return selectNode(flow);
-}
-
 /**
  * 跨节点加入引导（文档 §4）：深链 `?room=<code>&node=<id>`。
  * 若目标节点与当前 flow.serverUrl 对应的节点不同，切到目标节点 URL 再入房。
@@ -235,67 +224,64 @@ export async function resolveJoinNode(
   return { switched: true, nodeId };
 }
 
-/** 当前节点显示文本（Menu 标签用）："节点：国内节点 · 38ms（自动）"。 */
-export function nodeDisplayText(flow: Flow, manifest: NodeManifest = SEED_MANIFEST): string {
+/**
+ * Menu 左下角节点状态块（server-selection）：标题行 + 延迟行。
+ * 延迟由 startNodeMonitor 周期探测写回 flow.nodeInfo.rttP50，随周期变化。
+ */
+export function nodeStatusLines(
+  flow: Flow,
+  manifest: NodeManifest = SEED_MANIFEST,
+): { title: string; latency: string } {
   const info = flow.nodeInfo;
-  const id = info?.nodeId;
-  const node = manifest.nodes.find((n) => n.id === id);
-  const name = node?.name ?? (forcedServerUrl() ? '自定义' : id ?? '检测中');
-  const rtt = info?.rttP50 ? ` · ${Math.round(info.rttP50)}ms` : '';
-  const mode = info?.reason === 'manual' ? '手动' : info?.reason === 'forced' ? '指定' : info?.reason === 'fallback' ? '备用' : '自动';
-  return `节点：${name}${rtt}（${mode}）`;
+  if (!info) return { title: '节点：检测中', latency: '延迟：--' };
+  const node = manifest.nodes.find((n) => n.id === info.nodeId);
+  const name = node?.name ?? (forcedServerUrl() ? '自定义' : info.nodeId);
+  const mode = info.reason === 'manual' ? '手动'
+    : info.reason === 'forced' ? '指定'
+    : info.reason === 'fallback' ? '备用' : '自动';
+  return {
+    title: `节点：${name}（${mode}）`,
+    latency: info.rttP50 === undefined ? '延迟：--' : `延迟：${Math.round(info.rttP50)}ms`,
+  };
 }
 
 /**
- * Menu 节点切换浮层（DOM）：列出各节点 + 延迟，点击切换；"恢复自动"按钮。
- * 纯 DOM 覆盖层，不依赖 Pixi 布局；onChanged 回调供 Menu 刷新标签文本。
+ * 节点延迟监控（Menu 左下角状态块）：每 intervalMs 对当前 flow.serverUrl 建
+ * 探测连接（复用 probeNode：5 轮 ping 取 p50，用完即关），把最新 RTT 写回
+ * flow.nodeInfo.rttP50 并回调 onUpdate。选择尚未完成 / 期间发生切换则本轮
+ * 跳过。返回 stop 函数（场景 exit 时调用）。
  */
-export function showNodePanel(flow: Flow, host: HTMLElement, onChanged: () => void): void {
-  void (async () => {
+export function startNodeMonitor(
+  flow: Flow,
+  onUpdate: () => void,
+  intervalMs = 10000,
+): () => void {
+  let stopped = false;
+  let timer = 0;
+  const schedule = () => {
+    if (!stopped) timer = window.setTimeout(() => void tick(), intervalMs);
+  };
+  const tick = async (): Promise<void> => {
+    const info = flow.nodeInfo;
+    const url = flow.serverUrl;
+    if (!info || !url) { schedule(); return; }
     const manifest = await loadManifest();
-    // 复用已有面板则先移除
-    document.getElementById('bvn-node-panel')?.remove();
-    const panel = document.createElement('div');
-    panel.id = 'bvn-node-panel';
-    Object.assign(panel.style, {
-      position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)',
-      background: '#101828ee', color: '#e7eefc', padding: '20px 26px', borderRadius: '10px',
-      border: '1px solid #33405c', font: '14px/1.6 system-ui, sans-serif', zIndex: '9999',
-      minWidth: '260px', boxShadow: '0 8px 40px #000a',
-    } as CSSStyleDeclaration);
-    const title = document.createElement('div');
-    title.textContent = '选择联机节点';
-    Object.assign(title.style, { fontWeight: 'bold', fontSize: '16px', marginBottom: '10px' });
-    panel.appendChild(title);
-    const pref = loadPreference();
-    for (const n of manifest.nodes.filter((x) => x.enabled)) {
-      const btn = document.createElement('button');
-      const current = flow.nodeInfo?.nodeId === n.id;
-      btn.textContent = `${n.name}${n.id === manifest.matchNode ? '（匹配服）' : ''}${current ? ' ← 当前' : ''}`;
-      Object.assign(btn.style, {
-        display: 'block', width: '100%', margin: '6px 0', padding: '8px 12px',
-        background: current ? '#2b6cb0' : '#1c2740', color: '#fff', border: '1px solid #3a4a6a',
-        borderRadius: '6px', cursor: 'pointer', textAlign: 'left',
-      } as CSSStyleDeclaration);
-      btn.onclick = () => {
-        void switchNode(flow, n.id).then(() => { onChanged(); panel.remove(); });
-      };
-      panel.appendChild(btn);
+    if (stopped) return;
+    // 清单内找不到当前 URL（强制指定/手填）→ 按现知信息合成探测目标
+    const entry = manifest.nodes.find((n) => n.enabled && n.url === url) ??
+      { id: info.nodeId, name: info.nodeId, url, enabled: true };
+    const r = await probeNode(entry, browserSocketFactory());
+    // 探测期间节点被切换/重选：结果作废，下轮以新目标重测
+    if (stopped || flow.nodeInfo?.nodeId !== info.nodeId || flow.serverUrl !== url) return;
+    if (r.ok) {
+      flow.nodeInfo!.rttP50 = r.rttP50;
+      onUpdate();
     }
-    const auto = document.createElement('button');
-    auto.textContent = pref.mode === 'auto' ? '自动择优（当前）' : '恢复自动择优';
-    Object.assign(auto.style, {
-      display: 'block', width: '100%', marginTop: '12px', padding: '8px 12px',
-      background: pref.mode === 'auto' ? '#2f855a' : '#1c2740', color: '#fff',
-      border: '1px solid #3a4a6a', borderRadius: '6px', cursor: 'pointer',
-    } as CSSStyleDeclaration);
-    auto.onclick = () => { void restoreAuto(flow).then(() => { onChanged(); panel.remove(); }); };
-    panel.appendChild(auto);
-    const close = document.createElement('div');
-    close.textContent = '点击空白处关闭';
-    Object.assign(close.style, { marginTop: '10px', fontSize: '11px', color: '#8492ad', textAlign: 'center', cursor: 'pointer' });
-    close.onclick = () => panel.remove();
-    panel.appendChild(close);
-    host.appendChild(panel);
-  })();
+    schedule();
+  };
+  schedule();
+  return () => {
+    stopped = true;
+    window.clearTimeout(timer);
+  };
 }
