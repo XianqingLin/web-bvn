@@ -11,6 +11,7 @@
  */
 import type { LockedPicks, PlayerSlot, RoomSettings } from './protocol.js';
 import { LockstepClient, type LockstepOptions } from './lockstep.js';
+import { RollbackSession, type RollbackOptions } from './rollback.js';
 import { wsTransport, type WsLike } from './transport.js';
 
 /** 本端选人结果（切片 14；切片 35 扩展）：fighter = 角色包 id；assist = 辅助包 id；
@@ -177,4 +178,41 @@ export async function lockstart(
 export async function startSession(socket: WsLike, opts: SessionOptions): Promise<Session> {
   const { player, room } = await joinRoom(socket, opts.action, opts.room, opts.onWelcome, opts.name);
   return lockstart(socket, player, { ...opts, room });
+}
+
+/** rollback 装配（2026-11-22 立项，DESIGN §6）：RollbackSession 持有 sim（所有权
+ *  移交——回滚会整体重建实例）→ hello 互验 → 等 start 广播。协议与 lockstart
+ *  完全共用（input/hash/hello/start/peer-lost），服务器零改动。 */
+export async function rollbackStart(
+  socket: WsLike,
+  player: PlayerSlot,
+  opts: {
+    room?: string | undefined;
+    /** 会话持有的 sim（BattleScene.spawnSim 产物；所有权随调用移交） */
+    sim: RollbackOptions['sim'];
+    configHash?: string | undefined;
+    training?: boolean | undefined;
+    hashStride?: number | undefined;
+    peerTimeoutMs?: number | undefined;
+    onDesync?: RollbackOptions['onDesync'];
+    onPeerLost?: RollbackOptions['onPeerLost'];
+    onConfigMismatch?: RollbackOptions['onConfigMismatch'];
+    onRollback?: RollbackOptions['onRollback'];
+  },
+): Promise<{ session: RollbackSession; player: PlayerSlot; room: string }> {
+  const session = new RollbackSession({
+    transport: wsTransport(socket),
+    localPlayer: player,
+    sim: opts.sim,
+    configHash: opts.configHash,
+    training: opts.training,
+    hashStride: opts.hashStride,
+    peerTimeoutMs: opts.peerTimeoutMs,
+    onDesync: opts.onDesync,
+    onPeerLost: opts.onPeerLost,
+    onConfigMismatch: opts.onConfigMismatch,
+    onRollback: opts.onRollback,
+  });
+  await session.waitStarted();
+  return { session, player, room: opts.room ?? '' };
 }

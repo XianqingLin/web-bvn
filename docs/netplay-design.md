@@ -117,6 +117,8 @@ Menu → **Matchmaking（匹配中）** → VS 横幅 → SelectFighter → 对�
 
 ## 9. 协议词表扩展（`packages/net/protocol.ts`）
 
+> **2026-11-22 注**：对局调度已切换 rollback（DESIGN §6），本节词表**零改动**——rollback 复用 `hello/start/input/hash/peer-lost` 全部既有语义（input 上行从 INPUT_DELAY 前瞻采样改为当 tick 即时采样，消息形状不变；hash 仅在无未决预测的确认槽位上行）。房间/选人/匹配消息不受影响。
+
 在既有词表（`create/join/welcome/error/hello/pick/start/input/hash/peer-lost`）上扩展。**服务器解析房间语义类，透传 UI 同步类**（与 `input/hash` 同待遇）：
 
 ```

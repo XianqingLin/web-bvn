@@ -1,17 +1,17 @@
 /**
- * 战斗场景（切片 14）：选人结果 → sim 装配 + lockstep/训练对局 → 终局流转。
+ * 战斗场景（切片 14）：选人结果 → sim 装配 + rollback/训练对局 → 终局流转。
  * 逻辑自 main.ts（切片 4/6/7 的 dev 页）迁移，双模式：
  *   solo = 训练模式（键盘源、R 重置、ESC 回菜单、KO 后对局浮层再来一局）；
- *   local = 本地双人对局；net = lockstep（pick 交换后的双端异角色异辅助配置）。
+ *   local = 本地双人对局；net = rollback 联机（2026-11-22 自 lockstep 切换，
+ *   会话持有 sim 所有权——本地零延迟 + 对手预测 + 回滚纠正，见 net/rollback.ts）。
  * 终局 match:over：local 回选人页（原版 VS 语义）；net 关 socket 回菜单。
  */
 import { Container, Graphics } from 'pixi.js';
 import { Sim, Btn, type ButtonMask, type InputSource, type SimSnapshot } from '@bvn/core';
 import {
-  INPUT_DELAY,
-  lockstart,
   makeConfigHash,
-  type LockstepClient,
+  rollbackStart,
+  type RollbackSession,
   type WsLike,
 } from '@bvn/net';
 import type { BattleRenderer } from '@bvn/render';
@@ -126,8 +126,10 @@ export class BattleScene implements Scene {
   private sim: Sim | null = null;
   private renderer: BattleRenderer | null = null;
   private keyboard: KeyboardSource | LocalKeyboardSource | null = null;
-  private netClient: LockstepClient | null = null;
+  /** 联机会话（rollback，2026-11-22 立项）：持有 sim 所有权，调用方只消费快照 */
+  private rb: RollbackSession | null = null;
   private netKeymap: Record<string, number> = KEYMAP_P1;
+  private netHint = '';
   private overlay: Container | null = null;
   private koSeen = false;
   private acc = 0;
@@ -312,9 +314,8 @@ export class BattleScene implements Scene {
     const rig = this.loadout.rig;
     this.spawnSim(false);
     this.netKeymap = flow.roleKeymapP2 ? KEYMAP_P2 : KEYMAP_P1;
-    this.hint(
-      `房间 ${flow.room} —— 你是 P${flow.player}（延迟 ${INPUT_DELAY} 帧）  ESC返回菜单`,
-    );
+    this.netHint = `房间 ${flow.room} —— 你是 P${flow.player}（回滚联机：本地即时，对手预测）  ESC返回菜单`;
+    this.hint(this.netHint);
 
     const configHash = makeConfigHash({
       seed: flow.mapSeed ?? 1,
@@ -335,8 +336,10 @@ export class BattleScene implements Scene {
         : {}),
     });
 
-    const { client } = await lockstart(this.socket as unknown as WsLike, flow.player, {
+    // sim 所有权移交 RollbackSession（回滚会整体重建实例）
+    const { session } = await rollbackStart(this.socket as unknown as WsLike, flow.player, {
       room: flow.room,
+      sim: this.sim!,
       configHash,
       onDesync: (tick, a, b) => this.hint(`失步！tick ${tick}（${a} vs ${b}）`),
       onPeerLost: () => {
@@ -345,8 +348,7 @@ export class BattleScene implements Scene {
       },
       onConfigMismatch: () => this.hint('配置不一致：两端选人/地图必须相同'),
     });
-    this.netClient = client;
-    client.prime(maskFor(this.keys, this.netKeymap));
+    this.rb = session;
   }
 
   update(_dtMs: number): void {
@@ -358,12 +360,15 @@ export class BattleScene implements Scene {
     let stepped = false;
     while (this.acc >= TICK_MS) {
       let snap: SimSnapshot;
-      if (this.netClient) {
-        const f = this.netClient.frame(this.simTick);
-        if (!f) break; // 远端输入未到：本帧停步等待（lockstep 减速语义）
-        snap = this.sim.tick(f);
-        this.netClient.afterTick(snap.tick, snap.hash);
-        this.netClient.poll(maskFor(this.keys, this.netKeymap));
+      if (this.rb) {
+        // rollback 推进：本地输入即时采样即生效（零延迟）；远端缺席由会话内
+        // 预测 + 回滚纠正——corrections 段先喂渲染层收敛插值，事件已剥除；
+        // 本 tick 快照正常消费（表现事件只此一次）。会话内部永不停步
+        // （预测兜底），null = 未开跑/对端失联（冻结语义）。
+        const step = this.rb.step(maskFor(this.keys, this.netKeymap));
+        if (!step) break;
+        for (const c of step.corrections) this.renderer.onSnapshot(c);
+        snap = step.snapshot;
       } else {
         const f = this.keyboard!.frame(this.simTick);
         if (!f) break; // 键盘源恒非 null，类型完备性保护
@@ -379,17 +384,15 @@ export class BattleScene implements Scene {
       stepped = true;
       this.checkKo(snap);
     }
-    // 停步看门狗（net）：>5s 无进展提示可能断线（冻结等待，判负归阶段 4）
-    if (this.netClient && !this.peerLostFlag) {
+    // 停步看门狗（net）：rollback 正常对局不停步；null 只来自未开跑/对端失联
+    // （超时或 peer-lost），5s 无进展提示可能断线（冻结等待，判负归阶段 4）
+    if (this.rb && !this.peerLostFlag) {
       if (!stepped && this.simTick > 0) {
         if (this.stalledSince < 0) this.stalledSince = now;
         else if (now - this.stalledSince > 5000)
           this.hint('等待对手输入…（对手可能卡顿或已断线）');
       } else {
-        if (this.stalledSince >= 0)
-          this.hint(
-            `房间 ${this.flow.room} —— 你是 P${this.flow.player}（延迟 ${INPUT_DELAY} 帧）  ESC返回菜单`,
-          );
+        if (this.stalledSince >= 0) this.hint(this.netHint);
         this.stalledSince = -1;
       }
     }
@@ -501,6 +504,6 @@ export class BattleScene implements Scene {
     this.overlay?.destroy({ children: true });
     this.overlay = null;
     this.sim = null;
-    this.netClient = null;
+    this.rb = null;
   }
 }

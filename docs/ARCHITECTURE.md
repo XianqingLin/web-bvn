@@ -40,7 +40,8 @@ packages/
   data/     JSON schema、加载器、校验器（烘焙产物，只读）
   render/   PixiJS 渲染：消费快照与表现事件，插值，相机，HUD
   app/      场景流转、键位采集、音频、 subsystem 宿主
-  net/      lockstep 联机客户端：协议词表 / 传输抽象 / 输入延迟与失步检测（阶段 2）
+  net/      联机客户端：协议词表 / 传输抽象 / rollback 对局会话（预测+回滚纠正，
+            2026-11-22 自 lockstep 切换，DESIGN §6）/ lockstep（保留为回退实现）
 server/     Node 房间服务器（创建/加入房间、输入中继、断线冻结等待；阶段 2）
 tools/      exporter（SWF→JSON/spritesheet）、replay（哈希门禁）、capture
 OpenBleachVsNaruto/  bvn-ai-public/   原版参考仓库（仓库根，只读，gitignore；
