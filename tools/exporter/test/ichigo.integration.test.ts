@@ -1,34 +1,34 @@
 /**
  * 集成冒烟：对真实 ichigo XFL 跑一遍提取。
- * 原版参考仓库不在时会跳过（CI 无参考仓库也能跑单测）。
+ * 参考仓库不在时跳过（CI 无参考仓库也能跑单测）。
+ * 提取须放 beforeAll：vitest 的 describe.skipIf 只跳过 it()，describe 体在收集期
+ * 照常执行——体级调用在参考仓库缺失时会让收集崩掉、整文件 FAIL 而非 skip
+ * （2026-11-22 实证）。路径优先工作区 references/（2026-11-22 迁出仓库根），
+ * 兼容仓内旧位置。
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { extractFighter } from '../src/fighter.js';
 
 const REPO_ROOT = join(__dirname, '..', '..', '..');
-const ICHIGO_XFL = join(
-  REPO_ROOT,
-  'OpenBleachVsNaruto',
-  'swf_source',
-  'f_fighter',
-  'ichigo',
-);
-const FIGHTER_XML = join(
-  REPO_ROOT,
-  'OpenBleachVsNaruto',
-  'swf_output',
-  'assets',
-  'config',
-  'fighter.xml',
-);
+const REF_ROOT = [
+  join(REPO_ROOT, '..', 'references', 'OpenBleachVsNaruto'),
+  join(REPO_ROOT, 'OpenBleachVsNaruto'),
+].find((p) => existsSync(p));
+const ICHIGO_XFL = REF_ROOT ? join(REF_ROOT, 'swf_source', 'f_fighter', 'ichigo') : null;
+const FIGHTER_XML = REF_ROOT ? join(REF_ROOT, 'swf_output', 'assets', 'config', 'fighter.xml') : null;
 
-describe.skipIf(!existsSync(ICHIGO_XFL))('ichigo XFL 提取（集成）', () => {
-  const { pkg, validation } = extractFighter({
-    xflDir: ICHIGO_XFL,
-    id: 'ichigo',
-    ...(existsSync(FIGHTER_XML) ? { fighterXmlPath: FIGHTER_XML } : {}),
+describe.skipIf(!ICHIGO_XFL)('ichigo XFL 提取（集成）', () => {
+  let pkg: ReturnType<typeof extractFighter>['pkg'];
+  let validation: ReturnType<typeof extractFighter>['validation'];
+
+  beforeAll(() => {
+    ({ pkg, validation } = extractFighter({
+      xflDir: ICHIGO_XFL!,
+      id: 'ichigo',
+      ...(existsSync(FIGHTER_XML!) ? { fighterXmlPath: FIGHTER_XML } : {}),
+    }));
   });
 
   it('校验无 error', () => {

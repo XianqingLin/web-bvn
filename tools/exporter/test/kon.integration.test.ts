@@ -1,16 +1,29 @@
 /**
  * 集成冒烟：对真实 kon（魂）辅助 XFL 跑一遍提取。
+ * 提取须放 beforeAll：vitest 的 describe.skipIf 只跳过 it()，describe 体在收集期
+ * 照常执行——体级调用在参考仓库缺失时会让收集崩掉、整文件 FAIL 而非 skip
+ * （2026-11-22 实证）。路径优先工作区 references/（2026-11-22 迁出仓库根），
+ * 兼容仓内旧位置。
  */
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { extractAssistant } from '../src/assistant.js';
 
 const REPO_ROOT = join(__dirname, '..', '..', '..');
-const KON_XFL = join(REPO_ROOT, 'OpenBleachVsNaruto', 'swf_source', 'f_assistant', 'kon');
+const REF_ROOT = [
+  join(REPO_ROOT, '..', 'references', 'OpenBleachVsNaruto'),
+  join(REPO_ROOT, 'OpenBleachVsNaruto'),
+].find((p) => existsSync(p));
+const KON_XFL = REF_ROOT ? join(REF_ROOT, 'swf_source', 'f_assistant', 'kon') : null;
 
-describe.skipIf(!existsSync(KON_XFL))('kon XFL 提取（集成）', () => {
-  const { pkg, validation } = extractAssistant({ xflDir: KON_XFL, id: 'kon' });
+describe.skipIf(!KON_XFL)('kon XFL 提取（集成）', () => {
+  let pkg: ReturnType<typeof extractAssistant>['pkg'];
+  let validation: ReturnType<typeof extractAssistant>['validation'];
+
+  beforeAll(() => {
+    ({ pkg, validation } = extractAssistant({ xflDir: KON_XFL!, id: 'kon' }));
+  });
 
   it('校验无 error', () => {
     expect(validation.errors).toEqual([]);
