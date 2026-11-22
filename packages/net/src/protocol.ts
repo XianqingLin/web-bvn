@@ -50,12 +50,15 @@ export type NetMessage =
   | { t: 'create'; name?: string }
   /** 客户端 → 服务器：凭房码加入房间（成为 P2）。已开局房间拒绝（复用 room-full） */
   | { t: 'join'; room: string; name?: string }
-  /** 客户端 → 服务器：加入匹配队列（排队满 2 人即配对）；在房/已排队时忽略 */
-  | { t: 'queue'; name?: string }
+  /** 客户端 → 服务器：加入匹配队列（排队满 2 人即配对）；在房/已排队时忽略。
+   *  team = 本端模式偏好（true 团队 3+1 / false 单挑 1v1；缺省 true 兼容旧客户端）；
+   *  服务器按偏好分池配对并以 matched.team 回执，两端权威一致 */
+  | { t: 'queue'; name?: string; team?: boolean }
   /** 客户端 → 服务器：退出匹配队列 */
   | { t: 'unqueue' }
   /** 服务器 → 客户端：匹配成功。房间已由服务器开好并直接置为开局段
-   *  （免房间页/准备门——匹配固定 team=true，无地图阶段），start 紧随其后；
+   *  （免房间页/准备门——无地图阶段），start 紧随其后；
+   *  team = 服务器裁定的模式（配对双方偏好相同，缺省 true 兼容旧客户端）；
    *  seed = 权威种子（兼作 sim seed 进 configHash，并按 maps[seed % n] 解析对局地图） */
   | { t: 'matched'; room: string; player: PlayerSlot; team: boolean; seed: number; opponent: { name: string } }
   /** 服务器 → 客户端：入房成功，分配位次与房间号 */

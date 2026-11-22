@@ -6,7 +6,8 @@
  *  - 头像格：slt_item 60×60 框，50×50 头像垫底于框下，网格起点 (15,100)、
  *    列距 80、行距 = (600-50-100-10)/(行数-1)，offset 为原版像素微调；
  *  - 光标（P1 蓝/P2 粉）hover 跟随，PNG 原点 = 格子位 + (-18,-26)；
- *  - 已选展示框（大头像 245×62 + 名字）在底部两角，P2 内容容器镜像；
+ *  - 已选展示框（大头像 245×62 + 名字）在底部两角，P2 内容容器镜像；团队模式随锁定
+ *    逐次堆叠成 3 个框（旧框上移/缩小/变暗，原版 SelectedFighterGroup）；
  *  - 地图选择 = 原版轮盘：select_map 面板 + 左右箭头 + 缩略图 + kuang 框叠顶，
  *    点缩略图即确认（原版语义），random 项确认时解析；
  *  - 格子演出（切片 29 菜单流打磨，原版 SelectFighterStage.buildList/fadOutList/initMap）：
@@ -21,7 +22,7 @@
  *    锁满本端份额后本端光标冻结、点击忽略；
  *  - 双方齐套本地推导推进（角色 → 援助 → 地图），判定输入一致结果一致；
  *  - 团队模式：每光标连续锁 3 名角色（selectTimesCount = 3）再进援助（1 名）；
- *    同角色允许（镜像对决合法，自身重复亦允许）；
+ *    跨玩家同角色允许（镜像对决合法）；同一玩家自身 3 槽位不得重复（2026-11-22 对齐原版 isSelected）；
  *  - pick 覆盖式累计上行（3s 重发兜底幂等）；地图尾沿用最终 pick（map 仅 P1，
  *    P2 收到即移交加载页）；
  *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/map-pick/seed/peer-lost 分派），
@@ -81,8 +82,10 @@ import { transIn, clearTrans } from './trans.js';
 const STAGE_W = 800;
 const OX = (UI_W - STAGE_W) / 2;
 
-/** 展示框（大头像 + 名字）引用。 */
+/** 展示框（大头像 + 名字）引用。root/baseY 供原版堆叠上移/缩小/变暗用。 */
 interface BoxRefs {
+  root: Container;
+  baseY: number;
   face: Sprite;
   name: Text;
 }
@@ -121,9 +124,10 @@ export class SetupScene implements Scene {
   private hoverIdx: number | null = null;
   /** 对端光标当前格子下标（null = 尚未收到） */
   private peerCursorIdx: number | null = null;
-  /** 展示框引用：own = 本端；联机另有对端盒（solo 仅 own） */
-  private boxOwn: BoxRefs | null = null;
-  private boxPeer: BoxRefs | null = null;
+  /** 每方已选展示框栈（原版 SelectedFighterGroup：锁定后旧框上移变暗、新框叠在下方；
+   *  own = 本端，peer = 对端/本地 P2；solo 仅 own） */
+  private boxOwn: BoxRefs[] = [];
+  private boxPeer: BoxRefs[] = [];
   /** 当前阶段格子（演出退场动画用；含地图面板） */
   private animCells: { c: Container; x: number; y: number }[] = [];
 
@@ -371,10 +375,11 @@ export class SetupScene implements Scene {
     this.cursor = null;
     this.peerCursor = null;
     this.peerCursorIdx = null;
-    this.boxOwn = null;
-    this.boxPeer = null;
+    this.boxOwn = [];
+    this.boxPeer = [];
     clearTweens(); // 旧阶段格子的退场补间随 phaseRoot 销毁一并作废
     this.phaseRoot?.destroy({ children: true });
+    this.clearMapFx(); // 地图 fx 是 phaseRoot 子节点：随容器销毁后不可再留在 update 表
     const root = new Container();
     this.phaseRoot = root;
     this.ui!.addChild(root);
@@ -563,7 +568,7 @@ export class SetupScene implements Scene {
             else this.keyIdxP2 = navIdx;
             this.placeKeyCursor(side);
             audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版 doHover select 音
-            this.refreshBox(side === 1 ? this.boxOwn : this.boxPeer, e);
+            this.refreshActive(side, e);
             return;
           }
           // 原版 doHover：光标跟随悬停 + select 音；
@@ -576,7 +581,7 @@ export class SetupScene implements Scene {
             this.sendCursorSafe(this.phase === 'assist' ? 'assist' : 'fighter', idx);
           }
           // 本端盒实时跟随悬停（原版 SelectedFighterGroup 语义；单机同样预览）
-          this.refreshBox(this.boxOwn, e);
+          this.refreshActive(ownSide, e);
           audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc');
         });
         cell.on('pointertap', () => {
@@ -603,7 +608,7 @@ export class SetupScene implements Scene {
           cursor.visible = true;
           audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
           onTap(e);
-          this.refreshBox(this.boxOwn, this.phase === 'fighter' ? this.fighter : this.assist);
+          this.refreshActive(1, this.phase === 'fighter' ? this.fighter : this.assist);
         });
         if (!first) first = [x, y];
         root.addChild(cell);
@@ -633,28 +638,23 @@ export class SetupScene implements Scene {
         root.addChild(cursor);
         if (this.peerCursor) root.addChild(this.peerCursor);
         // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
-        this.boxOwn = this.mountBox(root, ownSide);
-        if (dual) this.boxPeer = this.mountBox(root, peerSide);
-        // 盒内容恢复：单机显示当前阶段已选；双光标恢复阶段内最近锁定/对方锁定
+        this.boxOwn = [this.mountBox(root, ownSide)];
+        if (dual) this.boxPeer = [this.mountBox(root, peerSide)];
+        // 盒内容恢复：双光标恢复阶段内整条已选堆叠；单机显示当前阶段已选
         if (dual) {
-          // 本地双人：盒子先跟随初始键盘光标所在格（首格）预览；有锁定后按最近锁定覆盖
+          // 本地双人：先让栈顶预览初始键盘光标所在格（首格）
           if (local2p) {
-            this.refreshBox(this.boxOwn, this.navEntry(1));
-            this.refreshBox(this.boxPeer, this.navEntry(2));
+            this.refreshActive(1, this.navEntry(1));
+            this.refreshActive(2, this.navEntry(2));
           }
-          const locked = this.localStageLocks();
-          if (locked.length > 0) this.refreshBox(this.boxOwn, locked[locked.length - 1]!);
-          const peerIds = this.peerStageLocks();
-          const lastPeer = peerIds[peerIds.length - 1];
-          if (lastPeer !== undefined) {
-            const pe = this.stageList().find((x) => x.id === lastPeer);
-            if (pe) this.refreshBox(this.boxPeer, pe);
-          }
+          this.syncBoxStack(ownSide, this.localStageLocks());
+          this.syncBoxStack(peerSide, this.entriesOf(this.peerStageLocks()));
           this.updateNetStatus();
         } else {
           // 单机：显示已选；未选时跟随初始光标所在格（首格）预览
           const cur = this.phase === 'fighter' ? this.fighter : this.assist;
-          this.refreshBox(this.boxOwn, cur ?? this.stageList()[0] ?? null);
+          this.refreshActive(1, cur ?? this.stageList()[0] ?? null);
+          this.styleStack(this.boxOwn);
         }
       }, 500);
     });
@@ -668,7 +668,8 @@ export class SetupScene implements Scene {
     const isP2 = side === 2;
     const [bx, by] = isP2 ? ui.select.selectedPos.p2 : ui.select.selectedPos.p1;
     const box = new Container();
-    box.position.set(OX + bx, by);
+    // 原版新框从下方 50px 滑入（SelectedFighterGroup.addFighter）；styleStack 收到位
+    box.position.set(OX + bx, by + 50);
 
     // ct 容器：P1 (4.75,4.75)；P2 镜像原点 (248.6,4.75) scale.x=-1（原版摆法）；
     // 头像垫底、框叠加（原版框 shape depth 6 > ct depth 1）
@@ -702,7 +703,7 @@ export class SetupScene implements Scene {
     }
     box.addChild(name);
     root.addChild(box);
-    return { face, name };
+    return { root: box, baseY: by, face, name };
   }
 
   /** 刷新展示框大头像/名字（长名钳制：名字区 233px，超出按比例缩字）。 */
@@ -719,6 +720,70 @@ export class SetupScene implements Scene {
       box.face.width = 245;
       box.face.height = 62;
     });
+  }
+
+  /** 展示框固定左右布局：P1 左下 / P2 右下（原版 selected_item_p1/p2_mc），
+   *  不随本端位次翻转——两客户端看到的 P1 框都在左、P2 框都在右。 */
+  private ownBoxSide(): 1 | 2 {
+    return this.flow.player === 2 ? 2 : 1;
+  }
+
+  private peerBoxSide(): 1 | 2 {
+    return this.ownBoxSide() === 1 ? 2 : 1;
+  }
+
+  /** 栈顶（最新/预览）框。 */
+  private activeBox(side: 1 | 2): BoxRefs | null {
+    const arr = side === 1 ? this.boxOwn : this.boxPeer;
+    return arr[arr.length - 1] ?? null;
+  }
+
+  /** 预览：只改栈顶内容，不动堆叠（原版 SelectedFighterGroup.updateFighter）。 */
+  private refreshActive(side: 1 | 2, entry: SelectEntry | null): void {
+    this.refreshBox(this.activeBox(side), entry);
+  }
+
+  /** id 表 → 当前阶段条目（peerLocked 存 id；缺失项跳过）。 */
+  private entriesOf(ids: readonly string[]): SelectEntry[] {
+    const pool = this.stageList();
+    return ids.map((id) => pool.find((x) => x.id === id)).filter((x): x is SelectEntry => !!x);
+  }
+
+  /** 原版 SelectedFighterGroup.addFighter 堆叠样式：旧框逐层上移 20px、缩小、变暗，
+   *  最新框保持原位全亮。偏移照原版：addy=20-(N-2)*3, alpha=0.7-(N-2)*0.3, scale=0.85-(N-2)*0.15。 */
+  private styleStack(arr: readonly BoxRefs[]): void {
+    const n = arr.length;
+    const addy = 20 - (n - 2) * 3;
+    let y = -(n - 1) * 20;
+    let alpha = 0.7 - (n - 2) * 0.3;
+    let scale = 0.85 - (n - 2) * 0.15;
+    for (let i = 0; i < n - 1; i++) {
+      const b = arr[i]!;
+      tweenOf(b.root, { y: b.baseY + y, alpha, 'scale.x': scale, 'scale.y': scale }, 100);
+      y += addy;
+      alpha += 0.3;
+      scale += 0.15;
+    }
+    const top = arr[n - 1];
+    if (top) {
+      tweenOf(top.root, { y: top.baseY, alpha: 1, 'scale.x': 1, 'scale.y': 1 }, 100, { delayMs: 50 });
+    }
+  }
+
+  /** 同步整条已选框栈（锁定/阶段重建/对端快照后调用）；无已选时保留一个空预览框。 */
+  private syncBoxStack(side: 1 | 2, entries: readonly SelectEntry[]): void {
+    const arr = side === 1 ? this.boxOwn : this.boxPeer;
+    const show = entries.slice(0, this.requiredLocks());
+    while (arr.length < Math.max(1, show.length)) {
+      const parent = arr[arr.length - 1]?.root.parent;
+      if (!parent) break;
+      arr.push(this.mountBox(parent as Container, side));
+    }
+    while (arr.length > Math.max(1, show.length) && arr.length > 1) {
+      arr.pop()!.root.destroy({ children: true });
+    }
+    show.forEach((e, i) => this.refreshBox(arr[i] ?? null, e));
+    this.styleStack(arr);
   }
 
   // ---------- 联机双光标（切片 35；规格 docs/netplay-design.md §7） ----------
@@ -798,30 +863,45 @@ export class SetupScene implements Scene {
 
   /** 本端锁定核心（联机 + 本地双人 P1 共用）。 */
   private lockOwn(ctx: SceneCtx, e: SelectEntry): void {
-    const resolved = this.resolveNetEntry(e, this.stageList());
     const list = this.phase === 'assist' ? this.localLocked.assists : this.localLocked.fighters;
+    const resolved = this.resolveNetEntry(e, this.stageList(), list.map((x) => x.id));
+    // 2026-11-22 对齐原版 SelectFighterStage.doSelect / SelecterItemUI.isSelected：
+    // 只查本方已选——P1/P2 镜像同角色合法，但本方 3 槽位不得重复锁同一角色。
+    if (list.some((x) => x.id === resolved.id)) {
+      if (this.status) this.status.text = '该角色本方已选择，请换一个';
+      return;
+    }
     list.push(resolved);
     audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
-    this.refreshBox(this.boxOwn, resolved);
+    this.syncBoxStack(this.ownBoxSide(), list);
     this.updateNetStatus();
     this.checkAdvance(ctx);
   }
 
   /** 对方/P2 锁定（本地双人；联机对端走消息泵 onPeerPick）。 */
   private lockPeer(ctx: SceneCtx, e: SelectEntry): void {
-    const resolved = this.resolveNetEntry(e, this.stageList());
-    this.peerStageLocks().push(resolved.id);
+    const list = this.peerStageLocks();
+    const resolved = this.resolveNetEntry(e, this.stageList(), list);
+    if (list.includes(resolved.id)) {
+      if (this.status) this.status.text = '该角色 P2 已选择，请换一个';
+      return;
+    }
+    list.push(resolved.id);
     audioOf(this.ctxRef?.ctx!)?.se('menu2', 'swc'); // 原版 sndConfrim
-    this.refreshBox(this.boxPeer, resolved);
+    this.syncBoxStack(2, this.entriesOf(list));
     this.updateNetStatus();
     this.checkAdvance(ctx);
   }
 
-  /** 联机随机项此刻解析（结果以最终角色为准同步；原版 resolve 语义沿用）。 */
-  private resolveNetEntry(e: SelectEntry, pool: SelectEntry[]): SelectEntry {
+  /** 联机随机项此刻解析（结果以最终角色为准同步；原版 resolve 语义沿用）。
+   *  exclude = 本方已锁 id——原版 checkRandom 同样排除本方已选角色。 */
+  private resolveNetEntry(e: SelectEntry, pool: SelectEntry[], exclude: readonly string[] = []): SelectEntry {
     if (e.comicType >= 0) return e;
     const candidates = pool.filter(
-      (x) => !x.id.startsWith('random') && (e.comicType < 0 || x.comicType === e.comicType),
+      (x) =>
+        !x.id.startsWith('random') &&
+        !exclude.includes(x.id) &&
+        (e.comicType < 0 || x.comicType === e.comicType),
     );
     return candidates[Math.floor(Math.random() * candidates.length)] ?? e;
   }
@@ -943,7 +1023,7 @@ export class SetupScene implements Scene {
     else this.keyIdxP2 = next.i;
     this.placeKeyCursor(side);
     audioOf(this.ctxRef?.ctx!)?.se('menu1', 'swc'); // 原版 doHover select 音
-    this.refreshBox(side === 1 ? this.boxOwn : this.boxPeer, next.e);
+    this.refreshActive(side, next.e);
   }
 
   /** 键盘光标落位（navList 下标 → 格子坐标）。 */
@@ -1060,7 +1140,7 @@ export class SetupScene implements Scene {
       y + this.uiData!.select.cursorOffset[1],
     );
     this.peerCursor.visible = true;
-    this.refreshBox(this.boxPeer, e); // 对端盒实时跟随其光标
+    this.refreshActive(this.peerBoxSide(), e); // 对端盒栈顶实时跟随其光标
   }
 
   private onPeerPick(msg: Extract<NetMessage, { t: 'pick' }>): void {
@@ -1105,13 +1185,9 @@ export class SetupScene implements Scene {
     if (this.status) this.status.text = `房主浏览：${entries[idx]!.name}（等待确认）`;
   }
 
-  /** 对端盒显示对端当前阶段最近锁定项（覆盖快照最后一条）。 */
+  /** 对端盒同步对端当前阶段累计锁定（覆盖快照；3s 重发幂等由 syncBoxStack 保证）。 */
   private refreshPeerBoxLocked(): void {
-    const ids = this.peerStageLocks();
-    const last = ids[ids.length - 1];
-    if (last === undefined) return;
-    const e = this.stageList().find((x) => x.id === last);
-    if (e) this.refreshBox(this.boxPeer, e);
+    this.syncBoxStack(this.peerBoxSide(), this.entriesOf(this.peerStageLocks()));
   }
 
   /** 连接断开（netplay-design §10：选人中掉线 → 提示后双方回主菜单）。 */
@@ -1153,6 +1229,12 @@ export class SetupScene implements Scene {
     ];
   }
 
+  /** 清空地图面板 fx 玩家表（Sprite 随宿主容器销毁，仅流资源需显式 dispose）。 */
+  private clearMapFx(): void {
+    for (const fx of this.mapFxPlayers) fx.dispose();
+    this.mapFxPlayers = [];
+  }
+
   private renderMaps(root: Container, opts: { interactive?: boolean } = {}): void {
     const ui = this.uiData!;
     const net = this.flow.mode === 'net';
@@ -1167,8 +1249,7 @@ export class SetupScene implements Scene {
 
     // 切片 45：面板 fx 叠加层（干净底板只剩静态板 76；原版 sprite 100 深度序
     // d1 扫光 93 → d3/d5 箭头 96×2（d5 镜像）< d7 静态板 → d9 kuang 99 盖缩略图上）
-    for (const p of this.mapFxPlayers) p.dispose();
-    this.mapFxPlayers = [];
+    this.clearMapFx();
     const mkFx = (spec: UiSelectData['mapFx'][number]) => {
       const fx = new OverlayFx(spec, () => ({
         x: spec.pos[0],
@@ -1339,8 +1420,7 @@ export class SetupScene implements Scene {
     this.ctxRef = null;
     this.vortexFx?.dispose();
     this.vortexFx = null;
-    for (const fx of this.mapFxPlayers) fx.dispose();
-    this.mapFxPlayers = [];
+    this.clearMapFx();
     window.removeEventListener('keydown', this.onKeyBack);
     window.removeEventListener('keydown', this.onKeyLocal);
     this.confirmBox = null; // 随 ui 树销毁

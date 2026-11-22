@@ -412,6 +412,51 @@ test('queue×2 → matched（同房/位次/固定 team/权威 seed）+ start，h
   b.ws.close();
 });
 
+test('queue team:false ×2 → matched team=false（单挑 1v1 模式可选）', async () => {
+  const port = await serverPort(proc);
+  const a = client(port);
+  await a.open;
+  a.send({ t: 'queue', name: '单挑甲', team: false });
+  const b = client(port);
+  await b.open;
+  b.send({ t: 'queue', name: '单挑乙', team: false });
+
+  const ma = await a.expect('matched');
+  const mb = await b.expect('matched');
+  assert.equal(ma.room, mb.room);
+  assert.equal(ma.team, false);
+  assert.equal(mb.team, false);
+  await a.expect('start');
+  await b.expect('start');
+  a.ws.close();
+  b.ws.close();
+});
+
+test('不同模式偏好不互配：1v1 与团队分池，各自等到同偏好对手', async () => {
+  const port = await serverPort(proc);
+  const solo = client(port);
+  await solo.open;
+  solo.send({ t: 'queue', name: '单挑', team: false });
+  const team = client(port);
+  await team.open;
+  team.send({ t: 'queue', name: '团队' }); // 缺省 team=true
+
+  // 异构偏好不凑对（120ms 内团队方不应收到 matched）
+  await assert.rejects(team.next(120), /等待消息超时/);
+
+  const solo2 = client(port);
+  await solo2.open;
+  solo2.send({ t: 'queue', name: '单挑2', team: false });
+  const m1 = await solo.expect('matched');
+  const m2 = await solo2.expect('matched');
+  assert.equal(m1.room, m2.room);
+  assert.equal(m1.team, false); // 团队方偏好不污染 1v1 池
+  assert.equal(m2.team, false);
+  solo.ws.close();
+  solo2.ws.close();
+  team.ws.close();
+});
+
 test('matched 房一方掉线 → 对方 peer-lost（开局段即解散）', async () => {
   const port = await serverPort(proc);
   const a = client(port);

@@ -49,6 +49,7 @@ export class OverlayFx {
   private readonly frames: number;
   private playMs = 0;
   private wasVisible = false;
+  private disposed = false;
 
   constructor(spec: FxSpec, private readonly layoutOf: (plateFrame: number) => FxLayout | null) {
     this.ui.visible = false;
@@ -63,6 +64,8 @@ export class OverlayFx {
   }
 
   update(plateFrame: number, dtMs: number): void {
+    // 宿主 Container 销毁后 Sprite.position/scale 会被 Pixi v8 置 null；幂等兜底。
+    if (this.disposed) return;
     const lay = this.layoutOf(plateFrame);
     if (!lay) {
       // 未放置/已移除：隐藏且播放头暂停（原版移除 = 挂起，重新放置从帧 1 走）
@@ -87,6 +90,8 @@ export class OverlayFx {
   }
 
   dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
     this.stream.dispose();
   }
 }

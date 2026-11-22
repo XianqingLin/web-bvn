@@ -224,11 +224,20 @@ export class BattleScene implements Scene {
     transOut(ctx);
   }
 
+  /**
+   * HUD 提示统一入口：lockstep 回调（onPeerLost/onDesync/onConfigMismatch）可能在
+   * exit() 之后异步到达——离场时 renderer 已 destroy 并置 null，此处静默丢弃。
+   */
+  private hint(text: string): void {
+    if (this.dead || !this.renderer) return;
+    this.renderer.setHint(text);
+  }
+
   private enterSolo(): void {
     this.keyboard = new KeyboardSource(this.keys, KEYMAP_P1);
     // dev 诊断钩子（headless 冒烟驱动用；只读引用，不影响 sim 确定性）
     (window as unknown as { __bvnSim?: () => Sim | null }).__bvnSim = () => this.sim;
-    this.renderer!.setHint(
+    this.hint(
       'A/D 移动  W跳  S防御  J攻击  L瞬步  U技  I必杀  O召唤辅助  R重置  ESC返回菜单',
     );
     const onR = (e: KeyboardEvent) => {
@@ -249,7 +258,7 @@ export class BattleScene implements Scene {
   private enterLocal(): void {
     this.keyboard = new LocalKeyboardSource(this.keys);
     this.spawnSim(false);
-    this.renderer!.setHint(
+    this.hint(
       'P1  WASD移动 J攻击 K跳 L瞬步 U技 I必杀 O辅助 | P2  方向键移动 小键盘1攻击 2跳 3瞬步 4技 5必杀 6辅助 | ESC返回菜单',
     );
   }
@@ -303,7 +312,7 @@ export class BattleScene implements Scene {
     const rig = this.loadout.rig;
     this.spawnSim(false);
     this.netKeymap = flow.roleKeymapP2 ? KEYMAP_P2 : KEYMAP_P1;
-    this.renderer!.setHint(
+    this.hint(
       `房间 ${flow.room} —— 你是 P${flow.player}（延迟 ${INPUT_DELAY} 帧）  ESC返回菜单`,
     );
 
@@ -329,12 +338,12 @@ export class BattleScene implements Scene {
     const { client } = await lockstart(this.socket as unknown as WsLike, flow.player, {
       room: flow.room,
       configHash,
-      onDesync: (tick, a, b) => this.renderer!.setHint(`失步！tick ${tick}（${a} vs ${b}）`),
+      onDesync: (tick, a, b) => this.hint(`失步！tick ${tick}（${a} vs ${b}）`),
       onPeerLost: () => {
         this.peerLostFlag = true;
-        this.renderer!.setHint('对端断开——冻结等待（对手回到房间可继续）');
+        this.hint('对端断开——冻结等待（对手回到房间可继续）');
       },
-      onConfigMismatch: () => this.renderer!.setHint('配置不一致：两端选人/地图必须相同'),
+      onConfigMismatch: () => this.hint('配置不一致：两端选人/地图必须相同'),
     });
     this.netClient = client;
     client.prime(maskFor(this.keys, this.netKeymap));
@@ -375,10 +384,10 @@ export class BattleScene implements Scene {
       if (!stepped && this.simTick > 0) {
         if (this.stalledSince < 0) this.stalledSince = now;
         else if (now - this.stalledSince > 5000)
-          this.renderer.setHint('等待对手输入…（对手可能卡顿或已断线）');
+          this.hint('等待对手输入…（对手可能卡顿或已断线）');
       } else {
         if (this.stalledSince >= 0)
-          this.renderer.setHint(
+          this.hint(
             `房间 ${this.flow.room} —— 你是 P${this.flow.player}（延迟 ${INPUT_DELAY} 帧）  ESC返回菜单`,
           );
         this.stalledSince = -1;
@@ -477,7 +486,8 @@ export class BattleScene implements Scene {
 
   private leave(): void {
     const ctx = this.ctx;
-    if (!ctx) return;
+    if (!ctx || this.dead) return;
+    this.dead = true; // 先标记离场：socket.close 触发的 lockstep 回调不再写已销毁的 HUD
     this.socket?.close();
     ctx.switchTo(new MenuScene(this.flow));
   }

@@ -8,8 +8,9 @@
  * （免房间页/准备门），start 到达且横幅满 2.5s 即切入选人页。
  * 建连失败（断线/对端掉线）→ "连接失败，正在重新匹配"，自动回匹配中继续排队。
  *
- * 匹配固定属性（不提供选项）：团队模式开启 + 无地图阶段（援助选完直接进加载页，
- * 对局地图由权威 seed 按 maps[seed % n] 解析，两端同种子天然一致——2026-11-21 定案）。
+ * 无地图阶段（援助选完直接进加载页，对局地图由权威 seed 按 maps[seed % n] 解析，
+ * 两端同种子天然一致——2026-11-21 定案）；模式可选 1v1 / 团队 3+1——入队时上行偏好，
+ * 服务器同偏好分池配对并以 matched.team 裁定，两端权威一致。
  * 偏离登记：VS 横幅"头像"暂以位次色块占位（P1 蓝/P2 粉，同选人页 SIDE_COLORS
  * 色族）——平台头像资料接入归切片 38；横幅构建函数导出复用（对局前 VS 预告）。
  */
@@ -170,6 +171,17 @@ export class MatchScene implements Scene {
     const body = this.body;
     if (!body) return;
     body.removeChildren().forEach((c) => c.destroy({ children: true }));
+    // 模式偏好：仅待机可切（匹配中/横幅期不重建本页），服务器上行见 connectAndQueue。
+    const modeBtn = makeButton(
+      this.flow.matchTeam ? '模式：团队 3+1（点击切 1v1）' : '模式：单挑 1v1（点击切团队 3+1）',
+      () => {
+        this.flow.matchTeam = !this.flow.matchTeam;
+        this.renderIdle();
+      },
+      { w: 320, h: 44, size: 16 },
+    );
+    modeBtn.position.set(UI_W / 2 - 160, 238);
+    body.addChild(modeBtn);
     const btn = makeButton('随机匹配', () => void this.startMatching(), { w: 220, h: 56 });
     btn.position.set(UI_W / 2 - 110, 300);
     body.addChild(btn);
@@ -237,7 +249,7 @@ export class MatchScene implements Scene {
     this.linkClosed = false;
     socket.onmessage = (ev) => this.onMessage(ev);
     socket.onclose = () => this.onLinkClosed();
-    sendQueue(socket, displayName(flow) || undefined);
+    sendQueue(socket, displayName(flow) || undefined, flow.matchTeam);
     return true;
   }
 
@@ -315,7 +327,7 @@ export class MatchScene implements Scene {
         flow.room = String(msg.room ?? '');
         const name = displayName(flow);
         flow.name = name || `玩家${flow.player}`;
-        // 匹配固定属性 + 权威种子（matched 直接携带；无地图阶段，地图由 seed 解析）
+        // 服务器裁定的模式 + 权威种子（matched 直接携带；无地图阶段，地图由 seed 解析）
         flow.team = msg.team === true;
         flow.mapSelect = false;
         flow.mapSeed = typeof msg.seed === 'number' ? msg.seed : null;

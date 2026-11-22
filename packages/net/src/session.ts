@@ -112,9 +112,10 @@ export function sendBegin(socket: WsLike): void {
 
 // ---------- 匹配客户端助手（切片 37） ----------
 
-/** 加入匹配队列（服务器两两配对 → matched + start；在房/已排队时忽略）。 */
-export function sendQueue(socket: WsLike, name?: string): void {
-  socket.send(JSON.stringify({ t: 'queue', name }));
+/** 加入匹配队列（服务器按 team 偏好分池两两配对 → matched + start；在房/已排队时忽略）。
+ *  team 省略等价于 true（兼容旧客户端）；两端以服务器回执 matched.team 为准。 */
+export function sendQueue(socket: WsLike, name?: string, team?: boolean): void {
+  socket.send(JSON.stringify({ t: 'queue', name, team }));
 }
 
 /** 退出匹配队列。 */

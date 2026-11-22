@@ -16,9 +16,9 @@
  *   4. UI 同步类（cursor/map-pick）与对局类（input/hash/pick）原样透传给对端；
  *   5. 权威种子（netplay-design §8/§9）：begin 时生成随机种子并广播 seed——
  *      对局 sim seed 都由它来（进 configHash）；对局地图按 maps[seed % n] 解析；
- *   6. 匹配队列（切片 37，netplay-design §6/§9）：queue 入队，满 2 即配对——
- *      服务器开好房间并直接置为开局段（免房间页/准备门，匹配固定 team=true、
- *      无地图阶段），双方收 matched（含权威 seed）+ start；
+ *   6. 匹配队列（切片 37，netplay-design §6/§9）：queue 入队，同模式偏好满 2 即配对——
+ *      服务器开好房间并直接置为开局段（免房间页/准备门，team 由 queue.team 偏好裁定、
+ *      无地图阶段），双方收 matched（含权威 seed + team）+ start；
  *      unqueue 退队；掉线自动出队；已配对的种子兼作 sim seed 进 configHash；
  *   7. 断线清理（netplay-design.md §10）：
  *      - 未开局客座掉线 → 房间保留，房主收 peer-lost + room-info，可继续等待/邀请；
@@ -135,14 +135,17 @@ function dissolve(room) {
 function unqueue(conn) {
   if (!conn.queued) return;
   conn.queued = false;
+  conn.queueTeam = true;
   const i = matchQueue.indexOf(conn);
   if (i >= 0) matchQueue.splice(i, 1);
 }
 
 /**
- * 配对（切片 37）：出队两个存活连接 → 开房并直接置为开局段。
- * 匹配固定属性（netplay-design §6）：team=true、无地图阶段（援助选完直接进加载页，
- * 对局地图由权威 seed 按 maps[seed % n] 解析），不提供选项；
+ * 配对（切片 37）：出队两个**同模式偏好**的存活连接 → 开房并直接置为开局段。
+ * 模式偏好（2026-11-22）：queue.team 决定，true=团队 3+1 / false=单挑 1v1，
+ * 缺省 true 兼容旧客户端；不同偏好分池不互配，避免两端 flow.team 分歧导致
+ * configHash 不同（teams 键有无）而失步。无地图阶段（援助选完直接进加载页，
+ * 对局地图由权威 seed 按 maps[seed % n] 解析）；
  * 免房间页/准备门（偏离登记：设计稿"matched 后走 create/join 等价路径"收敛为
  * 服务器直接装配——同一条连接、同一套房间机器，少两轮 ready/begin 往返）。
  */
@@ -154,10 +157,20 @@ function matchPair() {
     }
   }
   while (matchQueue.length >= 2) {
+    // 同偏好配对：队首找第一个 team 相同的连接，没有则等待（不跨模式凑对）
+    let partner = -1;
+    for (let i = 1; i < matchQueue.length; i++) {
+      if (matchQueue[i].queueTeam === matchQueue[0].queueTeam) {
+        partner = i;
+        break;
+      }
+    }
+    if (partner < 0) break;
     const a = matchQueue.shift();
-    const b = matchQueue.shift();
+    const b = matchQueue.splice(partner - 1, 1)[0]; // shift 后其下标前移一位
     a.queued = false;
     b.queued = false;
+    const team = a.queueTeam;
     const room = {
       id: newRoomCode(rooms),
       players: new Map([
@@ -170,7 +183,7 @@ function matchPair() {
       ]),
       ready: new Map(),
       helloed: new Set(),
-      settings: { team: true },
+      settings: { team },
       started: true, // 出生即开局段：matched → start 直进选人页
       dead: false,
     };
@@ -180,7 +193,7 @@ function matchPair() {
     b.room = room;
     b.player = 2;
     const seed = randomInt(1, 2 ** 31); // 权威种子：兼作 sim seed（切片 36 语义）
-    const common = { t: 'matched', room: room.id, team: true, seed };
+    const common = { t: 'matched', room: room.id, team, seed };
     send(a.ws, { ...common, player: 1, opponent: { name: b.queueName } });
     send(b.ws, { ...common, player: 2, opponent: { name: a.queueName } });
     for (const ws of room.players.values()) send(ws, { t: 'start' });
@@ -191,7 +204,7 @@ const wss = new WebSocketServer({ port });
 
 wss.on('connection', (ws) => {
   /** 每连接记录（闭包内使用；跨连接访问仅发生在 matchPair 装配槽位处） */
-  const conn = { ws, room: null, player: 0, queued: false, queueName: '' };
+  const conn = { ws, room: null, player: 0, queued: false, queueName: '', queueTeam: true };
 
   ws.on('message', (data) => {
     let msg;
@@ -250,6 +263,7 @@ wss.on('connection', (ws) => {
       case 'queue': {
         if (room || conn.queued) return; // 在房/已在队：忽略（幂等）
         conn.queued = true;
+        conn.queueTeam = typeof msg.team === 'boolean' ? msg.team : true; // 缺省兼容旧客户端
         conn.queueName = cleanName(msg.name, matchQueue.length + 1);
         matchQueue.push(conn);
         matchPair();
