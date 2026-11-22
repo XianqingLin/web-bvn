@@ -124,10 +124,11 @@ export class SetupScene implements Scene {
   private hoverIdx: number | null = null;
   /** 对端光标当前格子下标（null = 尚未收到） */
   private peerCursorIdx: number | null = null;
-  /** 每方已选展示框栈（原版 SelectedFighterGroup：锁定后旧框上移变暗、新框叠在下方；
-   *  own = 本端，peer = 对端/本地 P2；solo 仅 own） */
-  private boxOwn: BoxRefs[] = [];
-  private boxPeer: BoxRefs[] = [];
+  /** 每方已选展示框栈（原版 SelectedFighterGroup：锁定后旧框上移变暗、新框叠在下方）。
+   *  按**固定位次**索引：boxP1 恒左下、boxP2 恒右下，与客户端是 P1 还是 P2 无关；
+   *  本端/对端的写入由 ownSide()/peerBoxSide() 决定，不反过来翻转数组。 */
+  private boxP1: BoxRefs[] = [];
+  private boxP2: BoxRefs[] = [];
   /** 当前阶段格子（演出退场动画用；含地图面板） */
   private animCells: { c: Container; x: number; y: number }[] = [];
 
@@ -375,8 +376,8 @@ export class SetupScene implements Scene {
     this.cursor = null;
     this.peerCursor = null;
     this.peerCursorIdx = null;
-    this.boxOwn = [];
-    this.boxPeer = [];
+    this.boxP1 = [];
+    this.boxP2 = [];
     clearTweens(); // 旧阶段格子的退场补间随 phaseRoot 销毁一并作废
     this.phaseRoot?.destroy({ children: true });
     this.clearMapFx(); // 地图 fx 是 phaseRoot 子节点：随容器销毁后不可再留在 update 表
@@ -452,6 +453,14 @@ export class SetupScene implements Scene {
     }
   }
 
+  /** 阶段推进同帧移除已选框组与光标（原版 playerSeltBack：nextStep() 后 selt.destory()）。
+   *  只让格子走 fadOutList 退场；展示框/光标若留到 phaseRoot 统一销毁，就会比格子晚消失。 */
+  private hideSelectionVisuals(): void {
+    for (const box of [...this.boxP1, ...this.boxP2]) box.root.visible = false;
+    if (this.cursor) this.cursor.visible = false;
+    if (this.peerCursor) this.peerCursor.visible = false;
+  }
+
   /** 阶段切换演出（原版 fadOutList）：格子回舞台中心 scale→0，0.3s 后换阶段。 */
   private transitionPhase(ctx: SceneCtx, next: () => void): void {
     const quadOut = (k: number) => k * (2 - k);
@@ -462,6 +471,7 @@ export class SetupScene implements Scene {
       });
     }
     this.animCells = [];
+    this.hideSelectionVisuals();
     this.loadToken++; // 作废在途异步装料（退场中的格子不再挂新纹理）
     this.transitioning = true;
     window.setTimeout(() => {
@@ -627,8 +637,10 @@ export class SetupScene implements Scene {
       const tokenAt = token;
       window.setTimeout(() => {
         if (tokenAt !== this.loadToken || this.destroyedFlag) return;
-        // 初始光标停在第一个可选格（本地双人：双光标都停首格）
-        if (local2p) {
+        // 初始光标按固定位次落位：P1 = 左侧首格（row0,col0），P2 = 右侧首格（row0,col9）。
+        // 联机同样双光标落位（此前只有本地双人做了，导致 P2 客户端自己的光标也停在左首格、
+        // 两个底部预览框无人初始化——截图里左右下角串位/默认选择不生效的根因）。
+        if (dual) {
           this.placeKeyCursor(1);
           this.placeKeyCursor(2);
         } else if (first) {
@@ -638,15 +650,12 @@ export class SetupScene implements Scene {
         root.addChild(cursor);
         if (this.peerCursor) root.addChild(this.peerCursor);
         // 展示框最后挂（原版 group 在格子之后 addChild，压在末行格子之上）
-        this.boxOwn = [this.mountBox(root, ownSide)];
-        if (dual) this.boxPeer = [this.mountBox(root, peerSide)];
-        // 盒内容恢复：双光标恢复阶段内整条已选堆叠；单机显示当前阶段已选
+        this.boxP1 = [this.mountBox(root, 1)]; // 固定左下 = P1
+        if (dual) this.boxP2 = [this.mountBox(root, 2)]; // 固定右下 = P2
+        // 盒内容恢复：双光标先按固定位次预览默认格，再恢复阶段内整条已选堆叠；单机显示已选
         if (dual) {
-          // 本地双人：先让栈顶预览初始键盘光标所在格（首格）
-          if (local2p) {
-            this.refreshActive(1, this.navEntry(1));
-            this.refreshActive(2, this.navEntry(2));
-          }
+          this.refreshActive(1, this.navEntry(1));
+          this.refreshActive(2, this.navEntry(2));
           this.syncBoxStack(ownSide, this.localStageLocks());
           this.syncBoxStack(peerSide, this.entriesOf(this.peerStageLocks()));
           this.updateNetStatus();
@@ -654,7 +663,7 @@ export class SetupScene implements Scene {
           // 单机：显示已选；未选时跟随初始光标所在格（首格）预览
           const cur = this.phase === 'fighter' ? this.fighter : this.assist;
           this.refreshActive(1, cur ?? this.stageList()[0] ?? null);
-          this.styleStack(this.boxOwn);
+          this.styleStack(this.boxP1);
         }
       }, 500);
     });
@@ -734,7 +743,7 @@ export class SetupScene implements Scene {
 
   /** 栈顶（最新/预览）框。 */
   private activeBox(side: 1 | 2): BoxRefs | null {
-    const arr = side === 1 ? this.boxOwn : this.boxPeer;
+    const arr = side === 1 ? this.boxP1 : this.boxP2;
     return arr[arr.length - 1] ?? null;
   }
 
@@ -770,19 +779,27 @@ export class SetupScene implements Scene {
     }
   }
 
-  /** 同步整条已选框栈（锁定/阶段重建/对端快照后调用）；无已选时保留一个空预览框。 */
+  /** 同步整条已选框栈（锁定/阶段重建/对端快照后调用）。
+   *  原版 SelecterItemUI.select：每次锁定 selectTimes++ 且未满份额即 group.addFighter()
+   *  新建亮预览框——所以 1 锁 = 2 框、2 锁 = 3 框、3 锁 = 3 框（援助份额 1 恒 1 框）。 */
   private syncBoxStack(side: 1 | 2, entries: readonly SelectEntry[]): void {
-    const arr = side === 1 ? this.boxOwn : this.boxPeer;
-    const show = entries.slice(0, this.requiredLocks());
-    while (arr.length < Math.max(1, show.length)) {
+    const arr = side === 1 ? this.boxP1 : this.boxP2;
+    const need = this.requiredLocks();
+    const locked = entries.slice(0, need);
+    const want = Math.min(locked.length + (locked.length < need ? 1 : 0), Math.max(1, need));
+    while (arr.length < want) {
       const parent = arr[arr.length - 1]?.root.parent;
       if (!parent) break;
       arr.push(this.mountBox(parent as Container, side));
     }
-    while (arr.length > Math.max(1, show.length) && arr.length > 1) {
+    while (arr.length > want && arr.length > 1) {
       arr.pop()!.root.destroy({ children: true });
     }
-    show.forEach((e, i) => this.refreshBox(arr[i] ?? null, e));
+    locked.forEach((e, i) => this.refreshBox(arr[i] ?? null, e));
+    // 原版新预览框以刚锁定的角色初始化（hover 到下一个才替换）
+    if (arr.length > locked.length && locked.length > 0) {
+      this.refreshBox(arr[locked.length] ?? null, locked[locked.length - 1]!);
+    }
     this.styleStack(arr);
   }
 
@@ -1026,9 +1043,16 @@ export class SetupScene implements Scene {
     this.refreshActive(side, next.e);
   }
 
+  /** 固定位次对应的光标精灵：联机两端都是 side1=P1、side2=P2，
+   *  但本端光标恒为 this.cursor、对端为 this.peerCursor（纹理按本端位次选色）。 */
+  private cursorSprite(side: 1 | 2): Sprite | null {
+    if (this.flow.mode === 'local') return side === 1 ? this.cursor : this.peerCursor;
+    return side === this.ownBoxSide() ? this.cursor : this.peerCursor;
+  }
+
   /** 键盘光标落位（navList 下标 → 格子坐标）。 */
   private placeKeyCursor(side: 1 | 2): void {
-    const cur = side === 1 ? this.cursor : this.peerCursor;
+    const cur = this.cursorSprite(side);
     if (!cur || !this.uiData) return;
     const e = this.navEntry(side);
     const [x, y] = this.cellPos(e, this.stageList());
