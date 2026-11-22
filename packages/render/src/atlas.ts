@@ -3,6 +3,7 @@
  */
 import { Assets, Rectangle, Texture } from 'pixi.js';
 import type { FighterAtlas, FireAtlas, MapAtlas } from '@bvn/data';
+import type { StreamSheetSpec } from './renderer/types.js';
 
 export interface LoadedFighterAtlas {
   atlas: FighterAtlas;
@@ -65,4 +66,30 @@ export async function loadMapAtlas(baseUrl: string, atlas: MapAtlas): Promise<Lo
     atlas.layers.map((ly) => Assets.load<Texture>(`${baseUrl}/${ly.file}`)),
   );
   return { atlas, textures };
+}
+
+/**
+ * 流帧拼图装载（tools/stream-sheet 清单，2026-11-22 战斗加载降请求）：
+ * 并行拉 sheet（请求数 1:N），逐帧在共享 sheet 源上建 cell 尺寸的 quad 纹理——
+ * 输出 Texture[] 形状与逐帧装载一致，消费端无感。onEach 逐帧回调
+ * （加载页进度条语义保持"按帧数 tick"，total 分母不变）。
+ */
+export async function loadSheetFrames(
+  baseUrl: string,
+  dir: string,
+  spec: StreamSheetSpec,
+  frames: number,
+  onEach?: () => void,
+): Promise<Texture[]> {
+  const sources = await Promise.all(
+    spec.sheets.map((s) => Assets.load<Texture>(`${baseUrl}/${dir}/${s}`).then((t) => t.source)),
+  );
+  const [w, h] = spec.cell;
+  const out = new Array<Texture>(frames);
+  for (let i = 0; i < frames; i++) {
+    const [si, x, y] = spec.cells[i]!;
+    out[i] = new Texture({ source: sources[si]!, frame: new Rectangle(x, y, w, h) });
+    onEach?.();
+  }
+  return out;
 }

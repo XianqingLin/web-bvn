@@ -19,6 +19,7 @@ import {
   loadFighterAtlas,
   loadFireAtlas,
   loadMapAtlas,
+  loadSheetFrames,
   type LoadedFighterAtlas,
   type LoadedFireAtlas,
   type LoadedMapAtlas,
@@ -346,21 +347,23 @@ export class BattleRenderer {
     if (spec.bisha) {
       const bisha = spec.bisha;
       this.ctx.assets.bishaMc = bisha.mc;
-      this.ctx.assets.bishaBandTex = await loadTextures(
-        Array.from(
-          { length: bisha.mc.frames },
-          (_, i) => `${spec.baseUrl}/${bisha.mc.dir}/${i + 1}.webp`,
-        ),
-        tick,
-      );
+      // mc 流帧（2026-11-22 拼图清单优先：842 请求 → ~50 sheet；逐帧回退保留兼容）
+      this.ctx.assets.bishaBandTex = bisha.mc.sheets
+        ? await loadSheetFrames(spec.baseUrl, bisha.mc.dir, bisha.mc.sheets, bisha.mc.frames, tick)
+        : await loadTextures(
+            Array.from({ length: bisha.mc.frames }, (_, i) => `${spec.baseUrl}/${bisha.mc.dir}/${i + 1}.webp`),
+            tick,
+          );
       // 必杀光效流帧（切片 26）：bisha(XG_bs) / bisha_super(XG_cbs)
       this.ctx.assets.bishaEffects = {};
       this.ctx.assets.effectTex.clear();
       for (const [id, eff] of Object.entries(spec.bisha.effects ?? {})) {
-        const texs = await loadTextures(
-          Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
-          tick,
-        );
+        const texs = eff.sheets
+          ? await loadSheetFrames(spec.baseUrl, eff.dir, eff.sheets, eff.frames, tick)
+          : await loadTextures(
+              Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
+              tick,
+            );
         this.ctx.assets.bishaEffects[id] = eff;
         this.ctx.assets.effectTex.set(id, texs);
       }
@@ -393,11 +396,13 @@ export class BattleRenderer {
       this.ctx.assets.sparkTex.clear();
       this.sparks.resetWarnings();
       for (const [id, eff] of Object.entries(this.ctx.assets.hitspark.effects)) {
-        // 逐帧 tick + 批量并发：原先 647 张图串行下载且只回调一次，进度条在 ~90% 假死
-        const texs = await loadTextures(
-          Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
-          tick,
-        );
+        // 逐帧 tick + 拼图优先：清单在（stream-sheet 产物）走 sheet 装载，逐帧回退兼容旧包
+        const texs = eff.sheets
+          ? await loadSheetFrames(spec.baseUrl, eff.dir, eff.sheets, eff.frames, tick)
+          : await loadTextures(
+              Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
+              tick,
+            );
         this.ctx.assets.sparkTex.set(id, texs);
       }
     } else {

@@ -49,7 +49,7 @@ export function pixiBlendMode(flash: string): TBlendMode {
 export const DESIGN_VIEW_W = 800;
 export const DESIGN_VIEW_H = 600;
 
-/** baked/bisha.json 的 mc 块（tools/bisha-pack 产物，schema bvn/bisha@1） */
+/** baked/bisha.json 的 mc 块（tools/bisha-pack 产物，schema bvn/bisha@3） */
 export interface BishaMcData {
   dir: string;
   frames: number;
@@ -65,6 +65,9 @@ export interface BishaMcData {
   faceAnchor: [number, number];
   /** 0-based 帧 → [W_Tx, W_Ty, scaleX, scaleY, rOff, gOff, bOff, alphaMul] | null */
   slots: { facemc1: (number[] | null)[]; facemc2: (number[] | null)[] };
+  /** 流帧拼图清单（tools/stream-sheet 产物，2026-11-22 战斗加载降请求）；
+   *  缺省 = 无拼图，走逐帧装载回退。 */
+  sheets?: StreamSheetSpec;
 }
 
 /** mc 流帧特效规格（切片 26：XG_bs/XG_cbs；tools/bisha-pack EFFECTS 产物） */
@@ -74,6 +77,23 @@ export interface EffectMcData {
   fps: number;
   /** 画布原点（mc 空间）：PNG (0,0) 对应的世界偏移，display 位 = org + origin */
   origin: [number, number];
+  /** 流帧拼图清单（tools/stream-sheet 产物）；缺省 = 无拼图，走逐帧装载回退。 */
+  sheets?: StreamSheetSpec;
+}
+
+/**
+ * 流帧拼图清单（tools/stream-sheet 产物，2026-11-22 战斗加载降请求）：统一画布
+ * 流帧按行优先货架拼进少量 sheet webp，请求次数从逐帧 1:1 降到 1:N。
+ * 单元格尺寸 = 统一画布实测值（cell），帧纹理 = sheet 纹理上 cell 尺寸的 quad
+ * （Texture.frame），消费端 Texture[] 形状与逐帧装载完全一致。
+ */
+export interface StreamSheetSpec {
+  /** sheet 文件名（相对 baseUrl/dir） */
+  sheets: string[];
+  /** 统一画布帧尺寸（实测） */
+  cell: [number, number];
+  /** 0-based 帧 → [sheetIdx, x, y]；宽高 = cell */
+  cells: [number, number, number][];
 }
 
 /** 切人插图资源（切片 22）：mc 流帧 + 立绘映射（pkgId → faceName → baseUrl 相对路径） */
@@ -113,9 +133,12 @@ export interface HitsparkEffect {
   /** 全屏闪（原版 ShineEffectView：ADD 色块 10×降采样拉伸近似） */
   shine?: { color: number; alpha: number };
   freezeMs?: number;
+  /** 流帧拼图清单（tools/stream-sheet 产物，2026-11-22 战斗加载降请求）；
+   *  缺省 = 无拼图，走逐帧装载回退。 */
+  sheets?: StreamSheetSpec;
 }
 
-/** baked/hitspark.json 结构（schema bvn/hitspark@1）。 */
+/** baked/hitspark.json 结构（schema bvn/hitspark@2，2026-11-22 随流帧拼图升版）。 */
 export interface HitsparkBaked {
   schema: string;
   effects: Record<string, HitsparkEffect>;
