@@ -5,13 +5,13 @@
 > 日期：2026-11-08
 > 用途：阶段 1（POC 移植）的设计输入；标注 **已核实 / 推断** 两类结论
 
-### 外部参考仓库（原立项书清单的存留部分，2026-11-12 移入）
+### 外部参考仓库（2026-11-12 移入）
 
-- [OpenBleachVsNaruto](https://github.com/5DPLAY-Game-Studio/OpenBleachVsNaruto) —— 3.4 归档版全量源码（**移植底稿**；已克隆在仓库根，gitignore 只读）
+- [OpenBleachVsNaruto](https://github.com/5DPLAY-Game-Studio/OpenBleachVsNaruto) —— 3.4 归档版全量源码（**移植底稿**；只读克隆在 `../../references/OpenBleachVsNaruto`，2026-11-22 移出仓库根）
 - [BleachVsNaruto_TagAssets](https://github.com/5DPLAY-Game-Studio/BleachVsNaruto_TagAssets) —— 官方素材库（素材提取用）
 - [BleachVsNaruto_FlashSrc](https://github.com/5DPLAY-Game-Studio/BleachVsNaruto_FlashSrc) —— FLA/XFL Flash 源文件（帧动画/素材）
 - [BleachVsNaruto](https://github.com/5DPLAY-Game-Studio/BleachVsNaruto) —— 主线 3.7 Alpha（持续变动，仅参考，不做基底）
-- [bvn-ai-public](https://github.com/lcx03876-hue/bvn-ai-public) —— BVN 游戏内状态桥逆向（已克隆在仓库根；本文档多处交叉验证来源）
+- [bvn-ai-public](https://github.com/lcx03876-hue/bvn-ai-public) —— BVN 游戏内状态桥逆向（本文档多处交叉验证来源；本地克隆 2026-11-22 删除——交叉验证成果已沉淀进本文档，需要时从 GitHub 重取）
 - [assets_lib](https://github.com/qxyk99/assets_lib) —— 社区整理素材库（备用）
 
 ---
@@ -360,44 +360,20 @@ $fighter_ctrler.defineBishaFace("Ichigo_1", bsface1);
 
 ## 7. 素材与资产管线
 
+> **实际管线已建成并收编进 [DESIGN.md](DESIGN.md) §4**（XFL 静态提取 + 运行时 dump 交叉验证 + AIR capture 栅格化）。本节仅留 §7.1 现状供溯源；当年"方案 A/B"与目标格式的规划探讨已无维护价值，略。
+
 ### 7.1 现状
 
 - 角色/辅助/地图的**编译后 SWF 不在仓库**；`swf_output/assets/fighter` 只有空目录。
 - Release `RELEASE_20261031` 的 `swf_output.rar`（58 MB）是完整可运行包，是 SWF 素材来源。
-- 仓库内 XFL 是 Flash CC 2015 格式，可解析但需要自己实现几何烘焙。
+- 仓库内 XFL 是 Flash CC 2015 格式。
 - 工具链（Flash Builder 4.7 / Flash Professional CC 2015）已不可得。
-
-### 7.2 建议的资产提取方案（两阶段）
-
-**方案 A（推荐）：运行时导出器**
-仿照 `bvn-ai-public` 的做法：用 FFDec 反编译/注入主 SWF，增加一个“素材导出”脚本：
-- 遍历 `FighterModel` 全部角色，对每个形态根帧、每个动画标签、每一帧：
-  - dump 帧标签、帧序号、MC 子对象名、`getBounds`（bdmn/atm/id/AImain）
-  - dump `HitVO` 全表、动作槽、声音触发帧
-- 遍历地图 dump 边界线/出生点/floor/层结构
-- 输出 JSON + spritesheet 元数据
-优点：直接使用 Flash 的 `getBounds` 语义，零几何误差；不需要构建 XFL。bvn-ai-public 已验证 FFDec 可重编译 SWF。
-
-**方案 B（离线解析）**：解析 XFL 的 `<DOMShape>` 边列表，自己算包围盒。几何误差与矩阵/描边处理需要对齐，风险较高，只适合作为交叉校验。
-
-### 7.3 目标素材格式（建议）
-
-```
-assets/
-├─ fighters/<id>.json       # 形态、帧标签→帧号、帧时长、动作定义、判定表、触发帧
-├─ fighters/<id>.png/.atlas # 动画帧图集
-├─ assistants/<id>.json/.atlas
-├─ maps/<id>.json           # 边界/出生点/地板/层视差参数
-├─ maps/<id>.png
-├─ config/*.json            # 选人/关卡/键位
-└─ audio/...
-```
 
 ---
 
 ## 8. 移植映射建议
 
-> **本节已被正式架构设计取代**：目录结构、接口定义、帧循环、对齐策略以 [DESIGN.md](DESIGN.md) 与 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。本节仅保留历史记录价值，不再维护。其中"InputFrame 位图""CharacterDef 数据化""快照哈希对拍"等思路已全部吸收进正式架构。
+> 本节已被正式架构设计取代并整段移除（2026-11-22 精简）：目录结构、接口定义、帧循环、对齐策略以 [DESIGN.md](DESIGN.md) 与 [ARCHITECTURE.md](ARCHITECTURE.md) 为准。
 
 ---
 
@@ -420,22 +396,15 @@ assets/
 
 ---
 
-## 10. 阶段 1 建议切片（已取代）
+## 10. 阶段 1 建议切片
 
-> 本节的切片方案已被正式设计取代（有重排：本地双人移出主线、训练模式保留等）。
-> 实际切片划分见 [DESIGN.md](DESIGN.md) §9；已完成内容见 git 历史。本节仅存历史记录于 git 历史。
+> 本节已整段移除（2026-11-22 精简）：切片方案被正式设计取代，实际划分见 [DESIGN.md](DESIGN.md) §9，完成状态见 git 历史。
 
 ---
 
-## 11. 待确认问题（全部已决策，本节关闭）
+## 11. 待确认问题
 
-| 问题 | 决策 | 出处 |
-|---|---|---|
-| 手感基准 | 60fps 模式（60Hz 逻辑 + 30Hz 动画） | DESIGN §3.1 |
-| 素材导出方式 | FFDec 注入导出器 | DESIGN §4 |
-| 角色脚本转译比例 | 38 角色脚本全部保留 | DESIGN §3.6 |
-| 输入模式 | 废弃双模式，统一"按住位图 + 可配置缓冲窗口"（默认 6 帧） | DESIGN §3.3 |
-| 相机是否进模拟 | 都不选：牵引边界，相机纯渲染化 | DESIGN §3.4 |
+> 本节已整段移除（2026-11-22 精简）：所列问题全部已决策，决策记录即 [DESIGN.md](DESIGN.md) 对应段（§3.1/§3.3/§3.4/§4/§3.6），无需重复列表。
 
 ---
 
@@ -453,4 +422,4 @@ assets/
 | 动画/判定区 | [FighterMC.as](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/fighter/FighterMC.as), [FighterCtrler.as](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/fighter/ctrler/FighterCtrler.as) |
 | 输入 | [GameInputer.as](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/input/GameInputer.as), [GameKeyInput.as](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/input/GameKeyInput.as), [FighterKeyCtrler.as](OpenBleachVsNaruto/swf_source/#FighterTester/src/net/play5d/game/obvn/fighter/ctrler/FighterKeyCtrler.as) |
 | 角色数据 | `swf_output/assets/config/fighter.xml`; `swf_source/f_fighter/<角色>/DOMDocument.xml` |
-| 逆向参考 | `bvn-ai-public/docs/ARCHITECTURE.md`、`bridge/*.as`（字段语义与运行时数值） |
+| 逆向参考 | [bvn-ai-public](https://github.com/lcx03876-hue/bvn-ai-public) 的 `docs/ARCHITECTURE.md`、`bridge/*.as`（字段语义与运行时数值；本地克隆已删，需要时从 GitHub 重取） |

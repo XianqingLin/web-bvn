@@ -148,7 +148,7 @@ playfield = clamp(两角色中点 ± PLAYFIELD_HALF_WIDTH, 地图边界)
 - **终局**：败方侧 pending 耗尽 → `finishMatch(winnerSide)`：发 `match:over { winner }` + `roundEnd.over` 冻结（继续 tick 全停）——app 层消费后回选人页（原版 VS 系 fightFinish 语义；原版街机模式专属结算页 WinnerStage 不移植，2026-11-21 定案整块移除——local 回选人可重选重开，net 关 socket 回菜单）。胜场逐局计（多局制切片归位：原版 doGameEnd 置位时 `p1Wins++/p2Wins++`，平局不计）；终局拍 round 仍推进（原版 runNext 的 `nextRound()` 先行）。
 - **回合计时与多局制**（多局制切片 2026-11-21，原版 `GameCtrler.renderGameTime`/`timeover`/`drawGame`/`runNext`；偏离归位——此前 1v1"KO 即终局/双 KO 判和局"系漏读原版 runNext single 分支 `p1Wins<2 && p2Wins<2 → buildNextRound(false)`）：
   - **计时**：`MatchState.gameTime/gameTimeMax`（秒，SimConfig.fightTime 缺省 60 = 原版 ConfigVO.fightTime；训练 -1 无时限）。每 62 tick 减 1（原版 renderGameTime 挂 30Hz renderAnimate 内独立计数器 31 次调用）——仅正常管线走此步（冻结/intro/演出/特写/幽步期停走，与原版 `actionEnable && !_startCtrler && !_endCtrler` 门控同构）。偏离登记：递减相位 `roundFrame % 62 === 0`（原版计数器不随回合重置）；slowDown 期计时照走（原版随动画帧同门降频，挂身慢放累计秒级可忽略）。
-  - **timeover**：gameTime 归零 → `roundEnd { timerOver: true }` 置位（原版 `timeover()`：actionEnable=false + hp 比较）——hp 高者胜（胜场逐局计）、相等平局。复用 KO 演出状态机但无 KO 表现链（原版 playTimeOver 无 hit_end/白闪/kobg/屏震）、无终结慢镜头（败方活人无飞尸）、showWinner 延迟恒 1s（原版 timeoverBack）、无字样窗冻结（原版无 pause，仅封输入）。渲染播 timeover/drawgame 字样（timerOver 分流）。
+  - **timeover**：gameTime 归零 → `roundEnd { timerOver: true }` 置位（原版 `timeover()`：actionEnable=false + hp 比较）——hp 高者胜（胜场逐局计）、相等平局。复用 KO 演出状态机但无 KO 表现链（原版 playTimeOver 无 hit_end/白闪/kobg/屏震）、无终结慢镜头（败方活人无飞尸）、showWinner 延迟恒 1s（原版 timeoverBack）、无字样窗冻结（原版无 pause，仅封输入）。渲染播 timeover/drawgame 字样（timerOver 分流）。偏离登记（多局制切片 2026-11-21）：① timeover 平局的 team 换人气不继承——原版用上一局残留 lastLoserData 的 stale 语义，不建模；② 非平局 winner 字样起播锚 = `winAppliedHold`（timerOver 路径 hold 120 门 + 延迟 60 = 180；原版 timeover 段计满 hold 88 + 1s 延迟 ≈ 148 起播，0.5s 内偏差，不为对齐而动 core 计时）。
   - **平局重开**：1v1 平局（双 KO / timeover hp 相等）不计胜场、演出计满恒重开该轮（原版 drawGame → runNext single 分支）。team 平局维持既有双换人/耗尽判定语义。
   - **1v1 三局两胜**：KO/timeover 置位即逐局计胜；演出计满 → wins<2 双方 → `restartRound1v1`（原版 buildNextRound(false) 净效果：双方满血回出生点 + idle + 气保留 + gameTime 重置满 + intro 直入字样步——原版 startNextRound 无特写仅 startKOmc 字样重播，bannerRound/bannerFight 音照发）→ round++；wins≥2 → `finishMatch`。render 胜利星按逐局累积 wins 显示（原版 FightUI.showWins）。
   - **胜方回血归位**：team 模式恢复率 `0.165×(timeRate+1)`，timeRate = gameTime/gameTimeMax（原版 GameEndCtrler.renderEND case1；无时限 timeRate=1 → 0.33 与旧值同构）。1v1 无回血（isTeamMode 门，重开满血使然）。
@@ -273,23 +273,19 @@ PixiJS v8；逻辑坐标 1000×600（y 向下）与原版 FighterTester SWF 舞�
 
 TypeScript（strict）+ Vite + pnpm workspace；PixiJS v8；Node + `ws`（与客户端共享 core 包与类型）；Vitest（core 在 Node 环境测）；GPL-3.0（OpenBVN 转译传染性要求）。不用定点数。
 
-## 9. 切片划分与重排理由（阶段 1~2）
+## 9. 切片划分与重排理由（阶段 1~2，方法论存留）
 
-> 各切片完成状态以 [PROGRESS.md](PROGRESS.md)（进度台账）为准，本节保留切片划分与重排理由。
+> 阶段 1~2 各切片（1~7 已全部完成）的落地细节与完成记录在 git 提交历史；本节只保留对后续立项仍有价值的划分方法论与持久接线备忘。
 >
-> 2026-11-09 重排：本地双人/训练模式移出主线，进扩展项池（见立项书 §六）；阶段 1 以
-> "单机对战闭环验收"收尾，随后直接进入阶段 2 联机。理由：lockstep 联机天然给出双方
-> 输入，本地双人是最后才被需要的能力；联机是项目核心目标，尽早打通端到端。
+> 2026-11-09 重排：本地双人/训练模式移出主线，进扩展项池；阶段 1 以"单机对战闭环验收"收尾，随后直接进入阶段 2 联机。理由：lockstep 联机天然给出双方输入，本地双人是最后才被需要的能力；联机是项目核心目标，尽早打通端到端。
 
-1. **harness** ✅（切片 1）：`packages/core` 骨架 + 确定性单测 + `tools/replay` 门禁；
-2. `tools/exporter` ✅（切片 2）：导出 ichigo + kon + 1 张地图的 JSON/图集；
-3. core ✅（切片 3 最小闭环 + 切片 5 补全）：7 态动作机 + 判定区 + 命中结算 + 推挤；切片 5 补防御/瞬步/技/必杀最小集 + 能量系统 + 连段槽（见 §3.5），达到"能打一场完整对局"；
-4. render ✅（切片 4 + 切片 5 清遗留）：帧动画、地图层、相机、基础 HUD；切片 5 补相机 clamp 接舞台边界、floor 前景层遮挡、HUD 回合文本；
-5. app ✅（切片 4 + 切片 5 训练模式）：dev 预览页（键盘 → ButtonMask → tick → 渲染）；训练模式 = P2 假人（输入恒空）+ 无限血 + R 键重置；
-6. **切片 5 = 阶段 1 收尾** ✅：确定性单测 40 过、replay 门禁四剧本（含新增 ichigo-mechanics）过。遗留池（不阻塞阶段 2）：摔技/万解/空中瞬步/二段跳/必杀飞行道具（fire 原语）；
-7. **切片 6 = 联机地基** ✅：`InputSource` 抽象（本地键盘 / replay / 网络统一喂 sim，sim 本身零改动）+ lockstep 客户端（输入延迟帧、帧号对齐、输入缓冲）+ 同机双客户端经本地服务器镜像联调。落地：`core/inputSource` 接口 + `ScriptedInputSource`（剧本回放源，tools/replay 剧本同构）；`packages/net`——协议词表（welcome/hello/start/input/hash/peer-lost）、`Transport` 抽象（`loopbackPair` 内存直连 + `wsTransport` 浏览器/node ws 双兼容）、`LockstepClient`（本地输入延迟 INPUT_DELAY=3 帧、按 tick 输入缓冲、每 HASH_STRIDE=60 tick 交换状态哈希检测失步、hello 配置指纹互验）；`server/relay.mjs` 最小中继（分配位次、收齐 hello 广播 start、input/hash 纯透传）。联调门禁：双客户端 loopback 对跑剧本 finalHash 相等且等于单机直跑（抽象零漂移）+ 停步语义 + 失步检测 + 真实 relay 进程 ws 端到端；app dev 页 `?mode=net&role=p1|p2` 双窗口联机入口。
-8. **切片 7 = 房间服务器** ✅：Node.js WebSocket 房间（创建/加入、输入中继、断线最小处理：超时判负或冻结等待），局域网两机联调。落地：`server/room-server.mjs`——4 位房间码（无易混字符）、create/join 入房（错误码 room-not-found/room-full）、收齐 hello 广播 start、input/hash 按房间透传、断线通知 peer-lost 后冻结等待（判负归阶段 4）、无重连；`packages/net` 协议词表扩展 create/join/welcome/error + `startSession` 会话助手（入房 + LockstepClient 装配一步到位，onWelcome 提前给 create 方房间码）；app `?mode=net&action=create|join&room=&port=` + 停步 5s 看门狗提示。注意 startSession 语义：要等 start 广播才 resolve——create/join 必须并发。门禁：net 7 测试（房间 e2e 对跑剧本哈希 = 单机直跑、room-not-found、room-full + 切片 6 全部回归）。
-9. 公网联调与延迟体验调优视切片 7 结果立项（输入延迟帧自适应、可选升级 rollback——归阶段 4）。
+切片序列方法论：harness（core 骨架 + 确定性单测 + replay 门禁）→ exporter → core 最小闭环 → render/app dev 页 → 联机地基（`InputSource`/`Transport`/`LockstepClient`/relay）→ 房间服务器。次序原则：门禁工具与 core 骨架同期先行（§7），联机地基先于功能扩张；公网联调与延迟调优按实测结果立项（延迟调优已以 rollback 落地，§6）。
 
-阶段 1 明确不做：本地双人、rollback、第二个可操作角色、完整菜单流、街机模式、音效（事件队列留好）。本地双人进扩展项池，最后做。**街机模式 2026-11-21 定案永不做**（原版专属玩法：mission.xml 关卡 AI/FighterAICtrler 不转译，结算页 WinnerStage 已整块移除）。
+持久接线备忘（仅记录于此）：
+
+- `packages/net` 的 `startSession` 语义：要等 start 广播才 resolve——create/join 必须并发调用；
+- app dev 联机入口：`?mode=net&role=p1|p2` 双窗口对跑；`?mode=net&action=create|join&room=&port=` 建房/加入 + 停步 5s 看门狗提示；
+- 服务器错误码 `room-not-found` / `room-full` 沿用至今（netplay-design §5）。
+
+阶段 1 当时明确不做：本地双人、rollback、第二个可操作角色、完整菜单流、街机模式、音效（事件队列留好）。本地双人进扩展项池，最后做。**街机模式 2026-11-21 定案永不做**（原版专属玩法：mission.xml 关卡 AI/FighterAICtrler 不转译，结算页 WinnerStage 已整块移除）。
 

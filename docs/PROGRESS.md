@@ -18,7 +18,7 @@
 
 ### 2.1 联机基础设施
 
-- **节点选择系统（2026-11-22 立项，方向已实测确认）**：房间服从单一 CF DO 改为多节点可择优（国内节点 + CF 外服节点）。用户实测 rollback 吞输入根因 = CF 边缘 RTT 过高导致回滚窗口过大；**探针实测（375 tick 固定剧本、两端 60fps 节奏、工具 `probe-nodes.mjs` 用后即删）**：国内节点连接 RTT 95~111ms、回滚窗口均值 2 tick / 最大 2；CF 节点 RTT 804~1155ms、回滚窗口均值 27 tick / 最大 53——回滚**次数**相近（24 vs 18）但**窗口长度**差一个数量级，证实"换国内节点能根治吞输入"。设计规格（节点清单/manifest 下发、自动测速择优、手动切换、房码带节点标识、匹配限当前节点池、安全边界）待落成 `docs/server-selection.md`。接线点：`flow.serverUrl` 唯一出口、`room-logic.mjs` 加 ping case（CF DO/Node 共用）。前置：国内节点证书/备案（旧 `wss://120.48.185.202/bvn-ws` 自签证书浏览器 wss 拒连，证伪期可用 `ws://` 明文 + 忽略证书工具）。
+- **节点选择系统余项**：主体已落地（探针实测与全部规格见 [server-selection.md](server-selection.md)，完成记录在其 §10）。余项：①rollout 百分比灰度（接口预留，暂不实现）；②切片 38 邀请深链落地时把 `node=` 参数接进邀请链接。~~前置：国内节点真证书/域名/备案~~ → 已解决（2026-11-22 换 LE IP shortlived 证书，工作区 `docs/SERVER-OPS.md` §二）。
 - **真机体验验证**：按新流程（房间/匹配全链，含地图阶段与匹配）公网两端人工验收——对局可打完、哈希失步零发生。前置：切片 38 完成后执行；**验收口径随 rollback 切换更新（2026-11-22）**：对局应满 60fps 不慢放（对手预测+回滚纠正）、观察 HUD 无"失步"提示、预测纠正无肉眼可见抖动。
 - ~~延迟调优立项：输入延迟帧自适应、抖动缓冲~~ → **rollback 已实现（2026-11-22，commit 见 git 历史；DESIGN §6）**，lockstep 的延迟预算问题随之消解。余项：①真机公网验证预测手感与抖动幅度；②对端静默超时/断线的判负流转（§2.3 块 1，rollback 下仍冻结等待）；③预测期表现偏差的可感知性评估（预测错误的音效不撤回——GGPO 同款取舍，若真机体感差再议事件重放策略）。
 
@@ -42,20 +42,7 @@
 
 平台接缝：身份凭证服务器侧验证 + 邀请深链进房 + 平台昵称/头像资料接入（netplay-design §11 对齐点收口；凭证未定前按结构子集 duck typing 留接缝；VS 横幅头像占位在此收口）。设计定案见 [netplay-design.md](netplay-design.md)（含协议词表扩展 §9、异常流 §10）。
 
-固定属性：匹配**无地图阶段**（2026-11-21 纯房码制收缩，见 §2.6）；模式（团队 3+1 / 单挑 1v1）2026-11-22 改为**可选**——待机页切换、入队 `queue.team` 偏好、服务器按偏好分池并回执 `matched.team`（偏离原"团队固定开启"定案，规格见 netplay-design §6）。异常流按 netplay-design §10 随对应切片实现（对局中掉线判负归 §2.3 块 1）。
-
-### 2.5 回合流程多局制（2026-11-21 立项，插入切片 38 前）
-
-**立项根因**：原版反编译源实证（GameCtrler.as:680-688/498-533/616-666、GameEndCtrler.as、GameRunDataVO.as、FightUI.as:288/296-405、ConfigVO.fightTime=60）——**原版 1v1 是三局两胜多局制**，DESIGN §3.5 团队回合流段"1v1 无 pending 恒终局（原版 nextFighter 无备选 → fightFinish）"系漏读（nextFighter 无备选只对 team 分支成立；single 分支 `p1Wins<2 && p2Wins<2 → buildNextRound(false)` 重开）——未登记偏离，本项归位。用户定案（2026-11-21）：恢复三局两胜、回合计时 60 秒跟原版（原版设置可调 20/40/60/99，port 先 SimConfig 常量）。
-
-- **core**：MatchState + gameTime/gameTimeMax（秒，每 30 tick 减 1，原版 renderGameTime；训练/无时限 -1）/1v1 出生点；RoundEndState + timerOver；wins 逐局计（原版 doGameEnd 置位时 ++，自 finishMatch 移出）；1v1 演出毕 wins<2 → 重开该轮（原版 resetFight 双方满血回位 + startNextRound 无特写字样，port intro 直入字样步）else fightFinish；平局不计胜场恒重开（原版 drawGame）；timeover：gameTime 归零 → hp 高者胜/hp 相等 drawGame（原版 timeover）；team 换人路径 gameTime 重置（原版 nextRound）；胜方回血率归位 `0.165×(timeRate+1)`（原版 GameEndCtrler.renderEND case1，timeRate = gameTime/gameTimeMax，无时限=1）。✅ 2026-11-21 完成（commit e66440e）。
-- **渲染收编** ✅ 2026-11-21 完成：计时板数字（FightTimeUI time_txtmc=sprite 250 / MCNumber 两位零填充逐位 20px，gameTime 驱动、训练显 ∞）；start_final 段（round≥5 开局分支，FightUI.as:288；XFL 0 基 94..138 独立烘焙 45 帧 + renderStartAndKO go:fight 标签 gotoAndStop("fight") 重定向语义 → 运行时复用 startko fight 段，总帧数 79 与 start 路径等长；居中 delta = 稳态固定值——逐字弹入期不逐帧居中，原版原地弹出语义；段内无数字槽——原版 r5 nummc 段死代码佐证）；timeover/drawgame 结算段（段尾帧脚本 stop+COMPLETE 实证定帧数 44/43，timerOver 置位即时起播 timeover、平局续播 drawgame 定格段尾至重开、非平局被 winner 字样替换——原版 playTimeOver/playDrawGame/showWinner）；胜利星逐局累积（WinUI.show wins→槽位语义：team1 w1→w2 / team2 镜像反序，点亮沿 = winApplied 落位起播 in_bleach/in_naruto 定格段尾，wins 回退全灭）；bannerFinal = core intro hold 0 按 round≥5 分流（原版声音层贴帧 sound_006）；bannerTimeover/bannerDraw = HUD 显示沿 onBanner 回调（core 不持表现段帧数常量，双端快照一致同拍触发）。
-- **门禁**：core 侧 commit e66440e（行为有意变更 → replay 9 剧本重冻 + batch 重冻，已过）；渲染收编零状态变更 → replay 9 剧本零漂移 + batch 基线复验过（2026-11-21）。
-- **偏离登记**（本项内定案）：①计时递减相位 roundFrame % 62 === 0（原版 renderGameTime 挂 30Hz renderAnimate 内独立计数器 31 次减 1，fightTime=60 ≈ 62 真实秒；原版计数器不随回合重置；slowDown 期 port 计时照走、原版随动画帧同门降频——挂身慢放累计秒级可忽略）；②timeover 平局 team 换人气无继承（原版用上一局残留 lastLoserData，stale 语义不建模）；③双侧 roster 耗尽且平局的边角按胜方侧判定（维持既有偏离）；④timerOver 非平局 winner 字样起播锚 = winAppliedHold（hold 120 门 + 延迟 60 = 180），原版 timeover 段计满（hold 88）+ 1s 延迟 ≈ 148 起播——0.5s 内偏差，避免为对齐而动 core 计时；⑤start_final 居中 delta 稳态固定（原版逐字弹入原地语义，逐帧居中会抖动）。
-
-### 2.6 联机产品形态收缩：纯房码制 + 地图阶段简化（2026-11-21 定案，已实现）
-
-用户定案（2026-11-21，规格见 netplay-design §3/§4/§5/§6/§8 当日改段）：① 浏览房间下线，房间一律私人，主菜单"浏览房间"改"加入房间"（6 位数字房码，服务器生成 + 查重 + 解散冷却池近期不复用）；加入 = 房码或平台邀请（切片 38 深链落同一入口）。② 地图阶段收缩：好友房保留房主选择页（默认选中项 = "？"随机场景，原版 map_config random 首项实位归位），房间页"随机地图"勾选删除（随机性归"？"项）；匹配模式无地图阶段（援助选完直接进加载页，地图 = `maps[|seed| % n]`，matched 权威种子兼作抽取与 sim seed）；开箱抽取动画与 `map-roll` 消息整体下线（更名 `seed`，仅种子载体）。协议收缩：`RoomSettings` 仅剩 `team`，`list-rooms/room-list` 删除。门禁：build + 单测（服务器 18 + net 13）+ replay 9 剧本零漂移 + batch 基线复验全过（2026-11-21）。
+固定属性：匹配**无地图阶段**（2026-11-21 纯房码制收缩，定案见 netplay-design §5/§6/§8）；模式（团队 3+1 / 单挑 1v1）2026-11-22 改为**可选**——待机页切换、入队 `queue.team` 偏好、服务器按偏好分池并回执 `matched.team`（偏离原"团队固定开启"定案，规格见 netplay-design §6）。异常流按 netplay-design §10 随对应切片实现（对局中掉线判负归 §2.3 块 1）。
 
 ---
 

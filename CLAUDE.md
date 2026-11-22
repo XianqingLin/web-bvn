@@ -10,8 +10,9 @@
 | [docs/PROGRESS.md](docs/PROGRESS.md) | **进度台账**：只记未完成项（剩余工作/遗留池/下一步）；已完成内容看 git 历史 |
 | [docs/DESIGN.md](docs/DESIGN.md) | 设计文档：分层、按系统的机制规格、决策理由与日期 |
 | [docs/netplay-design.md](docs/netplay-design.md) | 联机设计稿：房间/匹配/联机选人/地图抽取的产品形态与协议设计 |
+| [docs/server-selection.md](docs/server-selection.md) | 节点选择设计稿：房间服多节点部署、节点清单下发、自动测速择优、跨节点加入、深链 `?room=&node=` 参数规格 |
 | [docs/BVN-module-map.md](docs/BVN-module-map.md) | 原版 AS3 源码逆向结论（转译的参考规格书） |
-| [docs/cloud-server.md](docs/cloud-server.md) | 云服务器部署手册（**本地文档，gitignore 不入库**；含服务器凭据指引，严禁提交） |
+| [SERVER-OPS.md](../docs/SERVER-OPS.md) | BCC / CF 基础设施操作手册（**工作区 docs/ 本地文档，不入任何仓库**，与 SSH 私钥 `../docs/cloud-server-key.pem` 同放；连接方式/服务清单/证书/发布流程/红线，严禁提交） |
 
 ## 红线速记（细节以契约为准）
 

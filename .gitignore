@@ -1,6 +1,4 @@
-# 参考仓库（只读克隆，不纳入本项目版本控制）
-/OpenBleachVsNaruto/
-/bvn-ai-public/
+# 参考仓库（只读克隆）已移出仓库，现位于 ../../references/（bvn-ai-public、OpenBleachVsNaruto）
 
 # 构建与依赖
 node_modules/
@@ -17,9 +15,7 @@ tools/vendor/
 # batch-validate 生成报告（baseline.json 是门禁基线，入库；报告可再生）
 /tools/batch-validate/report.json
 
-# 敏感信息：云服务器 SSH 私钥与部署文档（仓库开源，严禁入库）
-/cloud-server-key.pem
+# 敏感信息：云服务（操作手册 SERVER-OPS.md 与私钥已移至工作区根 web-games/，不在本仓库）
 /AGENTS.md
-/docs/cloud-server.md
 .scratch/
 _scratch/
