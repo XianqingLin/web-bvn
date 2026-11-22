@@ -19,3 +19,6 @@ tools/vendor/
 /AGENTS.md
 .scratch/
 _scratch/
+
+# 资产指纹清单（tools/asset-fingerprint 生成，predev/prebuild:dist 前置；随资产再生）
+/packages/data/baked/asset-versions.json

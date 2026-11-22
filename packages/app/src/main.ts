@@ -13,6 +13,7 @@
  */
 import { Application } from 'pixi.js';
 import { connectGameDock } from '@gamedock/game-sdk';
+import { installAssetVersioning } from './asset-versioning.js';
 import { AppHost } from './host.js';
 import { AudioSubsystem } from './audio.js';
 import { SceneHost } from './scenes/scene.js';
@@ -26,6 +27,8 @@ import { makeFlow } from './flow.js';
 import { resolveJoinNode, selectNode } from './nodes.js';
 
 async function boot(): Promise<void> {
+  // 资产 URL 指纹化拦截器（须先于一切资产请求与 AppHost 构造，见模块头注释）
+  installAssetVersioning();
   const app = new Application();
   // useBackBuffer：blendRequired 过滤器（高级混合 darken/lighten/hard-light…）需要
   // back buffer 读背景内容；缺省 false 时 FilterSystem 静默跳过这些过滤器。
