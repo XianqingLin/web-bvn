@@ -2,6 +2,7 @@
 /**
  * assets 全量 PNG → WebP（q85）转换。任何 pack 工具（atlas/bisha/hit/ui/sound 等）
  * 重新产出 PNG 后都要重跑本脚本，保证 assets 树只有 WebP。
+ * 管线收尾：用 `pnpm assets:finalize` 一次跑完 webp-convert → atlas-dedup（顺序固定）。
  *
  * 动作：
  *   1. 递归转换 packages/data/assets 下所有 .png → .webp（q85/effort5/smartSubsample），

@@ -19,7 +19,8 @@
 - 逻辑 60Hz、动画判定 30Hz，计时只用帧常量；
 - 输入只以 ButtonMask 位图进 sim；相机不进模拟（牵引边界代替）；
 - 角色差异进 JSON 数据，不进引擎分支；
-- 完工门禁：build 过、确定性单测过、`tools/replay` 哈希门禁过、`pnpm batch:validate` 基线门禁过。
+- 完工门禁：build 过、确定性单测过、`tools/replay` 哈希门禁过、`pnpm batch:validate` 基线门禁过；
+- 资产管线收尾：任何 pack 工具重跑后必须执行 `pnpm assets:finalize`（webp-convert → atlas-dedup → atlas-dedup-sheets，顺序固定），漏跑会让重复 sheet 重新膨胀约 120MB。
 
 ## 项目定位
 

@@ -18,7 +18,8 @@
  * 重写文件名即完成共享，零代码改动。
  *
  * 幂等：重跑时重复 sheet 已不存在，atlas.json 已指向 canonical 文件，签名不变，全组 no-op。
- * 管线位置：atlas-pack / webp-convert 重新产出资产后需重跑本脚本（同 webp-convert 约定）。
+ * 管线位置：任何 pack 工具重新产出资产后，统一执行 `pnpm assets:finalize`
+ * （= webp-convert → atlas-dedup，顺序固定）；单步重跑用 `pnpm assets:dedup`。
  *
  * 用法：node tools/atlas-dedup.mjs [--dry-run]
  */
