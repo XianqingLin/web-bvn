@@ -358,7 +358,16 @@ export class BattleRenderer {
       (spec.hitspark
         ? Object.values(spec.hitspark.baked.effects).reduce((s, e) => s + e.frames, 0)
         : 0) +
-      (spec.hud ? 1 : 0);
+      // HUD tick（2026-11-23 拼图）：拼图元素按帧数计（hud.load 内 sheet 下完补 tick），
+      // 旧包逐帧目录整包回退 = 1 tick，单图不计
+      (spec.hud
+        ? Object.values(spec.hud.data.elements).reduce(
+            (s, el) =>
+              s +
+              (typeof el === 'string' ? (el.endsWith('.webp') ? 0 : 1) : el.sheets.cells.length),
+            0,
+          )
+        : 0);
     let done = 0;
     const tick = () => {
       done++;
@@ -467,12 +476,12 @@ export class BattleRenderer {
       this.ctx.assets.hitspark = null;
     }
 
-    // 对局 HUD（切片 30）：纹理装载 + 静态树（重建对局时先拆旧树）
+    // 对局 HUD（切片 30）：纹理装载 + 静态树（重建对局时先拆旧树）。
+    // 拼图清单随 sheet 下载逐段补 tick（2026-11-23），分母已按帧数预推
     if (spec.hud) {
       this.hud?.destroy();
       this.hud = new FightHud(this.hudLayer, spec.hud);
-      await this.hud.load(spec.baseUrl);
-      tick();
+      await this.hud.load(spec.baseUrl, tick);
     } else {
       this.hud?.destroy();
       this.hud = null;

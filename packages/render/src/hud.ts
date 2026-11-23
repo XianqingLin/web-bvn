@@ -36,6 +36,8 @@
  */
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import { ActionState, type SimSnapshot } from '@bvn/core';
+import { loadSheetFrames } from './atlas.js';
+import type { StreamSheetSpec } from './renderer/types.js';
 
 /** 原版舞台规格（HUD 布局设计空间） */
 const STAGE_W = 800;
@@ -56,11 +58,22 @@ const FPS_GAME = 60;
 /** 辅助脸尺寸（原版 getFighterFace 缺省 size 50×50） */
 const ASSIST_FACE_SIZE = 50;
 
-/** baked/hud.json（tools/ui-pack/hud-pack.mjs 产物，schema bvn/hud@1） */
+/** HUD 帧集拼图清单（2026-11-23 战斗加载降请求；tools/hud-sheet 产物，stream-sheet 同构） */
+export interface HudSheets {
+  /** 帧集目录（assets 相对路径；旧包逐帧回退用同一目录语义） */
+  path: string;
+  /** 网格拼图清单：sheet 文件名（相对 path 目录）/ 统一画布 cell / 0 基帧 → [sheetIdx, x, y] */
+  sheets: StreamSheetSpec;
+}
+
+/** baked/hud.json（tools/ui-pack/hud-pack.mjs 产物，schema bvn/hud@2） */
 export interface HudData {
   schema: string;
-  /** 元素名 → assets 相对路径（文件 .webp / 帧集为目录） */
-  elements: Record<string, string>;
+  /**
+   * 元素名 → assets 相对路径，或帧集拼图清单（2026-11-23 降请求，tools/hud-sheet
+   * 产物）：文件 .webp / 帧集为目录字符串（旧包逐帧探测回退）/ 拼图为对象。
+   */
+  elements: Record<string, string | HudSheets>;
   hp: {
     /** hpbarmc 原点（XFL mc_040 静止帧） */
     origin: [number, number];
@@ -330,15 +343,29 @@ export class FightHud {
     parent.addChild(this.root);
   }
 
-  /** 装载纹理并搭静态树（renderer.load 内 await）。 */
-  async load(baseUrl: string): Promise<void> {
+  /**
+   * 装载纹理并搭静态树（renderer.load 内 await）。
+   * onFrame：进度回调——拼图元素随 sheet 下载完成按其承载帧数补 tick、旧包逐帧
+   * 目录元素完成时补 1 tick（与 renderer.load 分母一一对应；单图不计）。
+   */
+  async load(baseUrl: string, onFrame?: () => void): Promise<void> {
     // 元素纹理并发装载（原串行 await：帧集多的 HUD 要数十次往返才搭完静态树）
     await Promise.all(
-      Object.entries(this.data.elements).map(async ([name, path]) => {
-        if (path.endsWith('.webp')) {
-          this.tex.set(name, await Assets.load<Texture>(`${baseUrl}/${path}`));
+      Object.entries(this.data.elements).map(async ([name, el]) => {
+        if (typeof el === 'string') {
+          if (el.endsWith('.webp')) {
+            this.tex.set(name, await Assets.load<Texture>(`${baseUrl}/${el}`));
+          } else {
+            // 帧集目录：逐帧探测回退（旧包兼容；2026-11-23 起拼图清单优先）
+            this.frames.set(name, await this.loadFrames(`${baseUrl}/${el}`));
+            onFrame?.();
+          }
         } else {
-          this.frames.set(name, await this.loadFrames(`${baseUrl}/${path}`));
+          // 拼图清单：sheet 并行拉、共享源建 quad，输出 Texture[] 形状不变
+          this.frames.set(
+            name,
+            await loadSheetFrames(baseUrl, el.path, el.sheets, el.sheets.cells.length, onFrame),
+          );
         }
       }),
     );
