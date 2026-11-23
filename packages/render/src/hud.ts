@@ -354,10 +354,10 @@ export class FightHud {
     this.build();
   }
 
-  /** 帧集目录：1.webp 起连续装载，缺失即止。按批并发（每批 8 张），语义不变但往返从 N 降到 N/8。 */
+  /** 帧集目录：1.webp 起连续装载，缺失即止。按批并发（每批 16 张），语义不变但往返从 N 降到 N/16。 */
   private async loadFrames(url: string): Promise<Texture[]> {
     const out: Texture[] = [];
-    const BATCH = 8;
+    const BATCH = 16;
     for (let start = 1; ; start += BATCH) {
       const results = await Promise.all(
         Array.from({ length: BATCH }, (_, k) =>

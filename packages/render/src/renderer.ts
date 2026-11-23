@@ -67,6 +67,25 @@ async function loadTextures(
   return out;
 }
 
+/**
+ * 有界并发遍历（结果按原序）：特效装载用——此前 bisha effects / hitspark 逐特效
+ * 串行 await，46 个特效 = 46 次往返排队；无界 Promise.all 又会在慢链路上同时
+ * 打满几十个连接。limit=6 与 loadTextures 同量级。
+ */
+async function runPool<T, R>(items: readonly T[], limit: number, run: (item: T, i: number) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      out[i] = await run(items[i]!, i);
+    }
+  });
+  await Promise.all(runners);
+  return out;
+}
+
 export class BattleRenderer {
   private world: Container;
   /** 背景层容器：随视口缩放但不随相机平移（原版 bgLayer 挂 stage，scrollRect 之外） */
@@ -265,11 +284,61 @@ export class BattleRenderer {
 
   /** 加载战斗素材（app await；onProgress = 分步进度回报 0..1，加载页进度条消费，块 9）。 */
   async load(spec: BattleAssetsSpec, onProgress?: (fraction: number) => void): Promise<void> {
-    // 分步总数由 spec 预推（与下方 await 序列一一对应；步骤增删须同步）
-    const fireCount = Object.values(spec.fireAtlases ?? {}).reduce(
-      (s, m) => s + Object.keys(m).length,
-      0,
-    );
+    // —— 阶段 0：对局涉及的全部图集 JSON 一次取齐（map/fighters/assisters/fires，
+    //     小体积并行一往返；本来就要取，提前只为 total 精确预推）——
+    // total 按真实 sheet/layer 数计（2026-11-23 修条形冻结：此前每实体 1 tick，
+    // 主力角色 26 张 sheet ~8MB 下完前条形数分钟不动）。
+    const mapAtlasP: Promise<MapAtlas> = spec.mapAtlasJson
+      ? Promise.resolve(spec.mapAtlasJson)
+      : (this.fetchJson(`${spec.baseUrl}/maps/${spec.mapAtlasId}.atlas.json`) as Promise<MapAtlas>);
+    // 角色图集 JSON：同 atlasId 可双槽/跨侧复用，按 kind:atlasId 去重落同一 Promise
+    const fighterJsonByKey = new Map<string, Promise<FighterAtlas>>();
+    const fighterJsonOf = (atlasId: string, kind: 'fighter' | 'assister'): Promise<FighterAtlas> => {
+      const key = `${kind}:${atlasId}`;
+      let p = fighterJsonByKey.get(key);
+      if (!p) {
+        p = (spec.fighterAtlasJson?.[atlasId]
+          ? Promise.resolve(spec.fighterAtlasJson[atlasId]!)
+          : this.fetchJson(
+              `${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}/${atlasId}.atlas.json`,
+            )) as Promise<FighterAtlas>;
+        fighterJsonByKey.set(key, p);
+      }
+      return p;
+    };
+    // fire 图集 JSON：键 = kind:fireAtlasId
+    const fireEntries: { owner: string; kind: 'fighter' | 'assister'; id: string }[] = [];
+    for (const kind of ['fighter', 'assister'] as const) {
+      for (const [owner, id] of Object.entries(spec.fireAtlases?.[kind] ?? {})) {
+        fireEntries.push({ owner, kind, id });
+      }
+    }
+    const fireJsonByKey = new Map<string, Promise<FireAtlas>>();
+    const fireJsonOf = (kind: 'fighter' | 'assister', id: string): Promise<FireAtlas> => {
+      const key = `${kind}:${id}`;
+      let p = fireJsonByKey.get(key);
+      if (!p) {
+        p = (spec.fireAtlasJson?.[id]
+          ? Promise.resolve(spec.fireAtlasJson[id]!)
+          : this.fetchJson(`${spec.baseUrl}/fires/${kind}/${id}.atlas.json`)) as Promise<FireAtlas>;
+        fireJsonByKey.set(key, p);
+      }
+      return p;
+    };
+    await Promise.all([
+      mapAtlasP,
+      ...spec.fighters.map((f) => fighterJsonOf(f.atlasId, f.kind ?? 'fighter')),
+      ...(spec.assisters ?? []).map((a) => fighterJsonOf(a.atlasId, 'assister')),
+      ...fireEntries.map((e) => fireJsonOf(e.kind, e.id)),
+    ]);
+    const mapAtlas = await mapAtlasP;
+    // JSON 全部就绪（上面 Promise.all 已等待），落成同步查找表
+    const fighterAtlasOf = new Map<string, FighterAtlas>();
+    for (const [key, p] of fighterJsonByKey) fighterAtlasOf.set(key, await p);
+    const fireAtlasOf = new Map<string, FireAtlas>();
+    for (const [key, p] of fireJsonByKey) fireAtlasOf.set(key, await p);
+
+    // —— 分步总数按真实 sheet/layer 数预推（与下方 await 序列、tick 粒度一一对应；步骤增删须同步） ——
     const effectFrames = Object.values(spec.bisha?.effects ?? {}).reduce((s, e) => s + e.frames, 0);
     const faceCount = spec.bisha
       ? [
@@ -278,12 +347,14 @@ export class BattleRenderer {
         ].reduce((s, id) => s + Object.keys(spec.bisha!.faces[id] ?? {}).length, 0)
       : 0;
     const total =
-      1 /*map*/ +
-      spec.fighters.length +
-      (spec.assisters?.length ?? 0) +
-      fireCount +
+      mapAtlas.layers.length /*每层 1 tick*/ +
+      [...spec.fighters.map((f) => `${f.kind ?? 'fighter'}:${f.atlasId}`), ...(spec.assisters ?? []).map((a) => `assister:${a.atlasId}`)].reduce(
+        (s, key) => s + fighterAtlasOf.get(key)!.sheets.length,
+        0,
+      ) +
+      fireEntries.reduce((s, e) => s + fireAtlasOf.get(`${e.kind}:${e.id}`)!.sheets.length, 0) +
       (spec.bisha ? spec.bisha.mc.frames + effectFrames + faceCount : 0) +
-      // hitspark 按实际帧数计数（不是特效数）：进度分母必须匹配逐帧 tick 的粒度
+      // hitspark 按实际帧数计数（不是特效数）：进度分母必须匹配 tick 粒度（sheet 下完按承载帧数补 tick）
       (spec.hitspark
         ? Object.values(spec.hitspark.baked.effects).reduce((s, e) => s + e.frames, 0)
         : 0) +
@@ -293,53 +364,35 @@ export class BattleRenderer {
       done++;
       onProgress?.(Math.min(done / total, 1));
     };
-    const atlasFor = async (atlasId: string, kind: 'fighter' | 'assister'): Promise<FighterAtlas> => {
-      if (spec.fighterAtlasJson?.[atlasId]) return spec.fighterAtlasJson[atlasId]!;
-      const url = `${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}/${atlasId}.atlas.json`;
-      return (await this.fetchJson(url)) as FighterAtlas;
-    };
-
-    const mapAtlas: MapAtlas =
-      spec.mapAtlasJson ??
-      ((await this.fetchJson(`${spec.baseUrl}/maps/${spec.mapAtlasId}.atlas.json`)) as MapAtlas);
     // atlas JSON 内 file 为裸文件名，sheet PNG 与 atlas JSON 同目录（assets/<kind>/）
-    this.mapLoaded = await loadMapAtlas(`${spec.baseUrl}/maps`, mapAtlas);
+    this.mapLoaded = await loadMapAtlas(`${spec.baseUrl}/maps`, mapAtlas, tick); // 每层 1 tick
     this.ctx.mapView.bottomOffset = spec.mapBottomOffset ?? 0;
     this.ctx.mapView.bottom = spec.mapBottom ?? LOGICAL_H;
     this.buildMap();
-    tick();
 
     for (const f of spec.fighters) {
       const kind = f.kind ?? 'fighter';
-      const atlas = await atlasFor(f.atlasId, kind);
-      const loaded = await loadFighterAtlas(`${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}`, atlas);
+      const atlas = fighterAtlasOf.get(`${kind}:${f.atlasId}`)!;
+      const loaded = await loadFighterAtlas(`${spec.baseUrl}/${kind === 'assister' ? 'assistants' : 'fighters'}`, atlas, tick);
       this.sprites.set(f.slot, this.makeSprite(f.atlasId, loaded, f.formIndex ?? 0));
       this.fighterAtlasById.set(f.slot, f.atlasId);
-      tick();
     }
 
     for (const a of spec.assisters ?? []) {
-      const atlas = await atlasFor(a.atlasId, 'assister');
-      const loaded = await loadFighterAtlas(`${spec.baseUrl}/assistants`, atlas);
+      const atlas = fighterAtlasOf.get(`assister:${a.atlasId}`)!;
+      const loaded = await loadFighterAtlas(`${spec.baseUrl}/assistants`, atlas, tick);
       this.assistSprites.set(a.ownerId, this.makeSprite(a.atlasId, loaded, 0));
       this.assisterAtlasByOwner.set(a.ownerId, a.atlasId);
-      tick();
     }
 
     // fire 元件图集（切片 14 多角色）：按出场者 atlasId 装载；缺失条目色块回退
     for (const kind of ['fighter', 'assister'] as const) {
       for (const [ownerAtlasId, fireAtlasId] of Object.entries(spec.fireAtlases?.[kind] ?? {})) {
-        const atlasJson =
-          spec.fireAtlasJson?.[fireAtlasId] ??
-          ((await this.fetchJson(
-            `${spec.baseUrl}/fires/${kind}/${fireAtlasId}.atlas.json`,
-          )) as FireAtlas);
-        const loaded = await loadFireAtlas(`${spec.baseUrl}/fires/${kind}`, atlasJson);
+        const loaded = await loadFireAtlas(`${spec.baseUrl}/fires/${kind}`, fireAtlasOf.get(`${kind}:${fireAtlasId}`)!, tick);
         (kind === 'fighter' ? this.fireLoadedFighter : this.fireLoadedAssister).set(
           ownerAtlasId,
           loaded,
         );
-        tick();
       }
     }
 
@@ -354,19 +407,22 @@ export class BattleRenderer {
             Array.from({ length: bisha.mc.frames }, (_, i) => `${spec.baseUrl}/${bisha.mc.dir}/${i + 1}.webp`),
             tick,
           );
-      // 必杀光效流帧（切片 26）：bisha(XG_bs) / bisha_super(XG_cbs)
+      // 必杀光效流帧（切片 26）：bisha(XG_bs) / bisha_super(XG_cbs)——有界并发（此前逐特效串行）
       this.ctx.assets.bishaEffects = {};
       this.ctx.assets.effectTex.clear();
-      for (const [id, eff] of Object.entries(spec.bisha.effects ?? {})) {
-        const texs = eff.sheets
+      const effectEntries = Object.entries(spec.bisha.effects ?? {});
+      const effectTexs = await runPool(effectEntries, 6, async ([, eff]) =>
+        eff.sheets
           ? await loadSheetFrames(spec.baseUrl, eff.dir, eff.sheets, eff.frames, tick)
           : await loadTextures(
               Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
               tick,
-            );
+            ),
+      );
+      effectEntries.forEach(([id, eff], i) => {
         this.ctx.assets.bishaEffects[id] = eff;
-        this.ctx.assets.effectTex.set(id, texs);
-      }
+        this.ctx.assets.effectTex.set(id, effectTexs[i]!);
+      });
       // 横幅常驻位：内容（PNG 减对称出血）横向拉伸铺满可见逻辑区（见 cutinScaleX），
       // x = canvasOrigin×sx 使内容左缘贴视口 0；y 为烘焙初值（演出期由 mcPosY 联动接管，切片 26）
       const mcSx0 = this.cutin.scaleX(spec.bisha.mc);
@@ -390,21 +446,23 @@ export class BattleRenderer {
       this.ctx.assets.bishaMc = null;
     }
 
-    // 命中/防御火花（修复批次 35）：全部元件流帧预载（共 19 元件 ~230 帧，vite 缓存后廉价）
+    // 命中/防御火花（修复批次 35）：全部元件流帧预载——有界并发（此前逐特效串行
+    // 46 次往返；跨境慢链路上即数分钟），清单在（stream-sheet 产物）走 sheet 装载，
+    // 逐帧回退兼容旧包
     if (spec.hitspark) {
       this.ctx.assets.hitspark = spec.hitspark.baked;
       this.ctx.assets.sparkTex.clear();
       this.sparks.resetWarnings();
-      for (const [id, eff] of Object.entries(this.ctx.assets.hitspark.effects)) {
-        // 逐帧 tick + 拼图优先：清单在（stream-sheet 产物）走 sheet 装载，逐帧回退兼容旧包
-        const texs = eff.sheets
+      const sparkEntries = Object.entries(this.ctx.assets.hitspark.effects);
+      const sparkTexs = await runPool(sparkEntries, 6, async ([, eff]) =>
+        eff.sheets
           ? await loadSheetFrames(spec.baseUrl, eff.dir, eff.sheets, eff.frames, tick)
           : await loadTextures(
               Array.from({ length: eff.frames }, (_, i) => `${spec.baseUrl}/${eff.dir}/${i + 1}.webp`),
               tick,
-            );
-        this.ctx.assets.sparkTex.set(id, texs);
-      }
+            ),
+      );
+      sparkEntries.forEach(([id], i) => this.ctx.assets.sparkTex.set(id, sparkTexs[i]!));
     } else {
       this.ctx.assets.hitspark = null;
     }
