@@ -13,10 +13,12 @@
  * 统一画布校验，按 stream-sheet 同款货架布局（--max-sheet/--gutter）在内存中合成
  * sheet 并实测编码字节数，输出拼图收益预估。
  *
- * 【--pack 模式】：同布局真实落盘——每帧集目录写 sheet-N.webp（与逐帧 1.webp…
- * 并存，回退保留），清单 { path, sheets:{sheets,cell,cells} } 写回 baked hud.json
- * 对应 element（string 目录 → 对象），schema 升 bvn/hud@2。重跑幂等（sharp 编码
- * 确定）；逐帧文件被清理后本工具不能再独立重跑（须先 ui-pack/hud-pack 重产散图）。
+ * 【--pack 模式】：同布局真实落盘——每帧集目录写 sheet-N.webp，清单
+ * { path, sheets:{sheets,cell,cells} } 写回 baked hud.json 对应 element
+ * （string 目录 → 对象），schema 升 bvn/hud@2。重跑幂等（sharp 编码确定）。
+ * 逐帧 webp 已随发版**即时清理**（2026-11-23 用户确认，与 stream-sheet 2026-11-22
+ * 先例同）——本工具此后**不能再独立重跑**（verify/pack 都读逐帧散图），须先
+ * ui-pack/hud-pack 重新产出逐帧，再跑本工具。
  *
  * 用法：node tools/hud-sheet/hud-sheet.mjs [--pack] [--max-sheet 4096] [--gutter 2] [--rtt 250]
  */
