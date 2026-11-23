@@ -8,8 +8,10 @@
  * 状态机：socket.onmessage 常驻接管，room-info 快照驱动渲染（服务器权威，
  * 本端只上行 room-config/ready，不本地乐观翻转）；start → 移交选人页。
  * 异常流按 netplay-design §10：客座掉线房主继续等待；房主掉线客座回菜单。
- * 邀请好友为占位（切片 38 平台接缝）。
+ * 邀请好友走平台好友面板（运行页抽屉右键「邀请游玩」；本场景入房成功时上报
+ * invite-context 供平台透传，见 invite-context.ts；2026-11-23 接缝落地）。
  */
+
 import { Container, Text } from 'pixi.js';
 import {
   sendBegin,
@@ -238,13 +240,10 @@ export class RoomScene implements Scene {
       }
     });
 
-    // 操作按钮
-    const inviteBtn = makeButton('邀请好友', () => this.flash('邀请功能待平台接入（切片 38）'), { w: 160 });
-    inviteBtn.position.set(330, 516);
-    inviteBtn.disabled = this.linkClosed;
-    body.addChild(inviteBtn);
-
+    // 操作按钮：邀请好友入口在平台好友面板（运行页抽屉右键「邀请游玩」，platform-seam §4）；
+    // 游戏自身不感知好友关系,原切片 38 占位按钮随接缝落地移除（2026-11-23）。
     if (isHost) {
+
       const beginBtn = makeButton('开始对战', () => sendBegin(this.socket!), { w: 200 });
       beginBtn.position.set(560, 516);
       beginBtn.disabled = !guest || !guestReady || this.linkClosed;

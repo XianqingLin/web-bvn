@@ -22,6 +22,8 @@ import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { makeLabel, UI_H, UI_W } from '../ui.js';
 import { nodeStatusLines, startNodeMonitor, loadManifest, SEED_MANIFEST } from '../nodes.js';
+import { reportInviteContext } from '../invite-context.js';
+
 import { tickTweens, tweenOf, clearTweens } from '../anim.js';
 import type { Flow } from '../flow.js';
 import { ASSETS, loadUi, type UiData } from '../data.js';
@@ -171,8 +173,13 @@ export class MenuScene implements Scene {
     this.switchTo = ctx.switchTo;
     this.ctx = ctx;
 
+    // 回到主菜单 = 房间已从玩家视角离开：清空平台邀请上下文（platform-seam §4）。
+    // 房间页/选人页/对局各退出路径最终都会回到这里,此处统一清一次。
+    reportInviteContext(this.flow, null);
+
     // 对局音频（切片 27）：主页 BGM（原版 MenuStage BGM(op)）
     audioOf(ctx.ctx)?.bgm('op');
+
 
     // 黑底（帧 PNG 未就绪时）
     const bg = new Graphics();

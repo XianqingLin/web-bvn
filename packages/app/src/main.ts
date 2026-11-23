@@ -24,7 +24,9 @@ import { MatchScene } from './scenes/match.js';
 import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
 import { makeFlow } from './flow.js';
+import { readInviteJoin } from './invite-context.js';
 import { resolveJoinNode, selectNode } from './nodes.js';
+
 
 async function boot(): Promise<void> {
   // 资产 URL 指纹化拦截器（须先于一切资产请求与 AppHost 构造，见模块头注释）
@@ -92,6 +94,10 @@ async function boot(): Promise<void> {
     // 正式入口：深链跨节点加入引导（?room=&node=，文档 server-selection §4）
     // → 之后后台异步择优节点（与封面动画并行，不阻塞；?server= 强制指定优先）。
     // 两者都只写 flow.serverUrl——联机场景进房时统一读它，对局协议零改动。
+    // 平台邀请深链（切片 38，2026-11-23）：hello join 参数语义等价 ?room=&node=，
+    // 且把房码暂存 flow.pendingInviteRoom——资产装载完成后由 GameLoadingScene
+    // 直接进入加入流程（跳过开场徽标/主菜单，把人带进房间）。
+    const inviteJoin = readInviteJoin(flow.dock);
     const joinRoomCode = params.get('room');
     const joinNode = params.get('node');
     void (async () => {
@@ -100,12 +106,18 @@ async function boot(): Promise<void> {
         // 深链带 node = 用户显式指定目标节点，等价于 manual，跳过后台自动择优
         return;
       }
+      if (inviteJoin) {
+        await resolveJoinNode(flow, inviteJoin.room, inviteJoin.node);
+        flow.pendingInviteRoom = inviteJoin.room;
+        return;
+      }
       await selectNode(flow);
     })();
     // 游戏初始化封面（原版 GameLoadingStage"绊"）→ 开场徽标 → 主菜单
     scenes.switchTo(new GameLoadingScene(flow));
     return;
   }
+
   // dev 直通：沿用旧 URL 语义
   flow.autoPick = true;
   flow.roleKeymapP2 = params.get('role') === 'p2';

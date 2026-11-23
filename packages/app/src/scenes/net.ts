@@ -13,6 +13,8 @@ import type { Flow } from '../flow.js';
 import { RoomScene } from './room.js';
 import { MenuScene } from './menu.js';
 import { displayName, makeServerLabel, openServerSocket } from './net-common.js';
+import { reportInviteContext } from '../invite-context.js';
+
 
 export class NetScene implements Scene {
   readonly name = 'net';
@@ -130,8 +132,12 @@ export class NetScene implements Scene {
     // socket 所有权移交房间页：清空本场景引用，switchTo 触发的 exit() 不得关闭它
     this.socket = null;
     status.text = '';
+    // 上报平台邀请上下文（platform-seam §4）：房间码 + 当前节点，平台原样随邀请透传
+    reportInviteContext(flow, { room: flow.room, node: flow.nodeInfo?.nodeId ?? '' });
+
     this.ctx!.switchTo(new RoomScene(flow, socket));
   }
+
 
   exit(): void {
     this.closeSocket();

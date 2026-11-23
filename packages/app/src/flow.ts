@@ -55,6 +55,9 @@ export interface Flow {
   roleKeymapP2: boolean;
   /** dev 直通模式（URL 参数进入，选人页自动确认默认项） */
   autoPick: boolean;
+  /** 平台邀请深链待入房房码（platform-seam §4：hello join 参数；资产装载完成后由
+   *  GameLoadingScene 消费并自动入房，随后清空。URL `?room=&node=` 深链不走此字段） */
+  pendingInviteRoom: string | null;
 }
 
 export function makeFlow(): Flow {
@@ -78,8 +81,10 @@ export function makeFlow(): Flow {
     mapId: 'KonohaMura',
     roleKeymapP2: false,
     autoPick: false,
+    pendingInviteRoom: null,
   };
 }
+
 
 /** 两端就位后的对局装配选人：slot = 联机位次（solo 双方同配；local P1=P2 视角本端/对方）。 */
 export function picksOf(flow: Flow): { p1: Pick; p2: Pick } {
