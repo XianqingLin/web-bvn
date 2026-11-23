@@ -15,13 +15,15 @@
  * 偏离登记：原版步数由资源清单展开（swf 逐个计数）、消息 `游戏初始化：正在加载xx
  * (n/total)`；此处 2 步（配置 / 主菜单动画预载），计数语义改为步内细进度
  * （预载步 = 帧数计数，进度条按步权重推进）；预取失败不阻塞（FrameStream 自带
- * 失败重试与跳帧语义）。
+ * 失败重试与跳帧语义）。步完成后另点火公用资产后台预热（warm.ts，非阻塞、
+ * 不计入进度条——阻塞换不来收益，见 warm.ts 头注）。
  */
 import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { ASSETS, loadAudio, loadLoading, loadSelect, loadUi } from '../data.js';
 import { buildLoadingBar, tickLoadingBar, type LoadingBar } from './bar.js';
 import { LogoScene } from './logo.js';
+import { warmCommonAssets } from '../warm.js';
 import { UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
 
@@ -144,6 +146,9 @@ export class GameLoadingScene implements Scene {
         await nextFrame();
       }
       if (this.destroyed) return;
+      // 公用资产后台预热（2026-11-23）：启动步完成 = 网络空闲点，hitspark/bisha/
+      // HUD ~8MB 字节预热不占阻塞装载，战斗加载只走本地缓存（warm.ts）
+      warmCommonAssets(ctx.ctx);
       this.finishedAt = performance.now();
     } catch (err) {
       if (this.destroyed) return;

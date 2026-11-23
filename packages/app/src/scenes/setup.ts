@@ -77,6 +77,7 @@ import { LoadingScene } from './loading.js';
 import { MenuScene } from './menu.js';
 import { NetScene } from './net.js';
 import { transIn, clearTrans } from './trans.js';
+import { warmProgress } from '../warm.js';
 
 /** 原版舞台 800×600 在 1000×600 逻辑屏中的横向偏移。 */
 const STAGE_W = 800;
@@ -103,6 +104,8 @@ export class SetupScene implements Scene {
   private mapChosen = false;
   private phaseRoot: Container | null = null;
   private status: Text | null = null;
+  /** 公用资产预热进度小字（warm.ts；完成即清空） */
+  private warmText: Text | null = null;
   private ui: Container | null = null;
   private resendTimer = 0;
   /** 异步装料守卫（阶段切换后丢弃旧装料） */
@@ -222,6 +225,13 @@ export class SetupScene implements Scene {
     status.position.set(OX + 14, 56);
     this.status = status;
     ui.addChild(status);
+
+    // 公用资产预热小字（warm.ts；完成后隐藏；右上角不占选人交互区）
+    const warm = makeLabel('', { size: 13, color: 0x8a93a8 });
+    warm.anchor.set(1, 0);
+    warm.position.set(OX + STAGE_W - 14, 24);
+    this.warmText = warm;
+    ui.addChild(warm);
 
     // 返回主菜单 = 原版语义：无按钮，ESC 呼出确认框（GameInputer.back → GameUI.confirm
     // "BACK TITLE"；切片 41 移除自加的右上角按钮）
@@ -1423,6 +1433,9 @@ export class SetupScene implements Scene {
 
   update(dtMs: number): void {
     tickTweens(dtMs);
+    // 预热进度小字（warm.ts；完成/未启动即清空——文案每帧覆盖，退出场景随树销毁）
+    const w = warmProgress();
+    if (this.warmText) this.warmText.text = w && !w.finished ? `资源预热 ${w.done}/${w.total}` : '';
     // 嵌套动画叠加层走带（切片 45；板帧恒 0——选人页无板帧驱动，常显循环）
     this.vortexFx?.update(0, dtMs);
     for (const fx of this.mapFxPlayers) fx.update(0, dtMs);
