@@ -4,8 +4,9 @@
  * 双向都是 postMessage 窄通道（sdk.send / hello join），平台只透传、不解析参数：
  * - 上报：进入可被邀请加入的房间时 `game:invite-context` 携带 { room, node }，
  *   回到菜单（房间已从玩家视角离开）时上报 null 清空。平台把最新值随好友邀请透传。
- * - 消费：经平台邀请打开游戏时，hello 的 join 字段携带 { room, node }，
- *   语义等价深链 `?room=&node=`（DESIGN §6.2）。
+ * - 消费：经平台邀请打开游戏时，hello 的 join 字段携带 { room, node }。
+ *   消费方 = 邀请票（invite-ticket.ts）：存票 → 主菜单挂邀请卡 → 点击兑票入房
+ *   （节点锁定移到兑票时，DESIGN §6.4）；本模块只负责 hello 参数的形状识别。
  */
 import type { GameDockSdk } from '@gamedock/game-sdk';
 import type { Flow } from './flow.js';

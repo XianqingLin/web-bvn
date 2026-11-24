@@ -54,9 +54,6 @@ export interface Flow {
   roleKeymapP2: boolean;
   /** dev 直通模式（URL 参数进入，选人页自动确认默认项） */
   autoPick: boolean;
-  /** 平台邀请深链待入房房码（platform-seam §4：hello join 参数；主菜单消费并
-   *  自动加入（落主菜单 → 自动意图），随后清空。URL `?room=&node=` 深链不走此字段） */
-  pendingInviteRoom: string | null;
   /** 深链跨节点加入意图（URL `?room=&node=`；主菜单确认后锁定切换并加入，
    *  DESIGN §6.2。pendingInviteRoom 走 hello join，两条深链互斥） */
   pendingDeepLink: { room: string; node: string } | null;
@@ -84,7 +81,6 @@ export function makeFlow(): Flow {
     mapId: 'KonohaMura',
     roleKeymapP2: false,
     autoPick: false,
-    pendingInviteRoom: null,
     pendingDeepLink: null,
   };
 }

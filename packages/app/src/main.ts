@@ -24,7 +24,8 @@ import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
 import { makeFlow } from './flow.js';
 import { readInviteJoin } from './invite-context.js';
-import { resolveJoinNode, selectNode } from './nodes.js';
+import { startWindowHeartbeat, storeTicket } from './invite-ticket.js';
+import { selectNode } from './nodes.js';
 
 
 async function boot(): Promise<void> {
@@ -90,26 +91,22 @@ async function boot(): Promise<void> {
   const mode = params.get('mode');
   if (!mode) {
     // 正式入口：后台异步择优节点（与封面动画并行，不阻塞；?server= 强制指定优先）。
-    // 深链 `?room=&node=`（DESIGN §6.2）与 hello join 均语义等价"指定房间 + 节点"：
-    // 前者只登记 flow.pendingDeepLink（目标节点 ≠ 当前时由主菜单确认框锁定切换），
-    // 后者沿用静默锁定切换 + 房码暂存 flow.pendingInviteRoom（主菜单自动加入；
-    // 邀请票模型落地后收口为邀请卡）。
-    const inviteJoin = readInviteJoin(flow.dock);
+    // 深链 `?room=&node=`（DESIGN §6.2）只登记 flow.pendingDeepLink（目标节点 ≠ 当前时
+    // 由主菜单确认框锁定切换）。
+    startWindowHeartbeat();
     const joinRoomCode = params.get('room');
     const joinNode = params.get('node');
     void (async () => {
       if (joinRoomCode && joinNode) {
         flow.pendingDeepLink = { room: joinRoomCode, node: joinNode };
-        await selectNode(flow);
-        return;
-      }
-      if (inviteJoin) {
-        await resolveJoinNode(flow, inviteJoin.room, inviteJoin.node);
-        flow.pendingInviteRoom = inviteJoin.room;
-        return;
       }
       await selectNode(flow);
     })();
+    // 平台邀请（hello join，platform-seam §4）：存为邀请票（只留最新），主菜单
+    // 挂邀请卡、点击卡片才兑票入房——不再开机自动加入，节点锁定随之移到兑票时
+    // （DESIGN §6.4 邀请票模型）。
+    const inviteJoin = readInviteJoin(flow.dock);
+    if (inviteJoin) storeTicket(inviteJoin.room, inviteJoin.node);
     // 游戏初始化封面（原版 GameLoadingStage"绊"）→ 开场徽标 → 主菜单
     scenes.switchTo(new GameLoadingScene(flow));
     return;
