@@ -35,7 +35,9 @@ import { FrameStream } from './stream.js';
 import { TitleFxLayer } from './title-fx.js';
 import { SetupScene } from './setup.js';
 import { SettingsOverlay } from './settings.js';
-import { JoinOverlay, MatchOverlay, RoomOverlay, ConfirmOverlay, type NetOverlay } from './net-overlay.js';
+import { MatchOverlay, RoomOverlay, ConfirmOverlay, type NetOverlay } from './net-overlay.js';
+import { CodeCapture } from './code-capture.js';
+import { enterRoom, roomErrorText } from './net-common.js';
 
 /** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
 const VERSION = 'v0.0.0';
@@ -155,6 +157,12 @@ class MenuBtn {
     this.ui.alpha = 0.1;
     tweenOf(this.ui, { alpha: 1 }, 350, { ease: (k) => k, done: back });
   }
+
+  /** 按钮文字改写（「加入房间」原位变身：板面即输入位）；dim = 占位提示降饱和。 */
+  setLabel(text: string, dim = false): void {
+    this.label.text = text;
+    this.label.alpha = dim ? 0.45 : 1;
+  }
 }
 
 // ---------- 场景 ----------
@@ -181,12 +189,22 @@ export class MenuScene implements Scene {
   /** 设置面板：菜单内全屏浮层，打开期间接管键盘/指针 */
   private settingsOverlay: SettingsOverlay | null = null;
   private settingsOpen = false;
-  /** 联机浮层组（加入房码/匹配/房间）：菜单内半透明暗底浮层，开启期接管键盘 */
+  /** 联机浮层组（匹配/房间/确认框）：菜单内半透明暗底浮层，开启期接管键盘 */
   private readonly netOverlays: NetOverlay[] = [];
-  private joinOverlay: JoinOverlay | null = null;
   private matchOverlay: MatchOverlay | null = null;
   private roomOverlay: RoomOverlay | null = null;
   private confirmOverlay: ConfirmOverlay | null = null;
+  /**
+   * 「加入房间」原位变身（不走浮层）：子项按钮翻转变身成输入位——板面显示
+   * 房码、隐藏 input 采集，>6 位静默忽略；错误一律走确认框弹窗。
+   */
+  private joinState: 'off' | 'input' | 'connecting' = 'off';
+  private joinSeq = 0;
+  private joinDigits = '';
+  private joinBtn: MenuBtn | null = null;
+  private joinHint: Text | null = null;
+  private joinCapture: CodeCapture | null = null;
+  private joinPrefill: string | null = null;
   /** 当前开启的联机浮层（同一时刻至多一个；键盘路由与开启互斥判定用） */
   private get netOverlay(): NetOverlay | null {
     return this.netOverlays.find((o) => o.isOpen) ?? null;
@@ -355,16 +373,10 @@ export class MenuScene implements Scene {
     root.addChild(this.settingsOverlay.ui);
 
     // 联机浮层组（最顶层；半透明暗底，背景菜单动画透出不断）
-    this.joinOverlay = new JoinOverlay(ctx, this.flow, (socket) => {
-      // 入房成功：原地接手房间浮层（不切场景，房间页随片③撤销）
-      this.roomOverlay?.openWithSocket(socket, () => {
-        this.menuEnabled = true;
-      });
-    });
     this.matchOverlay = new MatchOverlay(ctx, this.flow);
     this.roomOverlay = new RoomOverlay(ctx, this.flow);
     this.confirmOverlay = new ConfirmOverlay();
-    this.netOverlays.push(this.joinOverlay, this.matchOverlay, this.roomOverlay, this.confirmOverlay);
+    this.netOverlays.push(this.matchOverlay, this.roomOverlay, this.confirmOverlay);
     for (const o of this.netOverlays) root.addChild(o.ui);
 
     window.addEventListener('keydown', this.onKey);
@@ -430,6 +442,8 @@ export class MenuScene implements Scene {
 
   exit(): void {
     this.destroyed = true;
+    this.joinCapture?.dispose();
+    this.joinCapture = null;
     for (const o of this.netOverlays) o.dispose();
     this.netOverlays.length = 0;
     this.stopNodeMonitor?.();
@@ -556,7 +570,7 @@ export class MenuScene implements Scene {
           {
             en: 'JOIN ROOM',
             cn: '加入房间',
-            action: () => this.openJoin(),
+            action: () => this.startJoinInput(),
           },
           {
             en: 'QUICK MATCH',
@@ -591,6 +605,7 @@ export class MenuScene implements Scene {
           const cb = make(c, true);
           cb.index = j;
           cb.disabled = c.disabled === true;
+          if (c.en === 'JOIN ROOM') this.joinBtn = cb;
           return cb;
         });
       }
@@ -696,16 +711,6 @@ export class MenuScene implements Scene {
     });
   }
 
-  /** 加入房码浮层：开启期菜单键盘/指针交由浮层接管。 */
-  private openJoin(): void {
-    if (!this.joinOverlay || this.netOverlay) return;
-    this.flow.mode = 'net';
-    // selectBtn 已置 menuEnabled=false；收回浮层时恢复菜单导航
-    this.joinOverlay.open(() => {
-      this.menuEnabled = true;
-    });
-  }
-
   /** 随机匹配浮层：同上。 */
   private openMatch(): void {
     if (!this.matchOverlay || this.netOverlay) return;
@@ -733,8 +738,7 @@ export class MenuScene implements Scene {
       this.openMatch();
       this.matchOverlay?.autoStart();
     } else if (a.action === 'join') {
-      this.openJoin();
-      if (a.room) this.joinOverlay?.autoFill(a.room);
+      this.startJoinInput(a.room);
     } else {
       this.openCreate();
     }
@@ -763,8 +767,7 @@ export class MenuScene implements Scene {
     const target = manifest.nodes.find((n) => n.id === intent.node && n.enabled);
     const current = manifest.nodes.find((n) => n.url === this.flow.serverUrl);
     if (target && current && current.id === target.id) {
-      this.openJoin();
-      this.joinOverlay?.autoFill(intent.room);
+      this.startJoinInput(intent.room);
       return;
     }
     if (!target) {
@@ -783,14 +786,180 @@ export class MenuScene implements Scene {
       `该房间在「${target.name}」节点，切换节点并加入？`,
       () => {
         void resolveJoinNode(this.flow, intent.room, intent.node).then(() => {
-          this.openJoin();
-          this.joinOverlay?.autoFill(intent.room);
+          this.startJoinInput(intent.room);
         });
       },
       () => {
         this.menuEnabled = true;
       },
     );
+  }
+
+  // ---------- 「加入房间」原位变身（无浮层：子项按钮即输入位） ----------
+
+  /** 点击子项：翻转变身成输入位（板面显示房码），冻结菜单其余按钮。 */
+  private startJoinInput(prefill?: string): void {
+    if (this.joinState !== 'off' || this.netOverlay || !this.joinBtn) return;
+    this.flow.mode = 'net';
+    this.joinState = 'input';
+    this.menuEnabled = false;
+    this.joinPrefill = prefill ?? null;
+    this.freezeMenu(this.joinBtn, true);
+    const btn = this.joinBtn;
+    // 翻转变身：scale.x 压扁 → 换内容（板面变输入位）→ 展开
+    tweenOf(btn.ui, { 'scale.x': 0.06 }, 140, {
+      ease: (k) => k,
+      done: () => {
+        if (this.joinState === 'off') return;
+        this.syncJoinDigits('');
+        this.joinHint = makeLabel('输入房码 · 回车入房 · Esc 收回', { size: 13, color: 0x7a86a0 });
+        this.joinHint.anchor.set(0.5);
+        this.joinHint.position.set(btn.ui.x, btn.ui.y + btn.height + 10);
+        this.menuGroup!.addChild(this.joinHint);
+        this.remountJoinCapture();
+        tweenOf(btn.ui, { 'scale.x': 1 }, 140, {
+          ease: (k) => k,
+          done: () => {
+            const p = this.joinPrefill;
+            if (p !== null) {
+              this.joinPrefill = null;
+              if (this.joinCapture) this.joinCapture.digits = p;
+              this.confirmJoin();
+            }
+          },
+        });
+      },
+    });
+  }
+
+  /** 键盘路由到输入位（采集输入失焦/未聚焦时的兜底路径）。 */
+  private routeJoinKey(e: KeyboardEvent): void {
+    const cap = this.joinCapture;
+    if (!cap) return;
+    const k = e.key;
+    if (k === 'Escape') {
+      e.preventDefault();
+      this.cancelJoin();
+    } else if (/^[0-9]$/.test(k)) {
+      e.preventDefault();
+      if (this.joinDigits.length < 6) cap.digits = this.joinDigits + k;
+      cap.focus();
+    } else if (k === 'Backspace') {
+      e.preventDefault();
+      if (this.joinDigits.length > 0) cap.digits = this.joinDigits.slice(0, -1);
+      cap.focus();
+    } else if (k === 'Enter' || k === ' ' || k === 'j' || k === 'J') {
+      e.preventDefault();
+      this.confirmJoin();
+    }
+  }
+
+  /** 板面文本同步（空态 = 占位提示）。 */
+  private syncJoinDigits(d: string): void {
+    this.joinDigits = d;
+    this.joinBtn?.setLabel(d.length > 0 ? d : 'ROOM CODE', d.length === 0);
+  }
+
+  /** 回车确认：输满 6 位才入房；位数不足与失败都走弹窗（不上按钮）。 */
+  private confirmJoin(): void {
+    if (this.joinState !== 'input') return;
+    const room = this.joinDigits;
+    if (room.length < 6) {
+      this.openJoinErrorPopup('请输满 6 位房码');
+      return;
+    }
+    this.joinState = 'connecting';
+    this.joinCapture?.dispose();
+    this.joinCapture = null;
+    this.joinBtn?.setLabel('JOINING…');
+    const seq = ++this.joinSeq;
+    void enterRoom(this.flow, 'join', room).then(
+      ({ socket }) => {
+        if (seq !== this.joinSeq) {
+          // 连接期间已收回/取消：不入房，收掉连接
+          socket.close();
+          return;
+        }
+        this.cleanupJoinInput();
+        // 上报平台邀请上下文：本端已处于可被邀请加入的房间（platform-seam §4）
+        reportInviteContext(this.flow, { room: this.flow.room, node: this.flow.nodeInfo?.nodeId ?? '' });
+        this.roomOverlay?.openWithSocket(socket, () => {
+          this.menuEnabled = true;
+        });
+      },
+      (e: unknown) => {
+        if (seq !== this.joinSeq) return;
+        this.joinState = 'input';
+        this.openJoinErrorPopup(roomErrorText(e));
+      },
+    );
+  }
+
+  /** 模态错误弹窗：撤下采集输入（弹窗键盘独占），关闭后回输入态重新聚焦。 */
+  private openJoinErrorPopup(text: string): void {
+    this.joinCapture?.dispose();
+    this.joinCapture = null;
+    this.confirmOverlay?.openConfirm('无法加入', text, null, () => {
+      if (this.joinState !== 'input') {
+        this.menuEnabled = true;
+        return;
+      }
+      this.remountJoinCapture();
+    });
+  }
+
+  private remountJoinCapture(): void {
+    this.joinCapture = new CodeCapture(
+      this.ctx!.domHost,
+      (d) => this.syncJoinDigits(d),
+      () => this.confirmJoin(),
+      () => this.cancelJoin(),
+    );
+    this.joinCapture.mount();
+    this.joinCapture.digits = this.joinDigits; // 回显板上已输数字
+  }
+
+  /** Esc 收回（输入态）：变回按钮，恢复菜单。 */
+  private cancelJoin(): void {
+    if (this.joinState !== 'input') return;
+    this.joinState = 'off';
+    this.cleanupJoinInput();
+    this.menuEnabled = true;
+  }
+
+  /** Esc（连接态）：作废在途连接，回输入态保留已输房码。 */
+  private cancelConnecting(): void {
+    if (this.joinState !== 'connecting') return;
+    this.joinSeq++; // 在途完成回调作废
+    this.joinState = 'input';
+    this.remountJoinCapture();
+  }
+
+  /** 变身态清理：拆采集、还原按钮文本/提示/其余按钮。 */
+  private cleanupJoinInput(): void {
+    this.joinSeq++;
+    this.joinCapture?.dispose();
+    this.joinCapture = null;
+    this.joinDigits = '';
+    this.joinBtn?.setLabel(this.joinBtn.entry.en);
+    this.joinHint?.destroy();
+    this.joinHint = null;
+    this.freezeMenu(this.joinBtn, false);
+  }
+
+  /** 菜单其余按钮冻结/解冻（变身输入位期间防多点开、防 hover 抢板）。 */
+  private freezeMenu(except: MenuBtn | null, frozen: boolean): void {
+    const apply = (b: MenuBtn): void => {
+      if (b === except) return;
+      b.ui.alpha = frozen ? 0.45 : b.disabled ? 0.45 : 1;
+      b.ui.eventMode = frozen ? 'none' : 'static';
+      b.ui.cursor = frozen ? 'default' : 'pointer';
+      if (frozen) b.normal();
+    };
+    for (const b of this.btns) {
+      apply(b);
+      for (const cb of b.children ?? []) apply(cb);
+    }
   }
 
   private handleKey(e: KeyboardEvent): void {
@@ -809,6 +978,19 @@ export class MenuScene implements Scene {
     if (this.netOverlay) {
       // 浮层打开期间键盘由联机浮层接管
       this.netOverlay.handleKey(e);
+      return;
+    }
+    if (this.joinState === 'input') {
+      // 变身输入位接管键盘（采集输入有焦点时经 capture 自身监听，此处为兜底）
+      this.routeJoinKey(e);
+      return;
+    }
+    if (this.joinState === 'connecting') {
+      // 连接期仅 Esc 可收（作废在途连接，回输入态）
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.cancelConnecting();
+      }
       return;
     }
     if (!this.menuEnabled) return;
