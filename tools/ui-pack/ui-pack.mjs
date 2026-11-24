@@ -17,9 +17,16 @@
  *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
  *       → assets/ui/menu/；
  *   2d. common_ui.swf sprite 26（logo_movie）66 帧 → assets/ui/logo/<n>.webp（开场徽标演出）；
+ *   2e. setting 底板（设置面板切片，2026-11-24）：原版 setting.swf 未独立存在于参考仓库
+ *       （swfs/ 仅 common_ui/gameover/howtoplay/select/title），但主程序 FighterTester.swf
+ *       把整套 UI SWF 作为 [Embed] ByteArray 打包（SymbolClass setting_swf$<md5>ByteArray
+ *       = character 5）——抽 ByteArray → FFDec 直读内嵌 SWF（ZWS）→ stg_set_ui（暗化
+ *       标题版画背景 + OPTION 标题 + 一护立绘，单帧静态）导出帧 1 → assets/ui/setting/1.webp；
+ *       画布原点（内容 union 左上，含立绘出血）写 ui.json setting.stageOriginInFrame，
+ *       运行时挂 舞台-origin 并裁剪到 800×600 舞台矩形（原版 root scrollRect 语义）；
  *   3. 地图缩略图 15 张 + random.png 原样拷入 assets/ui/maps/（450×240，与 select_map_mc ct 区同尺寸）；
- *   4. 产出 baked/ui.json（schema bvn/ui@6）：类名→文件映射 + select 元件表 + 原版布局常量
- *       + title/logo 流帧参数 + menu 按钮阶梯布局常量。
+ *   4. 产出 baked/ui.json（schema bvn/ui@8）：类名→文件映射 + select 元件表 + 原版布局常量
+ *       + title/logo 流帧参数 + menu 按钮阶梯布局常量 + setting 底板规格。
  *
  * 坐标语义（FFDec sprite 导出的 PNG 画布原点 = 元件内容 bounds 左上角，注册点偏移已换算）：
  *   - 光标 PNG 放在 格子位 + (-18,-26)（select_item_mc 内层 mc 摆放矩阵 translateX/Y=-360/-520 twips）；
@@ -61,6 +68,10 @@ const FACE_SWF = resolve(
 const SELECT_SWF = resolve(opt('select-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/select.swf'));
 const TITLE_SWF = resolve(opt('title-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/title.swf'));
 const COMMON_SWF = resolve(opt('common-swf', 'OpenBleachVsNaruto/swf_source/#FighterTester/swfs/common_ui.swf'));
+/** 主程序编译产物：setting.swf 等以 [Embed] ByteArray 内嵌（SymbolClass 名单） */
+const MAIN_SWF = resolve(opt('main-swf', 'OpenBleachVsNaruto/_release/extracted/swf_output/FighterTester.swf'));
+/** 内嵌 setting.swf 的 ByteArray character id 与底板导出名（symbols.csv 实证） */
+const SETTING = { embedChar: 5, plate: 'stg_set_ui' };
 const MAP_DIR = resolve(opt('map-dir', 'OpenBleachVsNaruto/swf_output/assets/map'));
 const OUT_ASSETS = resolve(opt('out-assets', 'packages/data/assets/ui'));
 const OUT_BAKED = resolve(opt('out-baked', 'packages/data/baked/ui.json'));
@@ -84,6 +95,12 @@ const MENU_ELEMENTS = {
   wzbtn: [14, 1], // 菜单按钮板 388×75（常态，English 标签叠其上）
   wzbtn_bg1: [13, 1], // hover 高亮板（橙色；挂 (0,-5)，中文小字叠 (10,45)）
   wzbtn_bg2: [13, 2], // 开态/子项板（蓝色）
+};
+
+// 设置页箭头/光标（2026-11-25）：逻辑名 → 元件类名（sprite 按类名定位，不硬编码 ID）
+const SETTING_ARROWS = {
+  txt_arrow: 'txt_arrow_mc', // ◄► 数值箭头（setting.swf；next 用 scaleX=-1 镜像复用）
+  select_arrow: 'select_arrow_mc', // 焦点光标（common_ui.swf；挂行 (x-10, y+15)）
 };
 
 // title.swf stg_title（sprite 64）流帧参数（90 帧全部唯一；运行时仅 1-50 与 65-75 可见，见 PROGRESS 切片 16）
@@ -854,6 +871,69 @@ mkdirSync(logoDir, { recursive: true });
   }
 }
 
+// ---------- 3e. setting 底板（设置面板切片：FighterTester.swf 内嵌 setting.swf 抽取） ----------
+let settingPlate = null;
+{
+  const binDir = join(SCRATCH, 'setting-bin');
+  run(FFDEC, ['-export', 'binaryData', binDir, MAIN_SWF, '-selectid', String(SETTING.embedChar)]);
+  const binFile = readdirSync(binDir).find((f) => f.startsWith(`${SETTING.embedChar}_setting`));
+  if (!binFile) throw new Error(`FighterTester.swf 未内嵌 setting.swf（character ${SETTING.embedChar}）`);
+  const settingSwf = join(SCRATCH, 'setting.swf');
+  cpSync(join(binDir, binFile), settingSwf);
+  const magic = readFileSync(settingSwf).subarray(0, 3).toString('latin1');
+  if (magic !== 'ZWS' && magic !== 'CWS') throw new Error(`内嵌 setting.swf 魔数异常：${magic}`);
+
+  // 底板 character id 从内嵌 SWF 自己的 SymbolClass 名单解析（不硬编码）
+  const scDir = join(SCRATCH, 'setting-sc');
+  run(FFDEC, ['-export', 'symbolClass', scDir, settingSwf]);
+  const csv = readdirSync(scDir).find((f) => f.endsWith('.csv'));
+  const row = readFileSync(join(scDir, csv ?? ''), 'utf8')
+    .split('\n')
+    .find((l) => l.split(';')[1]?.trim().replace(/^"|"$/g, '') === SETTING.plate);
+  if (!row) throw new Error(`setting.swf SymbolClass 无 ${SETTING.plate}`);
+  const plateId = Number(row.split(';')[0]);
+
+  const expDir = join(SCRATCH, 'setting');
+  run(FFDEC, ['-export', 'sprite', expDir, settingSwf, '-selectid', String(plateId)]);
+  const dir = findSpriteDir(expDir, plateId, 'setting stg_set_ui');
+  const frames = readdirSync(dir).filter((f) => f.endsWith('.png'));
+  if (frames.length !== 1) throw new Error(`stg_set_ui 应为单帧静态板（实际 ${frames.length} 帧）`);
+  // 画布原点 = 内容 union 左上；立绘出血越出 800×600 舞台 → 运行时裁剪到舞台矩形
+  run(FFDEC, ['-swf2xml', settingSwf, join(SCRATCH, 'setting.xml')]);
+  const settingModel = parseSwfXml(readFileSync(join(SCRATCH, 'setting.xml'), 'utf8'));
+  const cb = contentBounds(settingModel, plateId);
+  const origin = [-cb.minX, -cb.minY].map((v) => +v.toFixed(2));
+  const outDir = join(OUT_ASSETS, 'setting');
+  rmSync(outDir, { recursive: true, force: true });
+  mkdirSync(outDir, { recursive: true });
+  await sharp(join(dir, '1.png')).webp({ quality: 80 }).toFile(join(outDir, '1.webp'));
+
+  // 设置页箭头/光标（原版 SetBtn.txt_arrow_mc 在 setting.swf、SetBtnGroup.select_arrow_mc 在
+  // common_ui.swf）：按类名取 sprite 首帧，origin = 注册点在 PNG 内的位置（= -内容 union 左上）
+  const settingSpriteDir = join(SCRATCH, 'setting-sprites');
+  run(FFDEC, ['-export', 'sprite', settingSpriteDir, settingSwf]);
+  run(FFDEC, ['-swf2xml', COMMON_SWF, join(SCRATCH, 'common.xml')]);
+  const commonModel = parseSwfXml(readFileSync(join(SCRATCH, 'common.xml'), 'utf8'));
+  const arrows = {};
+  for (const [key, srcDir, srcModel, cls] of [
+    ['txt_arrow', settingSpriteDir, settingModel, SETTING_ARROWS.txt_arrow],
+    ['select_arrow', join(SCRATCH, 'menu'), commonModel, SETTING_ARROWS.select_arrow],
+  ]) {
+    const arrowDir = readdirSync(srcDir).find((d) => d.endsWith(`_${cls}`));
+    if (!arrowDir) throw new Error(`未找到箭头元件 ${cls}（${key}）`);
+    const id = Number(arrowDir.match(/^DefineSprite_(\d+)_/)?.[1]);
+    const src = join(srcDir, arrowDir, '1.png');
+    if (!existsSync(src)) throw new Error(`箭头元件 ${cls} 缺首帧`);
+    const b = contentBounds(srcModel, id);
+    cpSync(src, join(outDir, `${key}.png`));
+    arrows[key] = { file: `ui/setting/${key}.png`, origin: [-b.minX, -b.minY].map((v) => +v.toFixed(2)) };
+    console.log(`设置箭头：${cls}（sprite ${id}）→ assets/ui/setting/${key}.png origin [${arrows[key].origin}]`);
+  }
+
+  settingPlate = { dir: 'ui/setting', frames: 1, stageOriginInFrame: origin, arrows };
+  console.log(`setting 底板：${SETTING.plate} 1 帧 画布 union [${cb.minX.toFixed(1)},${cb.minY.toFixed(1)}..${cb.maxX.toFixed(1)},${cb.maxY.toFixed(1)}] origin [${origin}] → assets/ui/setting/1.webp`);
+}
+
 // ---------- 4. 地图缩略图 → assets/ui/maps/ ----------
 const mapsDir = join(OUT_ASSETS, 'maps');
 rmSync(mapsDir, { recursive: true, force: true });
@@ -872,7 +952,7 @@ const LAYOUT = {
 };
 
 const doc = {
-  schema: 'bvn/ui@7',
+  schema: 'bvn/ui@8',
   faces, // 类名 → faces/ 下文件名（grid/_b/_m；*_w 胜者立绘不导出——结算画面已移除）
   select: {
     elements: Object.fromEntries(Object.keys(SELECT_ELEMENTS).map((k) => [k, `ui/select/${k}.png`])),
@@ -944,10 +1024,12 @@ const doc = {
     stop: LOGO.stop,
     stageOriginInFrame: LOGO.stageOriginInFrame,
   },
+  // ---- 设置面板切片：原版 stg_set_ui 单帧静态板（背景 + OPTION 标题 + 一护立绘） ----
+  setting: settingPlate,
 };
 
 mkdirSync(dirname(OUT_BAKED), { recursive: true });
 writeFileSync(OUT_BAKED, JSON.stringify(doc));
 console.log(
-  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title 三层夹心（${TITLE.frames}+${TITLE.frames} 帧 + fx ${Object.keys(titleFx.elements).length} 元件） / select-fx 旋涡+${selectFx.mapFx.length} / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
+  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title 三层夹心（${TITLE.frames}+${TITLE.frames} 帧 + fx ${Object.keys(titleFx.elements).length} 元件） / select-fx 旋涡+${selectFx.mapFx.length} / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / setting 底板 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
 );

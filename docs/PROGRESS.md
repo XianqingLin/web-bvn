@@ -58,7 +58,7 @@
 
 ## 三、遗留池（低价值/待定，按需立项）
 
-- **设置面板余项**（2026-11-24 设置面板切片落地后余项，规格见 DESIGN §4 设置面板段）：① 按键映射（原版 keyset 二级页语义：逐键捕获 + SET ALL/还原默认/APPLY/CANCEL + key_set_dialog）——进面板时引入 APPLY 语义与二级页转场；② 画质档位立项——原版画质 = stage 矢量质量 + 30/60fps 逻辑帧率 + 闪屏帧率 + 位图平滑四合一，**30fps 逻辑帧率档不得照搬**（确定性红线），降级为纯渲染选项（特效刷新率/缩放平滑/devicePixelRatio）；③ COM 等级/生命值/对战时间三项待对局配置口径（街机模式定案不做，但 solo 训练的 AI 难度若立项可复用面板行）；④ 原版 setting.swf 立绘/位图字体资产收录（当前纯色压暗 + 系统字体）。
+- **设置面板余项**（2026-11-25 按键设置切片落地后余项，规格见 DESIGN §4 设置面板/按键设置段）：① 画质档位立项——原版画质 = stage 矢量质量 + 30/60fps 逻辑帧率 + 闪屏帧率 + 位图平滑四合一，**30fps 逻辑帧率档不得照搬**（确定性红线），降级为纯渲染选项（特效刷新率/缩放平滑/devicePixelRatio）；② COM 等级/生命值/对战时间三项待对局配置口径（街机模式定案不做，但 solo 训练的 AI 难度若立项可复用面板行）；③ 原版 setting.swf 位图字体资产收录（文字仍系统字体；底板/立绘/箭头/光标已随 2026-11-25 stg_set_ui 收录）。
 - **特效收编残余**（2026-11-20 全面盘点——原版引擎层 EffectModel 53 id + 逐角色语料 38 主战/37 辅助全量对照——后余项，已完成切片见 git 历史与 DESIGN §3.5；按观感收益排序）：
   - atlas-pack 全量重跑副作用（2026-11-21 实证）：会把 `baked/fires/*.json` 的 `org`/`hits`（runtime-ingest 产出的火系命中框，sim 确定性数据）覆盖成仅 totalFrames+labels 的版本——baked/fires 不属 atlas-pack 产物边界，重打包后须 `git checkout -- packages/data/baked/fires/` 还原；收口方向 = packFire 读 existing baked 合并保留或拆出独立 bake 步；
   - 豁免：kenshin 必杀特写立绘（2026-11-20 深查定案——非单纯引用错配：语料 9 处 `bisha(true,"Kenshin_1")` 与注册键 bsface1/bsface2 双向对不上，且 kenshin.swf 无 bsface1 类（SymbolClass 全表实证）、FFDec 全量位图导出亦无任何人物立绘——原版作者从未制作该立绘，无资产可接线，移植版与原版等效。除非自制立绘补缺，否则维持豁免）；

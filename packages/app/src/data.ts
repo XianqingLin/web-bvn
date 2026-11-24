@@ -47,7 +47,7 @@ export function loadSelect(ctx: Ctx): Promise<SelectData> {
   return ctx.assets.json<SelectData>(`${BAKED}/select.json`);
 }
 
-// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@7，切片 15/45/46） ----------
+// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@8，切片 15/45/46/设置面板切片） ----------
 
 export interface UiSelectData {
   elements: Record<string, string>;
@@ -150,6 +150,15 @@ export interface UiData {
     from: number;
     stop: number;
     stageOriginInFrame: [number, number];
+  };
+  /** 设置面板切片：原版 stg_set_ui 单帧静态板（暗化标题版画背景 + OPTION 标题 + 一护立绘；
+   *  板画布 = 内容 union，立绘出血越出 800×600 舞台 → 运行时挂 舞台-origin 并裁剪到舞台矩形） */
+  setting: {
+    dir: string;
+    frames: number;
+    stageOriginInFrame: [number, number];
+    /** 原版箭头/光标元件首帧（origin = 注册点在 PNG 内位置，摆放时以注册点对齐） */
+    arrows: Record<'txt_arrow' | 'select_arrow', { file: string; origin: [number, number] }>;
   };
 }
 

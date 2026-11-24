@@ -295,8 +295,18 @@ export class MenuScene implements Scene {
     });
     root.addChild(hit);
 
-    // 设置面板浮层（设置面板切片）：置于最顶层，打开时挡住下层菜单按钮的指针事件
-    this.settingsOverlay = new SettingsOverlay(ctx);
+    // 设置面板浮层（设置面板切片）：置于最顶层，打开时挡住下层菜单按钮的指针事件；
+    // 原版底板（stg_set_ui）在此预载（Assets 缓存，回菜单零成本）
+    const sd = this.uiData.setting;
+    const art = async (file: string, origin: [number, number]) => ({
+      tex: await Assets.load<Texture>(`${ASSETS}/${file}`),
+      origin,
+    });
+    this.settingsOverlay = new SettingsOverlay(ctx, {
+      plate: await art(`${sd.dir}/1.webp`, sd.stageOriginInFrame),
+      txtArrow: await art(sd.arrows.txt_arrow.file, sd.arrows.txt_arrow.origin),
+      selectArrow: await art(sd.arrows.select_arrow.file, sd.arrows.select_arrow.origin),
+    });
     root.addChild(this.settingsOverlay.ui);
 
     window.addEventListener('keydown', this.onKey);

@@ -7,7 +7,7 @@
  * 终局 match:over：local 回选人页（原版 VS 语义）；net 关 socket 回菜单。
  */
 import { Container, Graphics } from 'pixi.js';
-import { Sim, Btn, type ButtonMask, type InputSource, type SimSnapshot } from '@bvn/core';
+import { Sim, type ButtonMask, type InputSource, type SimSnapshot } from '@bvn/core';
 import {
   makeConfigHash,
   rollbackStart,
@@ -27,40 +27,20 @@ import {
 } from '../audio.js';
 import type { Flow } from '../flow.js';
 import { transOut } from './trans.js';
+import { keymapOf } from '../keymap.js';
+import { loadSettings } from '../settings.js';
 import { MenuScene } from './menu.js';
 import { SetupScene } from './setup.js';
 
 const TICK_MS = 1000 / 60;
 
 // ---------- 键盘 → ButtonMask ----------
-// J 攻击 K 跳 L 瞬步 U 技 I 必杀；P1 用 WASD，P2 用方向键（同机双窗口各用一套）
-const KEYMAP_P1: Record<string, number> = {
-  KeyW: Btn.up,
-  KeyS: Btn.down,
-  KeyA: Btn.left,
-  KeyD: Btn.right,
-  KeyJ: Btn.attack,
-  KeyK: Btn.jump,
-  KeyL: Btn.dash,
-  KeyU: Btn.skill,
-  KeyI: Btn.superSkill,
-  KeyO: Btn.assist,
-  Escape: Btn.back,
-};
-// 本地双人 P2 完整键位（切片 39）：方向键移动 + 小键盘 1攻击 2跳 3瞬步 4技 5必杀 6辅助。
-// e.code 是物理键位，NumLock 开关不影响；与 P1 的 WASD/JKLUIO 物理不冲键。
-const KEYMAP_P2: Record<string, number> = {
-  ArrowUp: Btn.up,
-  ArrowDown: Btn.down,
-  ArrowLeft: Btn.left,
-  ArrowRight: Btn.right,
-  Numpad1: Btn.attack,
-  Numpad2: Btn.jump,
-  Numpad3: Btn.dash,
-  Numpad4: Btn.skill,
-  Numpad5: Btn.superSkill,
-  Numpad6: Btn.assist,
-};
+// 键位来自设置（keymap.ts；默认 P1 WASD+JKLUIO、P2 方向键+小键盘）。e.code 是物理键位，
+// NumLock 开关不影响。开局读取一次，局内改键需回到菜单再进入。
+function loadKeymaps(): { p1: Record<string, number>; p2: Record<string, number> } {
+  const keys = loadSettings().keys;
+  return { p1: keymapOf(keys, 'p1'), p2: keymapOf(keys, 'p2') };
+}
 
 function maskFor(keys: Set<string>, map: Record<string, number>): ButtonMask {
   let m = 0;
@@ -81,9 +61,12 @@ class KeyboardSource implements InputSource {
 
 /** 本地双人键盘源（切片 39）：P1/P2 两套键位图同时进 sim。 */
 class LocalKeyboardSource implements InputSource {
-  constructor(private readonly keys: Set<string>) {}
+  constructor(
+    private readonly keys: Set<string>,
+    private readonly maps: { p1: Record<string, number>; p2: Record<string, number> },
+  ) {}
   frame(_tick: number): { p1: ButtonMask; p2: ButtonMask } {
-    return { p1: maskFor(this.keys, KEYMAP_P1), p2: maskFor(this.keys, KEYMAP_P2) };
+    return { p1: maskFor(this.keys, this.maps.p1), p2: maskFor(this.keys, this.maps.p2) };
   }
 }
 
@@ -128,7 +111,8 @@ export class BattleScene implements Scene {
   private keyboard: KeyboardSource | LocalKeyboardSource | null = null;
   /** 联机会话（rollback，2026-11-22 立项）：持有 sim 所有权，调用方只消费快照 */
   private rb: RollbackSession | null = null;
-  private netKeymap: Record<string, number> = KEYMAP_P1;
+  private readonly keymaps = loadKeymaps();
+  private netKeymap: Record<string, number> = this.keymaps.p1;
   private netHint = '';
   private overlay: Container | null = null;
   private koSeen = false;
@@ -236,7 +220,7 @@ export class BattleScene implements Scene {
   }
 
   private enterSolo(): void {
-    this.keyboard = new KeyboardSource(this.keys, KEYMAP_P1);
+    this.keyboard = new KeyboardSource(this.keys, this.keymaps.p1);
     // dev 诊断钩子（headless 冒烟驱动用；只读引用，不影响 sim 确定性）
     (window as unknown as { __bvnSim?: () => Sim | null }).__bvnSim = () => this.sim;
     this.hint(
@@ -258,7 +242,7 @@ export class BattleScene implements Scene {
 
   /** 本地双人（切片 39）：真对局（intro 演出 + KO 结算流转），P1/P2 键盘源双路进 sim。 */
   private enterLocal(): void {
-    this.keyboard = new LocalKeyboardSource(this.keys);
+    this.keyboard = new LocalKeyboardSource(this.keys, this.keymaps);
     this.spawnSim(false);
     this.hint(
       'P1  WASD移动 J攻击 K跳 L瞬步 U技 I必杀 O辅助 | P2  方向键移动 小键盘1攻击 2跳 3瞬步 4技 5必杀 6辅助 | ESC返回菜单',
@@ -313,7 +297,7 @@ export class BattleScene implements Scene {
     const flow = this.flow;
     const rig = this.loadout.rig;
     this.spawnSim(false);
-    this.netKeymap = flow.roleKeymapP2 ? KEYMAP_P2 : KEYMAP_P1;
+    this.netKeymap = flow.roleKeymapP2 ? this.keymaps.p2 : this.keymaps.p1;
     this.netHint = `房间 ${flow.room} —— 你是 P${flow.player}（回滚联机：本地即时，对手预测）  ESC返回菜单`;
     this.hint(this.netHint);
 
