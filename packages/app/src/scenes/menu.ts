@@ -42,7 +42,7 @@ import { CodeCapture } from './code-capture.js';
 import { enterRoom, roomErrorText } from './net-common.js';
 
 /** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
-const VERSION = 'v0.0.0';
+const VERSION = 'v0.0.1';
 
 /** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
 const OX = (UI_W - 800) / 2;

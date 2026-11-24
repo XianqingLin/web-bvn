@@ -18,6 +18,20 @@ if (!fs.existsSync(path.join(dist, 'index.html'))) {
   process.exit(1);
 }
 
+// 版本化入口：内容域前置的 CDN 按 pathname 缓存、忽略 ?v= 查询参数，发版必须换
+// 入口文件名才能绕过旧缓存（否则用户一直拿到旧 index.html → 旧 JS chunk）。
+// 版本号从 menu.ts 的 VERSION 常量读取（单一版本源，显示与入口文件名一致）：
+// v0.0.1 → index-v001.html。平台 games.json 的 launchUrl 同步指向该文件名。
+const menuSrc = fs.readFileSync(path.join(appDir, 'src/scenes/menu.ts'), 'utf8');
+const versionMatch = /const VERSION\s*=\s*'v(\d+)\.(\d+)\.(\d+)'/.exec(menuSrc);
+if (!versionMatch) {
+  console.error('prepare-dist：未能从 menu.ts 解析 VERSION 常量');
+  process.exit(1);
+}
+const versionTag = `v${versionMatch[1]}${versionMatch[2]}${versionMatch[3]}`;
+fs.copyFileSync(path.join(dist, 'index.html'), path.join(dist, `index-${versionTag}.html`));
+console.log(`prepare-dist: 版本化入口已生成 → index-${versionTag}.html`);
+
 const dataDist = path.join(dist, 'packages', 'data');
 fs.mkdirSync(dataDist, { recursive: true });
 
