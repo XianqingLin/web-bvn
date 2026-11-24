@@ -47,7 +47,7 @@ export function loadSelect(ctx: Ctx): Promise<SelectData> {
   return ctx.assets.json<SelectData>(`${BAKED}/select.json`);
 }
 
-// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@6，切片 15/45） ----------
+// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@7，切片 15/45/46） ----------
 
 export interface UiSelectData {
   elements: Record<string, string>;
@@ -100,17 +100,35 @@ export interface UiData {
   faces: Record<string, string>;
   select: UiSelectData;
   maps: { dir: string };
-  /** 切片 16：title 开场流帧（原版 stg_title 帧脚本语义） */
+  /** 切片 16：title 开场流帧（原版 stg_title 帧脚本语义）；切片 46：三层夹心规格 */
   title: {
     dir: string;
+    /** 顶板（d>25：logo 文字/下载徽标/白闪/©，色变换由 FFDec 烘死） */
+    topDir: string;
     frames: number;
     fps: number;
-    /** 帧 PNG 内原版舞台 (0,0) 位置 */
+    /** 板画布原点（板各自内容 union 左上 ≠ 原板，运行时按各自原点挂载） */
     stageOriginInFrame: [number, number];
+    topStageOriginInFrame: [number, number];
     introFrom: number;
     introStop: number;
     menuFrame: number;
     menuStop: number;
+    /** fx 叠加层（2026-11-24 纯构造，见 ui-pack 3b 头注） */
+    fx: {
+      elements: Record<
+        string,
+        { dir: string; frames: number; fps: number; size: [number, number]; origin: [number, number] }
+      >;
+      instances: {
+        char: number;
+        depth: number;
+        from: number;
+        to: number;
+        /** [(from,to,x,y,sx,sy,alpha)]，stg_title 局部坐标（= 原版舞台坐标） */
+        keys: [number, number, number, number, number, number, number][];
+      }[];
+    };
   };
   /** 切片 16：主菜单按钮（原版 MenuBtnGroup/MenuBtn 规格） */
   menu: {

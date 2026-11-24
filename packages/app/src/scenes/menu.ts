@@ -16,6 +16,10 @@
  *
  * 流帧播放：单帧解码 ~7MB 显存，全量常驻 ~630MB 不可行 → 常驻小窗口（预取 5 帧、
  * 释放身后帧）；磁盘 WebP 共 ~8.5MB（PNG 的 1/13）。
+ *
+ * 三层夹心（切片 46）：底板流（剔除嵌套 fx 的干净板）→ fx 叠加层（嵌套元件按 SWF
+ * 放置语义运行时合成，嵌套播放头板帧同步推进、定格期照走）→ 顶板流（logo/徽标/
+ * 白闪，色变换烘焙）。两板流同帧号锁步推进，顶板纹理未就绪时停帧等待（失败帧除外）。
  */
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
@@ -28,6 +32,7 @@ import { tickTweens, tweenOf, clearTweens } from '../anim.js';
 import type { Flow } from '../flow.js';
 import { ASSETS, loadUi, type UiData } from '../data.js';
 import { FrameStream } from './stream.js';
+import { TitleFxLayer } from './title-fx.js';
 import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
 import { MatchScene } from './match.js';
@@ -141,8 +146,10 @@ export class MenuScene implements Scene {
   readonly name = 'menu';
 
   private uiData: UiData | null = null;
-  private stream: FrameStream | null = null;
+  private streams: FrameStream[] = [];
   private frameSprite: Sprite | null = null;
+  private topSprite: Sprite | null = null;
+  private fxLayer: TitleFxLayer | null = null;
   private phase: 'intro' | 'skipping' | 'menu-anim' | 'menu' = 'intro';
   private frame = 0;
   private acc = 0;
@@ -187,30 +194,58 @@ export class MenuScene implements Scene {
     root.addChild(bg);
 
     this.uiData = await loadUi(ctx.ctx);
-    const title = this.uiData.title;
+    const t = this.uiData.title;
+
+    // 时序纪律（2026-11-24，黑屏空窗治理）：贴图请求最先发（此刻连接池空闲），
+    // 双板流其次（blob 预取与 UI 构建并行）；节点字/版本字在双板首帧就绪后才挂
+    // （此前它们先于板纹理出现——黑屏期"节点比菜单动画先显示"）。
+    const btnTex = {
+      bg1: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg1}`),
+      bg2: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg2}`),
+    };
 
     // 原版：stg_title (0,0) 挂 800×600 舞台 → 帧 PNG 挂 舞台-stageOriginInFrame，裁剪到舞台矩形
+    // 三层夹心（切片 46）：底板 → fx 叠加层 → 顶板，同屏同帧号。
     const clip = new Container();
     const mask = new Graphics();
     mask.rect(OX, 0, 800, 600).fill({ color: 0xffffff });
     clip.mask = mask;
     root.addChild(mask, clip);
+    const platePos = [OX - t.stageOriginInFrame[0], -t.stageOriginInFrame[1]] as const;
     const frameSprite = new Sprite();
-    frameSprite.position.set(OX - title.stageOriginInFrame[0], -title.stageOriginInFrame[1]);
+    frameSprite.position.set(platePos[0], platePos[1]);
     clip.addChild(frameSprite);
     this.frameSprite = frameSprite;
+    // fx 层：keys 为 stg_title 局部（= 舞台）坐标，挂位自带 OX；裁剪进同一 mask
+    this.fxLayer = new TitleFxLayer(t.fx.elements, t.fx.instances, [OX, 0]);
+    clip.addChild(this.fxLayer.ui);
+    this.fxLayer.preload();
+    const topSprite = new Sprite();
+    topSprite.position.set(OX - t.topStageOriginInFrame[0], -t.topStageOriginInFrame[1]);
+    clip.addChild(topSprite);
+    this.topSprite = topSprite;
 
-    // 菜单按钮组（原版：intro 期间即构建，showBtns 时挂入并入场）
-    const btnTex = {
-      bg1: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg1}`),
-      bg2: await Assets.load<Texture>(`${ASSETS}/${this.uiData.menu.elements.wzbtn_bg2}`),
-    };
+    // 菜单按钮组（原版：intro 期间即构建，showBtns 时挂入并入场；skip 前不可见）
     const group = new Container();
     group.position.set(OX + this.uiData.menu.groupPos[0], this.uiData.menu.groupPos[1]);
     group.visible = false;
     this.menuGroup = group;
     root.addChild(group);
     this.buildMenuGroup(btnTex);
+
+    // 流帧：底/顶双板同帧号锁步，预取头几帧后开播
+    this.streams = [
+      new FrameStream({ dir: t.dir, frames: t.frames, from: t.introFrom, to: t.menuStop }),
+      new FrameStream({ dir: t.topDir, frames: t.frames, from: t.introFrom, to: t.menuStop }),
+    ];
+    for (const s of this.streams) s.ensure(t.introFrom, 5);
+    await this.waitPlates(t.introFrom, 4);
+    if (this.destroyed) return;
+    this.applyPlates(t.introFrom);
+    this.frame = t.introFrom;
+    this.acc = 0;
+    this.phase = 'intro';
+    group.visible = false;
 
     // 版本字（原版 afterBuild：右下角内缩，黑色 18px）
     const version = makeLabel(VERSION, { size: 18, color: 0x000000 });
@@ -221,6 +256,7 @@ export class MenuScene implements Scene {
     // 纯展示（2026-11-22 决策变更：取消玩家手动切换，无节点面板入口）。
     // 后台 selectNode 可能尚未完成，初始显示"检测中"；update 里低频刷新文本，
     // startNodeMonitor 周期探测写回最新 RTT。
+    // 时序：双板首帧就绪后才构建（否则黑屏期先于菜单动画显示，2026-11-24）。
     const nodeLines = nodeStatusLines(this.flow, this.nodeManifest);
     const nodeTitle = makeLabel(nodeLines.title, { size: 13, color: 0x8fd0ff });
     const nodeLatency = makeLabel(nodeLines.latency, { size: 13, color: 0x9fe8a8 });
@@ -235,17 +271,6 @@ export class MenuScene implements Scene {
       this.nodeManifest = m;
       this.refreshNodeText();
     });
-
-    // 流帧：预取头几帧后开播
-    this.stream = new FrameStream({ dir: title.dir, frames: title.frames, from: title.introFrom, to: title.menuStop });
-    this.stream.ensure(title.introFrom, 5);
-    await this.waitFrames(title.introFrom, 4);
-    if (this.destroyed) return;
-    frameSprite.texture = this.stream.get(title.introFrom) ?? Texture.WHITE;
-    this.frame = title.introFrom;
-    this.acc = 0;
-    this.phase = 'intro';
-    group.visible = false;
 
     // 点击跳过（原版 500ms 后启用；点击区 = 舞台矩形）
     this.timers.push(
@@ -276,35 +301,47 @@ export class MenuScene implements Scene {
       this.nodeRefreshAcc = 0;
       this.refreshNodeText();
     }
-    if (!this.stream || !this.frameSprite || !this.uiData) return;
+    if (!this.streams.length || !this.frameSprite || !this.uiData) return;
     const t = this.uiData.title;
+    let plateAdvanced = false;
+    let plateDelta = 0;
     if (this.phase === 'intro' || this.phase === 'menu-anim') {
       this.acc += dtMs;
       const from = this.phase === 'intro' ? t.introFrom : t.menuFrame;
       const stop = this.phase === 'intro' ? t.introStop : t.menuStop;
       const f = Math.min(stop, from + Math.floor((this.acc * t.fps) / 1000));
       if (f !== this.frame) {
-        const tex = this.stream.get(f);
-        if (tex) {
+        const btex = this.streams[0]!.get(f);
+        const ttex = this.streams[1]!.get(f);
+        // 双板纹理齐才推进（顶板失败帧视为已过，与底板同语义防卡死）
+        if (btex && (ttex || this.streams[1]!.failed(f))) {
           // 纹理就绪才推进（sprite 始终显示 this.frame 的纹理，release 窗口才是安全的）
+          plateDelta = f - this.frame;
           this.frame = f;
-          this.frameSprite.texture = tex;
-        } else if (this.stream.failed(f)) {
+          this.frameSprite.texture = btex;
+          if (ttex) this.topSprite!.texture = ttex;
+          plateAdvanced = true;
+        } else if (this.streams[0]!.failed(f)) {
           this.frame = f; // 失败帧视为已过（保持上一帧画面；与 logo 场景同语义，防卡死）
         } else {
           // 停帧等待：回退本次累积，播放头冻结在 frame+1。若放任 acc 累积，
           // f 会冲到 stop，ensure(f,4) 预取的远端帧落在 release 常驻窗之外
           // （加载完即销毁→重取风暴→连接池饿死 frame+1 → 永久停帧；高延迟部署必现）
           this.acc -= dtMs;
-          this.stream.ensure(this.frame + 1, 4);
+          for (const s of this.streams) s.ensure(this.frame + 1, 4);
         }
       }
       // menu 段播完定格（intro 段定格仍留在 'intro' 等点击，原版帧脚本 stop 语义）
       if (this.phase === 'menu-anim' && this.frame >= stop) this.phase = 'menu';
       // 常驻窗口：身后 2 帧、身前 6 帧
-      this.stream.release((i) => i >= this.frame - 2 && i <= this.frame + 6);
-      this.stream.ensure(this.frame + 1, 4); // 持续预取身前帧
+      for (const s of this.streams) {
+        s.release((i) => i >= this.frame - 2 && i <= this.frame + 6);
+        s.ensure(this.frame + 1, 4); // 持续预取身前帧
+      }
     }
+    // fx 叠加层**全 phase** 推进：板推进时按板帧同步走；定格（intro/menu）/跳过等待
+    // 期板帧不动 → 按墙时走（原版嵌套 clip 一经放置持续走带，menu 态循环正是本切片目标）
+    this.fxLayer?.update(this.frame, dtMs, plateAdvanced, plateDelta);
   }
 
   exit(): void {
@@ -314,8 +351,10 @@ export class MenuScene implements Scene {
     window.removeEventListener('keydown', this.onKey);
     for (const id of this.timers) window.clearTimeout(id);
     clearTweens();
-    this.stream?.dispose();
-    this.stream = null;
+    for (const s of this.streams) s.dispose();
+    this.streams = [];
+    this.fxLayer?.dispose();
+    this.fxLayer = null;
   }
 
   // ---------- 流程 ----------
@@ -333,12 +372,11 @@ export class MenuScene implements Scene {
     this.skipEnabled = false;
     this.phase = 'skipping'; // 等待 menu 帧加载期间暂停推进/释放
     const t = this.uiData.title;
-    await this.waitFrames(t.menuFrame, 5);
+    await this.waitPlates(t.menuFrame, 5);
     if (this.destroyed) return;
     this.acc = 0;
     this.frame = t.menuFrame;
-    const tex = this.stream?.get(t.menuFrame);
-    if (tex && this.frameSprite) this.frameSprite.texture = tex;
+    this.applyPlates(t.menuFrame);
     this.phase = 'menu-anim';
     // 按钮组入场（原版 showBtns：btnGroup 挂入 + fadIn(0.2, 0.04)，400ms 后可操作）
     const group = this.menuGroup;
@@ -357,17 +395,26 @@ export class MenuScene implements Scene {
     }
   }
 
-  private async waitFrames(first: number, ahead: number): Promise<void> {
-    // 轮询等待首帧纹理可用（load 完成即 resolve）
+  private async waitPlates(first: number, ahead: number): Promise<void> {
+    // 轮询等待双板首帧纹理可用（load 完成即 resolve）
     for (;;) {
-      if (this.stream?.ensure(first, ahead)) {
-        const tex = this.stream.get(first);
-        if (tex) return;
+      let ready = true;
+      for (const s of this.streams) {
+        s.ensure(first, ahead);
+        if (!s.get(first) && !s.permanentlyFailed(first)) ready = false;
       }
       // 首帧达重试上限仍失败：放弃等待（enter 处有 Texture.WHITE 回退），防永久卡死
-      if (this.destroyed || this.stream?.permanentlyFailed(first)) return;
+      if (this.destroyed || ready) return;
       await new Promise((r) => window.setTimeout(r, 50));
     }
+  }
+
+  /** 双板纹理应用（进入/跳段落时；纹理未就绪的板保留上一画面）。 */
+  private applyPlates(f: number): void {
+    const btex = this.streams[0]?.get(f);
+    const ttex = this.streams[1]?.get(f);
+    if (btex && this.frameSprite) this.frameSprite.texture = btex;
+    if (ttex && this.topSprite) this.topSprite.texture = ttex;
   }
 
   // ---------- 按钮组（MenuBtnGroup 语义） ----------

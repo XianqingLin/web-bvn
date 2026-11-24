@@ -6,6 +6,8 @@
  * 两层缓存（2026-11-17：部署环境逐帧边播边下载供不上 30fps）：
  * 压缩帧全量预下载为 blob（总量 ~MB 级，网络层一次性吃完延迟），
  * 解码纹理按需从本地 blob 生成（几十 ms 级，走小窗常驻控显存）。
+ * blob 层为跨实例共享缓存（2026-11-24 切片 46）：装载页预载 / 上一场景释放后，
+ * 同目录新流零重取（回菜单即时开播）；lazy 流（叠加层小流）构造期不点火预取。
  */
 import { ImageSource, Texture } from 'pixi.js';
 import { ASSETS } from '../data.js';
@@ -20,7 +22,15 @@ export interface StreamSpec {
   from?: number;
   /** 实际显示上界（缺省 frames） */
   to?: number;
+  /** 构造期不点火全量 blob 预下载（逐帧按需 ensure 拉取）。
+   *  供叠加层类小流用：多条流构造期同时全量预取会打满 HTTP 连接池，
+   *  把同场景紧随其后的其它请求（贴图/板首帧）压到队尾（切片 46 实测 4.4s）。 */
+  lazy?: boolean;
 }
+
+/** 跨实例共享 blob 缓存（URL → fetch promise）：装载页预载过 / 上一场景流释放后，
+ *  同目录新流零重取（2026-11-24 切片 46：回菜单即时开播，blob 仅压缩字节 ~15MB 级）。 */
+const blobCache = new Map<string, Promise<Blob | null>>();
 
 export class FrameStream {
   /** 失败冷却：冷却期内 failed(i)=true（播放头"视为已过"防卡死），冷却过允许重试；
@@ -31,8 +41,6 @@ export class FrameStream {
   private readonly cache = new Map<number, Texture>();
   /** 解码中的纹理 */
   private readonly loading = new Map<number, Promise<Texture | null>>();
-  /** 压缩帧 blob（全量常驻，总量 MB 级） */
-  private readonly blobs = new Map<number, Promise<Blob | null>>();
   private readonly failedAt = new Map<number, number>();
   private readonly failedCount = new Map<number, number>();
   private dead = false;
@@ -41,9 +49,12 @@ export class FrameStream {
     // 全量预下载压缩帧：播放瓶颈在逐帧网络延迟（部署环境 ~150ms/帧，30fps 供不上），
     // 开播前把整条流 ~MB 级压缩体一次性吃下，之后解码走本地 blob 不再占连接。
     // 只拉实际显示区间 [from, to]（menu 帧流帧 1、76-90 从不显示）。
-    const from = info.from ?? 1;
-    const to = info.to ?? info.frames;
-    for (let i = from; i <= to; i++) this.blob(i);
+    // lazy 流跳过（叠加层类小流按播放进度 ensure 逐帧拉，防构造期请求风暴）。
+    if (!info.lazy) {
+      const from = info.from ?? 1;
+      const to = info.to ?? info.frames;
+      for (let i = from; i <= to; i++) this.blob(i);
+    }
   }
 
   /** 触发 [i, i+ahead] 解码；返回 i 是否已可用。 */
@@ -85,8 +96,7 @@ export class FrameStream {
       if (!keep || !keep(i)) tex.destroy(true);
       else this.cache.delete(i); // 保留显示中纹理的所有权（调用方接管销毁）
     }
-    if (!keep) this.cache.clear();
-    this.blobs.clear();
+    // blob 走跨实例共享缓存，不在此清（共享条目对后续场景仍然零重取）
   }
 
   private load(i: number): Promise<Texture | null> {
@@ -126,9 +136,10 @@ export class FrameStream {
   }
 
   private blob(i: number): Promise<Blob | null> {
-    let p = this.blobs.get(i);
+    const url = `${ASSETS}/${this.info.dir}/${i}.webp`;
+    let p = blobCache.get(url);
     if (!p) {
-      p = fetch(`${ASSETS}/${this.info.dir}/${i}.webp`)
+      p = fetch(url)
         .then((r) => {
           if (!r.ok) throw new Error(`${r.status}`);
           return r.blob();
@@ -136,10 +147,10 @@ export class FrameStream {
         .catch(() => {
           // 失败即移除缓存项（冷却后可重试）；失败计数在解码层统一记，
           // 避免 blob→解码双路径重复累计提前耗尽重试次数
-          if (!this.dead) this.blobs.delete(i);
+          if (blobCache.get(url) === p) blobCache.delete(url);
           return null;
         });
-      this.blobs.set(i, p);
+      blobCache.set(url, p);
     }
     return p;
   }

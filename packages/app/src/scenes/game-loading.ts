@@ -7,10 +7,11 @@
  * 装载语义照原版 loadGame（预载 资源→配置→基础资源）；web 端等价 = 启动期把后续
  * 场景要用的首批资产预取好再进 Logo：
  *  - 配置：ui.json / select.json / audio.json（ctx.assets 缓存，后续场景免等）；
- *  - 主菜单动画全量预载（2026-11-22 由"头几帧预热"升级）：logo + title 全部显示帧
- *    先行下完再进 Logo。原先只预热头 3 帧、进菜单后 FrameStream 边播边下载，首访
- *    部署环境（跨境低带宽）供不上 30fps，菜单动画停帧追下载——等待不可理解；挪进
- *    加载页后等待集中且有进度条，播放期只走本地 HTTP 缓存不再占网络。
+ *  - 主菜单动画全量预载（2026-11-22 由"头几帧预热"升级）：logo + title 底顶双板
+ *    全部显示帧 + fx 叠加层全帧先行下完再进 Logo。原先只预热头 3 帧、进菜单后
+ *    FrameStream 边播边下载，首访部署环境（跨境低带宽）供不上 30fps，菜单动画
+ *    停帧追下载——等待不可理解；挪进加载页后等待集中且有进度条，播放期只走
+ *    本地 HTTP 缓存不再占网络。
  *
  * 偏离登记：原版步数由资源清单展开（swf 逐个计数）、消息 `游戏初始化：正在加载xx
  * (n/total)`；此处 2 步（配置 / 主菜单动画预载），计数语义改为步内细进度
@@ -98,16 +99,24 @@ export class GameLoadingScene implements Scene {
           msg: '游戏初始化：正在加载主菜单动画',
           share: 0.95,
           run: async (fine) => {
-            // logo/title 流帧全量预载；区间与各场景 FrameStream 消费区间一致
-            // （logo [from..frames] / title [introFrom..menuStop]，76-90 从不显示不拉）。
-            // fetch 走 HTTP 缓存，Logo/菜单 FrameStream 首拉全部命中本地缓存不占网络。
+            // logo/title 三层夹心全量预载（切片 46）；区间与各场景 FrameStream 消费
+            // 区间一致（logo [from..frames] / title 底顶双板 [introFrom..menuStop]，
+            // 76-90 从不显示不拉 / fx 元件全帧循环）。fetch 走 HTTP 缓存，Logo/菜单
+            // FrameStream 首拉全部命中本地缓存不占网络。
             const uiData = await loadUi(ctx.ctx); // 命中缓存
             const frames: string[] = [];
             for (let i = uiData.logo.from; i <= uiData.logo.frames; i++) {
               frames.push(`${ASSETS}/${uiData.logo.dir}/${i}.webp`);
             }
-            for (let i = uiData.title.introFrom; i <= uiData.title.menuStop; i++) {
-              frames.push(`${ASSETS}/${uiData.title.dir}/${i}.webp`);
+            for (const dir of [uiData.title.dir, uiData.title.topDir]) {
+              for (let i = uiData.title.introFrom; i <= uiData.title.menuStop; i++) {
+                frames.push(`${ASSETS}/${dir}/${i}.webp`);
+              }
+            }
+            for (const el of Object.values(uiData.title.fx.elements)) {
+              for (let i = 1; i <= el.frames; i++) {
+                frames.push(`${ASSETS}/${el.dir}/${i}.webp`);
+              }
             }
             // 并发受限逐帧下载 + 逐帧回报：进度条持续走动（与 render loadTextures 同构）
             let done = 0;

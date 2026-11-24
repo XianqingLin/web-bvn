@@ -9,8 +9,10 @@
  *      assets/ui/select/<逻辑名>.png（切片 45：stg_select/select_map 内嵌套动画元件
  *      （旋涡 71/扫光 93/箭头 96/kuang 99）经 swf2xml 手术剔除后重导"干净底板"，帧序
  *      单独导出为叠加层 assets/ui/select-fx/<char>/，位置经模板匹配实测校准）；
- *   2b. title.swf -export sprite → stg_title 90 帧（2351×749，动画主时间轴在 sprite 内、
- *       "menu" 标签 = 帧 65）→ sharp 转 WebP q80 → assets/ui/title/<帧>.webp（~8.5MB）；
+ *   2b. title.swf 三层夹心（2026-11-24 重审立项）：底板/顶板 XML 手术（剔 fx+顶层 /
+ *       只留顶层）→ stg_title 各 90 帧（底板 WebP q80 ~8.5MB、顶板 α WebP）；fx 叠加层
+ *       9 元件帧序 + vs（59 遮罩扫光）合成帧 → assets/ui/title-fx/<char>/（~1.5MB）；
+ *       放置 keys（placementSegments）写进 baked ui.json title.fx；
  *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
  *       → assets/ui/menu/；
  *   2d. common_ui.swf sprite 26（logo_movie）66 帧 → assets/ui/logo/<n>.webp（开场徽标演出）；
@@ -42,7 +44,7 @@ import {
 } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import sharp from 'sharp';
-import { parseSwfXml, removePlacements } from './swf-nest.mjs';
+import { parseSwfXml, removePlacements, contentBounds, placementSegments } from './swf-nest.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -580,23 +582,239 @@ const selectFx = { vortex: null, mapFx: [] };
   }
 }
 
-// ---------- 3b. title 流帧 → assets/ui/title/<n>.webp（WebP q80：~8.5MB / 90 帧） ----------
-const titleDir = join(OUT_ASSETS, 'title');
-rmSync(titleDir, { recursive: true, force: true });
-mkdirSync(titleDir, { recursive: true });
+// ---------- 3b. title 三层夹心（2026-11-24 重审立项，见 PROGRESS §2.4 / DESIGN §4） ----------
+// 旧路线（FFDec 帧导出直接烘 90 帧 + 运行时模板匹配叠加）已证伪（嵌套 MC 被冻结在未知
+// 内部帧、模板匹配被上层元件污染）。改纯构造：放置/变换 keys 全部来自 SWF 标签语义
+//（Flash Player 自身执行的数据），不校准、不与原板核对。
+//
+// 三层夹心：
+//   底板 assets/ui/title/      = 手术剔除 fx（全部 frameCount>1 嵌套 sprite 放置段）
+//                                与顶层（d>25 静态段）后的 stg_title 90 帧；
+//   叠加层 ×10                 = fx 元件各自帧序（assets/ui/title-fx/<char>/，内部脉冲由
+//                                FFDec 烘进帧）+ vs（sprite 59：56 是 clipDepth 遮罩，
+//                                烘"37 + 58∩56k"合成帧规避运行时遮罩）；
+//   顶板 assets/ui/title-top/  = 只留 d>25（logo 文字/下载徽标/白闪/©）的 90 帧（α WebP）。
+// keys（placementSegments 逐段常量压缩）：[(from,to,x,y,sx,sy,alpha)]，实例 = char×depth；
+// origin = 元件内容 union 左上（= FFDec 导出画布原点，运行时 pos = x + sx*origin）。
+const TITLE_FX_CHARS = [29, 32, 35, 38, 40, 41, 44, 47, 52];
+const titleFx = { elements: {}, instances: [] };
+const titlePlates = { bottomOrigin: null, topOrigin: null };
 {
-  const spriteDir = readdirSync(join(SCRATCH, 'title')).find(
-    (d) => d === `DefineSprite_${TITLE.spriteId}` || d.startsWith(`DefineSprite_${TITLE.spriteId}_`),
+  run(FFDEC, ['-swf2xml', TITLE_SWF, join(SCRATCH, 'title.xml')]);
+  const titleXml = readFileSync(join(SCRATCH, 'title.xml'), 'utf8');
+  const titleModel = parseSwfXml(titleXml);
+  const ROOT = TITLE.spriteId;
+  const isFxChar = (id) => (titleModel.sprites.get(id)?.frameCount ?? 1) > 1;
+  const allChars = [
+    ...new Set(
+      titleModel.sprites
+        .get(ROOT)
+        .frames.flatMap((row) => Object.values(row || {}).filter((p) => p?.charId != null).map((p) => p.charId)),
+    ),
+  ];
+  const rootSegs = placementSegments(titleModel, ROOT, allChars);
+  // 底板手术：fx 全部段 + 顶层（d>25）全部段
+  const bottomSpecs = rootSegs
+    .filter((s) => isFxChar(s.charId) || s.depth > 25)
+    .map((s) => ({ depth: s.depth, charId: s.charId, from: s.from, to: s.to }));
+  // 顶板手术：d<=25 全部段（char-less 窗口，连静态底图带 fx 一起剔）+ 59 段
+  //（59 内扫光 56 是 clipDepth 遮罩，烘板会冻结成死帧 → 59 由运行时合成帧替代；
+  //  同深度 37 的两个段（18-25/65-90）保留在顶板）
+  const topSpecs = rootSegs
+    .filter((s) => s.depth <= 25 || s.charId === 59)
+    .map((s) => ({ depth: s.depth, from: s.from, to: s.to }));
+  const bakePlates = async (xml, what) => {
+    const cleaned = removePlacements(xml, ROOT, what === 'bottom' ? bottomSpecs : topSpecs);
+    const outXml = join(SCRATCH, `title-${what}.xml`);
+    const outSwf = join(SCRATCH, `title-${what}.swf`);
+    writeFileSync(outXml, cleaned);
+    run(FFDEC, ['-xml2swf', outXml, outSwf]);
+    if (fileMd5(outSwf) === fileMd5(TITLE_SWF)) throw new Error(`title-${what} 手术无效（与原版逐字节相同）`);
+    const expDir = join(SCRATCH, `title-${what}`);
+    run(FFDEC, ['-export', 'sprite', expDir, outSwf]);
+    const dir = findSpriteDir(expDir, ROOT, `title-${what} stg_title`);
+    const frames = readdirSync(dir).filter((f) => f.endsWith('.png'));
+    if (frames.length !== TITLE.frames) {
+      throw new Error(`title-${what} 帧数变化：${frames.length} ≠ ${TITLE.frames}`);
+    }
+    // 板画布 = 干净 sprite 内容 union（FFDec 画布原点 = union 左上，方法已对原板实证）；
+    // 手术剔的内容改变 union → **每板各存 stageOriginInFrame**（剔顶层后底板原点上移、
+    // 顶板只剩 logo/徽标族原点大幅左移，运行时按各自原点挂载）。
+    run(FFDEC, ['-swf2xml', outSwf, join(SCRATCH, `title-${what}-check.xml`)]);
+    const cleanModel = parseSwfXml(readFileSync(join(SCRATCH, `title-${what}-check.xml`), 'utf8'));
+    const cb = contentBounds(cleanModel, ROOT);
+    const stageOrigin = [-cb.minX, -cb.minY];
+    const outDir = join(OUT_ASSETS, what === 'bottom' ? 'title' : 'title-top');
+    rmSync(outDir, { recursive: true, force: true });
+    mkdirSync(outDir, { recursive: true });
+    for (let i = 1; i <= TITLE.frames; i++) {
+      const src = join(dir, `${i}.png`);
+      if (i === 1) {
+        const meta = await sharp(src).metadata();
+        if (Math.abs(meta.width - (cb.maxX - cb.minX)) > 1.5 || Math.abs(meta.height - (cb.maxY - cb.minY)) > 1.5) {
+          throw new Error(`title-${what} 画布 ${meta.width}x${meta.height} ≠ 干净内容 union ${(cb.maxX - cb.minX).toFixed(1)}x${(cb.maxY - cb.minY).toFixed(1)}`);
+        }
+      }
+      await sharp(src).webp({ quality: 80 }).toFile(join(outDir, `${i}.webp`));
+    }
+    console.log(
+      `title ${what} 板：${frames.length} 帧 画布 union [${cb.minX.toFixed(1)},${cb.minY.toFixed(1)}..${cb.maxX.toFixed(1)},${cb.maxY.toFixed(1)}] stageOrigin [${stageOrigin.map((v) => +v.toFixed(2))}]`,
+    );
+    return stageOrigin.map((v) => +v.toFixed(2));
+  };
+  titlePlates.bottomOrigin = await bakePlates(titleXml, 'bottom');
+  titlePlates.topOrigin = await bakePlates(titleXml, 'top');
+
+  // fx 元件帧序：内部脉冲由 FFDec 烘进帧；canvas 自检 = 内容 union 尺寸
+  const titleExportDir = join(SCRATCH, 'title');
+  for (const char of TITLE_FX_CHARS) {
+    const framesDir = findSpriteDir(titleExportDir, char, `title fx ${char}`);
+    const frameCount = titleModel.sprites.get(char).frameCount;
+    const collapsed = await collapseStaticFrames(framesDir, frameCount);
+    const cb = contentBounds(titleModel, char);
+    const meta = await sharp(join(framesDir, '1.png')).metadata();
+    if (Math.abs(meta.width - (cb.maxX - cb.minX)) > 1.5 || Math.abs(meta.height - (cb.maxY - cb.minY)) > 1.5) {
+      throw new Error(`fx ${char} 画布 ${meta.width}x${meta.height} ≠ 内容 union ${(cb.maxX - cb.minX).toFixed(1)}x${(cb.maxY - cb.minY).toFixed(1)}（origin 语义失效）`);
+    }
+    const outDir = join(OUT_ASSETS, 'title-fx', String(char));
+    rmSync(outDir, { recursive: true, force: true });
+    mkdirSync(outDir, { recursive: true });
+    for (let i = 1; i <= collapsed; i++) {
+      await sharp(join(framesDir, `${i}.png`)).webp({ quality: 80 }).toFile(join(outDir, `${i}.webp`));
+    }
+    titleFx.elements[char] = {
+      dir: `ui/title-fx/${char}`,
+      frames: collapsed,
+      fps: TITLE.fps,
+      size: [meta.width, meta.height],
+      origin: [+cb.minX.toFixed(2), +cb.minY.toFixed(2)],
+    };
+  }
+
+  // vs（sprite 59）：d1 shape37 常态 VS / d2 sprite56（clipDepth=5 遮罩，9 帧扫光，
+  // Flash 语义 = 56 自身不渲染、只做 d3..d5 的 α 遮罩）/ d4 shape58 高光版。
+  // 烘"37 + (58 ∩ 56k)"合成帧；运行时按 59 根放置 keys 摆放（与其它 fx 同模型）。
+  {
+    const s59 = titleModel.sprites.get(59);
+    const row59 = s59.frames[0] || {};
+    const p37 = row59[1];
+    const p56 = row59[2];
+    const p58 = row59[4];
+    if (!p37 || !p56 || !p58) throw new Error(`sprite 59 内部放置缺失（${[1, 2, 4].filter((d) => !row59[d])}）`);
+    const cb59 = contentBounds(titleModel, 59);
+    const cb37 = contentBounds(titleModel, 37);
+    const cb58 = contentBounds(titleModel, 58);
+    const cb56 = contentBounds(titleModel, 56);
+    const W = Math.ceil(cb59.maxX - cb59.minX);
+    const H = Math.ceil(cb59.maxY - cb59.minY);
+    // 元件 PNG（画布原点 = 其内容 union 左上）摆到 59 画布：off = at + cb.min − cb59.min
+    const offOf = (cb, at) => [Math.round(at[0] + cb.minX - cb59.minX), Math.round(at[1] + cb.minY - cb59.minY)];
+    const exportSub = async (specs, what) => {
+      const cleaned = removePlacements(titleXml, 59, specs);
+      const outXml = join(SCRATCH, `title-vs-${what}.xml`);
+      const outSwf = join(SCRATCH, `title-vs-${what}.swf`);
+      writeFileSync(outXml, cleaned);
+      run(FFDEC, ['-xml2swf', outXml, outSwf]);
+      const expDir = join(SCRATCH, `title-vs-${what}`);
+      run(FFDEC, ['-export', 'sprite', expDir, outSwf]);
+      const png = join(findSpriteDir(expDir, 59, `vs ${what}`), '1.png');
+      const meta = await sharp(png).metadata();
+      return { png, meta };
+    };
+    const base = await exportSub(
+      [
+        { depth: 2, charId: 56, from: 1, to: 1 },
+        { depth: 4, charId: 58, from: 1, to: 1 },
+      ],
+      'base',
+    );
+    const shine = await exportSub(
+      [
+        { depth: 1, charId: 37, from: 1, to: 1 },
+        { depth: 2, charId: 56, from: 1, to: 1 },
+      ],
+      'shine',
+    );
+    // 自检：37-only 画布应 ≈ cb37（FFDec 若把遮罩 56 当内容渲染，画布会混入 56 区域）
+    if (Math.abs(base.meta.width - (cb37.maxX - cb37.minX)) > 1.5 || Math.abs(base.meta.height - (cb37.maxY - cb37.minY)) > 1.5) {
+      throw new Error(`vs base 画布 ${base.meta.width}x${base.meta.height} ≠ shape37 union ${(cb37.maxX - cb37.minX).toFixed(1)}x${(cb37.maxY - cb37.minY).toFixed(1)}（FFDec 渲染了遮罩？）`);
+    }
+    const off37 = offOf(cb37, [p37.x, p37.y]);
+    const off58 = offOf(cb58, [p58.x, p58.y]);
+    const off56 = offOf(cb56, [p56.x, p56.y]);
+    const mask56Dir = findSpriteDir(titleExportDir, 56, 'title vs 遮罩扫光');
+    const vsFrames = titleModel.sprites.get(56).frameCount;
+    const outDir = join(OUT_ASSETS, 'title-fx', '59');
+    rmSync(outDir, { recursive: true, force: true });
+    mkdirSync(outDir, { recursive: true });
+    const w58 = Math.ceil(cb58.maxX - cb58.minX);
+    const h58 = Math.ceil(cb58.maxY - cb58.minY);
+    // 58（高光版）原始 RGBA：遮罩用像素级 α 乘法实现（56 画布 > 58 画布，
+    // sharp composite 要求输入不大于底图，且 off56−off58 可为负 → 直接读像素）
+    const shine58 = await sharp(shine.png).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const sw = shine58.info.width;
+    const sh = shine58.info.height;
+    for (let k = 1; k <= vsFrames; k++) {
+      const m = await sharp(join(mask56Dir, `${k}.png`)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+      const md = m.data;
+      const mw = m.info.width;
+      const d = Buffer.from(shine58.data); // 逐帧拷贝
+      const px = off56[0] - off58[0];
+      const py = off56[1] - off58[1];
+      for (let yy = 0; yy < m.info.height; yy++) {
+        const cy = py + yy;
+        if (cy < 0 || cy >= sh) continue;
+        for (let xx = 0; xx < mw; xx++) {
+          const cx = px + xx;
+          if (cx < 0 || cx >= sw) continue;
+          // Flash 遮罩 = 被遮内容 α × 遮罩 α（dest-in 语义）
+          const di = (cy * sw + cx) * 4 + 3;
+          d[di] = (d[di] * md[(yy * mw + xx) * 4 + 3] + 127) / 255 | 0;
+        }
+      }
+      const masked58 = await sharp(d, { raw: { ...shine58.info } }).png().toBuffer();
+      await sharp({
+        create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+      })
+        .composite([
+          { input: base.png, left: off37[0], top: off37[1] },
+          { input: masked58, left: off58[0], top: off58[1] },
+        ])
+        .webp({ quality: 80 })
+        .toFile(join(outDir, `${k}.webp`));
+    }
+    titleFx.elements[59] = {
+      dir: 'ui/title-fx/59',
+      frames: vsFrames,
+      fps: TITLE.fps,
+      size: [W, H],
+      origin: [+cb59.minX.toFixed(2), +cb59.minY.toFixed(2)],
+    };
+    console.log(`title vs（59 遮罩扫光）：${vsFrames} 合成帧 ${W}x${H} origin [${titleFx.elements[59].origin}]`);
+  }
+
+  // 实例 keys：char×depth 的根放置段（move-only 矩阵/色变换已并入段常量）
+  for (const s of rootSegs.filter((s) => isFxChar(s.charId) || s.charId === 59)) {
+    titleFx.instances.push({
+      char: s.charId,
+      depth: s.depth,
+      from: s.from,
+      to: s.to,
+      keys: s.keys.map((k) => [
+        k.from,
+        k.to,
+        +k.x.toFixed(2),
+        +k.y.toFixed(2),
+        +k.sx.toFixed(4),
+        +k.sy.toFixed(4),
+        +k.alpha.toFixed(4),
+      ]),
+    });
+  }
+  console.log(
+    `title fx：${Object.keys(titleFx.elements).length} 元件 / ${titleFx.instances.length} 实例 ` +
+      `（keys ${titleFx.instances.reduce((a, i) => a + i.keys.length, 0)} 段）`,
   );
-  if (!spriteDir) throw new Error(`title.swf 未找到 sprite ${TITLE.spriteId}`);
-  const frames = readdirSync(join(SCRATCH, 'title', spriteDir)).filter((f) => f.endsWith('.png'));
-  if (frames.length !== TITLE.frames) {
-    throw new Error(`stg_title 帧数变化：${frames.length} ≠ ${TITLE.frames}（规格须同步更新）`);
-  }
-  for (let i = 1; i <= TITLE.frames; i++) {
-    const src = join(SCRATCH, 'title', spriteDir, `${i}.png`);
-    await sharp(src).webp({ quality: 80 }).toFile(join(titleDir, `${i}.webp`));
-  }
 }
 
 // ---------- 3c. menu 按钮 → assets/ui/menu/ ----------
@@ -649,7 +867,7 @@ const LAYOUT = {
 };
 
 const doc = {
-  schema: 'bvn/ui@6',
+  schema: 'bvn/ui@7',
   faces, // 类名 → faces/ 下文件名（grid/_b/_m；*_w 胜者立绘不导出——结算画面已移除）
   select: {
     elements: Object.fromEntries(Object.keys(SELECT_ELEMENTS).map((k) => [k, `ui/select/${k}.png`])),
@@ -676,17 +894,25 @@ const doc = {
   },
   maps: { dir: 'ui/maps' },
   // ---- 切片 16：title 开场流帧 + 主菜单按钮（原版 MenuStage/MenuBtnGroup/MenuBtn 规格） ----
+  // ---- 切片 46：三层夹心（底板 dir / 顶板 topDir / fx 叠加层，语义见 3b 段头注） ----
   title: {
     dir: 'ui/title',
+    /** 顶板（d>25：logo 文字/下载徽标/白闪/©，色变换由 FFDec 烘死） */
+    topDir: 'ui/title-top',
     frames: TITLE.frames,
     fps: TITLE.fps,
-    /** 帧 PNG 内原版舞台 (0,0) 位置：挂载时 sprite 位置 = 舞台位 - stageOriginInFrame，并裁剪到舞台矩形 */
-    stageOriginInFrame: TITLE.stageOriginInFrame,
+    /** 板画布原点 = 干净 sprite 内容 union 左上（板各不相同，运行时按各自原点挂载） */
+    stageOriginInFrame: titlePlates.bottomOrigin,
+    topStageOriginInFrame: titlePlates.topOrigin,
     /** 原版 stg_title 帧脚本语义：intro 播 introFrom..introStop 定格；点击后 menuFrame..menuStop 定格 */
     introFrom: TITLE.introFrom,
     introStop: TITLE.introStop,
     menuFrame: TITLE.menuFrame,
     menuStop: TITLE.menuStop,
+    /** fx 叠加层（2026-11-24 纯构造）：elements[char] = 帧序规格（origin = 内容 union 左上
+     *  = FFDec 画布原点）；instances = char×depth 根放置段，keys [(from,to,x,y,sx,sy,alpha)]
+     *  为 stg_title 局部坐标（= 原版舞台坐标），运行时 pos = x + sx*origin[0]（y 同）。 */
+    fx: titleFx,
   },
   menu: {
     elements: Object.fromEntries(Object.keys(MENU_ELEMENTS).map((k) => [k, `ui/menu/${k}.png`])),
@@ -718,5 +944,5 @@ const doc = {
 mkdirSync(dirname(OUT_BAKED), { recursive: true });
 writeFileSync(OUT_BAKED, JSON.stringify(doc));
 console.log(
-  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title ${TITLE.frames} 帧 / select-fx 旋涡+${selectFx.mapFx.length} / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
+  `ui-pack: faces ${faceCount} / select ${Object.keys(SELECT_ELEMENTS).length} 元件 / title 三层夹心（${TITLE.frames}+${TITLE.frames} 帧 + fx ${Object.keys(titleFx.elements).length} 元件） / select-fx 旋涡+${selectFx.mapFx.length} / menu ${Object.keys(MENU_ELEMENTS).length} 元件 / maps ${mapCount} 张 → ${OUT_ASSETS} + ${OUT_BAKED}`,
 );

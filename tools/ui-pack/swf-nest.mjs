@@ -217,7 +217,10 @@ export function placementSegments(model, rootId, charIds) {
       const tracked = p != null && p.charId != null && track.has(p.charId);
       if (tracked) {
         if (!cur || cur.charId !== p.charId) {
-          if (cur) segs.push(cur);
+          if (cur) {
+            cur.to = f; // 段被同深度另一元件顶替：最后可见 1 起帧 = f（与移除分支同语义）
+            segs.push(cur);
+          }
           cur = { depth: dep, charId: p.charId, from: f + 1, to: root.frames.length, _rows: [] };
         }
         cur._rows.push({ f: f + 1, x: p.x, y: p.y, sx: p.sx, sy: p.sy, alpha: p.alpha });
@@ -252,9 +255,10 @@ export function placementSegments(model, rootId, charIds) {
  * RemoveObject2——同深度底层元件靠原有移除事件正常退场，不会漏出来）。
  * @param {string} xml
  * @param {number} spriteId
- * @param {Array<{depth:number, charId:number, from:number, to:number}>} specs
+ * @param {Array<{depth:number, charId?:number, from:number, to:number}>} specs
  *   from/to 为 1 起帧号闭区间（placementSegments 的 seg.from/seg.to）；窗口内的
  *   move-only 事件一并删除；带 characterId 的放置事件全窗匹配删除。
+ *   charId 缺省 = 该 depth 窗口内**所有**放置（含带元件者）全删（顶板"只留高层"手术用）。
  * @returns {string} 清理后的 xml 文本
  */
 export function removePlacements(xml, spriteId, specs) {
@@ -289,7 +293,13 @@ export function removePlacements(xml, spriteId, specs) {
         const depth = attr(itemAttrs, 'depth');
         const hasChar = attr(itemAttrs, 'placeFlagHasCharacter') === 'true';
         const hit = hasChar
-          ? specs.find((s) => s.depth === +depth && s.charId === +attr(itemAttrs, 'characterId'))
+          ? specs.find(
+              (s) =>
+                s.depth === +depth &&
+                (s.charId !== undefined
+                  ? s.charId === +attr(itemAttrs, 'characterId')
+                  : cur.frame + 1 >= s.from && cur.frame + 1 <= s.to),
+            )
           : specs.find((s) => s.depth === +depth && cur.frame + 1 >= s.from && cur.frame + 1 <= s.to);
         if (hit) {
           const start = m.index;
