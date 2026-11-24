@@ -225,7 +225,7 @@ export async function resolveJoinNode(
 }
 
 /**
- * Menu 左下角节点状态块（server-selection）：标题行 + 延迟行。
+ * Menu 左下角节点状态块（server-selection，2026-11-24 与版本字并址）：标题行 + 延迟行。
  * 延迟由 startNodeMonitor 周期探测写回 flow.nodeInfo.rttP50，随周期变化。
  */
 export function nodeStatusLines(

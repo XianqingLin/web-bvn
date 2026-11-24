@@ -96,7 +96,7 @@
 
 - 唯一出口 `flow.serverUrl`（`flow.ts`）；择优结果写进去，`net-common.ts` 的 `openServerSocket` 与对局/rollback 逻辑**零改动**。
 - `main.ts:81` 的 `?server=` 覆盖逻辑保留（最高优先级）。
-- `MenuScene` 左下角节点状态块（两行：所属节点 + 实时延迟，`startNodeMonitor` 周期探测刷新；纯展示，2026-11-22 取消点击切换面板）。
+- `MenuScene` 左下角状态块三行（所属节点 + 实时延迟 + 版本号，左对齐、13px 统一字号、双色同族：节点浅蓝 `0x8fd0ff` / 版本降饱和蓝 `0x6ea0cd`；`startNodeMonitor` 周期探测刷新；纯展示，2026-11-22 取消点击切换面板；2026-11-24 版本字并入——版本缩为仅 "v X.X.X" 并自右下角黑 18px 改至此，自觉偏离原版布局）。
 - `onRollback` 诊断已在 `battle.ts` 接入（console + `__bvnNet()`）；节点选择埋点复用之。
 
 ---

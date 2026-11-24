@@ -37,8 +37,8 @@ import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
 import { MatchScene } from './match.js';
 
-/** 原版 MainGame.VERSION 同位常量（仓库无版本管线，发布时更新）。 */
-const VERSION = 'BVN Web v0.0.0';
+/** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
+const VERSION = 'v0.0.0';
 
 /** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
 const OX = (UI_W - 800) / 2;
@@ -247,22 +247,23 @@ export class MenuScene implements Scene {
     this.phase = 'intro';
     group.visible = false;
 
-    // 版本字（原版 afterBuild：右下角内缩，黑色 18px）
-    const version = makeLabel(VERSION, { size: 18, color: 0x000000 });
-    version.position.set(OX + 800 - this.uiData.menu.versionPad[0] - version.width, UI_H - this.uiData.menu.versionPad[1] - version.height);
-    root.addChild(version);
-
-    // 节点状态块（server-selection）：左下角两行——所属节点 + 实时延迟。
+    // 版本字 + 节点状态块（server-selection）：左下角三行左对齐，13px 统一字号
+    //（2026-11-24 决策：版本缩为仅 "v X.X.X" 并与节点块并址左下；双色同族不割裂——
+    //  节点两行浅蓝 0x8fd0ff，版本同族降饱和 0x6ea0cd。原版版本字在右下角黑色 18px，
+    //  此处布局为自觉偏离，颜色随底色可读性定）。
     // 纯展示（2026-11-22 决策变更：取消玩家手动切换，无节点面板入口）。
     // 后台 selectNode 可能尚未完成，初始显示"检测中"；update 里低频刷新文本，
     // startNodeMonitor 周期探测写回最新 RTT。
     // 时序：双板首帧就绪后才构建（否则黑屏期先于菜单动画显示，2026-11-24）。
     const nodeLines = nodeStatusLines(this.flow, this.nodeManifest);
     const nodeTitle = makeLabel(nodeLines.title, { size: 13, color: 0x8fd0ff });
-    const nodeLatency = makeLabel(nodeLines.latency, { size: 13, color: 0x9fe8a8 });
-    nodeTitle.position.set(OX + 12, UI_H - 48);
-    nodeLatency.position.set(OX + 12, UI_H - 30);
-    root.addChild(nodeTitle, nodeLatency);
+    const nodeLatency = makeLabel(nodeLines.latency, { size: 13, color: 0x8fd0ff });
+    const version = makeLabel(VERSION, { size: 15, color: 0x6ea0cd, bold: true });
+    const infoX = OX + 12;
+    nodeTitle.position.set(infoX, UI_H - 66);
+    nodeLatency.position.set(infoX, UI_H - 48);
+    version.position.set(infoX, UI_H - 30);
+    root.addChild(version, nodeTitle, nodeLatency);
     this.nodeTitle = nodeTitle;
     this.nodeLatency = nodeLatency;
     this.stopNodeMonitor = startNodeMonitor(this.flow, () => this.refreshNodeText());
