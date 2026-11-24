@@ -21,7 +21,7 @@ import {
 } from '@bvn/net';
 import type { SceneCtx } from './scene.js';
 import { tweenOf } from '../anim.js';
-import { makeButton, makeLabel, UI_H, UI_W, type Button } from '../ui.js';
+import { makeButton, makeLabel, makePanel, UI_H, UI_W, type Button } from '../ui.js';
 import type { Flow } from '../flow.js';
 import { displayName, enterRoom, openServerSocket, roomErrorText } from './net-common.js';
 import { reportInviteContext } from '../invite-context.js';
@@ -830,7 +830,7 @@ export class RoomOverlay extends NetOverlay {
 
 // ---------- 确认框浮层 ----------
 
-/** 两键确认框（onConfirm = null 时为单键提示框）。 */
+/** 两键确认框（onConfirm = null 时为单键提示框）；面板样式与游戏内弹窗同款。 */
 export class ConfirmOverlay extends NetOverlay {
   private readonly titleText: Text;
   private readonly bodyText: Text;
@@ -841,36 +841,34 @@ export class ConfirmOverlay extends NetOverlay {
   constructor() {
     super();
 
-    const box = new Container();
-    const bg = new Graphics();
-    bg.roundRect(UI_W / 2 - 250, 210, 500, 170, 10)
-      .fill({ color: 0x000000, alpha: 0.9 })
-      .stroke({ width: 1, color: 0xfded65 });
-    box.addChild(bg);
-    this.titleText = makeLabel('', { size: 22, color: 0xffffff, bold: true });
+    // 游戏内弹窗同款面板（makePanel 深底描边），标题黄字 + 正文居中
+    const panel = makePanel(400, 170);
+    panel.position.set(UI_W / 2 - 200, UI_H / 2 - 110);
+    this.content.addChild(panel);
+    this.titleText = makeLabel('', { size: 18, bold: true, color: 0xffd54f });
     this.titleText.anchor.set(0.5, 0);
-    this.titleText.position.set(UI_W / 2, 236);
-    this.bodyText = makeLabel('', { size: 17, color: 0xd8dce6 });
+    this.titleText.position.set(UI_W / 2, UI_H / 2 - 88);
+    this.bodyText = makeLabel('', { size: 16 });
     this.bodyText.anchor.set(0.5, 0);
-    this.bodyText.position.set(UI_W / 2, 274);
-    box.addChild(this.titleText, this.bodyText);
-    this.content.addChild(box);
+    this.bodyText.position.set(UI_W / 2, UI_H / 2 - 52);
+    this.content.addChild(this.titleText, this.bodyText);
 
-    this.confirmBtn = makeButton('确认', () => this.accept(), { w: 160, h: 44 });
-    this.confirmBtn.position.set(UI_W / 2 - 190, 316);
-    this.cancelBtn = makeButton('取消', () => this.close(), { w: 160, h: 44, color: 0x3a3040 });
-    this.cancelBtn.position.set(UI_W / 2 + 30, 316);
+    this.confirmBtn = makeButton('确认', () => this.accept(), { w: 110, h: 36, size: 15 });
+    this.cancelBtn = makeButton('取消', () => this.close(), { w: 110, h: 36, size: 15, color: 0x3a3040 });
     this.content.addChild(this.confirmBtn, this.cancelBtn);
   }
 
-  /** 打开确认框；onConfirm = null → 单键提示（「确认」即关闭）。 */
+  /** 打开确认框；onConfirm = null → 单键提示（按钮居中）。 */
   openConfirm(title: string, text: string, onConfirm: (() => void) | null, onClosed: () => void): void {
     this.onConfirm = onConfirm;
     const single = onConfirm === null;
     this.titleText.text = title;
     this.bodyText.text = text;
-    this.confirmBtn.label = single ? '确定' : '确认';
+    this.confirmBtn.setLabel(single ? '确定' : '确认');
+    // 单键 = 居中；双键 = 左右分列（与选人页确认框同布局）
+    this.confirmBtn.position.set(single ? UI_W / 2 - 55 : UI_W / 2 - 125, UI_H / 2 + 15);
     this.cancelBtn.visible = !single;
+    this.cancelBtn.position.set(UI_W / 2 + 15, UI_H / 2 + 15);
     super.open(onClosed);
   }
 

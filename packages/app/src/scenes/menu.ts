@@ -163,11 +163,6 @@ class MenuBtn {
     this.label.text = text;
     this.label.alpha = dim ? 0.45 : 1;
   }
-
-  /** 输入位光标锚点：板面文字末端（变身输入位的闪烁竖条定位用）。 */
-  caretAnchor(): { x: number; y: number } {
-    return { x: this.label.x + this.label.width / 2 + 5, y: this.label.y - 2 };
-  }
 }
 
 // ---------- 场景 ----------
@@ -207,8 +202,10 @@ export class MenuScene implements Scene {
   private joinSeq = 0;
   private joinDigits = '';
   private joinBtn: MenuBtn | null = null;
-  /** 输入位闪烁光标（文字 caret；挂按钮内，随文字末端重定位） */
-  private joinCaret: Graphics | null = null;
+  /** 输入位文字光标：追加式 '|'（随文本自然定位），480ms 方波闪烁 */
+  private joinLabelBase = '';
+  private joinLabelDim = false;
+  private joinCaretOn = false;
   private joinCaretAcc = 0;
   private joinCapture: CodeCapture | null = null;
   private joinPrefill: string | null = null;
@@ -398,10 +395,14 @@ export class MenuScene implements Scene {
   update(dtMs: number): void {
     tickTweens(dtMs);
     for (const o of this.netOverlays) o.update(dtMs);
-    // 输入位光标闪烁（约 2Hz 方波；连接态隐藏由 confirmJoin 置位）
-    if (this.joinState === 'input' && this.joinCaret) {
+    // 输入位光标闪烁：追加式 '|' 480ms 方波（随文本自然定位，无坐标换算）
+    if (this.joinState === 'input') {
       this.joinCaretAcc += dtMs;
-      this.joinCaret.visible = Math.floor(this.joinCaretAcc / 480) % 2 === 0;
+      if (this.joinCaretAcc >= 480) {
+        this.joinCaretAcc -= 480;
+        this.joinCaretOn = !this.joinCaretOn;
+        this.syncJoinLabel();
+      }
     }
     // 节点状态块低频刷新文本（选择完成/监控探测/切节点后由这里上屏）
     this.nodeRefreshAcc += dtMs;
@@ -823,12 +824,11 @@ export class MenuScene implements Scene {
       ease: (k) => k,
       done: () => {
         if (this.joinState === 'off') return;
-        this.syncJoinDigits('');
-        this.joinCaret = new Graphics();
-        this.joinCaret.rect(0, 0, 3, 24).fill({ color: 0xffffff });
-        this.joinCaret.visible = false;
-        btn.ui.addChild(this.joinCaret);
-        this.positionJoinCaret();
+        this.joinCaretOn = true;
+        this.joinCaretAcc = 0;
+        this.joinLabelBase = '';
+        this.joinLabelDim = true;
+        this.syncJoinLabel();
         this.remountJoinCapture();
         tweenOf(btn.ui, { 'scale.x': 1 }, 140, {
           ease: (k) => k,
@@ -867,19 +867,18 @@ export class MenuScene implements Scene {
     }
   }
 
-  /** 板面文本同步（空态 = 占位提示）+ 光标重定位到文字末端。 */
+  /** 板面文本同步（空态 = 占位提示）+ 光标（追加式 '|'，随文本自然定位）。 */
   private syncJoinDigits(d: string): void {
     this.joinDigits = d;
-    this.joinBtn?.setLabel(d.length > 0 ? d : 'ROOM CODE', d.length === 0);
-    this.positionJoinCaret();
+    this.joinLabelBase = d.length > 0 ? d : 'ROOM CODE';
+    this.joinLabelDim = d.length === 0;
+    this.syncJoinLabel();
   }
 
-  /** 光标钉在板面文字末端（随 Text 宽度重算）。 */
-  private positionJoinCaret(): void {
-    const caret = this.joinCaret;
-    if (!caret || !this.joinBtn) return;
-    const a = this.joinBtn.caretAnchor();
-    caret.position.set(a.x, a.y);
+  /** 板面文字重写：内容 + 输入态光标。 */
+  private syncJoinLabel(): void {
+    const caret = this.joinState === 'input' && this.joinCaretOn ? '|' : '';
+    this.joinBtn?.setLabel(this.joinLabelBase + caret, this.joinLabelDim);
   }
 
   /** 回车确认：输满 6 位才入房；位数不足与失败都走弹窗（不上按钮）。 */
@@ -893,8 +892,9 @@ export class MenuScene implements Scene {
     this.joinState = 'connecting';
     this.joinCapture?.dispose();
     this.joinCapture = null;
-    this.joinBtn?.setLabel('JOINING…');
-    if (this.joinCaret) this.joinCaret.visible = false;
+    this.joinLabelBase = 'JOINING…';
+    this.joinLabelDim = false;
+    this.syncJoinLabel();
     const seq = ++this.joinSeq;
     void enterRoom(this.flow, 'join', room).then(
       ({ socket }) => {
@@ -958,15 +958,15 @@ export class MenuScene implements Scene {
     this.remountJoinCapture();
   }
 
-  /** 变身态清理：拆采集、还原按钮文本/光标/其余按钮。 */
+  /** 变身态清理：拆采集、还原按钮文本/其余按钮。 */
   private cleanupJoinInput(): void {
     this.joinSeq++;
     this.joinCapture?.dispose();
     this.joinCapture = null;
     this.joinDigits = '';
+    this.joinCaretOn = false;
+    this.joinLabelBase = '';
     this.joinBtn?.setLabel(this.joinBtn.entry.en);
-    this.joinCaret?.destroy();
-    this.joinCaret = null;
     this.freezeMenu(this.joinBtn, false);
   }
 
