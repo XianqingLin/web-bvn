@@ -60,11 +60,6 @@ export async function loadManifest(fetchFn: typeof fetch = fetch): Promise<NodeM
 
 const PREF_KEY = 'bvn.nodePref';
 
-/** 手填/URL 强制指定存在 bvn.server（沿用现有键），非空即跳过自动选择。 */
-export function forcedServerUrl(): string | null {
-  return localStorage.getItem('bvn.server');
-}
-
 export function loadPreference(): NodePreference {
   try {
     const raw = localStorage.getItem(PREF_KEY);
@@ -174,7 +169,7 @@ export function browserSocketFactory(): ProbeSocketFactory {
  * 写回 flow.serverUrl + 持久化偏好 + 埋点 console。返回 Selection。
  */
 export async function selectNode(flow: Flow): Promise<Selection> {
-  const forced = forcedServerUrl();
+  const forced = flow.serverForced ? flow.serverUrl : null;
   const [manifest, pref] = await Promise.all([loadManifest(), Promise.resolve(loadPreference())]);
   let results: ProbeResult[] = [];
   // 强制指定或 auto 缓存有效时免测速；manual 仍需测速以显示延迟/判定降级
@@ -235,7 +230,7 @@ export function nodeStatusLines(
   const info = flow.nodeInfo;
   if (!info) return { title: '节点：检测中', latency: '延迟：--' };
   const node = manifest.nodes.find((n) => n.id === info.nodeId);
-  const name = node?.name ?? (forcedServerUrl() ? '自定义' : info.nodeId);
+  const name = node?.name ?? (info.reason === 'forced' ? '自定义' : info.nodeId);
   const mode = info.reason === 'manual' ? '手动'
     : info.reason === 'forced' ? '指定'
     : info.reason === 'fallback' ? '备用' : '自动';

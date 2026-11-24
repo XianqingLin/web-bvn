@@ -1,14 +1,15 @@
 /**
- * BVN Web 入口（切片 14 场景化；切片 34 联机回归自有 room-server 路径）。
+ * BVN Web 入口。
  *
  * 默认进 游戏初始化封面（GameLoadingScene，原版"绊"页）→ 开场徽标 → 主菜单（单机训练 /
  * 联机对战全 UI 流）；
- * ?server= 房间服务器地址覆盖（localStorage 记忆；正式入口与 dev 直通均生效）；
+ * ?server= 房间服务器地址覆盖（会话级强制，禁用随机匹配；正式入口与 dev 直通均生效）；
  * dev 直通参数保留（headless 驱动/快速调试用，跳过开场徽标）：
  *   ?mode=solo                          直接开训练对局（默认 ichigo/gaara/KonohaMura；
  *                                       &intro=1 附带开局特写演出，intro 冒烟用）
- *   ?mode=net&action=create|join&room=   自动入房（6 位数字房码）→ 房间页 → 选人页自动确认
- *   ?mode=match                          随机匹配页（自动排队；双窗口联调切片 37 用）
+ *   ?mode=net&action=create|join&room=   落主菜单自动执行：创建/凭码加入（房间浮层）
+ *                                       → 选人页自动确认
+ *   ?mode=match                          落主菜单自动随机匹配（双窗口联调用）
  *   ?mode=local2p                       本地双人选人页（双键盘双光标目检用，不自动确认）
  */
 import { Application } from 'pixi.js';
@@ -19,7 +20,6 @@ import { AudioSubsystem } from './audio.js';
 import { SceneHost } from './scenes/scene.js';
 import { GameLoadingScene } from './scenes/game-loading.js';
 import { MenuScene } from './scenes/menu.js';
-import { NetScene } from './scenes/net.js';
 import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
 import { makeFlow } from './flow.js';
@@ -81,12 +81,11 @@ async function boot(): Promise<void> {
 
   // —— 场景入口（dev 直通参数见文件头） ——
   const params = new URLSearchParams(location.search);
-  // ?server= 覆盖房间服务器地址（localStorage 记忆；联机入口均消费此值；
-  // 正式入口与 dev 直通都生效）
+  // ?server= 覆盖房间服务器地址（会话级强制，禁用随机匹配；联机入口统一消费此值）
   const serverParam = params.get('server');
   if (serverParam) {
     flow.serverUrl = serverParam;
-    localStorage.setItem('bvn.server', serverParam);
+    flow.serverForced = true;
   }
   const mode = params.get('mode');
   if (!mode) {
@@ -140,10 +139,10 @@ async function boot(): Promise<void> {
     flow.autoPick = false;
     scenes.switchTo(new SetupScene(flow, null));
   } else if (mode === 'net') {
-    flow.mode = 'net';
-    scenes.switchTo(new NetScene(flow, {
+    // dev 直通：主菜单就绪后自动执行（创建/凭码加入）
+    scenes.switchTo(new MenuScene(flow, {
       action: params.get('action') === 'join' ? 'join' : 'create',
-      room: params.get('room') ?? undefined,
+      room: params.get('room') || undefined,
     }));
   } else if (mode === 'match') {
     // dev 直通：主菜单就绪后自动进入随机匹配（双窗口联调用）

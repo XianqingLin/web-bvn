@@ -75,7 +75,6 @@ import type { Flow, Pick } from '../flow.js';
 import { OverlayFx } from './fx.js';
 import { LoadingScene } from './loading.js';
 import { MenuScene } from './menu.js';
-import { NetScene } from './net.js';
 import { transIn, clearTrans } from './trans.js';
 import { warmProgress } from '../warm.js';
 
@@ -315,11 +314,10 @@ export class SetupScene implements Scene {
   private back(ctx: SceneCtx): void {
     const { switchTo } = ctx;
     if (this.flow.mode === 'net') {
+      // socket 已断房间已散：联机入口收进主菜单浮层，直接回菜单
       this.socket?.close();
-      switchTo(new NetScene(this.flow));
-    } else {
-      switchTo(new MenuScene(this.flow));
     }
+    switchTo(new MenuScene(this.flow));
   }
 
   // ---------- 确认框（原版 GameUI.confirm 语义：模态遮罩 + 确认/取消；切片 41） ----------

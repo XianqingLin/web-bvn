@@ -34,9 +34,8 @@ import { ASSETS, loadUi, type UiData } from '../data.js';
 import { FrameStream } from './stream.js';
 import { TitleFxLayer } from './title-fx.js';
 import { SetupScene } from './setup.js';
-import { NetScene } from './net.js';
 import { SettingsOverlay } from './settings.js';
-import { JoinOverlay, MatchOverlay, type NetOverlay } from './net-overlay.js';
+import { JoinOverlay, MatchOverlay, RoomOverlay, type NetOverlay } from './net-overlay.js';
 
 /** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
 const VERSION = 'v0.0.0';
@@ -51,6 +50,8 @@ interface MenuEntry {
   cn: string;
   children?: MenuEntry[];
   action?: () => void;
+  /** 置灰禁用（不可选；键盘导航跳过） */
+  disabled?: boolean;
 }
 
 class MenuBtn {
@@ -111,10 +112,22 @@ class MenuBtn {
   }
 
   hover(): void {
-    if (this.isOpen || this.bg.visible) return;
+    if (this.disabled || this.isOpen || this.bg.visible) return;
     this.bg.visible = true;
     this.bg.scale.set(0.01, 1);
     tweenOf(this.bg, { 'scale.x': 1 }, 200);
+  }
+
+  /** 置灰禁用：半透明、无 hover 板、不可选。 */
+  private disabledFlag = false;
+  get disabled(): boolean {
+    return this.disabledFlag;
+  }
+  set disabled(v: boolean) {
+    this.disabledFlag = v;
+    this.ui.alpha = v ? 0.45 : 1;
+    this.ui.cursor = v ? 'default' : 'pointer';
+    if (v) this.normal();
   }
 
   normal(): void {
@@ -169,12 +182,13 @@ export class MenuScene implements Scene {
   private readonly netOverlays: NetOverlay[] = [];
   private joinOverlay: JoinOverlay | null = null;
   private matchOverlay: MatchOverlay | null = null;
+  private roomOverlay: RoomOverlay | null = null;
   /** 当前开启的联机浮层（同一时刻至多一个；键盘路由与开启互斥判定用） */
   private get netOverlay(): NetOverlay | null {
     return this.netOverlays.find((o) => o.isOpen) ?? null;
   }
   /** dev 直通意图（URL 参数进入：菜单就绪后自动执行，见 runAutoIntent） */
-  private auto: { action: 'create' | 'join' | 'match'; room?: string } | null;
+  private auto: { action: 'create' | 'join' | 'match'; room?: string | undefined } | null;
 
   private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
   private readonly timers: number[] = [];
@@ -187,7 +201,7 @@ export class MenuScene implements Scene {
   private nodeRefreshAcc = 0;
   private stopNodeMonitor: (() => void) | null = null;
 
-  constructor(private readonly flow: Flow, auto: { action: 'create' | 'join' | 'match'; room?: string } | null = null) {
+  constructor(private readonly flow: Flow, auto: { action: 'create' | 'join' | 'match'; room?: string | undefined } | null = null) {
     this.auto = auto;
   }
 
@@ -195,6 +209,13 @@ export class MenuScene implements Scene {
     const root = ctx.root;
     this.switchTo = ctx.switchTo;
     this.ctx = ctx;
+
+    // 平台邀请深链：待入房房码转为自动意图（落主菜单后自动加入）
+    const inviteRoom = this.flow.pendingInviteRoom;
+    if (inviteRoom) {
+      this.flow.pendingInviteRoom = null;
+      this.auto = { action: 'join', room: inviteRoom };
+    }
 
     // 回到主菜单 = 房间已从玩家视角离开：清空平台邀请上下文（platform-seam §4）。
     // 房间页/选人页/对局各退出路径最终都会回到这里,此处统一清一次。
@@ -322,9 +343,15 @@ export class MenuScene implements Scene {
     root.addChild(this.settingsOverlay.ui);
 
     // 联机浮层组（最顶层；半透明暗底，背景菜单动画透出不断）
-    this.joinOverlay = new JoinOverlay(ctx, this.flow);
+    this.joinOverlay = new JoinOverlay(ctx, this.flow, (socket) => {
+      // 入房成功：原地接手房间浮层（不切场景，房间页随片③撤销）
+      this.roomOverlay?.openWithSocket(socket, () => {
+        this.menuEnabled = true;
+      });
+    });
     this.matchOverlay = new MatchOverlay(ctx, this.flow);
-    this.netOverlays.push(this.joinOverlay, this.matchOverlay);
+    this.roomOverlay = new RoomOverlay(ctx, this.flow);
+    this.netOverlays.push(this.joinOverlay, this.matchOverlay, this.roomOverlay);
     for (const o of this.netOverlays) root.addChild(o.ui);
 
     window.addEventListener('keydown', this.onKey);
@@ -511,10 +538,7 @@ export class MenuScene implements Scene {
           {
             en: 'CREATE ROOM',
             cn: '创建房间',
-            action: () => {
-              this.flow.mode = 'net';
-              this.switchTo?.(new NetScene(this.flow, { action: 'create' }));
-            },
+            action: () => this.openCreate(),
           },
           {
             en: 'JOIN ROOM',
@@ -524,6 +548,8 @@ export class MenuScene implements Scene {
           {
             en: 'QUICK MATCH',
             cn: '随机匹配',
+            // 强制服务器（?server=/手填）禁随机匹配：不可信服能伪造对端输入/改种子
+            disabled: this.flow.serverForced,
             action: () => this.openMatch(),
           },
         ],
@@ -551,6 +577,7 @@ export class MenuScene implements Scene {
         b.children = o.children.map((c, j) => {
           const cb = make(c, true);
           cb.index = j;
+          cb.disabled = c.disabled === true;
           return cb;
         });
       }
@@ -599,7 +626,7 @@ export class MenuScene implements Scene {
   }
 
   private selectBtn(btn: MenuBtn): void {
-    if (!this.menuEnabled) return;
+    if (!this.menuEnabled || btn.disabled) return;
     // 原版 MenuBtn.select：确认音（含展开子菜单）
     audioOf(this.ctx?.ctx!)?.se('menu2', 'swc');
     if (btn.children) {
@@ -639,7 +666,9 @@ export class MenuScene implements Scene {
   }
 
   private currentList(): MenuBtn[] {
-    return this.childOpen ? this.childOpen.children! : this.btns;
+    const list = this.childOpen ? this.childOpen.children! : this.btns;
+    // 置灰项不可导航（悬停/回车均跳过）
+    return list.filter((b) => !b.disabled);
   }
 
   // ---------- 设置面板 ----------
@@ -673,6 +702,15 @@ export class MenuScene implements Scene {
     });
   }
 
+  /** 创建房间：房间浮层内直连（浮层间至多一个开启）。 */
+  private openCreate(): void {
+    if (!this.roomOverlay || this.netOverlay) return;
+    this.flow.mode = 'net';
+    this.roomOverlay.openAsCreate(() => {
+      this.menuEnabled = true;
+    });
+  }
+
   /** dev 直通意图：菜单就绪（键盘可操作）后自动执行一次。 */
   private runAutoIntent(): void {
     const a = this.auto;
@@ -685,9 +723,7 @@ export class MenuScene implements Scene {
       this.openJoin();
       if (a.room) this.joinOverlay?.autoFill(a.room);
     } else {
-      // create 在房间浮层落地前仍走旧连接页（片③收编）
-      this.flow.mode = 'net';
-      this.switchTo?.(new NetScene(this.flow, { action: 'create' }));
+      this.openCreate();
     }
   }
 

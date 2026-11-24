@@ -18,8 +18,11 @@ export interface TeamPicks {
 export interface Flow {
   /** solo = 单机训练；local = 本地双人（P1/P2 同机键盘）；net = 联机 lockstep */
   mode: 'solo' | 'local' | 'net';
-  /** 房间服务器地址（联机；localStorage 记忆；节点择优结果写这里） */
+  /** 房间服务器地址（联机；节点择优结果写这里；?server= 强制时 = 参数值） */
   serverUrl: string;
+  /** 服务器地址为 ?server= 强制指定（本会话生效；强制通道禁用随机匹配，
+   *  DESIGN §6.2——不可信服能伪造对端输入/改种子） */
+  serverForced: boolean;
   /** 当前节点选择结果（DESIGN §6.2；UI 显示与诊断用） */
   nodeInfo?: { nodeId: string; reason: string; rttP50?: number };
   /** 本端显示昵称（房间页/VS 横幅；平台昵称，standalone 回退"玩家N"） */
@@ -55,17 +58,19 @@ export interface Flow {
   roleKeymapP2: boolean;
   /** dev 直通模式（URL 参数进入，选人页自动确认默认项） */
   autoPick: boolean;
-  /** 平台邀请深链待入房房码（platform-seam §4：hello join 参数；资产装载完成后由
-   *  GameLoadingScene 消费并自动入房，随后清空。URL `?room=&node=` 深链不走此字段） */
+  /** 平台邀请深链待入房房码（platform-seam §4：hello join 参数；主菜单消费并
+   *  自动加入（落主菜单 → 自动意图），随后清空。URL `?room=&node=` 深链不走此字段） */
   pendingInviteRoom: string | null;
 }
 
 export function makeFlow(): Flow {
   return {
     mode: 'solo',
-    // 服务器地址优先级：?server= 参数 > 手动修改（localStorage，调试覆盖） >
-    // 构建期默认（.env.production，正式构建烘入云服务器）> dev 本地默认
-    serverUrl: localStorage.getItem('bvn.server') ?? import.meta.env.VITE_ROOM_SERVER ?? 'ws://localhost:8787',
+    // 服务器地址优先级：?server= 参数（本会话强制，serverForced=true）>
+    // 构建期默认（.env.production，正式构建烘入云服务器）> dev 本地默认。
+    // 手填记忆（localStorage bvn.server）随服务器地址编辑行下线废弃。
+    serverUrl: import.meta.env.VITE_ROOM_SERVER ?? 'ws://localhost:8787',
+    serverForced: false,
     name: '',
     dock: null,
     player: 1,

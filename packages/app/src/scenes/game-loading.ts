@@ -24,7 +24,6 @@ import type { Scene, SceneCtx } from './scene.js';
 import { ASSETS, loadAudio, loadLoading, loadSelect, loadUi } from '../data.js';
 import { buildLoadingBar, tickLoadingBar, type LoadingBar } from './bar.js';
 import { LogoScene } from './logo.js';
-import { NetScene } from './net.js';
 
 import { warmCommonAssets } from '../warm.js';
 import { UI_W } from '../ui.js';
@@ -175,14 +174,7 @@ export class GameLoadingScene implements Scene {
     // 定场后 → 开场徽标（原版 loadGameBack → goStage(LogoStage)）
     if (this.finishedAt >= 0 && performance.now() - this.finishedAt >= FINISH_HOLD_MS) {
       this.finishedAt = -1; // 防重入（switchTo 异步 enter 期间 update 已停，双保险）
-      // 平台邀请深链（切片 38）：资产已装载，跳过开场徽标/主菜单直接入房
-      // （房码来自 hello join 参数，节点切换已在 boot 时完成）。
-      const inviteRoom = this.flow.pendingInviteRoom;
-      if (inviteRoom) {
-        this.flow.pendingInviteRoom = null;
-        if (this.ctxRef) this.ctxRef.switchTo(new NetScene(this.flow, { action: 'join', room: inviteRoom }));
-        return;
-      }
+      // 平台邀请深链的待入房房码由主菜单消费（自动意图：落主菜单 → 自动加入）
       if (this.ctxRef) this.ctxRef.switchTo(new LogoScene(this.flow));
     }
   }
