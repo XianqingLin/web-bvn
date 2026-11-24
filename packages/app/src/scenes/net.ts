@@ -1,18 +1,15 @@
 /**
- * 联机连接页（切片 34；切片 37 抽提共享助手至 net-common）：
- * 服务器地址（localStorage 记忆）+ 创建/加入房间（6 位数字房码）。
- * 入房成功 → 房间页（RoomScene）；pick 交换与对局沿用既有链路。
- * 纯房码制（2026-11-21）：房间一律私人，加入只凭房码；平台邀请深链（切片 38）
- * 携带房码落进同一入口。
+ * 联机连接页（旧入口，待联机浮层收编）：服务器地址（localStorage 记忆）+
+ * 创建/加入房间（6 位数字房码）；入房成功 → 房间页（RoomScene）。
+ * 房间一律私人，加入只凭房码；平台邀请深链携带房码落进同一入口。
  */
 import { Container, Text } from 'pixi.js';
-import { BufferedSocket, joinRoom, type WsLike } from '@bvn/net';
 import type { Scene, SceneCtx } from './scene.js';
 import { domInput, makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
 import { RoomScene } from './room.js';
 import { MenuScene } from './menu.js';
-import { displayName, makeServerLabel, openServerSocket } from './net-common.js';
+import { enterRoom, makeServerLabel, roomErrorText } from './net-common.js';
 import { reportInviteContext } from '../invite-context.js';
 
 
@@ -21,8 +18,8 @@ export class NetScene implements Scene {
 
   private ui: Container | null = null;
   private status: Text | null = null;
-  private socket: BufferedSocket | null = null;
   private ctx: SceneCtx | null = null;
+  /** 置位后不再入房（返回/exit 竞态守卫；在途连接由完成回调按此收尾） */
   private closed = false;
 
   constructor(
@@ -75,18 +72,11 @@ export class NetScene implements Scene {
   }
 
   private back(): void {
-    this.closeSocket();
+    this.closed = true;
     this.ctx!.switchTo(new MenuScene(this.flow));
   }
 
-  private closeSocket(): void {
-    this.closed = true;
-    this.socket?.close();
-    this.socket = null;
-  }
-
   private async connect(action: 'create' | 'join', roomOverride?: string): Promise<void> {
-    const flow = this.flow;
     const status = this.status!;
     let room = roomOverride ?? '';
     if (action === 'join' && !room) {
@@ -98,49 +88,27 @@ export class NetScene implements Scene {
       }
     }
     status.text = '连接服务器…';
-    let ws: WebSocket;
     try {
-      ws = await openServerSocket(flow.serverUrl);
-    } catch {
-      status.text = '无法连接服务器（检查地址与服务器是否在线）';
-      return;
-    }
-    if (this.closed) {
-      ws.close();
-      return;
-    }
-    const socket = new BufferedSocket(ws as unknown as WsLike);
-    this.socket = socket;
-    try {
-      // 昵称取平台资料（duck typing）；standalone 回退"玩家N"（服务器侧清洗）
-      const name = displayName(flow);
-      const joined = await joinRoom(socket, action, room || undefined, undefined, name || undefined);
-      flow.player = joined.player;
-      flow.room = joined.room;
-      flow.name = name || `玩家${joined.player}`;
+      const { socket } = await enterRoom(this.flow, action, room || undefined);
+      // 等待期间本场景已关闭：不入房，收掉连接
+      if (this.closed) {
+        socket.close();
+        return;
+      }
+      // socket 所有权移交房间页
+      status.text = '';
+      // 上报平台邀请上下文（platform-seam §4）：房间码 + 当前节点，平台原样随邀请透传
+      reportInviteContext(this.flow, { room: this.flow.room, node: this.flow.nodeInfo?.nodeId ?? '' });
+      this.ctx!.switchTo(new RoomScene(this.flow, socket));
     } catch (e) {
-      status.text = `入房失败：${(e as Error).message}`;
-      socket.close();
-      this.socket = null;
-      return;
+      if (this.closed) return;
+      status.text = roomErrorText(e);
     }
-    if (this.closed) {
-      socket.close();
-      this.socket = null;
-      return;
-    }
-    // socket 所有权移交房间页：清空本场景引用，switchTo 触发的 exit() 不得关闭它
-    this.socket = null;
-    status.text = '';
-    // 上报平台邀请上下文（platform-seam §4）：房间码 + 当前节点，平台原样随邀请透传
-    reportInviteContext(flow, { room: flow.room, node: flow.nodeInfo?.nodeId ?? '' });
-
-    this.ctx!.switchTo(new RoomScene(flow, socket));
   }
 
 
   exit(): void {
-    this.closeSocket();
+    this.closed = true;
     this.ui?.destroy({ children: true });
     this.ui = null;
   }

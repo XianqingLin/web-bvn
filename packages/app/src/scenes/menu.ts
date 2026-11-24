@@ -37,6 +37,7 @@ import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
 import { MatchScene } from './match.js';
 import { SettingsOverlay } from './settings.js';
+import { JoinOverlay, type NetOverlay } from './net-overlay.js';
 
 /** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
 const VERSION = 'v0.0.0';
@@ -162,9 +163,11 @@ export class MenuScene implements Scene {
   private childOpen: MenuBtn | null = null;
   private menuEnabled = false;
   private navIndex = 0;
-  /** 设置面板（设置面板切片）：菜单内全屏浮层，打开期间接管键盘/指针 */
+  /** 设置面板：菜单内全屏浮层，打开期间接管键盘/指针 */
   private settingsOverlay: SettingsOverlay | null = null;
   private settingsOpen = false;
+  /** 联机浮层（加入房码/匹配/房间）：菜单内半透明暗底浮层，开启期接管键盘 */
+  private netOverlay: NetOverlay | null = null;
 
   private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
   private readonly timers: number[] = [];
@@ -295,7 +298,7 @@ export class MenuScene implements Scene {
     });
     root.addChild(hit);
 
-    // 设置面板浮层（设置面板切片）：置于最顶层，打开时挡住下层菜单按钮的指针事件；
+    // 设置面板浮层：置于最顶层，打开时挡住下层菜单按钮的指针事件；
     // 原版底板（stg_set_ui）在此预载（Assets 缓存，回菜单零成本）
     const sd = this.uiData.setting;
     const art = async (file: string, origin: [number, number]) => ({
@@ -309,11 +312,16 @@ export class MenuScene implements Scene {
     });
     root.addChild(this.settingsOverlay.ui);
 
+    // 联机浮层（最顶层；半透明暗底，背景菜单动画透出不断）
+    this.netOverlay = new JoinOverlay(ctx, this.flow);
+    root.addChild(this.netOverlay.ui);
+
     window.addEventListener('keydown', this.onKey);
   }
 
   update(dtMs: number): void {
     tickTweens(dtMs);
+    this.netOverlay?.update(dtMs);
     // 节点状态块低频刷新文本（选择完成/监控探测/切节点后由这里上屏）
     this.nodeRefreshAcc += dtMs;
     if (this.nodeRefreshAcc >= 500) {
@@ -365,6 +373,8 @@ export class MenuScene implements Scene {
 
   exit(): void {
     this.destroyed = true;
+    this.netOverlay?.dispose();
+    this.netOverlay = null;
     this.stopNodeMonitor?.();
     this.stopNodeMonitor = null;
     window.removeEventListener('keydown', this.onKey);
@@ -492,10 +502,7 @@ export class MenuScene implements Scene {
           {
             en: 'JOIN ROOM',
             cn: '加入房间',
-            action: () => {
-              this.flow.mode = 'net';
-              this.switchTo?.(new NetScene(this.flow, { action: 'join' }));
-            },
+            action: () => this.openJoin(),
           },
           {
             en: 'QUICK MATCH',
@@ -621,7 +628,7 @@ export class MenuScene implements Scene {
     return this.childOpen ? this.childOpen.children! : this.btns;
   }
 
-  // ---------- 设置面板（设置面板切片） ----------
+  // ---------- 设置面板 ----------
 
   private openSettings(): void {
     if (this.settingsOpen || !this.settingsOverlay) return;
@@ -629,6 +636,16 @@ export class MenuScene implements Scene {
     // selectBtn 已置 menuEnabled=false；关闭浮层时恢复菜单导航
     this.settingsOverlay.open(() => {
       this.settingsOpen = false;
+      this.menuEnabled = true;
+    });
+  }
+
+  /** 加入房码浮层（联机入口原地化）：开启期菜单键盘/指针交由浮层接管。 */
+  private openJoin(): void {
+    if (!this.netOverlay || this.netOverlay.isOpen) return;
+    this.flow.mode = 'net';
+    // selectBtn 已置 menuEnabled=false；收回浮层时恢复菜单导航
+    this.netOverlay.open(() => {
       this.menuEnabled = true;
     });
   }
@@ -644,6 +661,11 @@ export class MenuScene implements Scene {
     if (this.settingsOpen) {
       // 浮层打开期间键盘由设置面板接管
       this.settingsOverlay?.handleKey(e);
+      return;
+    }
+    if (this.netOverlay?.isOpen) {
+      // 浮层打开期间键盘由联机浮层接管
+      this.netOverlay.handleKey(e);
       return;
     }
     if (!this.menuEnabled) return;
