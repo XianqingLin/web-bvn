@@ -33,8 +33,7 @@ export interface Flow {
   player: 1 | 2;
   /** 房间码（联机；自有服务器 6 位数字码） */
   room: string;
-  /** 本端选人 */
-  localPick: Pick | null;
+  /** 本端选人 */  localPick: Pick | null;
   /** 对端选人（联机；对局装配以 p1Pick/p2Pick 为准） */
   peerPick: Pick | null;
   /** 团队模式（房间设置 team / 匹配由服务器裁定并回执）——选人页 3 选 + 1 援助节奏 */
@@ -61,6 +60,9 @@ export interface Flow {
   /** 平台邀请深链待入房房码（platform-seam §4：hello join 参数；主菜单消费并
    *  自动加入（落主菜单 → 自动意图），随后清空。URL `?room=&node=` 深链不走此字段） */
   pendingInviteRoom: string | null;
+  /** 深链跨节点加入意图（URL `?room=&node=`；主菜单确认后锁定切换并加入，
+   *  DESIGN §6.2。pendingInviteRoom 走 hello join，两条深链互斥） */
+  pendingDeepLink: { room: string; node: string } | null;
 }
 
 export function makeFlow(): Flow {
@@ -87,6 +89,7 @@ export function makeFlow(): Flow {
     roleKeymapP2: false,
     autoPick: false,
     pendingInviteRoom: null,
+    pendingDeepLink: null,
   };
 }
 

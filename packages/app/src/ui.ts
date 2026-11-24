@@ -42,9 +42,10 @@ export function makePanel(w: number, h: number, opts: { color?: number; alpha?: 
   return g;
 }
 
-/** 文字按钮：hover 提亮 + 点击回调；返回容器（可置 .disabled）。 */
+/** 文字按钮：hover 提亮 + 点击回调；返回容器（可置 .disabled / 改文字）。 */
 export interface Button extends Container {
   disabled: boolean;
+  setLabel(text: string): void;
 }
 
 export function makeButton(
@@ -82,6 +83,9 @@ export function makeButton(
   c.on('pointerover', () => !disabled && draw(0x34527e));
   c.on('pointerout', () => !disabled && draw(opts.color ?? 0x24344e));
   c.on('pointertap', () => !disabled && onClick());
+  c.setLabel = (text) => {
+    t.text = text;
+  };
   return c;
 }
 

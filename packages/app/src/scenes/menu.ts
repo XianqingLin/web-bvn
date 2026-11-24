@@ -25,7 +25,7 @@ import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
 import { makeLabel, UI_H, UI_W } from '../ui.js';
-import { nodeStatusLines, startNodeMonitor, loadManifest, SEED_MANIFEST } from '../nodes.js';
+import { nodeStatusLines, startNodeMonitor, loadManifest, resolveJoinNode, SEED_MANIFEST } from '../nodes.js';
 import { reportInviteContext } from '../invite-context.js';
 
 import { tickTweens, tweenOf, clearTweens } from '../anim.js';
@@ -35,13 +35,16 @@ import { FrameStream } from './stream.js';
 import { TitleFxLayer } from './title-fx.js';
 import { SetupScene } from './setup.js';
 import { SettingsOverlay } from './settings.js';
-import { JoinOverlay, MatchOverlay, RoomOverlay, type NetOverlay } from './net-overlay.js';
+import { JoinOverlay, MatchOverlay, RoomOverlay, ConfirmOverlay, type NetOverlay } from './net-overlay.js';
 
 /** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
 const VERSION = 'v0.0.0';
 
 /** 原版 800×600 舞台在 1000×600 逻辑屏内的横向偏移。 */
 const OX = (UI_W - 800) / 2;
+
+/** 会话级标记：主菜单开场是否已完整走过（回菜单不重播，刷新页面重置）。 */
+let menuIntroPlayed = false;
 
 // ---------- 菜单项定义与按钮（MenuBtn 原版语义） ----------
 
@@ -183,12 +186,15 @@ export class MenuScene implements Scene {
   private joinOverlay: JoinOverlay | null = null;
   private matchOverlay: MatchOverlay | null = null;
   private roomOverlay: RoomOverlay | null = null;
+  private confirmOverlay: ConfirmOverlay | null = null;
   /** 当前开启的联机浮层（同一时刻至多一个；键盘路由与开启互斥判定用） */
   private get netOverlay(): NetOverlay | null {
     return this.netOverlays.find((o) => o.isOpen) ?? null;
   }
   /** dev 直通意图（URL 参数进入：菜单就绪后自动执行，见 runAutoIntent） */
   private auto: { action: 'create' | 'join' | 'match'; room?: string | undefined } | null;
+  /** 菜单就绪后待执行的意图（跨节点加入确认流程挂在 enableMenu 之后） */
+  private pendingIntent: (() => void) | null = null;
 
   private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
   private readonly timers: number[] = [];
@@ -215,6 +221,12 @@ export class MenuScene implements Scene {
     if (inviteRoom) {
       this.flow.pendingInviteRoom = null;
       this.auto = { action: 'join', room: inviteRoom };
+    }
+    // 深链跨节点加入：菜单就绪后确认/锁定切换（DESIGN §6.2）
+    const deepLink = this.flow.pendingDeepLink;
+    if (deepLink) {
+      this.flow.pendingDeepLink = null;
+      this.pendingIntent = () => void this.processDeepLink(deepLink);
     }
 
     // 回到主菜单 = 房间已从玩家视角离开：清空平台邀请上下文（platform-seam §4）。
@@ -351,13 +363,14 @@ export class MenuScene implements Scene {
     });
     this.matchOverlay = new MatchOverlay(ctx, this.flow);
     this.roomOverlay = new RoomOverlay(ctx, this.flow);
-    this.netOverlays.push(this.joinOverlay, this.matchOverlay, this.roomOverlay);
+    this.confirmOverlay = new ConfirmOverlay();
+    this.netOverlays.push(this.joinOverlay, this.matchOverlay, this.roomOverlay, this.confirmOverlay);
     for (const o of this.netOverlays) root.addChild(o.ui);
 
     window.addEventListener('keydown', this.onKey);
 
-    // dev 直通意图：开场不必等待，立即可跳过并自动执行（菜单就绪后 runAutoIntent）
-    if (this.auto) {
+    // 会话内回到主菜单不重播开场（对局/选人/房间返回路径）；dev 自动意图同此
+    if (menuIntroPlayed || this.auto) {
       this.skipEnabled = true;
       void this.skipIntro();
     }
@@ -730,7 +743,54 @@ export class MenuScene implements Scene {
   /** 菜单就绪统一入口（开场跳过动画后 400ms）：置可操作并消费自动意图。 */
   private enableMenu(): void {
     this.menuEnabled = true;
+    // 开场已消费（会话内回菜单不再重播）
+    menuIntroPlayed = true;
     this.runAutoIntent();
+    const intent = this.pendingIntent;
+    this.pendingIntent = null;
+    intent?.();
+  }
+
+  // ---------- 跨节点加入（DESIGN §6.2） ----------
+
+  /**
+   * 深链 `?room=&node=`：目标节点不可用 → 提示框（不得静默回退当前节点误报
+   * 房不存在）；与当前节点一致 → 直接自动加入；不同 → 确认框，确认后锁定
+   * 切换（resolveJoinNode 写 manual 意图）再自动加入，取消则留在菜单。
+   */
+  private async processDeepLink(intent: { room: string; node: string }): Promise<void> {
+    const manifest = await loadManifest();
+    const target = manifest.nodes.find((n) => n.id === intent.node && n.enabled);
+    const current = manifest.nodes.find((n) => n.url === this.flow.serverUrl);
+    if (target && current && current.id === target.id) {
+      this.openJoin();
+      this.joinOverlay?.autoFill(intent.room);
+      return;
+    }
+    if (!target) {
+      this.confirmOverlay?.openConfirm(
+        '节点不可用',
+        `该房间所在节点「${intent.node}」不可用，无法加入`,
+        null,
+        () => {
+          this.menuEnabled = true;
+        },
+      );
+      return;
+    }
+    this.confirmOverlay?.openConfirm(
+      '跨节点加入',
+      `该房间在「${target.name}」节点，切换节点并加入？`,
+      () => {
+        void resolveJoinNode(this.flow, intent.room, intent.node).then(() => {
+          this.openJoin();
+          this.joinOverlay?.autoFill(intent.room);
+        });
+      },
+      () => {
+        this.menuEnabled = true;
+      },
+    );
   }
 
   private handleKey(e: KeyboardEvent): void {

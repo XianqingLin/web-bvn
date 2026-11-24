@@ -89,19 +89,18 @@ async function boot(): Promise<void> {
   }
   const mode = params.get('mode');
   if (!mode) {
-    // 正式入口：深链跨节点加入引导（?room=&node=，DESIGN §6.2）
-    // → 之后后台异步择优节点（与封面动画并行，不阻塞；?server= 强制指定优先）。
-    // 两者都只写 flow.serverUrl——联机场景进房时统一读它，对局协议零改动。
-    // 平台邀请深链（切片 38，2026-11-23）：hello join 参数语义等价 ?room=&node=，
-    // 且把房码暂存 flow.pendingInviteRoom——资产装载完成后由 GameLoadingScene
-    // 直接进入加入流程（跳过开场徽标/主菜单，把人带进房间）。
+    // 正式入口：后台异步择优节点（与封面动画并行，不阻塞；?server= 强制指定优先）。
+    // 深链 `?room=&node=`（DESIGN §6.2）与 hello join 均语义等价"指定房间 + 节点"：
+    // 前者只登记 flow.pendingDeepLink（目标节点 ≠ 当前时由主菜单确认框锁定切换），
+    // 后者沿用静默锁定切换 + 房码暂存 flow.pendingInviteRoom（主菜单自动加入；
+    // 邀请票模型落地后收口为邀请卡）。
     const inviteJoin = readInviteJoin(flow.dock);
     const joinRoomCode = params.get('room');
     const joinNode = params.get('node');
     void (async () => {
       if (joinRoomCode && joinNode) {
-        await resolveJoinNode(flow, joinRoomCode, joinNode);
-        // 深链带 node = 用户显式指定目标节点，等价于 manual，跳过后台自动择优
+        flow.pendingDeepLink = { room: joinRoomCode, node: joinNode };
+        await selectNode(flow);
         return;
       }
       if (inviteJoin) {

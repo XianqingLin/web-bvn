@@ -22,7 +22,7 @@ import {
 } from '@bvn/net';
 import type { SceneCtx } from './scene.js';
 import { tweenOf } from '../anim.js';
-import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
+import { makeButton, makeLabel, UI_H, UI_W, type Button } from '../ui.js';
 import type { Flow } from '../flow.js';
 import { displayName, enterRoom, openServerSocket, roomErrorText } from './net-common.js';
 import { reportInviteContext } from '../invite-context.js';
@@ -1064,5 +1064,69 @@ export class RoomOverlay extends NetOverlay {
 
     // 已开局但本端还停在房间页（理论上不发生：start 立即移交）；快照清掉过期提示
     if (guestReady && this.status.text === '对方还未准备') this.setStatus('', 0xffd54f);
+  }
+}
+
+// ---------- 确认框浮层 ----------
+
+/** 两键确认框（onConfirm = null 时为单键提示框）。 */
+export class ConfirmOverlay extends NetOverlay {
+  private readonly titleText: Text;
+  private readonly bodyText: Text;
+  private readonly confirmBtn: Button;
+  private readonly cancelBtn: Button;
+  private onConfirm: (() => void) | null = null;
+
+  constructor() {
+    super();
+
+    const box = new Container();
+    const bg = new Graphics();
+    bg.roundRect(UI_W / 2 - 250, 210, 500, 170, 10)
+      .fill({ color: 0x000000, alpha: 0.9 })
+      .stroke({ width: 1, color: 0xfded65 });
+    box.addChild(bg);
+    this.titleText = makeLabel('', { size: 22, color: 0xffffff, bold: true });
+    this.titleText.anchor.set(0.5, 0);
+    this.titleText.position.set(UI_W / 2, 236);
+    this.bodyText = makeLabel('', { size: 17, color: 0xd8dce6 });
+    this.bodyText.anchor.set(0.5, 0);
+    this.bodyText.position.set(UI_W / 2, 274);
+    box.addChild(this.titleText, this.bodyText);
+    this.content.addChild(box);
+
+    this.confirmBtn = makeButton('确认', () => this.accept(), { w: 160, h: 44 });
+    this.confirmBtn.position.set(UI_W / 2 - 190, 316);
+    this.cancelBtn = makeButton('取消', () => this.close(), { w: 160, h: 44, color: 0x3a3040 });
+    this.cancelBtn.position.set(UI_W / 2 + 30, 316);
+    this.content.addChild(this.confirmBtn, this.cancelBtn);
+  }
+
+  /** 打开确认框；onConfirm = null → 单键提示（「确认」即关闭）。 */
+  openConfirm(title: string, text: string, onConfirm: (() => void) | null, onClosed: () => void): void {
+    this.onConfirm = onConfirm;
+    const single = onConfirm === null;
+    this.titleText.text = title;
+    this.bodyText.text = text;
+    this.confirmBtn.label = single ? '确定' : '确认';
+    this.cancelBtn.visible = !single;
+    super.open(onClosed);
+  }
+
+  handleKey(e: KeyboardEvent): void {
+    const k = e.key;
+    if (k === 'Escape' || k === 'Backspace') {
+      e.preventDefault();
+      this.close();
+    } else if (k === 'Enter' || k === ' ' || k === 'j' || k === 'J') {
+      e.preventDefault();
+      this.accept();
+    }
+  }
+
+  private accept(): void {
+    const cb = this.onConfirm;
+    this.close();
+    cb?.();
   }
 }
