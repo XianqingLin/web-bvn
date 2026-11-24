@@ -1,5 +1,5 @@
 /**
- * 节点择优的纯决策逻辑（docs/server-selection.md §3）。
+ * 节点择优的纯决策逻辑（DESIGN §6.2）。
  * 放在 net 包以便单测（无 DOM / 无 app 依赖）；app 层 nodes.ts 负责清单加载、
  * ping 测速与 DOM，复用这里的 score/decide。
  */

@@ -91,7 +91,7 @@ async function boot(): Promise<void> {
   }
   const mode = params.get('mode');
   if (!mode) {
-    // 正式入口：深链跨节点加入引导（?room=&node=，文档 server-selection §4）
+    // 正式入口：深链跨节点加入引导（?room=&node=，DESIGN §6.2）
     // → 之后后台异步择优节点（与封面动画并行，不阻塞；?server= 强制指定优先）。
     // 两者都只写 flow.serverUrl——联机场景进房时统一读它，对局协议零改动。
     // 平台邀请深链（切片 38，2026-11-23）：hello join 参数语义等价 ?room=&node=，

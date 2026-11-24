@@ -5,7 +5,7 @@
  * - 上报：进入可被邀请加入的房间时 `game:invite-context` 携带 { room, node }，
  *   回到菜单（房间已从玩家视角离开）时上报 null 清空。平台把最新值随好友邀请透传。
  * - 消费：经平台邀请打开游戏时，hello 的 join 字段携带 { room, node }，
- *   语义等价深链 `?room=&node=`（server-selection §4/§5）。
+ *   语义等价深链 `?room=&node=`（DESIGN §6.2）。
  */
 import type { GameDockSdk } from '@gamedock/game-sdk';
 import type { Flow } from './flow.js';

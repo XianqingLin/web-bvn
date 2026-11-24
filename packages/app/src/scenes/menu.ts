@@ -251,7 +251,7 @@ export class MenuScene implements Scene {
     this.phase = 'intro';
     group.visible = false;
 
-    // 版本字 + 节点状态块（server-selection）：左下角三行左对齐，13px 统一字号
+    // 版本字 + 节点状态块（DESIGN §6.2）：左下角三行左对齐，13px 统一字号
     //（2026-11-24 决策：版本缩为仅 "v X.X.X" 并与节点块并址左下；双色同族不割裂——
     //  节点两行浅蓝 0x8fd0ff，版本同族降饱和 0x6ea0cd。原版版本字在右下角黑色 18px，
     //  此处布局为自觉偏离，颜色随底色可读性定）。

@@ -20,7 +20,7 @@ export interface Flow {
   mode: 'solo' | 'local' | 'net';
   /** 房间服务器地址（联机；localStorage 记忆；节点择优结果写这里） */
   serverUrl: string;
-  /** 当前节点选择结果（server-selection；UI 显示与诊断用） */
+  /** 当前节点选择结果（DESIGN §6.2；UI 显示与诊断用） */
   nodeInfo?: { nodeId: string; reason: string; rttP50?: number };
   /** 本端显示昵称（房间页/VS 横幅；平台昵称，standalone 回退"玩家N"） */
   name: string;

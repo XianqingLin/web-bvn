@@ -1,4 +1,4 @@
-/** 节点择优纯逻辑单测（docs/server-selection.md §3）。 */
+/** 节点择优纯逻辑单测（DESIGN §6.2）。 */
 import { describe, expect, it } from 'vitest';
 import {
   decide, score, SELECT_TTL_MS,

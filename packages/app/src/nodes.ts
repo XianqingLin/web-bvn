@@ -1,10 +1,10 @@
 /**
- * 节点选择系统（docs/server-selection.md，2026-11-22 立项）。
+ * 节点选择系统（DESIGN §6.2，2026-11-22 立项）。
  *
  * 房间服从"烘死单地址"升级为"多节点清单 + 自动测速择优"（2026-11-22 决策变更：
  * 取消玩家手动切换，节点只由后台自动择优/跨节点加入锁定，无切换 UI）。
  * 本模块是纯 app 层：不碰 sim/core，对局期协议零改动。唯一出口是选出的
- * serverUrl 写回 flow.serverUrl。设计规格与边界见 docs/server-selection.md。
+ * flow.serverUrl。设计定案见 DESIGN §6.2。
  */
 import type { Flow } from './flow.js';
 import type {
@@ -225,7 +225,7 @@ export async function resolveJoinNode(
 }
 
 /**
- * Menu 左下角节点状态块（server-selection，2026-11-24 与版本字并址）：标题行 + 延迟行。
+ * Menu 左下角节点状态块（DESIGN §6.2；2026-11-24 与版本字并址）：标题行 + 延迟行。
  * 延迟由 startNodeMonitor 周期探测写回 flow.nodeInfo.rttP50，随周期变化。
  */
 export function nodeStatusLines(

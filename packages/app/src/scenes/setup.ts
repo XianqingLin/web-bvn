@@ -15,7 +15,7 @@
  *    退场 = 各格回中心 scale→0，0.2s，delay 随机 0..0.1s，0.3s 后换阶段；
  *    地图面板 = 中心 scale 0→1，0.3s Back.easeOut。
  *
- * 联机双光标（切片 35，规格 docs/netplay-design.md §7；solo 流不受影响）：
+ * 联机双光标（切片 35，规格 DESIGN §6.3；solo 流不受影响）：
  *  - 复刻原版本地双人"双光标各自操作互不阻塞"，从同一台键盘搬到两台客户端：
  *    本端光标跟随本端鼠标 hover，变更即 cursor 广播（轻量覆盖消息）；
  *  - 选中即锁：点击即锁定、无反悔；随机项此刻解析成具体角色后按最终项同步；
@@ -26,9 +26,9 @@
  *  - pick 覆盖式累计上行（3s 重发兜底幂等）；地图尾沿用最终 pick（map 仅 P1，
  *    P2 收到即移交加载页）；
  *  - 消息泵：socket.onmessage 常驻接管（cursor/pick/map-pick/seed/peer-lost 分派），
- *    断线按 netplay-design §10 提示后回主菜单。
+ *    断线按 DESIGN §6.3 提示后回主菜单。
  *
- * 地图阶段（切片 36 建；2026-11-21 收缩，规格 docs/netplay-design.md §8）：
+ * 地图阶段（切片 36 建；2026-11-21 收缩，规格 DESIGN §6.3）：
  *  - 好友房（mapSelect=true）：仅房主选择页一种形态——房主轮盘可操作，每次切换
  *    map-pick 广播；客座只读面板实时跟随（轮盘同款渲染、无交互），房主确认走
  *    最终 pick.map（"？"随机项确认时由房主解析成具体 id）；
@@ -813,7 +813,7 @@ export class SetupScene implements Scene {
     this.styleStack(arr);
   }
 
-  // ---------- 联机双光标（切片 35；规格 docs/netplay-design.md §7） ----------
+  // ---------- 联机双光标（切片 35；规格 DESIGN §6.3） ----------
 
   private stageList(): SelectEntry[] {
     return this.phase === 'assist' ? this.select!.assists : this.select!.chars;
@@ -1224,7 +1224,7 @@ export class SetupScene implements Scene {
     this.syncBoxStack(this.peerBoxSide(), this.entriesOf(this.peerStageLocks()));
   }
 
-  /** 连接断开（netplay-design §10：选人中掉线 → 提示后双方回主菜单）。 */
+  /** 连接断开（DESIGN §6.3：选人中掉线 → 提示后双方回主菜单）。 */
   private onNetDown(): void {
     if (this.netDead || this.done) return;
     this.netDead = true;

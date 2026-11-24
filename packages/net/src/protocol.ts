@@ -1,7 +1,7 @@
 /**
  * lockstep + 房间协议（切片 6/7 基础；切片 34 房间语义扩展；切片 37 匹配；
  * 2026-11-21 纯房码制：浏览列表下线、房间一律私人、地图阶段收缩——见
- * docs/netplay-design.md §3/§5/§8 当日定案）。
+ * DESIGN §6.3 当日定案）
  * 服务器解析连接编排与房间语义（create/join/welcome/room-info/room-config/
  * ready/begin/hello/start/error）与匹配语义（queue/unqueue/matched），UI 同步类
  * （cursor/map-pick）与对局类（input/hash/pick）原样透传给同房间对端，不解析。
@@ -42,7 +42,7 @@ export interface RoomMemberInfo {
   ready: boolean;
 }
 
-// ---------- 匹配（切片 37，netplay-design §6/§9） ----------
+// ---------- 匹配（切片 37，DESIGN §6.3） ----------
 
 export type NetMessage =
   /** 客户端 → 服务器：创建房间（成为 P1）。name = 显示昵称。
@@ -96,10 +96,10 @@ export type NetMessage =
    *  map = 地图 id 或 'random'（"？"项广播键；确认时才由房主解析成具体 id 走最终 pick.map） */
   | { t: 'map-pick'; player: PlayerSlot; map: string }
   /** 权威种子（服务器生成，begin 时广播；2026-11-21 更名 map-roll → seed——开箱抽取
-   *  动画下线后它只是种子载体）。兼作对局 sim seed 进 configHash（netplay-design §9）；
+   *  动画下线后它只是种子载体）。兼作对局 sim seed 进 configHash（DESIGN §6.3）；
    *  匹配路径无此消息（seed 随 matched 携带） */
   | { t: 'seed'; seed: number }
-  // ---------- 节点测速（server-selection §5；服务器只读回显，不入房/不排队） ----------
+  // ---------- 节点测速（DESIGN §6.2；服务器只读回显，不入房/不排队） ----------
   /** 客户端 → 房间服：测速探针（id 原样回；服务器收到不解析房间语义） */
   | { t: 'ping'; id: number }
   /** 房间服 → 客户端：测速回显。queue = 当前匹配队列长度（择优负载软加权用） */
