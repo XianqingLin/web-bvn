@@ -10,7 +10,8 @@
  *      （旋涡 71/扫光 93/箭头 96/kuang 99）经 swf2xml 手术剔除后重导"干净底板"，帧序
  *      单独导出为叠加层 assets/ui/select-fx/<char>/，位置经模板匹配实测校准）；
  *   2b. title.swf 三层夹心（2026-11-24 重审立项）：底板/顶板 XML 手术（剔 fx+顶层 /
- *       只留顶层）→ stg_title 各 90 帧（底板 WebP q80 ~8.5MB、顶板 α WebP）；fx 叠加层
+ *       只留顶层；顶板另剔 5DPLAY 导流横幅栈 char 19——2026-11-24 决策移除，见 3b 内注）
+ *       → stg_title 各 90 帧（底板 WebP q80 ~8.5MB、顶板 α WebP）；fx 叠加层
  *       9 元件帧序 + vs（59 遮罩扫光）合成帧 → assets/ui/title-fx/<char>/（~1.5MB）；
  *       放置 keys（placementSegments）写进 baked ui.json title.fx；
  *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
@@ -619,10 +620,14 @@ const titlePlates = { bottomOrigin: null, topOrigin: null };
     .map((s) => ({ depth: s.depth, charId: s.charId, from: s.from, to: s.to }));
   // 顶板手术：d<=25 全部段（char-less 窗口，连静态底图带 fx 一起剔）+ 59 段
   //（59 内扫光 56 是 clipDepth 遮罩，烘板会冻结成死帧 → 59 由运行时合成帧替代；
-  //  同深度 37 的两个段（18-25/65-90）保留在顶板）
+  //  同深度 37 的两个段（18-25/65-90）保留在顶板）+ 5DPLAY 导流横幅栈
+  //（char 19 logomc_3，d27 独占、1..90 恒置 @(666.45,391.3)；2026-11-24 决策：
+  //  他站导流广告不进重构版，整段剔除——原版单元件放置，剔即全帧消失，
+  //  右下角自营需求由运行时独立元素承担，不烘进板）
   const topSpecs = rootSegs
     .filter((s) => s.depth <= 25 || s.charId === 59)
     .map((s) => ({ depth: s.depth, from: s.from, to: s.to }));
+  topSpecs.push({ depth: 27, charId: 19, from: 1, to: TITLE.frames });
   const bakePlates = async (xml, what) => {
     const cleaned = removePlacements(xml, ROOT, what === 'bottom' ? bottomSpecs : topSpecs);
     const outXml = join(SCRATCH, `title-${what}.xml`);

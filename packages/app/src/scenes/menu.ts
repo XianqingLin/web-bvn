@@ -18,8 +18,8 @@
  * 释放身后帧）；磁盘 WebP 共 ~8.5MB（PNG 的 1/13）。
  *
  * 三层夹心（切片 46）：底板流（剔除嵌套 fx 的干净板）→ fx 叠加层（嵌套元件按 SWF
- * 放置语义运行时合成，嵌套播放头板帧同步推进、定格期照走）→ 顶板流（logo/徽标/
- * 白闪，色变换烘焙）。两板流同帧号锁步推进，顶板纹理未就绪时停帧等待（失败帧除外）。
+ * 放置语义运行时合成，嵌套播放头板帧同步推进、定格期照走）→ 顶板流（logo/白闪，
+ * 色变换烘焙；原 5DPLAY 导流横幅栈已剔除——2026-11-24 决策，见 DESIGN §4/ui-pack 3b）。两板流同帧号锁步推进，顶板纹理未就绪时停帧等待（失败帧除外）。
  */
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
