@@ -20,7 +20,6 @@ import { SceneHost } from './scenes/scene.js';
 import { GameLoadingScene } from './scenes/game-loading.js';
 import { MenuScene } from './scenes/menu.js';
 import { NetScene } from './scenes/net.js';
-import { MatchScene } from './scenes/match.js';
 import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
 import { makeFlow } from './flow.js';
@@ -147,9 +146,8 @@ async function boot(): Promise<void> {
       room: params.get('room') ?? undefined,
     }));
   } else if (mode === 'match') {
-    // dev 直通：随机匹配页（自动排队目检/双窗口联调用）
-    flow.mode = 'net';
-    scenes.switchTo(new MatchScene(flow));
+    // dev 直通：主菜单就绪后自动进入随机匹配（双窗口联调用）
+    scenes.switchTo(new MenuScene(flow, { action: 'match' }));
   } else {
     scenes.switchTo(new MenuScene(flow));
   }

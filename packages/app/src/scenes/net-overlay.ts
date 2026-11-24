@@ -9,12 +9,15 @@
  * 失败红字抖动。
  */
 import { Container, Graphics, Text } from 'pixi.js';
+import { BufferedSocket, sendQueue, sendUnqueue, type WsLike } from '@bvn/net';
 import type { SceneCtx } from './scene.js';
-import { makeLabel, UI_H, UI_W } from '../ui.js';
+import { tweenOf } from '../anim.js';
+import { makeButton, makeLabel, UI_H, UI_W } from '../ui.js';
 import type { Flow } from '../flow.js';
-import { enterRoom, roomErrorText } from './net-common.js';
+import { displayName, enterRoom, openServerSocket, roomErrorText } from './net-common.js';
 import { reportInviteContext } from '../invite-context.js';
 import { RoomScene } from './room.js';
+import { SetupScene } from './setup.js';
 
 /** 全屏暗底（半透明，菜单背景动画透出）。 */
 const BACKDROP = { color: 0x040a14, alpha: 0.62 };
@@ -188,6 +191,15 @@ export class JoinOverlay extends NetOverlay {
     this.teardownInput();
   }
 
+  /** dev 直通：预填房码并直接确认入房（UI 入口不调）。 */
+  autoFill(room: string): void {
+    const digits = room.replace(/\D/g, '').slice(0, CODE_LEN);
+    if (digits.length < CODE_LEN) return;
+    this.digits = digits;
+    this.syncCells();
+    this.confirm();
+  }
+
   // ---------- 房码采集 ----------
 
   /** 隐藏采集输入：视觉隐藏但仍可聚焦（移动端唤起数字键盘），格子只是显示层。 */
@@ -305,5 +317,380 @@ export class JoinOverlay extends NetOverlay {
         this.fail(roomErrorText(e));
       },
     );
+  }
+}
+
+// ---------- 随机匹配浮层 ----------
+
+/** P1/P2 位次色（与选人页双色框同族：P1 蓝 / P2 粉）。 */
+const SIDE_COLORS: Record<1 | 2, number> = { 1: 0x2f9bff, 2: 0xff5fa2 };
+
+/** 横幅展示下限（上限以建连就绪为准）。 */
+const BANNER_MIN_MS = 2500;
+/** 建连失败自动重排的间隔。 */
+const RETRY_DELAY_MS = 1200;
+
+/**
+ * VS 横幅：左右色块 + 昵称 + 中央 VS + 顶部文案；返回容器（调用方自行挂载/销毁）。
+ * 偏离登记：「头像」暂以位次色块占位（同选人页色族）——平台头像资料接入后收口。
+ */
+export function buildVsBanner(leftName: string, rightName: string, caption = '已找到对手'): Container {
+  const root = new Container();
+
+  const cap = makeLabel(caption, { size: 20, color: 0xffd54f, bold: true });
+  cap.anchor.set(0.5);
+  cap.position.set(UI_W / 2, 180);
+  root.addChild(cap);
+
+  const side = (name: string, color: number, x: number) => {
+    const box = new Container();
+    const g = new Graphics();
+    g.rect(0, 0, 280, 170).fill({ color, alpha: 0.25 });
+    g.stroke({ width: 2, color }).rect(1, 1, 278, 168);
+    box.addChild(g);
+    const face = makeLabel('?', { size: 64, color, bold: true });
+    face.anchor.set(0.5);
+    face.position.set(140, 62);
+    box.addChild(face);
+    const t = makeLabel(name, { size: 22, color: 0xffffff, bold: true });
+    t.anchor.set(0.5, 0);
+    t.position.set(140, 108);
+    box.addChild(t);
+    box.position.set(x, 230);
+    return box;
+  };
+  root.addChild(side(leftName, SIDE_COLORS[1], UI_W / 2 - 340));
+  root.addChild(side(rightName, SIDE_COLORS[2], UI_W / 2 + 60));
+
+  const vs = makeLabel('VS', { size: 64, color: 0xffffff, bold: true });
+  vs.anchor.set(0.5);
+  vs.position.set(UI_W / 2, 315);
+  root.addChild(vs);
+
+  return root;
+}
+
+/** 秒表文本（匹配中 MM:SS）。 */
+function clockText(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+}
+
+/**
+ * 随机匹配浮层：待机（模式偏好 + 开始）→ 匹配中（秒表 + ✕ 滑出）→
+ * VS 横幅（下限 2.5s + start 就绪即切选人页）。失败自动重排，Esc/✕ 退队回待机。
+ * 模式偏好仅待机可切（上行 queue.team，权威值以 matched.team 回执为准）。
+ */
+export class MatchOverlay extends NetOverlay {
+  private state: 'idle' | 'matching' | 'banner' = 'idle';
+
+  private readonly body = new Container();
+  private readonly status: Text;
+  private readonly statusX = UI_W / 2;
+
+  private socket: WsLike | null = null;
+  /** 底层连接已断（退队不再上行，仅等待重连重排） */
+  private linkClosed = false;
+  /** 重试定时器在途（error + close 连锁只排一次） */
+  private retrying = false;
+  /** 匹配中秒表与横幅期状态 */
+  private matchingMs = 0;
+  private matchingLabel: Text | null = null;
+  private banner: { left: string; right: string } | null = null;
+  private bannerMs = 0;
+  private startReady = false;
+  /** 已移交选人页（dispose 不得关 socket） */
+  private handedOver = false;
+  private readonly timers: number[] = [];
+
+  constructor(
+    private readonly ctx: SceneCtx,
+    private readonly flow: Flow,
+  ) {
+    super();
+    this.content.addChild(this.body);
+    this.status = makeLabel('', { size: 16, color: 0xffd54f });
+    this.status.anchor.set(0.5);
+    this.status.position.set(this.statusX, 500);
+    this.content.addChild(this.status);
+  }
+
+  open(onClosed: () => void): void {
+    super.open(onClosed);
+    this.toIdle();
+  }
+
+  handleKey(e: KeyboardEvent): void {
+    const k = e.key;
+    if (k === 'Escape') {
+      e.preventDefault();
+      if (this.state === 'idle') this.retract();
+      else this.cancel();
+      return;
+    }
+    if (this.state === 'idle') {
+      if (k === 'Enter' || k === ' ' || k === 'j' || k === 'J') {
+        e.preventDefault();
+        this.startMatching();
+      } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
+        e.preventDefault();
+        this.flow.matchTeam = !this.flow.matchTeam;
+        this.renderIdle();
+      }
+    }
+  }
+
+  update(dtMs: number): void {
+    if (this.state === 'matching') {
+      this.matchingMs += dtMs;
+      const label = this.matchingLabel;
+      if (label) {
+        const text = `匹配中 ${clockText(this.matchingMs)}`;
+        if (label.text !== text) label.text = text;
+      }
+    } else if (this.state === 'banner' && this.banner && !this.handedOver) {
+      this.bannerMs += dtMs;
+      // 横幅下限已满且建连就绪（start 已到）→ 切选人页
+      if (this.startReady && this.bannerMs >= BANNER_MIN_MS) this.enterSetup();
+    }
+  }
+
+  dispose(): void {
+    for (const id of this.timers) window.clearTimeout(id);
+    this.timers.length = 0;
+    if (this.socket && !this.handedOver) {
+      this.socket.onmessage = null;
+      this.socket.onclose = null;
+      this.socket.close();
+    }
+    this.socket = null;
+  }
+
+  /** dev 直通：打开后直接开始匹配（UI 入口不调）。 */
+  autoStart(): void {
+    if (this.state === 'idle') this.startMatching();
+  }
+
+  /** Esc 收回（仅待机态；连接在途的收尾同 JoinOverlay：完成回调按浮层状态处理）。 */
+  private retract(): void {
+    this.close();
+  }
+
+  // ---------- 状态渲染（body 按状态重建） ----------
+
+  private clearBody(): void {
+    this.body.removeChildren().forEach((c) => c.destroy({ children: true }));
+    this.matchingLabel = null;
+  }
+
+  private toIdle(): void {
+    this.state = 'idle';
+    this.banner = null;
+    this.startReady = false;
+    this.bannerMs = 0;
+    this.matchingMs = 0;
+    this.clearBody();
+    this.renderIdle();
+  }
+
+  private renderIdle(): void {
+    const modeBtn = makeButton(
+      this.flow.matchTeam ? '模式：团队 3+1（点击切 1v1）' : '模式：单挑 1v1（点击切团队 3+1）',
+      () => {
+        this.flow.matchTeam = !this.flow.matchTeam;
+        this.renderIdle();
+      },
+      { w: 320, h: 44, size: 16 },
+    );
+    modeBtn.position.set(UI_W / 2 - 160, 240);
+    this.body.addChild(modeBtn);
+    const btn = makeButton('随机匹配', () => this.startMatching(), { w: 220, h: 56 });
+    btn.position.set(UI_W / 2 - 110, 310);
+    this.body.addChild(btn);
+    const hint = makeLabel('回车开始匹配 · ←/→ 切换模式 · Esc 收回', { size: 14, color: 0x7a86a0 });
+    hint.anchor.set(0.5);
+    hint.position.set(UI_W / 2, 420);
+    this.body.addChild(hint);
+  }
+
+  /** 匹配中：秒表大字 + 红 ✕ 从右侧滑出（紧挨，一次点击取消）。 */
+  private renderMatching(): void {
+    this.clearBody();
+    this.state = 'matching';
+    const label = makeLabel(`匹配中 ${clockText(this.matchingMs)}`, { size: 32, color: 0xffffff, bold: true });
+    label.anchor.set(0.5);
+    label.position.set(UI_W / 2, 280);
+    this.matchingLabel = label;
+    this.body.addChild(label);
+    const cancel = makeButton('✕', () => this.cancel(), { w: 44, h: 44, size: 20, color: 0x5e2222 });
+    cancel.position.set(UI_W / 2 + 124, 258);
+    cancel.scale.set(0.2, 1);
+    this.body.addChild(cancel);
+    tweenOf(cancel, { 'scale.x': 1 }, 160, { ease: (k) => k });
+    const hint = makeLabel('Esc 退队', { size: 14, color: 0x7a86a0 });
+    hint.anchor.set(0.5);
+    hint.position.set(UI_W / 2, 420);
+    this.body.addChild(hint);
+  }
+
+  /** 横幅期：VS 画面 + 底部 ✕（横幅期也可退队）。 */
+  private renderBanner(): void {
+    this.clearBody();
+    this.state = 'banner';
+    if (this.banner) this.body.addChild(buildVsBanner(this.banner.left, this.banner.right));
+    const cancel = makeButton('✕', () => this.cancel(), { w: 44, h: 44, size: 20, color: 0x5e2222 });
+    cancel.position.set(UI_W / 2 - 22, 440);
+    this.body.addChild(cancel);
+  }
+
+  // ---------- 流程 ----------
+
+  /** 待机 → 匹配中：建连 + 入队。 */
+  private startMatching(): void {
+    if (this.state !== 'idle') return;
+    this.banner = null;
+    this.startReady = false;
+    this.bannerMs = 0;
+    this.matchingMs = 0;
+    this.status.text = '';
+    this.renderMatching();
+    void this.connectAndQueue().then((queued) => {
+      if (!queued) this.failAndRequeue();
+    });
+  }
+
+  /** 建连 + 入队（复用于首次与失败重排）。resolve = 队列已入。 */
+  private async connectAndQueue(): Promise<boolean> {
+    let ws: WebSocket;
+    try {
+      ws = await openServerSocket(this.flow.serverUrl);
+    } catch {
+      if (this.isOpen) this.setStatus('无法连接服务器，正在重试…', 0xffd54f);
+      return false;
+    }
+    if (!this.isOpen || this.state !== 'matching' || this.handedOver) {
+      ws.close();
+      return false;
+    }
+    const socket = new BufferedSocket(ws as unknown as WsLike);
+    this.socket = socket;
+    this.linkClosed = false;
+    socket.onmessage = (ev) => this.onMessage(ev);
+    socket.onclose = () => this.onLinkClosed();
+    sendQueue(socket, displayName(this.flow) || undefined, this.flow.matchTeam);
+    return true;
+  }
+
+  /** 失败：提示后自动回匹配中继续排队，用户可 ✕/Esc。 */
+  private failAndRequeue(): void {
+    if (this.state !== 'matching' || !this.isOpen || this.handedOver) return;
+    if (this.retrying) return; // error + close 连锁触发只排一次重试
+    this.retrying = true;
+    this.closeSocket();
+    this.banner = null;
+    this.renderMatching();
+    this.setStatus('连接失败，正在重新匹配', 0xffd54f);
+    this.timers.push(
+      window.setTimeout(() => {
+        this.retrying = false;
+        if (this.state !== 'matching' || !this.isOpen || this.handedOver) return;
+        this.setStatus('', 0xffd54f);
+        void this.connectAndQueue().then((queued) => {
+          if (!queued) this.failAndRequeue();
+        });
+      }, RETRY_DELAY_MS),
+    );
+  }
+
+  /** ✕/Esc 退队：上行退队 + 断开，回待机态（一次点击、零二级交互）。 */
+  private cancel(): void {
+    if (this.state === 'idle') return;
+    for (const id of this.timers.splice(0)) window.clearTimeout(id);
+    this.retrying = false;
+    if (this.socket) {
+      if (!this.linkClosed) sendUnqueue(this.socket);
+      this.closeSocket();
+    }
+    this.setStatus('', 0xffd54f);
+    this.toIdle();
+  }
+
+  private closeSocket(): void {
+    if (this.socket) {
+      this.socket.onmessage = null;
+      this.socket.onclose = null;
+      this.socket.close();
+      this.socket = null;
+    }
+    this.linkClosed = false;
+  }
+
+  private onLinkClosed(): void {
+    if (this.handedOver) return;
+    this.linkClosed = true;
+    this.failAndRequeue();
+  }
+
+  /** 上屏状态文字。 */
+  private setStatus(text: string, color: number): void {
+    this.status.text = text;
+    this.status.style.fill = color;
+  }
+
+  // ---------- 消息泵（matching/banner 期接管 socket） ----------
+
+  private onMessage(ev: { data: unknown }): void {
+    if (this.handedOver) return;
+    let msg: { t?: string; [k: string]: unknown };
+    try {
+      const text = typeof ev.data === 'string' ? ev.data : (ev.data as { toString(): string }).toString();
+      msg = JSON.parse(text);
+    } catch {
+      return;
+    }
+    switch (msg.t) {
+      case 'matched': {
+        if (this.state !== 'matching' || this.banner) return;
+        const flow = this.flow;
+        flow.mode = 'net';
+        flow.player = msg.player === 2 ? 2 : 1;
+        flow.room = String(msg.room ?? '');
+        const name = displayName(flow);
+        flow.name = name || `玩家${flow.player}`;
+        // 服务器裁定的模式 + 权威种子（无地图阶段，地图由 seed 解析）
+        flow.team = msg.team === true;
+        flow.mapSelect = false;
+        flow.mapSeed = typeof msg.seed === 'number' ? msg.seed : null;
+        const opponent = (msg.opponent as { name?: string } | undefined)?.name ?? '对手';
+        this.banner = flow.player === 1
+          ? { left: flow.name, right: opponent }
+          : { left: opponent, right: flow.name };
+        this.bannerMs = 0;
+        this.setStatus('', 0xffd54f);
+        this.renderBanner();
+        break;
+      }
+      case 'start':
+        // 配对房开局段 start（进选人页）；hello 收齐的第二段由对局层消费
+        this.startReady = true;
+        break;
+      case 'error':
+      case 'peer-lost':
+        this.failAndRequeue();
+        break;
+      default:
+        break;
+    }
+  }
+
+  /** 建连就绪 → 移交选人页（socket 消息泵脱钩，lockstart 在战斗装配时接管）。 */
+  private enterSetup(): void {
+    const socket = this.socket;
+    if (!socket || this.handedOver) return;
+    this.handedOver = true;
+    socket.onmessage = null;
+    socket.onclose = null;
+    this.socket = null;
+    this.ctx.switchTo(new SetupScene(this.flow, socket));
   }
 }
