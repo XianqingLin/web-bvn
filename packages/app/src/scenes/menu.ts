@@ -36,6 +36,7 @@ import { TitleFxLayer } from './title-fx.js';
 import { SetupScene } from './setup.js';
 import { NetScene } from './net.js';
 import { MatchScene } from './match.js';
+import { SettingsOverlay } from './settings.js';
 
 /** 原版 MainGame.VERSION 同位常量（仅版本号；仓库无版本管线，发布时更新）。 */
 const VERSION = 'v0.0.0';
@@ -161,6 +162,9 @@ export class MenuScene implements Scene {
   private childOpen: MenuBtn | null = null;
   private menuEnabled = false;
   private navIndex = 0;
+  /** 设置面板（设置面板切片）：菜单内全屏浮层，打开期间接管键盘/指针 */
+  private settingsOverlay: SettingsOverlay | null = null;
+  private settingsOpen = false;
 
   private readonly onKey = (e: KeyboardEvent) => this.handleKey(e);
   private readonly timers: number[] = [];
@@ -290,6 +294,10 @@ export class MenuScene implements Scene {
       hit.cursor = 'default';
     });
     root.addChild(hit);
+
+    // 设置面板浮层（设置面板切片）：置于最顶层，打开时挡住下层菜单按钮的指针事件
+    this.settingsOverlay = new SettingsOverlay(ctx);
+    root.addChild(this.settingsOverlay.ui);
 
     window.addEventListener('keydown', this.onKey);
   }
@@ -489,6 +497,11 @@ export class MenuScene implements Scene {
           },
         ],
       },
+      {
+        en: 'SETTING',
+        cn: '游戏设置',
+        action: () => this.openSettings(),
+      },
     ];
     const make = (o: MenuEntry, isChild: boolean): MenuBtn => {
       const b = new MenuBtn(
@@ -598,12 +611,29 @@ export class MenuScene implements Scene {
     return this.childOpen ? this.childOpen.children! : this.btns;
   }
 
+  // ---------- 设置面板（设置面板切片） ----------
+
+  private openSettings(): void {
+    if (this.settingsOpen || !this.settingsOverlay) return;
+    this.settingsOpen = true;
+    // selectBtn 已置 menuEnabled=false；关闭浮层时恢复菜单导航
+    this.settingsOverlay.open(() => {
+      this.settingsOpen = false;
+      this.menuEnabled = true;
+    });
+  }
+
   private handleKey(e: KeyboardEvent): void {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
     const k = e.key;
     if (this.phase === 'intro') {
       // 原版 GameInputer.anyKey：任意键跳过
       this.skipIntro();
+      return;
+    }
+    if (this.settingsOpen) {
+      // 浮层打开期间键盘由设置面板接管
+      this.settingsOverlay?.handleKey(e);
       return;
     }
     if (!this.menuEnabled) return;

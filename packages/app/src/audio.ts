@@ -10,6 +10,7 @@
 import type { Ctx, Subsystem } from './host.js';
 import type { AudioManifest, TimelineSoundsManifest } from './data.js';
 import { ASSETS, loadAudio, loadTimelineSounds } from './data.js';
+import { loadSettings, SETTINGS_CHANGED, type GameSettings } from './settings.js';
 import type { SimSnapshot } from '@bvn/core';
 
 /** 受击语音绑定（原版 FighterVoiceCtrler.setVoice：kind → 音类候选集）。 */
@@ -75,6 +76,8 @@ export class AudioSubsystem implements Subsystem {
   /** 贴帧音帧变化检测：实体键（f1/f2/a<id>）→ 上次签名（swf#form:frame）。
    *  首见 = 基线不触发（进场不补播）；签名变 = 播放头进入新帧（含跳转落点）。 */
   private lastFrames = new Map<string, string>();
+  /** 设置变更退订句柄（dispose 用） */
+  private offSettings: (() => void) | null = null;
 
   async init(ctx: Ctx): Promise<void> {
     this.mf = await loadAudio(ctx);
@@ -84,6 +87,10 @@ export class AudioSubsystem implements Subsystem {
     this.sfxGain.connect(this.ac.destination);
     this.bgmGain = this.ac.createGain();
     this.bgmGain.connect(this.ac.destination);
+    // 设置面板切片：音量自 localStorage 装配，变更事件实时应用到双总线
+    // （原版 SoundCtrler.setSoundVolumn/setBgmVolumn 对位；默认 0.6 偏离登记见 settings.ts）
+    this.applyVolumes(loadSettings());
+    this.offSettings = ctx.events.on(SETTINGS_CHANGED, (s) => this.applyVolumes(s as GameSettings));
     const unlock = () => void this.ac?.resume();
     window.addEventListener('keydown', unlock, { once: false });
     window.addEventListener('pointerdown', unlock, { once: false });
@@ -91,6 +98,7 @@ export class AudioSubsystem implements Subsystem {
     // dev 诊断钩子（headless 冒烟用；只读 + timeline 试播）
     (window as unknown as { __bvnAudio?: () => unknown; __bvnTimelineTest?: () => void }).__bvnAudio = () => ({
       state: this.ac?.state ?? null,
+      volumes: { sfx: this.sfxGain?.gain.value ?? null, bgm: this.bgmGain?.gain.value ?? null },
       decoded: [...this.buffers.keys()],
       bgm: this.bgmCurrent,
       tlm: this.tlm ? { packages: Object.keys(this.tlm.packages).length, files: Object.keys(this.tlm.files).length } : null,
@@ -101,6 +109,8 @@ export class AudioSubsystem implements Subsystem {
   }
 
   dispose(): void {
+    this.offSettings?.();
+    this.offSettings = null;
     void this.ac?.close();
     this.ac = null;
     this.buffers.clear();
@@ -110,6 +120,16 @@ export class AudioSubsystem implements Subsystem {
     this.mf = null;
     this.tlm = null;
     this.lastFrames.clear();
+  }
+
+  // ---------- 音量（设置面板切片：sfx/bgm 双总线 GainNode） ----------
+
+  /** 应用音量设置（原版 SoundCtrler.setSoundVolumn/setBgmVolumn 对位：
+   *  音效 = sfx 总线全局乘系数（单发基准音量 × 全局，乘法叠加语义不变），
+   *  BGM = bgm 总线即改即响）。 */
+  applyVolumes(s: GameSettings): void {
+    if (this.sfxGain) this.sfxGain.gain.value = s.soundVolume;
+    if (this.bgmGain) this.bgmGain.gain.value = s.bgmVolume;
   }
 
   // ---------- SE / 语音 ----------
