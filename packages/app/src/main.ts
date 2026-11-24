@@ -24,7 +24,7 @@ import { SetupScene } from './scenes/setup.js';
 import { LoadingScene } from './scenes/loading.js';
 import { makeFlow } from './flow.js';
 import { readInviteJoin } from './invite-context.js';
-import { startWindowHeartbeat, storeTicket } from './invite-ticket.js';
+import { startWindowHeartbeat, storeTicket, takeOverWindowLock } from './invite-ticket.js';
 import { selectNode } from './nodes.js';
 
 
@@ -102,11 +102,15 @@ async function boot(): Promise<void> {
       }
       await selectNode(flow);
     })();
-    // 平台邀请（hello join，platform-seam §4）：存为邀请票（只留最新），主菜单
-    // 挂邀请卡、点击卡片才兑票入房——不再开机自动加入，节点锁定随之移到兑票时
-    // （DESIGN §6.4 邀请票模型）。
+    // 平台邀请（hello join，platform-seam §4）：存为邀请票（只留最新），持锁窗口
+    // 到主菜单后自动兑票入房（游戏内无邀请 UI，DESIGN §6.4 自动入房改版）；
+    // 接收窗口写票同时接管忙锁——用户刚点的「接受」意图由本窗口承载，总是取得
+    // 兑票权（原持锁窗口只失去票的处置权，对局照常）。
     const inviteJoin = readInviteJoin(flow.dock);
-    if (inviteJoin) storeTicket(inviteJoin.room, inviteJoin.node);
+    if (inviteJoin) {
+      storeTicket(inviteJoin.room, inviteJoin.node);
+      takeOverWindowLock();
+    }
     // 游戏初始化封面（原版 GameLoadingStage"绊"）→ 开场徽标 → 主菜单
     scenes.switchTo(new GameLoadingScene(flow));
     return;

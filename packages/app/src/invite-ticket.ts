@@ -2,17 +2,19 @@
  * 邀请票生命周期与跨窗口忙锁（DESIGN §6.4）。
  *
  * 票 = 平台好友邀请的加入参数 { room, node }（hello join 透传，platform-seam §4）。
- * 接受邀请 = 打开游戏落主菜单挂邀请卡，点击卡片才入房——忙态约束由构造达成
- * （入房动作只存在于主菜单态，战斗/匹配/加载天然走不到）。生命周期拍板：
+ * 接受邀请 = 打开游戏落主菜单后自动兑票入房——游戏内无邀请 UI，忙态约束由构造
+ * 达成（兑票只发生在主菜单可操作态，战斗/匹配/加载天然走不到）。生命周期拍板：
  * - 票只留最新：新票无条件覆盖旧票（单键存储）；
  * - 票 TTL 过期即清、兑换即清、兑换失败一律销票（含连接失败——让发起方重新邀请）；
  * - 票锁定节点在 manifest 下线时提示"节点不可用"，不得静默回退当前节点误报房
  *   不存在（兑票方 MenuScene 负责，本模块只管存取与忙锁）。
  *
  * 跨窗口忙判定：同源 localStorage 心跳锁——每个游戏窗口持续续写带时间戳的锁，
- * 超时（LOCK_STALE_MS）视为持锁窗口已死。票的展示面 = 持锁窗口：锁空/失效/本端
- * 持有都算本端可展示；非持锁窗口不挂卡（票留在存储里，持锁窗口轮询读取展示），
- * 避免两个窗口同时兑票。变更通知走消费方轮询（菜单 update 低频读票），
+ * 超时（LOCK_STALE_MS）视为持锁窗口已死。兑票权 = 持锁权：锁空/失效/本端持有的
+ * 窗口到达主菜单后自动兑票；非持锁窗口不兑票（票留在存储里）。hello join 的接收
+ * 窗口写票同时接管忙锁（takeOverWindowLock）——它承载用户刚点的「接受」意图，
+ * 总是取得兑票权；原持锁窗口只失去票的处置权（心跳见外部活锁自动停写，对局照常，
+ * 回到主菜单时票已被兑走即无事）。变更通知走消费方轮询（菜单 update 低频读票），
  * 不需要 BroadcastChannel 推送。
  */
 
@@ -84,7 +86,7 @@ export function readTicket(): InviteTicket | null {
   return t;
 }
 
-/** 销票（兑换即清 / 兑换失败销票 / 忽略邀请，共用此出口）。 */
+/** 销票（兑换即清 / 兑换失败销票，共用此出口）。 */
 export function clearTicket(): void {
   memoryTicket = null;
   try {
@@ -124,8 +126,8 @@ function writeLock(id: string): void {
 let myWindowId: string | null = null;
 
 /**
- * 本端是否为票展示面（持锁窗口）：锁空 / 锁已失效 / 本端持有 → 是。
- * 心跳未启动（测试环境、异常路径）退化为本端展示。
+ * 本端是否持锁（兑票权所在）：锁空 / 锁已失效 / 本端持有 → 是。
+ * 心跳未启动（测试环境、异常路径）退化为本端持有。
  */
 export function isWindowHolder(): boolean {
   if (myWindowId === null) return true;
@@ -149,4 +151,14 @@ export function startWindowHeartbeat(): void {
   };
   tick();
   window.setInterval(tick, HEARTBEAT_MS);
+}
+
+/**
+ * 强制接管忙锁（hello join 的接收窗口写票时调用）：即使锁被存活窗口持有也改写为
+ * 本端——接收窗口承载用户刚点的「接受」意图，总是取得兑票权。原持锁窗口此后只
+ * 失去票的处置权（其心跳见外部活锁自动停写，在对局中不受任何影响）。
+ */
+export function takeOverWindowLock(): void {
+  if (myWindowId === null) return;
+  writeLock(myWindowId);
 }

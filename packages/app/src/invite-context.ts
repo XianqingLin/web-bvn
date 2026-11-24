@@ -5,8 +5,8 @@
  * - 上报：进入可被邀请加入的房间时 `game:invite-context` 携带 { room, node }，
  *   回到菜单（房间已从玩家视角离开）时上报 null 清空。平台把最新值随好友邀请透传。
  * - 消费：经平台邀请打开游戏时，hello 的 join 字段携带 { room, node }。
- *   消费方 = 邀请票（invite-ticket.ts）：存票 → 主菜单挂邀请卡 → 点击兑票入房
- *   （节点锁定移到兑票时，DESIGN §6.4）；本模块只负责 hello 参数的形状识别。
+ *   消费方 = 邀请票（invite-ticket.ts）：存票（接收窗口同时接管忙锁）→ 持锁
+ *   窗口到主菜单后自动兑票入房（DESIGN §6.4）；本模块只负责 hello 参数的形状识别。
  */
 import type { GameDockSdk } from '@gamedock/game-sdk';
 import type { Flow } from './flow.js';

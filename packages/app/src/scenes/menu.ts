@@ -24,10 +24,10 @@
 import { Assets, Container, Graphics, Sprite, Text, Texture } from 'pixi.js';
 import type { Scene, SceneCtx } from './scene.js';
 import { audioOf } from '../audio.js';
-import { makeButton, makeLabel, makePanel, UI_H, UI_W } from '../ui.js';
+import { makeLabel, UI_H, UI_W } from '../ui.js';
 import { nodeStatusLines, startNodeMonitor, loadManifest, resolveJoinNode, SEED_MANIFEST } from '../nodes.js';
 import { reportInviteContext } from '../invite-context.js';
-import { clearTicket, isWindowHolder, readTicket, type InviteTicket } from '../invite-ticket.js';
+import { clearTicket, isWindowHolder, readTicket } from '../invite-ticket.js';
 
 import { tickTweens, tweenOf, clearTweens } from '../anim.js';
 import type { Flow } from '../flow.js';
@@ -273,15 +273,6 @@ export class MenuScene implements Scene {
   private quickMatch: QuickMatch | null = null;
   private quickMatchBtn: MenuBtn | null = null;
   private quickMatchLayer: Container | null = null;
-  /**
-   * 邀请卡（DESIGN §6.4 邀请票模型的展示面）：票存在于菜单态时挂载——点击兑票
-   * 入房、忽略销票。展示条件 = 有票 && 本端是持锁窗口（跨窗口忙判定）&& 菜单
-   * 可操作；展示面与可见性由 refreshInviteCard 低频轮询统一裁决。
-   */
-  private inviteCard: Container | null = null;
-  /** 建卡指纹（票内容 + 清单版本）：变化即整卡重建（节点名随清单就绪刷新）。 */
-  private inviteCardSig: string | null = null;
-  private inviteManifestEpoch = 0;
   /** 当前开启的联机浮层（同一时刻至多一个；键盘路由与开启互斥判定用） */
   private get netOverlay(): NetOverlay | null {
     return this.netOverlays.find((o) => o.isOpen) ?? null;
@@ -295,7 +286,6 @@ export class MenuScene implements Scene {
   private readonly timers: number[] = [];
   private switchTo: ((s: Scene) => void) | null = null;
   private ctx: SceneCtx | null = null;
-  private sceneRoot: Container | null = null;
   private hoveredBtn: MenuBtn | null = null;
   private nodeTitle: Text | null = null;
   private nodeLatency: Text | null = null;
@@ -318,7 +308,6 @@ export class MenuScene implements Scene {
       this.flow.pendingDeepLink = null;
       this.pendingIntent = () => void this.processDeepLink(deepLink);
     }
-    this.sceneRoot = root;
 
     // 回到主菜单 = 房间已从玩家视角离开：清空平台邀请上下文（platform-seam §4）。
     // 房间页/选人页/对局各退出路径最终都会回到这里,此处统一清一次。
@@ -410,9 +399,7 @@ export class MenuScene implements Scene {
     void loadManifest().then((m) => {
       if (this.destroyed) return;
       this.nodeManifest = m;
-      this.inviteManifestEpoch++;
       this.refreshNodeText();
-      this.refreshInviteCard(true); // 邀请卡节点名随权威清单就绪重建
     });
 
     // 点击跳过（原版 500ms 后启用；点击区 = 舞台矩形）
@@ -463,9 +450,6 @@ export class MenuScene implements Scene {
       this.skipEnabled = true;
       void this.skipIntro();
     }
-
-    // 邀请卡（票展示面）：菜单态挂载；可操作前（menuEnabled）保持隐藏
-    this.refreshInviteCard();
   }
 
   update(dtMs: number): void {
@@ -486,9 +470,9 @@ export class MenuScene implements Scene {
     if (this.nodeRefreshAcc >= 500) {
       this.nodeRefreshAcc = 0;
       this.refreshNodeText();
-      // 邀请卡轮询裁决（票到达/替换/过期、跨窗口持锁变更、菜单忙闲切换）：
+      // 自动兑票轮询（票到达/替换、跨窗口持锁变更、菜单忙闲切换）：
       // 变更源都在存储与本端状态里，低频读一遍即可感知，无需推送通道。
-      this.refreshInviteCard();
+      this.maybeAutoRedeem();
     }
     if (!this.streams.length || !this.frameSprite || !this.uiData) return;
     const t = this.uiData.title;
@@ -539,9 +523,6 @@ export class MenuScene implements Scene {
     this.joinCapture = null;
     this.quickMatch?.dispose();
     this.quickMatch = null;
-    this.inviteCard = null;
-    this.inviteCardSig = null;
-    this.sceneRoot = null;
     for (const o of this.netOverlays) o.dispose();
     this.netOverlays.length = 0;
     this.stopNodeMonitor?.();
@@ -877,6 +858,8 @@ export class MenuScene implements Scene {
     const intent = this.pendingIntent;
     this.pendingIntent = null;
     intent?.();
+    // 到达主菜单即对在票立即自动兑票（持锁窗口才有兑票权，守卫见 maybeAutoRedeem）
+    this.maybeAutoRedeem();
   }
 
   // ---------- 跨节点加入（DESIGN §6.2） ----------
@@ -919,82 +902,29 @@ export class MenuScene implements Scene {
     );
   }
 
-  // ---------- 邀请卡（邀请票模型，DESIGN §6.4） ----------
+  // ---------- 邀请票自动兑票（邀请票模型，DESIGN §6.4） ----------
 
   /**
-   * 卡片裁决：读票（TTL 过期即清）→ 指纹变化整卡重建 → 按忙闲/持锁翻可见性。
-   * force = 无条件重建（清单就绪节点名变化）。
+   * 游戏内无邀请 UI：持锁窗口在主菜单可操作态对未过期票直接自动兑票。守卫沿
+   * 原卡片点击路径——忙态不兑（联机浮层开启期不叠加）、匹配中先退队；菜单未
+   * 就绪（menuEnabled=false）时等下一轮轮询/enableMenu 再兑。
    */
-  private refreshInviteCard(force = false): void {
-    const t = readTicket();
-    const sig = t ? `${t.room}|${t.node}|${t.at}|${this.inviteManifestEpoch}` : null;
-    if (force || sig !== this.inviteCardSig) {
-      this.inviteCard?.destroy({ children: true });
-      this.inviteCard = null;
-      this.inviteCardSig = sig;
-      if (t && this.sceneRoot) this.inviteCard = this.buildInviteCard(t);
-    }
-    if (this.inviteCard) {
-      this.inviteCard.visible = this.menuEnabled && isWindowHolder();
-    }
-  }
-
-  /** 邀请卡：底部节点状态块上方面板——标题 + 房间/节点行 + 加入/忽略。 */
-  private buildInviteCard(t: InviteTicket): Container {
-    const card = new Container();
-    const W = 330;
-    const H = 104;
-    const px = OX + 20;
-    const py = UI_H - 186; // 左下节点状态块（UI_H-66 起）上方
-    const panel = makePanel(W, H, { color: 0x0d1420, alpha: 0.94 });
-    panel.position.set(px, py);
-    card.addChild(panel);
-    const title = makeLabel('好友邀请', { size: 16, color: 0xffd54f, bold: true });
-    title.position.set(px + 18, py + 12);
-    card.addChild(title);
-    const nodeName = this.nodeManifest.nodes.find((n) => n.id === t.node)?.name ?? t.node;
-    const line = makeLabel(`房间 ${t.room} · ${nodeName}`, { size: 15, color: 0xd8dce6 });
-    line.position.set(px + 18, py + 42);
-    card.addChild(line);
-    const joinBtn = makeButton('加入', () => this.redeemTicket(), { w: 110, h: 36, size: 15 });
-    joinBtn.position.set(px + 18, py + 58);
-    card.addChild(joinBtn);
-    const dismissBtn = makeButton('忽略', () => this.dismissTicket(), {
-      w: 90, h: 36, size: 15, color: 0x3a3040,
-    });
-    dismissBtn.position.set(px + W - 108, py + 58);
-    card.addChild(dismissBtn);
-    this.sceneRoot!.addChild(card);
-    return card;
-  }
-
-  /** 忽略邀请 = 销票（让发起方重新邀请）。先隐藏再销毁：处理中不拆自己。 */
-  private dismissTicket(): void {
-    clearTicket();
-    if (this.inviteCard) this.inviteCard.visible = false;
-    this.refreshInviteCard();
-  }
-
-  /**
-   * 兑票入房：兑换即清（先销票，后续任何失败不恢复——销票定案，让发起方重新
-   * 邀请）；票锁定节点在 manifest 下线 → 提示框（不静默回退当前节点）；节点
-   * 可用 → 静默锁定切换（平台邀请语义，跨节点确认框仅深链通道）后走加入输入位
-   * 自动入房（prefill 路径，连接失败走既有错误弹窗）。
-   */
-  private redeemTicket(): void {
+  private maybeAutoRedeem(): void {
     if (!this.menuEnabled || this.joinState !== 'off' || this.netOverlay) return;
-    const t = readTicket();
-    if (!t) {
-      this.refreshInviteCard();
-      return;
-    }
-    if (this.quickMatch) this.cancelQuickMatch(); // 匹配中点卡 = 退队再入房
-    clearTicket();
-    if (this.inviteCard) this.inviteCard.visible = false;
+    if (!isWindowHolder()) return; // 兑票权 = 持锁权（hello join 接收窗口经接管必然持锁）
+    const t = readTicket(); // TTL 过期即清（readTicket 内裁决）
+    if (!t) return;
+    if (this.quickMatch) this.cancelQuickMatch(); // 匹配中到票 = 退队再入房
+    clearTicket(); // 兑换即销票：后续任何失败不恢复，让发起方重新邀请
     this.menuEnabled = false;
     void this.redeemJoin(t.room, t.node);
   }
 
+  /**
+   * 兑票入房：票锁定节点在 manifest 下线 → 提示框（不静默回退当前节点）；节点
+   * 可用 → 静默锁定切换后走加入输入位自动入房（prefill 路径，连接失败走既有
+   * 错误弹窗）。跨节点不弹确认框——接受邀请即已表态（确认框仅深链通道）。
+   */
   private async redeemJoin(room: string, node: string): Promise<void> {
     const manifest = await loadManifest();
     if (this.destroyed) return;
