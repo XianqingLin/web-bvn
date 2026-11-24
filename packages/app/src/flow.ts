@@ -38,9 +38,6 @@ export interface Flow {
   peerPick: Pick | null;
   /** 团队模式（房间设置 team / 匹配由服务器裁定并回执）——选人页 3 选 + 1 援助节奏 */
   team: boolean;
-  /** 匹配模式偏好（true 团队 3+1 / false 单挑 1v1）——仅入队时上行；
-   *  本端偏好不直接决定对局，权威值以 matched.team 回执为准 */
-  matchTeam: boolean;
   /** 是否走地图选择阶段（2026-11-21 定案）：好友房/本地 = true（原版选择页，
    *  房主定图，默认"？"随机项）；匹配 = false（援助选完直接进加载页，
    *  对局地图由 mapSeed 按 maps[seed % n] 解析） */
@@ -80,7 +77,6 @@ export function makeFlow(): Flow {
     localPick: null,
     peerPick: null,
     team: false,
-    matchTeam: true,
     mapSelect: true,
     mapSeed: null,
     localTeamPick: null,

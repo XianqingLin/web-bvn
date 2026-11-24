@@ -35,7 +35,8 @@ import { FrameStream } from './stream.js';
 import { TitleFxLayer } from './title-fx.js';
 import { SetupScene } from './setup.js';
 import { SettingsOverlay } from './settings.js';
-import { MatchOverlay, RoomOverlay, ConfirmOverlay, type NetOverlay } from './net-overlay.js';
+import { RoomOverlay, ConfirmOverlay, type NetOverlay } from './net-overlay.js';
+import { QuickMatch } from './quick-match.js';
 import { CodeCapture } from './code-capture.js';
 import { enterRoom, roomErrorText } from './net-common.js';
 
@@ -59,7 +60,7 @@ interface MenuEntry {
   disabled?: boolean;
 }
 
-class MenuBtn {
+export class MenuBtn {
   readonly ui = new Container();
   /** 布局项高（原版 MenuBtn.height：常态 75，childMode 55）。 */
   height: number;
@@ -68,6 +69,10 @@ class MenuBtn {
   private isOpen = false;
   private readonly bg: Sprite;
   private readonly label: Text;
+  private labelText: string;
+  /** 输入位附件（加入房间原位变身）：占位背景层与独立光标条，懒建。 */
+  private placeholder: Text | null = null;
+  private caretBar: Graphics | null = null;
   private readonly texBg1: Texture;
   private readonly texBg2: Texture;
 
@@ -108,6 +113,7 @@ class MenuBtn {
     this.label.anchor.set(0.5, 0);
     this.label.position.set(0, 10);
     if (isChild) this.label.scale.set(0.75);
+    this.labelText = entry.en;
 
     this.ui.addChild(this.bg, this.label);
     this.ui.eventMode = 'static';
@@ -158,10 +164,62 @@ class MenuBtn {
     tweenOf(this.ui, { alpha: 1 }, 350, { ease: (k) => k, done: back });
   }
 
-  /** 按钮文字改写（「加入房间」原位变身：板面即输入位）；dim = 占位提示降饱和。 */
+  /** 按钮文字改写；dim = 文字降饱和。改写即撤下输入位附件
+   *  （JOINING…/还原按钮文本时，占位与光标必须退场）。 */
   setLabel(text: string, dim = false): void {
-    this.label.text = text;
+    if (this.placeholder) this.placeholder.visible = false;
+    if (this.caretBar) this.caretBar.visible = false;
+    this.setLabelText(text);
     this.label.alpha = dim ? 0.45 : 1;
+  }
+
+  /** 输入位模式挂起（「加入房间」原位变身）：记占位文案，附件懒建。 */
+  beginInput(placeholder: string): void {
+    this.inputPlaceholderText = placeholder;
+  }
+
+  /**
+   * 输入位渲染：房码进 label 本体；占位文案是独立降饱和背景层（空态显示、
+   * 有码即隐）；光标是独立竖条——有码贴数字尾、空码贴占位头（真实输入框
+   * 语义）。三者互不拼接，闪烁只翻光标 visible，不触发文本重排。
+   */
+  setInputState(digits: string, caretOn: boolean): void {
+    this.ensureInputChrome();
+    this.setLabelText(digits);
+    this.label.alpha = 1;
+    const ph = this.placeholder!;
+    const bar = this.caretBar!;
+    ph.visible = digits.length === 0;
+    bar.visible = caretOn;
+    bar.position.set(
+      digits.length > 0 ? this.label.x + this.label.width / 2 + 4 : ph.x - ph.width / 2 - 4,
+      this.label.y + 2,
+    );
+    bar.height = (digits.length > 0 ? this.label : ph).height - 4;
+  }
+
+  private inputPlaceholderText = '';
+
+  private ensureInputChrome(): void {
+    if (this.placeholder) return;
+    const ph = makeLabel(this.inputPlaceholderText, { size: 24, color: 0xffffff, bold: true });
+    ph.anchor.set(0.5, 0);
+    ph.position.set(this.label.x, this.label.y);
+    ph.scale.copyFrom(this.label.scale);
+    ph.alpha = 0.45;
+    ph.visible = false;
+    const bar = new Graphics().rect(0, 0, 2, 1).fill({ color: 0xffffff });
+    bar.visible = false;
+    this.ui.addChild(ph, bar);
+    this.placeholder = ph;
+    this.caretBar = bar;
+  }
+
+  /** 同值守卫：同文本不重设 label.text（闪烁等高频路径不重排字体）。 */
+  private setLabelText(text: string): void {
+    if (text === this.labelText) return;
+    this.labelText = text;
+    this.label.text = text;
   }
 }
 
@@ -189,9 +247,8 @@ export class MenuScene implements Scene {
   /** 设置面板：菜单内全屏浮层，打开期间接管键盘/指针 */
   private settingsOverlay: SettingsOverlay | null = null;
   private settingsOpen = false;
-  /** 联机浮层组（匹配/房间/确认框）：菜单内半透明暗底浮层，开启期接管键盘 */
+  /** 联机浮层组（房间/确认框）：菜单内半透明暗底浮层，开启期接管键盘 */
   private readonly netOverlays: NetOverlay[] = [];
-  private matchOverlay: MatchOverlay | null = null;
   private roomOverlay: RoomOverlay | null = null;
   private confirmOverlay: ConfirmOverlay | null = null;
   /**
@@ -202,13 +259,19 @@ export class MenuScene implements Scene {
   private joinSeq = 0;
   private joinDigits = '';
   private joinBtn: MenuBtn | null = null;
-  /** 输入位文字光标：追加式 '|'（随文本自然定位），480ms 方波闪烁 */
-  private joinLabelBase = '';
-  private joinLabelDim = false;
+  /** 输入位光标：独立竖条（MenuBtn.setInputState），480ms 方波闪烁 */
   private joinCaretOn = false;
   private joinCaretAcc = 0;
   private joinCapture: CodeCapture | null = null;
   private joinPrefill: string | null = null;
+  /**
+   * 「随机匹配」原位变身（不走浮层）：子项按钮翻转变身成匹配位——板面 =
+   * 匹配中秒表，点击/Esc 退队；配对成功切全屏 VS 横幅（quick-match.ts）。
+   * 非空 = 匹配位活动中（键盘路由与菜单互斥判定用）。
+   */
+  private quickMatch: QuickMatch | null = null;
+  private quickMatchBtn: MenuBtn | null = null;
+  private quickMatchLayer: Container | null = null;
   /** 当前开启的联机浮层（同一时刻至多一个；键盘路由与开启互斥判定用） */
   private get netOverlay(): NetOverlay | null {
     return this.netOverlays.find((o) => o.isOpen) ?? null;
@@ -377,11 +440,13 @@ export class MenuScene implements Scene {
     root.addChild(this.settingsOverlay.ui);
 
     // 联机浮层组（最顶层；半透明暗底，背景菜单动画透出不断）
-    this.matchOverlay = new MatchOverlay(ctx, this.flow);
     this.roomOverlay = new RoomOverlay(ctx, this.flow);
     this.confirmOverlay = new ConfirmOverlay();
-    this.netOverlays.push(this.matchOverlay, this.roomOverlay, this.confirmOverlay);
+    this.netOverlays.push(this.roomOverlay, this.confirmOverlay);
     for (const o of this.netOverlays) root.addChild(o.ui);
+    // 随机匹配揭示层（压浮层之上）：匹配中透明，配对成功挂 VS 横幅
+    this.quickMatchLayer = new Container();
+    root.addChild(this.quickMatchLayer);
 
     window.addEventListener('keydown', this.onKey);
 
@@ -395,13 +460,14 @@ export class MenuScene implements Scene {
   update(dtMs: number): void {
     tickTweens(dtMs);
     for (const o of this.netOverlays) o.update(dtMs);
-    // 输入位光标闪烁：追加式 '|' 480ms 方波（随文本自然定位，无坐标换算）
+    this.quickMatch?.update(dtMs);
+    // 输入位光标闪烁：独立竖条 480ms 方波（只翻 visible，不重排文本）
     if (this.joinState === 'input') {
       this.joinCaretAcc += dtMs;
       if (this.joinCaretAcc >= 480) {
         this.joinCaretAcc -= 480;
         this.joinCaretOn = !this.joinCaretOn;
-        this.syncJoinLabel();
+        this.joinBtn?.setInputState(this.joinDigits, this.joinCaretOn);
       }
     }
     // 节点状态块低频刷新文本（选择完成/监控探测/切节点后由这里上屏）
@@ -457,6 +523,8 @@ export class MenuScene implements Scene {
     this.destroyed = true;
     this.joinCapture?.dispose();
     this.joinCapture = null;
+    this.quickMatch?.dispose();
+    this.quickMatch = null;
     for (const o of this.netOverlays) o.dispose();
     this.netOverlays.length = 0;
     this.stopNodeMonitor?.();
@@ -590,7 +658,7 @@ export class MenuScene implements Scene {
             cn: '随机匹配',
             // 强制服务器（?server=/手填）禁随机匹配：不可信服能伪造对端输入/改种子
             disabled: this.flow.serverForced,
-            action: () => this.openMatch(),
+            action: () => this.startQuickMatch(),
           },
         ],
       },
@@ -618,7 +686,8 @@ export class MenuScene implements Scene {
           const cb = make(c, true);
           cb.index = j;
           cb.disabled = c.disabled === true;
-          if (c.en === 'JOIN ROOM') this.joinBtn = cb;
+          this.joinBtn = cb;
+          if (c.en === 'QUICK MATCH') this.quickMatchBtn = cb;
           return cb;
         });
       }
@@ -667,6 +736,11 @@ export class MenuScene implements Scene {
   }
 
   private selectBtn(btn: MenuBtn): void {
+    if (this.quickMatch && btn === this.quickMatchBtn) {
+      // 匹配位点击 = 退队（板面提示语义；不走 select 演出）
+      this.cancelQuickMatch();
+      return;
+    }
     if (!this.menuEnabled || btn.disabled) return;
     // 原版 MenuBtn.select：确认音（含展开子菜单）
     audioOf(this.ctx?.ctx!)?.se('menu2', 'swc');
@@ -724,13 +798,34 @@ export class MenuScene implements Scene {
     });
   }
 
-  /** 随机匹配浮层：同上。 */
-  private openMatch(): void {
-    if (!this.matchOverlay || this.netOverlay) return;
+  /** 随机匹配原位变身（无浮层）：子项按钮翻转变身成匹配位（板面 = 秒表）。 */
+  private startQuickMatch(): void {
+    if (this.quickMatch || this.joinState !== 'off' || this.netOverlay || !this.quickMatchBtn) return;
     this.flow.mode = 'net';
-    this.matchOverlay.open(() => {
-      this.menuEnabled = true;
+    this.menuEnabled = false;
+    this.freezeMenu(this.quickMatchBtn, true);
+    const btn = this.quickMatchBtn;
+    // 翻转变身：scale.x 压扁 → 建匹配位（板面变秒表）→ 展开
+    tweenOf(btn.ui, { 'scale.x': 0.06 }, 140, {
+      ease: (k) => k,
+      done: () => {
+        if (!this.ctx || !this.quickMatchLayer) return;
+        this.quickMatch = new QuickMatch(this.ctx, this.flow, btn, this.quickMatchLayer, () =>
+          this.cancelQuickMatch(),
+        );
+        tweenOf(btn.ui, { 'scale.x': 1 }, 140, { ease: (k) => k });
+      },
     });
+  }
+
+  /** 退队收尾（✕ / Esc / 点击匹配位）：按钮复原，恢复菜单。 */
+  private cancelQuickMatch(): void {
+    this.quickMatch?.cancel();
+    this.quickMatch = null;
+    if (!this.quickMatchBtn) return;
+    this.quickMatchBtn.setLabel(this.quickMatchBtn.entry.en);
+    this.freezeMenu(this.quickMatchBtn, false);
+    this.menuEnabled = true;
   }
 
   /** 创建房间：房间浮层内直连（浮层间至多一个开启）。 */
@@ -748,8 +843,7 @@ export class MenuScene implements Scene {
     if (!a) return;
     this.auto = null;
     if (a.action === 'match') {
-      this.openMatch();
-      this.matchOverlay?.autoStart();
+      this.startQuickMatch();
     } else if (a.action === 'join') {
       this.startJoinInput(a.room);
     } else {
@@ -826,9 +920,8 @@ export class MenuScene implements Scene {
         if (this.joinState === 'off') return;
         this.joinCaretOn = true;
         this.joinCaretAcc = 0;
-        this.joinLabelBase = '';
-        this.joinLabelDim = true;
-        this.syncJoinLabel();
+        btn.beginInput('ROOM CODE');
+        btn.setInputState('', true);
         this.remountJoinCapture();
         tweenOf(btn.ui, { 'scale.x': 1 }, 140, {
           ease: (k) => k,
@@ -867,18 +960,10 @@ export class MenuScene implements Scene {
     }
   }
 
-  /** 板面文本同步（空态 = 占位提示）+ 光标（追加式 '|'，随文本自然定位）。 */
+  /** 板面同步：房码上板（空态由占位背景层显示），光标独立竖条随动。 */
   private syncJoinDigits(d: string): void {
     this.joinDigits = d;
-    this.joinLabelBase = d.length > 0 ? d : 'ROOM CODE';
-    this.joinLabelDim = d.length === 0;
-    this.syncJoinLabel();
-  }
-
-  /** 板面文字重写：内容 + 输入态光标。 */
-  private syncJoinLabel(): void {
-    const caret = this.joinState === 'input' && this.joinCaretOn ? '|' : '';
-    this.joinBtn?.setLabel(this.joinLabelBase + caret, this.joinLabelDim);
+    this.joinBtn?.setInputState(d, this.joinCaretOn);
   }
 
   /** 回车确认：输满 6 位才入房；位数不足与失败都走弹窗（不上按钮）。 */
@@ -892,9 +977,7 @@ export class MenuScene implements Scene {
     this.joinState = 'connecting';
     this.joinCapture?.dispose();
     this.joinCapture = null;
-    this.joinLabelBase = 'JOINING…';
-    this.joinLabelDim = false;
-    this.syncJoinLabel();
+    this.joinBtn?.setLabel('JOINING…'); // 输入态附件（占位/光标）随改写退场
     const seq = ++this.joinSeq;
     void enterRoom(this.flow, 'join', room).then(
       ({ socket }) => {
@@ -922,6 +1005,10 @@ export class MenuScene implements Scene {
   private openJoinErrorPopup(text: string): void {
     this.joinCapture?.dispose();
     this.joinCapture = null;
+    // 板面恢复输入态显示（连接失败时不能停在 JOINING…；光标重新起闪）
+    this.joinCaretOn = true;
+    this.joinCaretAcc = 0;
+    this.joinBtn?.setInputState(this.joinDigits, true);
     this.confirmOverlay?.openConfirm('无法加入', text, null, () => {
       if (this.joinState !== 'input') {
         this.menuEnabled = true;
@@ -965,7 +1052,6 @@ export class MenuScene implements Scene {
     this.joinCapture = null;
     this.joinDigits = '';
     this.joinCaretOn = false;
-    this.joinLabelBase = '';
     this.joinBtn?.setLabel(this.joinBtn.entry.en);
     this.freezeMenu(this.joinBtn, false);
   }
@@ -1001,6 +1087,14 @@ export class MenuScene implements Scene {
     if (this.netOverlay) {
       // 浮层打开期间键盘由联机浮层接管
       this.netOverlay.handleKey(e);
+      return;
+    }
+    if (this.quickMatch) {
+      // 匹配位接管键盘：仅 Esc 退队（板面旁有提示；连接期无其他键）
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.cancelQuickMatch();
+      }
       return;
     }
     if (this.joinState === 'input') {

@@ -305,12 +305,15 @@ export class SettingsOverlay {
     backdrop.eventMode = 'static';
     this.ui.addChild(backdrop);
 
-    // 原版底板：stg_set_ui 挂 舞台-stageOriginInFrame，裁剪到 800×600 舞台矩形
+    // 原版底板：stg_set_ui 挂 舞台-stageOriginInFrame，裁剪到 800×600 舞台矩形。
+    // mask 必须进显示列表（与 menu.ts 同法）：脱离场景树的 mask 世界变换是单位阵，
+    // 几何会落到画布像素空间而非本场景逻辑坐标——UIHost 缩放 ≠1 时裁剪位错位
+    //（实测 1.056 倍下 OPTION 标题被裁半）。
     const clip = new Container();
     const mask = new Graphics();
     mask.rect(OX, 0, 800, 600).fill({ color: 0xffffff });
+    this.ui.addChild(mask, clip);
     clip.mask = mask;
-    this.ui.addChild(clip);
     const plateSprite = new Sprite(this.art.plate.tex);
     plateSprite.position.set(OX - this.art.plate.origin[0], -this.art.plate.origin[1]);
     clip.addChild(plateSprite);
