@@ -99,7 +99,7 @@ async function dedupStream(label, dir, frames) {
 }
 
 const ui = JSON.parse(readFileSync(uiPath, 'utf8'));
-if (ui.schema !== 'bvn/ui@9') throw new Error(`ui.json schema=${ui.schema}，期望 bvn/ui@9`);
+if (ui.schema !== 'bvn/ui@10') throw new Error(`ui.json schema=${ui.schema}，期望 bvn/ui@10`);
 
 let changed = false;
 /** 待删文件 [dir, frameNo][]，ui.json 写盘后统一执行。 */
@@ -109,7 +109,7 @@ const pendingDeletes = [];
 {
   const seen = new Map();
   for (const spec of [ui.select.vortex, ...ui.select.mapFx]) {
-    if (!spec || spec.frames <= 1 || spec.tween) continue;
+    if (!spec || spec.frames <= 1 || spec.tween || spec.map) continue;
     if (seen.has(spec.dir)) {
       spec.map = seen.get(spec.dir);
       continue;
