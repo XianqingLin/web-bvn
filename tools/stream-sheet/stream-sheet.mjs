@@ -153,6 +153,8 @@ async function uiMode() {
   const path = join(BAKED, 'ui.json');
   const ui = JSON.parse(readFileSync(path, 'utf8'));
   for (const [char, el] of Object.entries(ui.title.fx.elements)) {
+    // Tier 2 tween 化（DESIGN §4.8）：单贴图元件无帧流，不拼图
+    if (el.tween) continue;
     // 帧去重感知（2026-11-25 stream-dedup 产物）：el.map 存在时磁盘只剩唯一帧，
     // 只拼 map 引用的唯一帧（升序），运行时 SheetFrameStream 按槽位→帧号→cell 序号寻址
     const list = el.map

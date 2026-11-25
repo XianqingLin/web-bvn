@@ -94,6 +94,8 @@ export interface UiSelectData {
     pos: [number, number];
     scale: [number, number];
     map?: number[];
+    /** Tier 2 tween 化（DESIGN §4.8）：单贴图 + 内部补间替代帧流 */
+    tween?: import('./scenes/fx.js').FxTweenSpec;
   }[];
 }
 
@@ -134,6 +136,8 @@ export interface UiData {
           sheets?: import('@bvn/render').StreamSheetSpec;
           /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号） */
           map?: number[];
+          /** Tier 2 tween 化（DESIGN §4.8）：单贴图 + 内部补间替代帧流 */
+          tween?: import('./scenes/fx.js').FxTweenSpec;
         }
       >;
       instances: {

@@ -15,6 +15,7 @@
  */
 import { Container, Sprite } from 'pixi.js';
 import { FrameStream, SheetFrameStream } from './stream.js';
+import { FxTweenContent, type FxTweenSpec } from './fx.js';
 
 export interface TitleFxElement {
   dir: string;
@@ -28,6 +29,8 @@ export interface TitleFxElement {
   sheets?: import('@bvn/render').StreamSheetSpec;
   /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号）；缺省恒等 */
   map?: number[];
+  /** Tier 2 tween 化（DESIGN §4.8）：单贴图 + 内部补间替代帧流；缺省 = 走流 */
+  tween?: FxTweenSpec;
 }
 
 export interface TitleFxInstance {
@@ -43,7 +46,9 @@ interface Layer {
   readonly sprite: Sprite;
   readonly el: TitleFxElement;
   readonly inst: TitleFxInstance;
-  readonly stream: FrameStream | SheetFrameStream;
+  readonly stream: FrameStream | SheetFrameStream | null;
+  /** 内部时间轴补间（el.tween 存在时；与 stream 互斥） */
+  readonly tween: FxTweenContent | null;
   /** 内部播放头（帧，浮点累加） */
   play: number;
   wasVisible: boolean;
@@ -71,8 +76,12 @@ export class TitleFxLayer {
     for (const inst of [...instances].sort((a, b) => a.depth - b.depth)) {
       const el = elements[String(inst.char)];
       if (!el) throw new Error(`title fx 元件 ${inst.char} 缺帧序规格`);
-      let stream = streamByDir.get(el.dir);
-      if (!stream) {
+      let stream = streamByDir.get(el.dir) ?? null;
+      let tween: FxTweenContent | null = null;
+      if (el.tween) {
+        // Tier 2 tween 化：单贴图 + 内部补间，无流
+        tween = new FxTweenContent(el.tween);
+      } else if (!stream) {
         // 拼图清单优先（2026-11-25）：sheet 纹理常驻 + cell quad，零逐帧解码/上传；
         // 无清单回退逐帧 FrameStream（lazy：构造期不全量预取——10 条流 ~350 请求
         // 会打满 HTTP 连接池，把同场景按钮贴图/板首帧压到队尾——切片 46 实测 4.4s
@@ -90,8 +99,9 @@ export class TitleFxLayer {
       }
       const sprite = new Sprite();
       sprite.visible = false;
+      if (tween) sprite.addChild(tween.sprite);
       this.ui.addChild(sprite);
-      this.layers.push({ sprite, el, inst, stream, play: 0, wasVisible: false });
+      this.layers.push({ sprite, el, inst, stream, tween, play: 0, wasVisible: false });
     }
   }
 
@@ -126,13 +136,20 @@ export class TitleFxLayer {
       l.wasVisible = true;
       l.play += plateAdvanced ? plateDelta : (dtMs * l.el.fps) / 1000;
       const f = (Math.floor(l.play) % l.el.frames) + 1;
-      const tex = l.stream.get(f);
-      if (tex) l.sprite.texture = tex;
-      else if (!l.stream.failed(f)) l.stream.ensure(f, 2); // 失败帧保持上一画面
+      if (l.tween) {
+        // Tier 2 tween：内容 = 单贴图 + 内部补间（origin 已含贴图 TL 元件位，外层只挂
+        // 放置位——union origin 不进外层，防双重偏移）
+        l.tween.apply(f);
+        l.sprite.position.set(this.stageOffset[0] + x, y);
+      } else if (l.stream) {
+        const tex = l.stream.get(f);
+        if (tex) l.sprite.texture = tex;
+        else if (!l.stream.failed(f)) l.stream.ensure(f, 2); // 失败帧保持上一画面
+        // PNG 画布原点 = 内容 union 左上（origin）→ 挂位 = 放置位 + scale×origin
+        l.sprite.position.set(this.stageOffset[0] + x + sx * l.el.origin[0], y + sy * l.el.origin[1]);
+      }
       l.sprite.visible = true;
       l.sprite.alpha = alpha;
-      // PNG 画布原点 = 内容 union 左上（origin）→ 挂位 = 放置位 + scale×origin
-      l.sprite.position.set(this.stageOffset[0] + x + sx * l.el.origin[0], y + sy * l.el.origin[1]);
       l.sprite.scale.set(sx, sy);
     }
   }

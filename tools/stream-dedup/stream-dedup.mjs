@@ -109,7 +109,7 @@ const pendingDeletes = [];
 {
   const seen = new Map();
   for (const spec of [ui.select.vortex, ...ui.select.mapFx]) {
-    if (!spec || spec.frames <= 1) continue;
+    if (!spec || spec.frames <= 1 || spec.tween) continue;
     if (seen.has(spec.dir)) {
       spec.map = seen.get(spec.dir);
       continue;
@@ -144,7 +144,7 @@ if (!ui.title.topMap) {
 
 // title.fx.elements：fx 叠加层（sheet 重建交给 stream-sheet --ui）
 for (const [char, el] of Object.entries(ui.title.fx.elements)) {
-  if (el.map || el.frames <= 1) continue;
+  if (el.map || el.frames <= 1 || el.tween) continue;
   const r = await dedupStream(el.dir, el.dir, el.frames);
   if (r) {
     el.map = r.map;

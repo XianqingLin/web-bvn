@@ -124,8 +124,11 @@ export class GameLoadingScene implements Scene {
               }
             }
             for (const el of Object.values(uiData.title.fx.elements)) {
-              // 拼图清单优先（2026-11-25）：444 个逐帧文件 → 10 张 sheet
-              if (el.sheets) {
+              // Tier 2 tween 化：单贴图替代帧流/sheet（DESIGN §4.8）
+              if (el.tween) {
+                frames.push(`${ASSETS}/${el.tween.texture}`);
+              } else if (el.sheets) {
+                // 拼图清单优先（2026-11-25）：444 个逐帧文件 → 10 张 sheet
                 for (const s of el.sheets.sheets) frames.push(`${ASSETS}/${el.dir}/${s}`);
               } else {
                 for (let i = 1; i <= el.frames; i++) push(urlOf(el, i));

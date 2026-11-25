@@ -54,6 +54,7 @@ import { dirname, join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { parseSwfXml, removePlacements, contentBounds, placementSegments } from './swf-nest.mjs';
 import { extractLogoTween } from './logo-tween.mjs';
+import { extractElementTween } from './element-tween.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -580,8 +581,54 @@ const selectFx = { vortex: null, mapFx: [] };
       console.log(`  元件 ${fx.char} 锚点用解析位 [${fx.posOverride}]（校准 [${plateTL}]）`);
       plateTL = fx.posOverride;
     }
-    await bakeOverlayFrames(framesDir, frameCount, cal.crop, join(selectFxDir, String(fx.char)));
+    // Tier 2 tween 化（DESIGN §4.8）：恒定内容元件 = 单贴图（源帧裁剪）+ 内部补间；
+    // origin = 贴图 TL 在外层本地（= 画布）坐标，keys 相对源帧；不适用的回退帧序
+    let tween = null;
+    let cropSize = [0, 0];
+    try {
+      const t = extractElementTween(selectModel, fx.char);
+      const minX = Math.min(...t.absKeys.map((k) => k[2]));
+      const minY = Math.min(...t.absKeys.map((k) => k[3]));
+      const crop = [
+        Math.floor(t.contentTLFrame1[0] - 2 - minX),
+        Math.floor(t.contentTLFrame1[1] - 2 - minY),
+        t.cropLocal[2],
+        t.cropLocal[3],
+      ];
+      const outDir = join(selectFxDir, String(fx.char));
+      rmSync(outDir, { recursive: true, force: true });
+      mkdirSync(outDir, { recursive: true });
+      await sharp(join(framesDir, `${t.texFrame}.png`))
+        .extract({ left: crop[0], top: crop[1], width: crop[2], height: crop[3] })
+        .webp({ quality: 80 })
+        .toFile(join(outDir, 'base.webp'));
+      tween = {
+        texture: `ui/select-fx/${fx.char}/base.webp`,
+        origin: [crop[0], crop[1]],
+        keys: t.keys,
+        ...(t.ctKeys.length ? { ctKeys: t.ctKeys } : {}),
+      };
+      cropSize = [crop[2], crop[3]];
+      console.log(`  元件 ${fx.char}：tween 化 贴图 ${crop[2]}x${crop[3]} origin [${tween.origin}] keys×${t.keys.length} ctKeys×${t.ctKeys.length}`);
+    } catch (e) {
+      console.log(`  元件 ${fx.char}：保留帧序（${e.message}）`);
+    }
     const px = p.sx < 0 ? plateTL[0] + cal.crop[2] * Math.abs(p.sx) : plateTL[0];
+    if (tween) {
+      selectFx.mapFx.push({
+        char: fx.char,
+        depth: fx.depth,
+        dir: `ui/select-fx/${fx.char}`,
+        frames: frameCount,
+        fps: 30,
+        size: cropSize,
+        pos: [+px.toFixed(2), +plateTL[1].toFixed(2)],
+        scale: [+p.sx.toFixed(4), +p.sy.toFixed(4)],
+        tween,
+      });
+      continue;
+    }
+    await bakeOverlayFrames(framesDir, frameCount, cal.crop, join(selectFxDir, String(fx.char)));
     selectFx.mapFx.push({
       char: fx.char,
       depth: fx.depth,
@@ -688,18 +735,60 @@ const titlePlates = { bottomOrigin: null, topOrigin: null };
   titlePlates.bottomOrigin = await bakePlates(titleXml, 'bottom');
   titlePlates.topOrigin = await bakePlates(titleXml, 'top');
 
-  // fx 元件帧序：内部脉冲由 FFDec 烘进帧；canvas 自检 = 内容 union 尺寸
+  // fx 元件：Tier 2 tween 化（DESIGN §4.8）——内部时间轴为「恒定内容 + 矩阵/CXFORM
+  // 常量段」的元件（提取器断言：单深度单子件 / 内部缩放 ±2% 内 / 有恒等 CT 源帧）改
+  // 单贴图（源帧裁剪）+ 补间；其余（40 扩散绽放——缩放 0.27→1.71 上采样会糊 / 59 遮罩
+  // 扫光——clipDepth 合成）保留帧序烘焙。tween.origin = 贴图 TL 元件局部位（= 裁剪框 +
+  // union 原点），keys 相对源帧；运行时 FxTweenContent childPos = origin + keys(f)。
   const titleExportDir = join(SCRATCH, 'title');
   for (const char of TITLE_FX_CHARS) {
     const framesDir = findSpriteDir(titleExportDir, char, `title fx ${char}`);
     const frameCount = titleModel.sprites.get(char).frameCount;
     const collapsed = await collapseStaticFrames(framesDir, frameCount);
     const cb = contentBounds(titleModel, char);
+    const outDir = join(OUT_ASSETS, 'title-fx', String(char));
+    let tween = null;
+    let cropSize = [0, 0];
+    try {
+      const t = extractElementTween(titleModel, char);
+      const crop = [
+        Math.floor(t.contentTLFrame1[0] - 2 - cb.minX),
+        Math.floor(t.contentTLFrame1[1] - 2 - cb.minY),
+        t.cropLocal[2],
+        t.cropLocal[3],
+      ];
+      rmSync(outDir, { recursive: true, force: true });
+      mkdirSync(outDir, { recursive: true });
+      await sharp(join(framesDir, `${t.texFrame}.png`))
+        .extract({ left: crop[0], top: crop[1], width: crop[2], height: crop[3] })
+        .webp({ quality: 80 })
+        .toFile(join(outDir, 'base.webp'));
+      tween = {
+        texture: `ui/title-fx/${char}/base.webp`,
+        origin: [+(crop[0] + cb.minX).toFixed(2), +(crop[1] + cb.minY).toFixed(2)],
+        keys: t.keys,
+        ...(t.ctKeys.length ? { ctKeys: t.ctKeys } : {}),
+      };
+      cropSize = [crop[2], crop[3]];
+      console.log(`title fx ${char}：tween 化 贴图 ${crop[2]}x${crop[3]} origin [${tween.origin}] keys×${t.keys.length} ctKeys×${t.ctKeys.length}`);
+    } catch (e) {
+      console.log(`title fx ${char}：保留帧序（${e.message}）`);
+    }
+    if (tween) {
+      titleFx.elements[char] = {
+        dir: `ui/title-fx/${char}`,
+        frames: collapsed,
+        fps: TITLE.fps,
+        size: cropSize,
+        origin: [+cb.minX.toFixed(2), +cb.minY.toFixed(2)],
+        tween,
+      };
+      continue;
+    }
     const meta = await sharp(join(framesDir, '1.png')).metadata();
     if (Math.abs(meta.width - (cb.maxX - cb.minX)) > 1.5 || Math.abs(meta.height - (cb.maxY - cb.minY)) > 1.5) {
       throw new Error(`fx ${char} 画布 ${meta.width}x${meta.height} ≠ 内容 union ${(cb.maxX - cb.minX).toFixed(1)}x${(cb.maxY - cb.minY).toFixed(1)}（origin 语义失效）`);
     }
-    const outDir = join(OUT_ASSETS, 'title-fx', String(char));
     rmSync(outDir, { recursive: true, force: true });
     mkdirSync(outDir, { recursive: true });
     for (let i = 1; i <= collapsed; i++) {

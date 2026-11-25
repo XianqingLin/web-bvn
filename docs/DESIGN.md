@@ -140,7 +140,11 @@ hitspark/bisha/HUD 是每局固定税（~8MB/88 请求），在启动装载完�
 
 FFDec 逐帧烘焙把 Flash 补间固化为位图流，而淡入/光斑类元件本质是「单贴图 + alpha/位置补间 + ADD 混合」，逐帧烘焙是体积与解码税。定案：候选元件（logo、select-fx 93/99、title-fx 光斑层）程序化重表达——**补间参数从 SWF 内层时间轴解析导出（非目测调参）**，ui-pack 增 SWF 时间轴解析；运行时以单贴图 + 补间 + ADD 混合播放；**真逐像素动画（火焰/旋涡）保留烘焙不迁移**。迁移节奏：逐元件进行，**目检通过前旧烘焙流保留不动**（可回退），目检通过后从 ui-pack 产物与烘焙流中剔除旧帧。纯 app 渲染层改动，sim 零感知，replay/batch 基线预期零漂。
 
-**logo 试点（2026-11-25 目检通过收编）**：swf2xml 实证 logo_movie 实为两层——d1 白矩形铺满舞台（帧 1..65 常驻、末帧移除）+ d2 logo 图形逐帧 CXFORM 白↔本色**灰度互补**线性渐变（mult+add ≡ 1，alpha 恒 1，**无 blend mode**）——待定池原猜的「alpha 淡入 + ADD 混合」不成立。互补渐变作用于压平合成帧与「白底上 alpha 淡入淡出」逐像素同式（cxform(p) = m·p + a ≡ α·p + (1−α)·255，α = mult/256）→ 运行时 = 恒等定格帧（帧 20）单贴图 + 白底 + alpha 关键帧补间（keys `[[1,0],[20,1],[45,1],[65,0],[66,0]]`，`tools/ui-pack/logo-tween.mjs` 程序化导出，灰度/互补/白底前提全断言）。40 文件 245KB → 单贴图 10.7KB，**逐帧流停烘**（ui-pack 3d 删、stream-dedup logo 分支删、运行时单路径）。偏离登记：末帧原烘焙为透明（空台，旧实现黑底闪一帧），tween 版白底承接 = 回归原版舞台语义。select-fx / title-fx 待同路线迁移。
+**全量审计（tools/ui-pack/tween-audit.mjs，2026-11-25）**：4 个 UI SWF 的全部多帧 sprite 按 XML 时间轴分类——**tween 可表达 = 内容恒定（单深度单子件）只动矩阵/CXFORM**；逐帧换内容 = 帧动画。结论：title-fx 8 元件（29/32/35/38/41/44/47/52，内部纯竖/横滑）+ select-fx 93/96/99（alpha 闪烁 / x 三角波 + add 微光 / add 呼吸）迁移；**select-fx 71 旋涡**（35 张位图序列逐帧换内容）、**title 底/顶板**（嵌套子件 + 59 遮罩合成）、**title-fx 40**（扩散绽放，内部缩放 0.27→1.71——单贴图只 raster 一个尺度，重渲染上采样会糊）保留烘焙；common 5/8/25、setting 5、select 106 未入流不涉及。收编后 title-fx 430 文件 15.8MB → 34 文件 571KB、select-fx 150 文件 1.27MB → 38 文件 381KB（均含保留项）。
+
+**实现**：`tools/ui-pack/element-tween.mjs`（断言 + 常量段提取；Flash 时间轴无插值，keys 逐段恒定）；运行时 `FxTweenContent`（fx.ts）：childPos = tween.origin + keys(f)，cxform rgb' = mr·rgb + ar 走 ColorMatrixFilter 直映；TitleFxLayer/OverlayFx 外层挂位不变（tween 层外层不再乘 union origin，origin 语义移入内容层）。ui-pack 3b/3a-bis tween 优先、断言失败回退帧序；stream-dedup/stream-sheet 跳过 tween 元件。
+
+**logo 试点（2026-11-25 目检通过收编）**：swf2xml 实证 logo_movie 实为两层——d1 白矩形铺满舞台（帧 1..65 常驻、末帧移除）+ d2 logo 图形逐帧 CXFORM 白↔本色**灰度互补**线性渐变（mult+add ≡ 1，alpha 恒 1，**无 blend mode**）——待定池原猜的「alpha 淡入 + ADD 混合」不成立。互补渐变作用于压平合成帧与「白底上 alpha 淡入淡出」逐像素同式（cxform(p) = m·p + a ≡ α·p + (1−α)·255，α = mult/256）→ 运行时 = 恒等定格帧（帧 20）单贴图 + 白底 + alpha 关键帧补间（keys `[[1,0],[20,1],[45,1],[65,0],[66,0]]`，`tools/ui-pack/logo-tween.mjs` 程序化导出，灰度/互补/白底前提全断言）。40 文件 245KB → 单贴图 10.7KB，**逐帧流停烘**（ui-pack 3d 删、stream-dedup logo 分支删、运行时单路径）。偏离登记：末帧原烘焙为透明（空台，旧实现黑底闪一帧），tween 版白底承接 = 回归原版舞台语义。
 
 ## 5. 渲染层
 

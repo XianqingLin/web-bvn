@@ -10,18 +10,30 @@
  *   - 跳过（skip）只跳板帧，播放头照走——与原版点击跳过表现一致。
  * 帧纹理走 FrameStream（blob 全量预下载 + 按需解码），多实例共用同目录时 pixi 纹理
  * 缓存兜底去重。
+ *
+ * Tier 2 tween 化（DESIGN §4.8）：spec.tween 存在时内容 = 单贴图 + 内部时间轴常量段
+ * （FxTweenContent；cxform RGB 走 ColorMatrixFilter 直映），不再建流。
  */
-import { Sprite } from 'pixi.js';
+import { Assets, ColorMatrixFilter, Sprite, Texture } from 'pixi.js';
 import { FrameStream } from './stream.js';
+import { ASSETS } from '../data.js';
 
 /** ui.json 里的放置常量段：[from, to, x, y, sx, sy, alpha]（板帧闭区间）。 */
 export type FxKey = [number, number, number, number, number, number, number];
 
-export interface FxSegment {
-  depth: number;
-  from: number;
-  to: number;
+/** cxform RGB 常量段：[from, to, mr, ar, mg, ag, mb, ab]（0..1；rgb' = mr·rgb + ar）。 */
+export type FxCtKey = [number, number, number, number, number, number, number, number];
+
+/** 内部时间轴补间规格（ui.json tween 字段，tools/ui-pack/element-tween.mjs 产物）。 */
+export interface FxTweenSpec {
+  /** 内容单贴图（assets/ 下路径） */
+  texture: string;
+  /** 贴图 TL 在外层 Sprite 本地系的位置 */
+  origin: [number, number];
+  /** 内容位常量段（相对贴图源帧）：[from,to,dx,dy,sx,sy,alpha]，内部帧闭区间全覆盖 */
   keys: FxKey[];
+  /** cxform RGB 段；缺省 = 无色变换 */
+  ctKeys?: FxCtKey[];
 }
 
 /** ui.json 叠加层规格（title.fx[].segs / select.mapFx[] 共用字段）。 */
@@ -33,6 +45,8 @@ export interface FxSpec {
   size: [number, number];
   /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号）；缺省恒等 */
   map?: number[];
+  /** Tier 2 tween 化（DESIGN §4.8）：单贴图 + 内部补间替代帧流；缺省 = 走流 */
+  tween?: FxTweenSpec;
 }
 
 /** 板帧 → 本实例渲染状态（坐标 = 场景最终屏幕位，含 OX 偏移与 origin 换算；null = 隐藏）。 */
@@ -44,9 +58,52 @@ export interface FxLayout {
   alpha: number;
 }
 
+/** 恒定内容 + 内部补间的内容 Sprite：childPos(f) = origin + keys(f)，cxform 走滤镜。 */
+export class FxTweenContent {
+  readonly sprite = new Sprite();
+  private readonly filter: ColorMatrixFilter | null;
+  private lastCt: string | null = null;
+
+  constructor(private readonly spec: FxTweenSpec) {
+    this.filter = spec.ctKeys?.length ? new ColorMatrixFilter() : null;
+    if (this.filter) this.sprite.filters = [this.filter];
+    this.sprite.visible = false;
+    // 贴图经 Assets 缓存（game-loading 已预载 URL，命中即回）；未就绪时本帧不显示
+    void Assets.load<Texture>(`${ASSETS}/${spec.texture}`).then((t) => {
+      this.sprite.texture = t;
+    });
+  }
+
+  /** 按内部播放头帧应用内容位/色变换（keys 常量段全覆盖 1..frames）。 */
+  apply(f: number): void {
+    const k = this.spec.keys.find((s) => f >= s[0] && f <= s[1]);
+    if (!k) {
+      this.sprite.visible = false;
+      return;
+    }
+    this.sprite.visible = !!this.sprite.texture;
+    const [, , dx, dy, sx, sy, alpha] = k;
+    this.sprite.position.set(this.spec.origin[0] + dx, this.spec.origin[1] + dy);
+    this.sprite.scale.set(sx, sy);
+    this.sprite.alpha = alpha;
+    if (this.filter) {
+      const ct = this.spec.ctKeys?.find((s) => f >= s[0] && f <= s[1]);
+      const sig = ct ? ct.slice(2).join(',') : '';
+      if (sig !== this.lastCt) {
+        this.lastCt = sig;
+        // cxform rgb' = mr·rgb + ar → ColorMatrixFilter 4×5 直映（alpha 行恒等）；
+        // 恒等段（ct 缺省）回白色全通
+        const [, , mr, ar, mg, ag, mb, ab] = ct ?? [0, 0, 1, 0, 1, 0, 1, 0];
+        this.filter.matrix = [mr, 0, 0, 0, ar, 0, mg, 0, 0, ag, 0, 0, mb, 0, ab, 0, 0, 0, 1, 0];
+      }
+    }
+  }
+}
+
 export class OverlayFx {
   readonly ui = new Sprite();
-  private readonly stream: FrameStream;
+  private readonly stream: FrameStream | null;
+  private readonly tween: FxTweenContent | null;
   private readonly fps: number;
   private readonly frames: number;
   private playMs = 0;
@@ -57,12 +114,19 @@ export class OverlayFx {
     this.ui.visible = false;
     this.fps = spec.fps;
     this.frames = spec.frames;
-    this.stream = new FrameStream({ dir: spec.dir, frames: spec.frames, ...(spec.map ? { map: spec.map } : {}) });
+    if (spec.tween) {
+      this.stream = null;
+      this.tween = new FxTweenContent(spec.tween);
+      this.ui.addChild(this.tween.sprite);
+    } else {
+      this.tween = null;
+      this.stream = new FrameStream({ dir: spec.dir, frames: spec.frames, ...(spec.map ? { map: spec.map } : {}) });
+    }
   }
 
   /** 预热首帧（场景 enter 时调用，避免首次显示白块）。 */
   preload(): void {
-    this.stream.ensure(1, 2);
+    this.stream?.ensure(1, 2);
   }
 
   update(plateFrame: number, dtMs: number): void {
@@ -81,11 +145,15 @@ export class OverlayFx {
     this.wasVisible = true;
     this.playMs += dtMs;
     const f = (Math.floor((this.playMs * this.fps) / 1000) % this.frames) + 1;
-    const tex = this.stream.get(f);
-    if (tex) this.ui.texture = tex;
-    else if (this.stream.failed(f)) {
-      /* 失败帧保持上一画面 */
-    } else this.stream.ensure(f, 2);
+    if (this.tween) {
+      this.tween.apply(f);
+    } else if (this.stream) {
+      const tex = this.stream.get(f);
+      if (tex) this.ui.texture = tex;
+      else if (this.stream.failed(f)) {
+        /* 失败帧保持上一画面 */
+      } else this.stream.ensure(f, 2);
+    }
     this.ui.alpha = lay.alpha;
     this.ui.position.set(lay.x, lay.y);
     this.ui.scale.set(lay.sx, lay.sy);
@@ -94,7 +162,7 @@ export class OverlayFx {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.stream.dispose();
+    this.stream?.dispose();
   }
 }
 
