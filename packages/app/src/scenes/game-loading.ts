@@ -44,7 +44,7 @@ export class GameLoadingScene implements Scene {
   private destroyed = false;
   private ui: Container | null = null;
   private barRef: LoadingBar | null = null;
-  private barState = { shown: 0, spinAcc: 0, spinFrame: -1 };
+  private barState = { shown: 0 };
   private target = 0;
   private finishedAt = -1;
   private ctxRef: SceneCtx | null = null;

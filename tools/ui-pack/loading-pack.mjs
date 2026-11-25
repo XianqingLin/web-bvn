@@ -15,6 +15,9 @@
  *     - 填充 bar(sprite 52)@(2,5)：shape 51 = 760×5（锚点左端，scaleX 从左往右缩）
  *     - 转圈 spinner(sprite 57) 30 帧（shape 56 = 14×14 方框旋转，导出画布 20×20，
  *       画布 (10,10) = 旋转中心）叠 label 组内 @(7,8.5)
+ *       【偏离登记】不逐帧烘焙：只取帧 1 基准位，运行时绕画布中心连续旋转。
+ *       依据：30 帧@30fps = 每秒一圈；帧 1→2 旋转相关性实测 +12°/帧（顺时针，
+ *       30×12° 恰满 360°）——连续 transform 与帧循环逐 tick 等价且更平滑。
  *     - "加载中"美术字 shape 54 = 66×18（bounds 19.05..85.05, 0..18）
  *       → 组合：spinner 画布左上落 bar 空间 (1.95,-22.95)，美术字落 (24,-21.45)
  *     - txt（DefineEditText 60）@(352.1,18.3)：右对齐 14px 青色 RGB(0,218,248)，
@@ -26,8 +29,8 @@
  *   seltwzmc(sprite 9) 4 帧 = 加载页选人面板角标（SelectedFighterUI.setFighterIndex/
  *       setAssister）：帧 1..3 = 1st/2nd/3rd 位次，帧 4 = assist；画布 77×48（union）。
  *
- * 产出：assets/ui/loading/（bg.webp + cover.webp + track/fill/label.png + spin/<n>.png
- *       + seltwz/<n>.png）、baked/loading.json（schema bvn/loading@2）。
+ * 产出：assets/ui/loading/（bg.webp + cover.webp + track/fill/label/spin.png + seltwz/<n>.png）、
+ *       baked/loading.json（schema bvn/loading@3）。
  *
  * 用法：node tools/ui-pack/loading-pack.mjs [--ffdec PATH] [--out-assets DIR] [--out-baked FILE]
  *   （本工具按 pack 管线约定只产 PNG（bg/cover 例外：sharp 直出 webp）；产完必须跑
@@ -60,7 +63,7 @@ const BAR = {
   pos: [17, 555.1],
   track: { pos: [0, 0], size: [764, 15] },
   fill: { pos: [2, 5], size: [760, 5] },
-  /** spinner 30 帧循环 @30fps；PNG 原点 = 旋转中心 (10,10) 反推落位 */
+  /** spinner：帧 1 基准位 + 运行时连续旋转；30 帧@30fps = 每秒一圈（帧序顺时针 +12°/帧） */
   spin: { pos: [1.95, -22.95], size: [20, 20], center: [10, 10], frames: 30, fps: 30 },
   label: { pos: [24, -21.45], size: [66, 18] },
   /** 动态消息文本：右缘锚点（字段 x -2..409.85 + 摆放位 352.1） */
@@ -129,18 +132,15 @@ writeFileSync(join(OUT_ASSETS, 'track.png'), await shapePng(49, BAR.track.size[0
 writeFileSync(join(OUT_ASSETS, 'fill.png'), await shapePng(51, BAR.fill.size[0], BAR.fill.size[1]));
 writeFileSync(join(OUT_ASSETS, 'label.png'), await shapePng(54, BAR.label.size[0], BAR.label.size[1]));
 
-// spinner：sprite 57 全帧（旋转循环；帧画布恒 20×20 = 全周期 union bounds）
+// spinner：sprite 57 只烘帧 1（基准位；旋转语义收进 baked 的 turnsPerSec，
+// 运行时连续 transform——见头部偏离登记。帧数守卫保留：源 sprite 变了必须炸出来）
 {
-  const dir = join(OUT_ASSETS, 'spin');
-  mkdirSync(dir, { recursive: true });
   const src = spriteDir(57, 'spinner');
   const frames = readdirSync(src).filter((f) => f.endsWith('.png'));
   if (frames.length !== BAR.spin.frames) {
     throw new Error(`spinner 帧数变化：${frames.length} ≠ ${BAR.spin.frames}（规格须同步更新）`);
   }
-  for (let i = 1; i <= BAR.spin.frames; i++) {
-    copyFileSync(join(src, `${i}.png`), join(dir, `${i}.png`));
-  }
+  copyFileSync(join(src, '1.png'), join(OUT_ASSETS, 'spin.png'));
 }
 
 // 封面：bitmap 64 导出 804×604 → 裁左上 800×600 舞台区
@@ -178,7 +178,7 @@ writeFileSync(join(OUT_ASSETS, 'label.png'), await shapePng(54, BAR.label.size[0
 // ---------- 3. baked/loading.json ----------
 const rel = (n) => `ui/loading/${n}`;
 writeFileSync(OUT_BAKED, JSON.stringify({
-  schema: 'bvn/loading@2',
+  schema: 'bvn/loading@3',
   bg: { url: rel('bg.webp'), size: BG.size },
   /** GameLoadingStage"绊"初始化封面（bar 部件复用下方 bar 段，运行时重建） */
   cover: { url: rel('cover.webp'), size: COVER.size, barPos: COVER.barPos },
@@ -188,7 +188,7 @@ writeFileSync(OUT_BAKED, JSON.stringify({
     pos: BAR.pos,
     track: { url: rel('track.png'), pos: BAR.track.pos, size: BAR.track.size },
     fill: { url: rel('fill.png'), pos: BAR.fill.pos, size: BAR.fill.size },
-    spin: { dir: rel('spin'), pos: BAR.spin.pos, size: BAR.spin.size, center: BAR.spin.center, frames: BAR.spin.frames, fps: BAR.spin.fps },
+    spin: { url: rel('spin.png'), pos: BAR.spin.pos, size: BAR.spin.size, center: BAR.spin.center, turnsPerSec: BAR.spin.frames / BAR.spin.fps },
     label: { url: rel('label.png'), pos: BAR.label.pos, size: BAR.label.size },
     txt: BAR.txt,
   },

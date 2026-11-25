@@ -3,7 +3,8 @@
  *
  * 演出照原版 LoadingStage/loading_fight_mc 规格（tools/ui-pack/loading-pack 烘焙）：
  *  - 800×600 舞台画（"Get ready for the next battle!" + VS 纹章）在 1000×600 逻辑屏居中；
- *  - 进度条：槽 764×15 + 填充 760×5（scaleX 0..1）+ "加载中"美术字 + 30 帧转圈 spinner；
+ *  - 进度条：槽 764×15 + 填充 760×5（scaleX 0..1）+ "加载中"美术字 + 转圈 spinner
+ *    （单贴图连续旋转，每秒一圈，见 bar.ts 偏离登记）；
  *  - 消息文本 = 原版 bar.txt（右对齐 14px 青 #00daf8），`消息(n/总数)`；
  *  - 双方已选面板（原版 SelectIndexUI._sltUI 语义，切片 41）：fighter 面板按位次纵排
  *    （p1 组 (70,85) / p2 组 (480,85)，间距 100）、辅助面板 p1 (-30,325) / p2 (45,325)；
@@ -95,7 +96,7 @@ export class LoadingScene implements Scene {
   private ui: Container | null = null;
   /** 进度条组件（bar.ts 装配；fill/msg/spin 由 update 驱动） */
   private barRef: LoadingBar | null = null;
-  private barState = { shown: 0, spinAcc: 0, spinFrame: -1 };
+  private barState = { shown: 0 };
   private msg: Text | null = null;
   /** 进度：target = 队列推进即设；shown = update 平滑逼近（条形补间） */
   private target = 0;

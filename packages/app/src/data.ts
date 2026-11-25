@@ -277,7 +277,7 @@ export function loadTimelineSounds(ctx: Ctx): Promise<TimelineSoundsManifest> {
   return ctx.assets.json<TimelineSoundsManifest>(`${BAKED}/timeline-sounds.json`);
 }
 
-// ---------- loading.json（tools/ui-pack/loading-pack 产物，schema bvn/loading@2，切片 31） ----------
+// ---------- loading.json（tools/ui-pack/loading-pack 产物，schema bvn/loading@3） ----------
 
 /** 进战斗加载画面（原版 LoadingStage/loading_fight_mc 规格；坐标 = 800×600 舞台 px）。 */
 export interface LoadingData {
@@ -291,7 +291,7 @@ export interface LoadingData {
     pos: [number, number];
     track: { url: string; pos: [number, number]; size: [number, number] };
     fill: { url: string; pos: [number, number]; size: [number, number] };
-    spin: { dir: string; pos: [number, number]; size: [number, number]; center: [number, number]; frames: number; fps: number };
+    spin: { url: string; pos: [number, number]; size: [number, number]; center: [number, number]; turnsPerSec: number };
     label: { url: string; pos: [number, number]; size: [number, number] };
     /** 动态消息文本（原版 bar.txt：右对齐 14px 青 #00daf8） */
     txt: { rightEdge: number; centerY: number; size: number; color: string };

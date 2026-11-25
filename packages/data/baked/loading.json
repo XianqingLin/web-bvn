@@ -1,5 +1,5 @@
 {
-  "schema": "bvn/loading@2",
+  "schema": "bvn/loading@3",
   "bg": {
     "url": "ui/loading/bg.webp",
     "size": [
@@ -50,7 +50,7 @@
       ]
     },
     "spin": {
-      "dir": "ui/loading/spin",
+      "url": "ui/loading/spin.webp",
       "pos": [
         1.95,
         -22.95
@@ -63,8 +63,7 @@
         10,
         10
       ],
-      "frames": 30,
-      "fps": 30
+      "turnsPerSec": 1
     },
     "label": {
       "url": "ui/loading/label.webp",
