@@ -5,6 +5,7 @@
  * 动机：FFDec 逐帧烘焙把 Flash 补间/停帧原样固化为位图序列——logo 66 帧里 47 帧
  * 像素级完全相同（20 帧淡入 + 46 帧定格），select-fx/71 的 30fps 流实为 10fps 内容
  * （周期-3 冗余），title 90 帧里 60+ 帧静止。重复帧白占下载字节（UI 流 ~34MB）。
+ * （logo 已 tween 化收编——单贴图 + 补间，见 ui-pack 3f——不再流经本工具。）
  *
  * 语义：**播放头槽位不变**。ui.json 各流帧规格新增可选 `map: [u1, u2, …]`
  * （播放头槽位 1-based → 磁盘帧号，指向该槽位像素内容的首次出现帧），
@@ -103,16 +104,6 @@ if (ui.schema !== 'bvn/ui@9') throw new Error(`ui.json schema=${ui.schema}，期
 let changed = false;
 /** 待删文件 [dir, frameNo][]，ui.json 写盘后统一执行。 */
 const pendingDeletes = [];
-
-// logo：开场徽标（淡入 + 长定格）
-{
-  const r = ui.logo.frames > 1 && !ui.logo.map ? await dedupStream('ui/logo', ui.logo.dir, ui.logo.frames) : null;
-  if (r) {
-    ui.logo.map = r.map;
-    pendingDeletes.push([ui.logo.dir, r.deletable]);
-    changed = true;
-  }
-}
 
 // select：旋涡 + 地图面板 fx（OverlayFx → FrameStream；同 dir 多实例共享同一 map）
 {

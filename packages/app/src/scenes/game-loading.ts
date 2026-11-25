@@ -98,11 +98,10 @@ export class GameLoadingScene implements Scene {
           msg: '游戏初始化：正在加载主菜单动画',
           share: 0.95,
           run: async (fine) => {
-            // logo/title 三层夹心全量预载（切片 46）；区间与各场景 FrameStream 消费
-            // 区间一致（logo [from..frames] / title 底顶双板 [introFrom..menuStop]，
-            // 76-90 从不显示不拉 / fx 元件 sheet 全量（2026-11-25 拼图，444 逐帧文件
-            // → 10 sheet）。fetch 走 HTTP 缓存，Logo/菜单 FrameStream/SheetFrameStream
-            // 首拉全部命中本地缓存不占网络。
+            // logo 单贴图 / title 三层夹心预载（切片 46）；区间与各场景消费区间一致
+            // （title 底顶双板 [introFrom..menuStop]，76-90 从不显示不拉 / fx 元件
+            // sheet 全量（2026-11-25 拼图，444 逐帧文件 → 10 sheet）。fetch 走 HTTP
+            // 缓存，各场景首拉全部命中本地缓存不占网络。
             const uiData = await loadUi(ctx.ctx); // 命中缓存
             // 帧去重感知（2026-11-25 stream-dedup）：槽位经 map 映射到磁盘帧号，
             // 同一文件只拉一次（去重后多槽位共享同帧；FrameStream blob 同 URL 命中）
@@ -114,9 +113,8 @@ export class GameLoadingScene implements Scene {
             const push = (u: string) => {
               if (!frames.includes(u)) frames.push(u);
             };
-            for (let i = uiData.logo.from; i <= uiData.logo.frames; i++) {
-              push(urlOf(uiData.logo, i));
-            }
+            // logo tween 化（DESIGN §4.8）：单贴图替代帧流
+            frames.push(`${ASSETS}/${uiData.logo.tween.texture}`);
             for (const [dir, m] of [
               [uiData.title.dir, uiData.title.map],
               [uiData.title.topDir, uiData.title.topMap],

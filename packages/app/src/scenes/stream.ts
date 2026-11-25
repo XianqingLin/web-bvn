@@ -14,7 +14,7 @@ import { loadSheetFrames, type StreamSheetSpec } from '@bvn/render';
 import { ASSETS } from '../data.js';
 
 export interface StreamSpec {
-  /** assets/ 下帧目录（如 'ui/logo'） */
+  /** assets/ 下帧目录（如 'ui/title'） */
   dir: string;
   /** 帧总数（PNG/WebP 序号 1..frames） */
   frames: number;

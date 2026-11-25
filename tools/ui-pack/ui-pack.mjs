@@ -16,7 +16,7 @@
  *       放置 keys（placementSegments）写进 baked ui.json title.fx；
  *   2c. common_ui.swf -export sprite → mc_wzbtn 按钮板 388×75 + wzimg_bgimg hover 帧两帧
  *       → assets/ui/menu/；
- *   2d. common_ui.swf sprite 26（logo_movie）66 帧 → assets/ui/logo/<n>.webp（开场徽标演出）；
+ *   2f. common_ui.swf sprite 26（logo_movie）→ assets/ui/logo-tween/base.webp（开场徽标演出，单贴图 + alpha 补间）；
  *   2e. setting 底板（设置面板切片，2026-11-24）：原版 setting.swf 未独立存在于参考仓库
  *       （swfs/ 仅 common_ui/gameover/howtoplay/select/title），但主程序 FighterTester.swf
  *       把整套 UI SWF 作为 [Embed] ByteArray 打包（SymbolClass setting_swf$<md5>ByteArray
@@ -53,6 +53,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import sharp from 'sharp';
 import { parseSwfXml, removePlacements, contentBounds, placementSegments } from './swf-nest.mjs';
+import { extractLogoTween } from './logo-tween.mjs';
 
 const args = process.argv.slice(2);
 const opt = (name, dflt) => {
@@ -856,21 +857,6 @@ mkdirSync(menuDir, { recursive: true });
   }
 }
 
-// ---------- 3d. logo 开场徽标流帧 → assets/ui/logo/<n>.webp ----------
-const logoDir = join(OUT_ASSETS, 'logo');
-rmSync(logoDir, { recursive: true, force: true });
-mkdirSync(logoDir, { recursive: true });
-{
-  const spriteDir = findSpriteDir(join(SCRATCH, 'menu'), LOGO.spriteId, 'common_ui.swf logo_movie');
-  const frames = readdirSync(spriteDir).filter((f) => f.endsWith('.png'));
-  if (frames.length !== LOGO.frames) {
-    throw new Error(`logo_movie 帧数变化：${frames.length} ≠ ${LOGO.frames}（规格须同步更新）`);
-  }
-  for (let i = 1; i <= LOGO.frames; i++) {
-    await sharp(join(spriteDir, `${i}.png`)).webp({ quality: 80 }).toFile(join(logoDir, `${i}.webp`));
-  }
-}
-
 // ---------- 3e. setting 底板（设置面板切片：FighterTester.swf 内嵌 setting.swf 抽取） ----------
 let settingPlate = null;
 {
@@ -932,6 +918,30 @@ let settingPlate = null;
 
   settingPlate = { dir: 'ui/setting', frames: 1, stageOriginInFrame: origin, arrows };
   console.log(`setting 底板：${SETTING.plate} 1 帧 画布 union [${cb.minX.toFixed(1)},${cb.minY.toFixed(1)}..${cb.maxX.toFixed(1)},${cb.maxY.toFixed(1)}] origin [${origin}] → assets/ui/setting/1.webp`);
+}
+
+// ---------- 3f. logo 补间化（Tier 2，DESIGN §4.8）：单贴图 + alpha 补间 ----------
+// logo_movie 实为两层：d1 白矩形铺满舞台（帧 1..65 常驻、末帧移除）+ d2 logo 图形逐帧
+// CXFORM 白↔本色灰度互补渐变（mult+add ≡ 1，alpha 恒 1，无 blend mode）。互补渐变作用于
+// 压平合成帧与「白底上 alpha 淡入淡出」逐像素同式 → 恒等定格帧（帧 20）单贴图 +
+// CXFORM 导出的 alpha 关键帧补间忠实还原；参数提取与断言见 logo-tween.mjs。
+// 逐帧流烘焙已停（2026-11-25 目检通过收编）；取帧源 = FFDec sprite 导出 PNG（common.xml
+// 由 3e 的 swf2xml 生成，本段须在其后）。
+let logoTween = null;
+{
+  const tween = extractLogoTween(readFileSync(join(SCRATCH, 'common.xml'), 'utf8'), {
+    spriteId: LOGO.spriteId,
+    frames: LOGO.frames,
+    logoChar: 19,
+    bgChar: 17,
+  });
+  const outTweenDir = join(OUT_ASSETS, 'logo-tween');
+  rmSync(outTweenDir, { recursive: true, force: true });
+  mkdirSync(outTweenDir, { recursive: true });
+  const src = join(findSpriteDir(join(SCRATCH, 'menu'), LOGO.spriteId, 'common_ui.swf logo_movie'), `${tween.texFrame}.png`);
+  await sharp(src).webp({ quality: 80 }).toFile(join(outTweenDir, 'base.webp'));
+  logoTween = { texture: 'ui/logo-tween/base.webp', keys: tween.keys };
+  console.log(`logo tween：帧 ${tween.texFrame} 单贴图 + ${tween.keys.length} 关键帧 [${tween.keys.map(([f, a]) => `${f}:${a}`).join(', ')}] → assets/ui/logo-tween/base.webp`);
 }
 
 // ---------- 4. 地图缩略图 → assets/ui/maps/ ----------
@@ -1017,12 +1027,14 @@ const doc = {
   },
   // ---- 切片 29：logo 开场徽标演出（原版 LogoStage：gotoAndPlay(2) 播到帧 66 COMPLETE） ----
   logo: {
-    dir: 'ui/logo',
     frames: LOGO.frames,
     fps: LOGO.fps,
     from: LOGO.from,
     stop: LOGO.stop,
     stageOriginInFrame: LOGO.stageOriginInFrame,
+    // Tier 2 tween 化（DESIGN §4.8）：单贴图 + alpha 关键帧补间（2026-11-25 目检通过收编，
+    // 逐帧流已停烘）
+    tween: logoTween,
   },
   // ---- 设置面板切片：原版 stg_set_ui 单帧静态板（背景 + OPTION 标题 + 一护立绘） ----
   setting: settingPlate,

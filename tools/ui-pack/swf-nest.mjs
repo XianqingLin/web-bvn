@@ -21,7 +21,8 @@
  *   frameRate: number,
  * }}
  * sprites.frames[i] = 帧 i+1 的 depth → 放置表；placement = null（移除）或
- * { charId:number, x,y (px), sx,sy, alpha (0..1|null=1) }。
+ * { charId:number, x,y (px), sx,sy, alpha (0..1|null=1), ct? (CXFORMWITHALPHA 的 RGB
+ *   mult/add，0..1；仅在该帧带色变换 item 时写入，move-only 更新随放置延续) }。
  * 显示列表跨帧持久：move-only 事件合并进原放置（不可变替换），快照即当时状态。
  */
 export function parseSwfXml(xml) {
@@ -84,6 +85,18 @@ export function parseSwfXml(xml) {
           if (ctAttrs !== undefined) {
             const mult = attr(ctAttrs, 'alphaMultTerm');
             next.alpha = mult == null ? null : +mult / 256;
+            // RGB mult/add（mult 8.8 定点 /256，add 整数 /255；hasMult/AddTerms=false = 恒等段）。
+            // logo 显影类 CXFORM 渐变（灰度互补）由此读出；仅 alpha 关心的消费方可忽略。
+            const hasM = attr(ctAttrs, 'hasMultTerms') === 'true';
+            const hasA = attr(ctAttrs, 'hasAddTerms') === 'true';
+            next.ct = {
+              mr: hasM ? +(attr(ctAttrs, 'redMultTerm') || 256) / 256 : 1,
+              mg: hasM ? +(attr(ctAttrs, 'greenMultTerm') || 256) / 256 : 1,
+              mb: hasM ? +(attr(ctAttrs, 'blueMultTerm') || 256) / 256 : 1,
+              ar: hasA ? +(attr(ctAttrs, 'redAddTerm') || 0) / 255 : 0,
+              ag: hasA ? +(attr(ctAttrs, 'greenAddTerm') || 0) / 255 : 0,
+              ab: hasA ? +(attr(ctAttrs, 'blueAddTerm') || 0) / 255 : 0,
+            };
           }
           top.sp.state[top.pendingDepth] = next;
         }

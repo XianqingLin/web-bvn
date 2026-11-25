@@ -158,16 +158,18 @@ export interface UiData {
     cnTextPos: [number, number];
     versionPad: [number, number];
   };
-  /** 切片 29：logo 开场徽标演出（原版 LogoStage：gotoAndPlay(2) 播到帧 66 COMPLETE → 进菜单） */
+  /** 切片 29：logo 开场徽标演出（原版 LogoStage：gotoAndPlay(2) 播到帧 66 COMPLETE → 进菜单）。
+   *  Tier 2 tween 化（DESIGN §4.8）：逐帧流已收编为单贴图 + alpha 关键帧补间。 */
   logo: {
-    dir: string;
     frames: number;
     fps: number;
     from: number;
     stop: number;
     stageOriginInFrame: [number, number];
-    /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号） */
-    map?: number[];
+    /** 单贴图（恒等定格帧白底合成，assets/ 下路径）+ alpha 关键帧 [帧号(1 起), alpha]
+     *  线性插值——从 SWF logo_movie d2 CXFORM 白↔本色互补渐变导出（α = mult/256；
+     *  互补渐变作用于压平合成帧与白底上 alpha 淡入淡出逐像素同式）。 */
+    tween: { texture: string; keys: [number, number][] };
   };
   /** 设置面板切片：原版 stg_set_ui 单帧静态板（暗化标题版画背景 + OPTION 标题 + 一护立绘；
    *  板画布 = 内容 union，立绘出血越出 800×600 舞台 → 运行时挂 舞台-origin 并裁剪到舞台矩形） */
