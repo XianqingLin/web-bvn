@@ -364,8 +364,20 @@ export class MenuScene implements Scene {
 
     // 流帧：底/顶双板同帧号锁步，预取头几帧后开播
     this.streams = [
-      new FrameStream({ dir: t.dir, frames: t.frames, from: t.introFrom, to: t.menuStop }),
-      new FrameStream({ dir: t.topDir, frames: t.frames, from: t.introFrom, to: t.menuStop }),
+      new FrameStream({
+        dir: t.dir,
+        frames: t.frames,
+        from: t.introFrom,
+        to: t.menuStop,
+        ...(t.map ? { map: t.map } : {}),
+      }),
+      new FrameStream({
+        dir: t.topDir,
+        frames: t.frames,
+        from: t.introFrom,
+        to: t.menuStop,
+        ...(t.topMap ? { map: t.topMap } : {}),
+      }),
     ];
     for (const s of this.streams) s.ensure(t.introFrom, 5);
     await this.waitPlates(t.introFrom, 4);

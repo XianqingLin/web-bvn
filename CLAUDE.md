@@ -19,7 +19,7 @@
 - 输入只以 ButtonMask 位图进 sim；相机不进模拟（牵引边界代替）；
 - 角色差异进 JSON 数据，不进引擎分支；
 - 完工门禁：build 过、确定性单测过、`tools/replay` 哈希门禁过、`pnpm batch:validate` 基线门禁过；
-- 资产管线收尾：任何 pack 工具重跑后必须执行 `pnpm assets:finalize`（webp-convert → atlas-dedup → atlas-dedup-sheets，顺序固定），漏跑会让重复 sheet 重新膨胀约 120MB。
+- 资产管线收尾：任何 pack 工具重跑后必须执行 `pnpm assets:finalize`（webp-convert → dedup-stream → atlas-dedup → atlas-dedup-sheets，顺序固定），漏跑会让重复 sheet 重新膨胀约 120MB；ui-pack 重跑后还须先 `tools/stream-sheet --ui` 前置 `assets:dedup-stream`（去重映射先于拼图）；`packages/data/assets/` 不入库，删除帧文件不可用 git 恢复（权威源：ui-pack 从 `tools/ui-pack/_scratch` 的 FFDec 导出重烘，或线上 R2 回拉）。
 
 ## 项目定位
 

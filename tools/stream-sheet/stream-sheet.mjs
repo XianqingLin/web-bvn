@@ -43,13 +43,16 @@ const ROOT = resolve(import.meta.dirname, '../..');
 const ASSETS = join(ROOT, 'packages', 'data', 'assets');
 const BAKED = join(ROOT, 'packages', 'data', 'baked');
 
+/** 连续帧号列表 1..n（无去重流的 packStream 入参）。 */
+const range = (n) => Array.from({ length: n }, (_, k) => k + 1);
+
 // 与 tools/webp-convert.mjs 同参数（q85/effort5/smartSubsample，alpha 无损）
 const WEBP_OPTS = { quality: 85, effort: 5, smartSubsample: true };
 
-/** 实测某流全部帧尺寸（统一画布校验 + 超限校验），返回 [w, h]。 */
-async function frameSize(dir, frames) {
+/** 实测某流全部帧尺寸（统一画布校验 + 超限校验），返回 [w, h]。帧列表显式传入（去重后非连续）。 */
+async function frameSize(dir, frameList) {
   let size = null;
-  for (let i = 1; i <= frames; i++) {
+  for (const i of frameList) {
     const m = await sharp(join(ASSETS, dir, `${i}.webp`)).metadata();
     if (!size) {
       size = [m.width, m.height];
@@ -58,7 +61,7 @@ async function frameSize(dir, frames) {
       }
     } else if (size[0] !== m.width || size[1] !== m.height) {
       throw new Error(
-        `${dir}: 帧 ${i} 尺寸 ${m.width}x${m.height} ≠ 帧 1 ${size[0]}x${size[1]}（非统一画布，拼图前提失效）`,
+        `${dir}: 帧 ${i} 尺寸 ${m.width}x${m.height} ≠ 帧 ${frameList[0]} ${size[0]}x${size[1]}（非统一画布，拼图前提失效）`,
       );
     }
   }
@@ -86,8 +89,8 @@ function layout(frames, w, h) {
   return { sheets, cols };
 }
 
-/** 合成并写出全部 sheet，返回 [{ file, sheetIdx, cells: [x, y][] }]。 */
-async function compose(dir, layouted, w, h) {
+/** 合成并写出全部 sheet，返回 [{ file, sheetIdx, cells: [x, y][] }]。frameList 为升序唯一帧号。 */
+async function compose(dir, layouted, w, h, frameList) {
   const out = [];
   for (let s = 0; s < layouted.sheets.length; s++) {
     const spec = layouted.sheets[s];
@@ -100,7 +103,7 @@ async function compose(dir, layouted, w, h) {
       const x = c * (w + GUT);
       const y = r * (h + GUT);
       cells.push([x, y]);
-      const buf = await sharp(join(ASSETS, dir, `${spec.frames[k]}.webp`)).png().toBuffer();
+      const buf = await sharp(join(ASSETS, dir, `${frameList[spec.frames[k] - 1]}.webp`)).png().toBuffer();
       comps.push({ input: buf, left: x, top: y });
     }
     if (!DRY) {
@@ -116,17 +119,18 @@ async function compose(dir, layouted, w, h) {
   return out;
 }
 
-/** 单流拼图：校验 → 布局 → 合成 → 清单，返回 { sheets, cell, cells }（render StreamSheetSpec 形状）。 */
-async function packStream(label, dir, frames) {
-  const [w, h] = await frameSize(dir, frames);
-  const layouted = layout(frames, w, h);
-  const composed = await compose(dir, layouted, w, h);
+/** 单流拼图：校验 → 布局 → 合成 → 清单，返回 { sheets, cell, cells }（render StreamSheetSpec 形状）。
+ *  frameList = 升序唯一帧号（无去重时即 1..frames 连续）；cells[i] 对应 frameList[i]。 */
+async function packStream(label, dir, frameList) {
+  const [w, h] = await frameSize(dir, frameList);
+  const layouted = layout(frameList.length, w, h);
+  const composed = await compose(dir, layouted, w, h, frameList);
   let bytes = 0;
   if (!DRY) {
     for (const c of composed) bytes += statSync(join(ASSETS, dir, c.file)).size;
   }
   console.log(
-    `${label}: ${frames} 帧 ${w}x${h} → ${composed.length} sheet` +
+    `${label}: ${frameList.length} 帧 ${w}x${h} → ${composed.length} sheet` +
       (DRY ? '' : `（${(bytes / 1024).toFixed(0)}KB）`),
   );
   return {
@@ -136,18 +140,47 @@ async function packStream(label, dir, frames) {
   };
 }
 
+/**
+ * --ui 模式（2026-11-25）：主菜单 title fx 叠加层拼图。ui-pack 逐帧烘出
+ * ui/title-fx/<char>/*.webp（444 文件，启动预热 444 请求 + 播放期逐帧解码/上传
+ * churn），此处按同款货架拼成 sheet 并把清单写进 ui.json title.fx.elements
+ * （schema 升 @9；逐帧文件保留，旧客户端/无清单回退仍走逐帧）。
+ * 链式纪律与 hitspark/bisha 相同：须在 ui-pack 产出散图之后运行。
+ * 帧去重（stream-dedup）在其前：el.map 存在时只拼唯一帧（cells 按升序唯一帧
+ * 排列，运行时按槽位→帧号→cell 名次寻址）。
+ */
+async function uiMode() {
+  const path = join(BAKED, 'ui.json');
+  const ui = JSON.parse(readFileSync(path, 'utf8'));
+  for (const [char, el] of Object.entries(ui.title.fx.elements)) {
+    // 帧去重感知（2026-11-25 stream-dedup 产物）：el.map 存在时磁盘只剩唯一帧，
+    // 只拼 map 引用的唯一帧（升序），运行时 SheetFrameStream 按槽位→帧号→cell 序号寻址
+    const list = el.map
+      ? [...new Set(el.map)].sort((a, b) => a - b)
+      : Array.from({ length: el.frames }, (_, k) => k + 1);
+    el.sheets = await packStream(`ui/title-fx/${char}`, el.dir, list);
+  }
+  if (ui.schema === 'bvn/ui@9') ui.schema = 'bvn/ui@10';
+  if (!DRY) writeFileSync(path, JSON.stringify(ui));
+}
+
 async function main() {
+  if (args.includes('--ui')) {
+    await uiMode();
+    console.log(DRY ? 'dry-run 完成（未写文件）' : '完成');
+    return;
+  }
   const hitsparkPath = join(BAKED, 'hitspark.json');
   const bishaPath = join(BAKED, 'bisha.json');
   const hitspark = JSON.parse(readFileSync(hitsparkPath, 'utf8'));
   const bisha = JSON.parse(readFileSync(bishaPath, 'utf8'));
 
   for (const [id, e] of Object.entries(hitspark.effects)) {
-    e.sheets = await packStream(`hitspark/${id}`, e.dir, e.frames);
+    e.sheets = await packStream(`hitspark/${id}`, e.dir, range(e.frames));
   }
-  bisha.mc.sheets = await packStream('bisha/mc', bisha.mc.dir, bisha.mc.frames);
+  bisha.mc.sheets = await packStream('bisha/mc', bisha.mc.dir, range(bisha.mc.frames));
   for (const [id, e] of Object.entries(bisha.effects)) {
-    e.sheets = await packStream(`bisha/${id}`, e.dir, e.frames);
+    e.sheets = await packStream(`bisha/${id}`, e.dir, range(e.frames));
   }
 
   // schema 升版（结构变更：流帧拼图清单；旧字段全保留，逐帧回退路径仍有效）

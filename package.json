@@ -12,9 +12,10 @@
     "export:all": "node tools/exporter/dist/main.js batch --xfl-root OpenBleachVsNaruto/swf_source --out-dir packages/data/baked --fighter-xml OpenBleachVsNaruto/swf_output/assets/config/fighter.xml",
     "dev:net": "node tools/dev-net.mjs",
     "assets:webp": "node tools/webp-convert.mjs",
+    "assets:dedup-stream": "node tools/stream-dedup/stream-dedup.mjs",
     "assets:dedup": "node tools/atlas-dedup.mjs",
     "assets:dedup-sheets": "node tools/atlas-dedup-sheets.mjs",
-    "assets:finalize": "pnpm assets:webp && pnpm assets:dedup && pnpm assets:dedup-sheets"
+    "assets:finalize": "pnpm assets:webp && pnpm assets:dedup-stream && pnpm assets:dedup && pnpm assets:dedup-sheets"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -43,7 +43,12 @@ export class LogoScene implements Scene {
     this.frameSprite = sprite;
     ctx.root.addChild(sprite);
 
-    this.stream = new FrameStream({ dir: logo.dir, frames: logo.frames, from: logo.from });
+    this.stream = new FrameStream({
+      dir: logo.dir,
+      frames: logo.frames,
+      from: logo.from,
+      ...(logo.map ? { map: logo.map } : {}),
+    });
     this.stream.ensure(logo.from, 5);
     // 等首帧就绪再开播（黑底期间）
     for (;;) {

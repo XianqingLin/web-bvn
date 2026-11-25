@@ -14,7 +14,7 @@
  * 同元件多实例（光斑 40×4）共享一条 FrameStream（纹理去重）。
  */
 import { Container, Sprite } from 'pixi.js';
-import { FrameStream } from './stream.js';
+import { FrameStream, SheetFrameStream } from './stream.js';
 
 export interface TitleFxElement {
   dir: string;
@@ -24,6 +24,10 @@ export interface TitleFxElement {
   size: [number, number];
   /** 内容 union 左上（元件局部坐标；PNG 画布原点） */
   origin: [number, number];
+  /** 流帧拼图清单（tools/stream-sheet --ui 产物，2026-11-25）；缺省 = 逐帧回退 */
+  sheets?: import('@bvn/render').StreamSheetSpec;
+  /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号）；缺省恒等 */
+  map?: number[];
 }
 
 export interface TitleFxInstance {
@@ -39,7 +43,7 @@ interface Layer {
   readonly sprite: Sprite;
   readonly el: TitleFxElement;
   readonly inst: TitleFxInstance;
-  readonly stream: FrameStream;
+  readonly stream: FrameStream | SheetFrameStream;
   /** 内部播放头（帧，浮点累加） */
   play: number;
   wasVisible: boolean;
@@ -54,7 +58,7 @@ const keyAt = (inst: TitleFxInstance, plateFrame: number) => {
 export class TitleFxLayer {
   readonly ui = new Container();
   private readonly layers: Layer[] = [];
-  private readonly streams: FrameStream[] = [];
+  private readonly streams: (FrameStream | SheetFrameStream)[] = [];
   private disposed = false;
 
   constructor(
@@ -63,16 +67,24 @@ export class TitleFxLayer {
     /** 场景级偏移（舞台 800×600 在逻辑屏内的 OX）；y 恒 0（stg_title (0,0)=舞台 (0,0)） */
     private readonly stageOffset: [number, number],
   ) {
-    const streamByDir = new Map<string, FrameStream>();
+    const streamByDir = new Map<string, FrameStream | SheetFrameStream>();
     for (const inst of [...instances].sort((a, b) => a.depth - b.depth)) {
       const el = elements[String(inst.char)];
       if (!el) throw new Error(`title fx 元件 ${inst.char} 缺帧序规格`);
       let stream = streamByDir.get(el.dir);
       if (!stream) {
-        // lazy：构造期不全量预取（10 条流 ~350 请求会打满 HTTP 连接池，
-        // 把同场景按钮贴图/板首帧压到队尾——切片 46 实测 4.4s 黑屏根因）；
-        // 帧按播放进度 ensure 逐帧拉（游戏内 HTTP 缓存已由装载页预热）
-        stream = new FrameStream({ dir: el.dir, frames: el.frames, lazy: true });
+        // 拼图清单优先（2026-11-25）：sheet 纹理常驻 + cell quad，零逐帧解码/上传；
+        // 无清单回退逐帧 FrameStream（lazy：构造期不全量预取——10 条流 ~350 请求
+        // 会打满 HTTP 连接池，把同场景按钮贴图/板首帧压到队尾——切片 46 实测 4.4s
+        // 黑屏根因；帧按播放进度 ensure 逐帧拉）
+        stream = el.sheets
+          ? new SheetFrameStream({
+              dir: el.dir,
+              frames: el.frames,
+              sheets: el.sheets,
+              ...(el.map ? { map: el.map } : {}),
+            })
+          : new FrameStream({ dir: el.dir, frames: el.frames, lazy: true, ...(el.map ? { map: el.map } : {}) });
         streamByDir.set(el.dir, stream);
         this.streams.push(stream);
       }
@@ -83,8 +95,8 @@ export class TitleFxLayer {
     }
   }
 
-  /** 元件流列表（game-loading 预载用：全帧 blob 预下载）。 */
-  elementStreams(): FrameStream[] {
+  /** 元件流列表（game-loading 预载用：拼图 sheet blob 预下载）。 */
+  elementStreams(): (FrameStream | SheetFrameStream)[] {
     return this.streams;
   }
 

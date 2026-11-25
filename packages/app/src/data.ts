@@ -47,7 +47,7 @@ export function loadSelect(ctx: Ctx): Promise<SelectData> {
   return ctx.assets.json<SelectData>(`${BAKED}/select.json`);
 }
 
-// ---------- ui.json（tools/ui-pack 产物，schema bvn/ui@8，切片 15/45/46/设置面板切片） ----------
+// ---------- ui.json（tools/ui-pack 产物 + tools/stream-sheet --ui 拼图清单 + tools/stream-dedup 帧去重；schema bvn/ui@8，拼图后 @9，帧去重后 @10；切片 15/45/46/设置面板切片） ----------
 
 export interface UiSelectData {
   elements: Record<string, string>;
@@ -71,7 +71,8 @@ export interface UiSelectData {
     gridPadding: { left: number; right: number; top: number; bottom: number };
     unit: [number, number];
   };
-  /** 切片 45：旋涡背景叠加层（pos = stg_select.png 内锚点 px，scale 拉伸；红通道烘焙期清零） */
+  /** 切片 45：旋涡背景叠加层（pos = stg_select.png 内锚点 px，scale 拉伸；红通道烘焙期清零）
+   *  map = 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号），下同 */
   vortex: {
     char: number;
     dir: string;
@@ -80,6 +81,7 @@ export interface UiSelectData {
     size: [number, number];
     pos: [number, number];
     scale: [number, number];
+    map?: number[];
   } | null;
   /** 切片 45：地图面板 fx（pos = select_map.png 内锚点；scale[0]<0 = 镜像，锚点为可见区右缘） */
   mapFx: {
@@ -91,6 +93,7 @@ export interface UiSelectData {
     size: [number, number];
     pos: [number, number];
     scale: [number, number];
+    map?: number[];
   }[];
 }
 
@@ -107,6 +110,9 @@ export interface UiData {
     topDir: string;
     frames: number;
     fps: number;
+    /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号；底/顶板各一份） */
+    map?: number[];
+    topMap?: number[];
     /** 板画布原点（板各自内容 union 左上 ≠ 原板，运行时按各自原点挂载） */
     stageOriginInFrame: [number, number];
     topStageOriginInFrame: [number, number];
@@ -114,11 +120,21 @@ export interface UiData {
     introStop: number;
     menuFrame: number;
     menuStop: number;
-    /** fx 叠加层（2026-11-24 纯构造，见 ui-pack 3b 头注） */
+    /** fx 叠加层（2026-11-24 纯构造，见 ui-pack 3b 头注；2026-11-25 增流帧拼图清单） */
     fx: {
       elements: Record<
         string,
-        { dir: string; frames: number; fps: number; size: [number, number]; origin: [number, number] }
+        {
+          dir: string;
+          frames: number;
+          fps: number;
+          size: [number, number];
+          origin: [number, number];
+          /** 流帧拼图清单（tools/stream-sheet --ui 产物）；缺省 = 无清单，走逐帧回退 */
+          sheets?: import('@bvn/render').StreamSheetSpec;
+          /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号） */
+          map?: number[];
+        }
       >;
       instances: {
         char: number;
@@ -150,6 +166,8 @@ export interface UiData {
     from: number;
     stop: number;
     stageOriginInFrame: [number, number];
+    /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号） */
+    map?: number[];
   };
   /** 设置面板切片：原版 stg_set_ui 单帧静态板（暗化标题版画背景 + OPTION 标题 + 一护立绘；
    *  板画布 = 内容 union，立绘出血越出 800×600 舞台 → 运行时挂 舞台-origin 并裁剪到舞台矩形） */

@@ -100,21 +100,37 @@ export class GameLoadingScene implements Scene {
           run: async (fine) => {
             // logo/title 三层夹心全量预载（切片 46）；区间与各场景 FrameStream 消费
             // 区间一致（logo [from..frames] / title 底顶双板 [introFrom..menuStop]，
-            // 76-90 从不显示不拉 / fx 元件全帧循环）。fetch 走 HTTP 缓存，Logo/菜单
-            // FrameStream 首拉全部命中本地缓存不占网络。
+            // 76-90 从不显示不拉 / fx 元件 sheet 全量（2026-11-25 拼图，444 逐帧文件
+            // → 10 sheet）。fetch 走 HTTP 缓存，Logo/菜单 FrameStream/SheetFrameStream
+            // 首拉全部命中本地缓存不占网络。
             const uiData = await loadUi(ctx.ctx); // 命中缓存
+            // 帧去重感知（2026-11-25 stream-dedup）：槽位经 map 映射到磁盘帧号，
+            // 同一文件只拉一次（去重后多槽位共享同帧；FrameStream blob 同 URL 命中）
+            const urlOf = (spec: { dir: string; map?: number[] }, slot: number) => {
+              const f = spec.map ? spec.map[slot - 1]! : slot;
+              return `${ASSETS}/${spec.dir}/${f}.webp`;
+            };
             const frames: string[] = [];
+            const push = (u: string) => {
+              if (!frames.includes(u)) frames.push(u);
+            };
             for (let i = uiData.logo.from; i <= uiData.logo.frames; i++) {
-              frames.push(`${ASSETS}/${uiData.logo.dir}/${i}.webp`);
+              push(urlOf(uiData.logo, i));
             }
-            for (const dir of [uiData.title.dir, uiData.title.topDir]) {
+            for (const [dir, m] of [
+              [uiData.title.dir, uiData.title.map],
+              [uiData.title.topDir, uiData.title.topMap],
+            ] as const) {
               for (let i = uiData.title.introFrom; i <= uiData.title.menuStop; i++) {
-                frames.push(`${ASSETS}/${dir}/${i}.webp`);
+                push(urlOf({ dir, ...(m ? { map: m } : {}) }, i));
               }
             }
             for (const el of Object.values(uiData.title.fx.elements)) {
-              for (let i = 1; i <= el.frames; i++) {
-                frames.push(`${ASSETS}/${el.dir}/${i}.webp`);
+              // 拼图清单优先（2026-11-25）：444 个逐帧文件 → 10 张 sheet
+              if (el.sheets) {
+                for (const s of el.sheets.sheets) frames.push(`${ASSETS}/${el.dir}/${s}`);
+              } else {
+                for (let i = 1; i <= el.frames; i++) push(urlOf(el, i));
               }
             }
             // 并发受限逐帧下载 + 逐帧回报：进度条持续走动（与 render loadTextures 同构）

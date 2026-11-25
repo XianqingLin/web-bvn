@@ -31,6 +31,8 @@ export interface FxSpec {
   fps: number;
   /** 裁剪帧尺寸（px） */
   size: [number, number];
+  /** 帧去重映射（tools/stream-dedup：槽位 → 磁盘帧号）；缺省恒等 */
+  map?: number[];
 }
 
 /** 板帧 → 本实例渲染状态（坐标 = 场景最终屏幕位，含 OX 偏移与 origin 换算；null = 隐藏）。 */
@@ -55,7 +57,7 @@ export class OverlayFx {
     this.ui.visible = false;
     this.fps = spec.fps;
     this.frames = spec.frames;
-    this.stream = new FrameStream({ dir: spec.dir, frames: spec.frames });
+    this.stream = new FrameStream({ dir: spec.dir, frames: spec.frames, ...(spec.map ? { map: spec.map } : {}) });
   }
 
   /** 预热首帧（场景 enter 时调用，避免首次显示白块）。 */

@@ -10,6 +10,7 @@
  * 同目录新流零重取（回菜单即时开播）；lazy 流（叠加层小流）构造期不点火预取。
  */
 import { ImageSource, Texture } from 'pixi.js';
+import { loadSheetFrames, type StreamSheetSpec } from '@bvn/render';
 import { ASSETS } from '../data.js';
 
 export interface StreamSpec {
@@ -26,16 +27,22 @@ export interface StreamSpec {
    *  供叠加层类小流用：多条流构造期同时全量预取会打满 HTTP 连接池，
    *  把同场景紧随其后的其它请求（贴图/板首帧）压到队尾（切片 46 实测 4.4s）。 */
   lazy?: boolean;
+  /** 帧去重映射（tools/stream-dedup 产物）：播放头槽位（1-based）→ 磁盘帧号。
+   *  播放头时序语义不变（frames 仍为槽位总数），仅文件寻址经此映射；
+   *  缺省恒等（无去重流 / 旧清单兼容）。 */
+  map?: number[];
 }
 
 /** 跨实例共享 blob 缓存（URL → fetch promise）：装载页预载过 / 上一场景流释放后，
  *  同目录新流零重取（2026-11-24 切片 46：回菜单即时开播，blob 仅压缩字节 ~15MB 级）。 */
 const blobCache = new Map<string, Promise<Blob | null>>();
 
+/** 失败冷却（FrameStream/SheetFrameStream 共用）：冷却期内 failed(i)=true，过后重试。 */
+const RETRY_COOLDOWN_MS = 2000;
+
 export class FrameStream {
   /** 失败冷却：冷却期内 failed(i)=true（播放头"视为已过"防卡死），冷却过允许重试；
    *  累计失败达上限后永久视为失败（真坏帧不无限重试）。 */
-  private static readonly RETRY_COOLDOWN_MS = 2000;
   private static readonly RETRY_MAX = 5;
   /** 解码纹理（小窗常驻，release 逐出） */
   private readonly cache = new Map<number, Texture>();
@@ -68,7 +75,7 @@ export class FrameStream {
   failed(i: number): boolean {
     return this.failedCount.has(i)
       && (this.failedCount.get(i)! >= FrameStream.RETRY_MAX
-        || Date.now() - this.failedAt.get(i)! < FrameStream.RETRY_COOLDOWN_MS);
+        || Date.now() - this.failedAt.get(i)! < RETRY_COOLDOWN_MS);
   }
 
   /** 达到重试上限的永久失败帧——等待循环据此放弃（防永久卡死）。 */
@@ -136,7 +143,9 @@ export class FrameStream {
   }
 
   private blob(i: number): Promise<Blob | null> {
-    const url = `${ASSETS}/${this.info.dir}/${i}.webp`;
+    // 槽位 → 磁盘帧号（stream-dedup 去重映射；恒等映射时同值）
+    const f = this.info.map ? this.info.map[i - 1]! : i;
+    const url = `${ASSETS}/${this.info.dir}/${f}.webp`;
     let p = blobCache.get(url);
     if (!p) {
       p = fetch(url)
@@ -153,5 +162,73 @@ export class FrameStream {
       blobCache.set(url, p);
     }
     return p;
+  }
+}
+
+/**
+ * 拼图流帧源（StreamSheetSpec 清单；render loadSheetFrames 同构消费）。
+ * 对比 FrameStream 的大图逐帧churn（blob→ImageBitmap 解码→整帧 GPU 上传→
+ * release 销毁），sheet 纹理由 Assets 一次性装载常驻，逐帧 = sheet 上 cell
+ * 尺寸的 quad（Texture.frame）——**零逐帧解码、零逐帧上传、零逐帧销毁**；
+ * 小 sheet 总显存 ≈ 各帧像素和，全量常驻可行（title-fx 10 sheet ≈ 86MB 像素）。
+ * 表面与 FrameStream 对齐（ensure/get/failed/release/dispose），消费端可互换。
+ * 整流一次装载：失败进 RETRY_COOLDOWN_MS 冷却，ensure 逐 tick 被触碰天然重试。
+ */
+export class SheetFrameStream {
+  private textures: Texture[] | null = null;
+  private loading = false;
+  private failedAt = 0;
+  private dead = false;
+  /** 槽位（1-based）→ cell 序号：map 指向磁盘帧号，sheet cells 按升序唯一帧
+   *  排列（stream-sheet 产出保证），序号 = 唯一帧列表中的名次；恒等映射时 null。 */
+  private readonly cellOfSlot: number[] | null;
+
+  constructor(
+    private readonly info: { dir: string; frames: number; sheets: StreamSheetSpec; map?: number[] },
+  ) {
+    if (info.map) {
+      const uniq = [...new Set(info.map)].sort((a, b) => a - b);
+      this.cellOfSlot = info.map.map((f) => uniq.indexOf(f));
+    } else {
+      this.cellOfSlot = null;
+    }
+  }
+
+  ensure(_i: number, _ahead = 5): boolean {
+    if (this.textures || this.dead) return this.textures !== null;
+    if (!this.loading && Date.now() - this.failedAt >= RETRY_COOLDOWN_MS) {
+      this.loading = true;
+      // cells 数 = 唯一帧数（去重后 < frames）；槽位寻址在 get 里经 cellOfSlot
+      void loadSheetFrames(ASSETS, this.info.dir, this.info.sheets, this.info.sheets.cells.length)
+        .then((t) => {
+          this.textures = t;
+        })
+        .catch(() => {
+          this.failedAt = Date.now();
+        })
+        .finally(() => {
+          this.loading = false;
+        });
+    }
+    return this.textures !== null;
+  }
+
+  get(i: number): Texture | undefined {
+    const c = this.cellOfSlot ? this.cellOfSlot[i - 1]! : i - 1;
+    return this.textures?.[c];
+  }
+
+  /** 装载失败冷却期内为 true（调用方停止逐 tick ensure 风暴）；冷却过自然重试。 */
+  failed(_i: number): boolean {
+    return this.failedAt !== 0 && Date.now() - this.failedAt < RETRY_COOLDOWN_MS;
+  }
+
+  /** quad 纹理只共享 sheet 源（毫瓦级成本），逐出无收益；blob 式小窗不适用。 */
+  release(_keep: (i: number) => boolean): void {}
+
+  /** sheet 源归 Assets 缓存管理（同其余 Assets 贴图），此处只停自身重试。 */
+  dispose(): void {
+    this.dead = true;
+    this.textures = null;
   }
 }
